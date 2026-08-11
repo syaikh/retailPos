@@ -21,6 +21,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import type { Product, Brand, TaxClass, UnitOfMeasure, ProductFormData } from '$modules/product/types';
   import { labels, t } from '$shared/i18n';
+  import { useSortable } from '$shared/composables/useSortable.svelte';
 
   const rbac = useRBAC();
 
@@ -59,8 +60,7 @@
   let supplierFilterName = $state('');
 
   let previousCategories = ['All'];
-  let sortBy = $state<string>('name');
-  let sortDir = $state<'asc' | 'desc'>('asc');
+  const { sortState, handleSort } = useSortable('name', 'asc', sortProducts);
   let showCategoryFilterModal = $state(false);
   let modalCategorySearch = $state('');
 
@@ -407,27 +407,17 @@
     });
   }
 
-  function handleSort(column: string) {
-    if (sortBy === column) {
-      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-      sortBy = column;
-      sortDir = 'asc';
-    }
-    sortProducts();
-  }
-
   function sortProducts() {
     products.sort((a, b) => {
       let aVal, bVal;
-      switch (sortBy) {
+      switch (sortState.sortBy) {
         case 'name': aVal = a.name.toLowerCase(); bVal = b.name.toLowerCase(); break;
         case 'category': aVal = (a.category_name || '').toLowerCase(); bVal = (b.category_name || '').toLowerCase(); break;
         case 'price': aVal = a.price || 0; bVal = b.price || 0; break;
         case 'stock': aVal = a.stock || 0; bVal = b.stock || 0; break;
         default: return 0;
       }
-      if (sortDir === 'asc') {
+      if (sortState.sortDir === 'asc') {
         return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       } else {
         return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
@@ -548,8 +538,8 @@
       {loading}
       {searchQuery}
       bind:selectedIds
-      bind:sortBy
-      bind:sortDir
+      sortBy={sortState.sortBy}
+      sortDir={sortState.sortDir}
       bind:showCopySuccess
       onsort={handleSort}
       canEdit={canEdit}

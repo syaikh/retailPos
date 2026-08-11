@@ -7,11 +7,12 @@
   import { Permissions } from '$shared/constants/permissions';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
   import { labels, t } from '$shared/i18n';
+  import { useSortable } from '$shared/composables/useSortable.svelte';
   import { getBrands, createBrand, updateBrand, deleteBrand } from '$modules/settings/services/settings-service';
 
   const rbac = useRBAC();
 
-  import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, SearchBar, ToggleSwitch, ConfirmDeleteModal, Pagination } from '$shared/ui';
+  import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, SearchBar, ToggleSwitch, ConfirmDeleteModal, Pagination, SortableHeader } from '$shared/ui';
   import { Plus, Pencil, Trash2, Tag, Loader2 } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -41,8 +42,36 @@
   let pageSize = $state(20);
   let page = $state(0);
   let total = $state(0);
+  const { sortState, handleSort } = useSortable('name', 'asc');
 
   let offset = $derived(page * pageSize);
+
+  let sortedBrands = $derived(
+    [...brands].sort((a, b) => {
+      let aVal, bVal;
+      switch (sortState.sortBy) {
+        case 'name':
+          aVal = (a.name || '').toLowerCase();
+          bVal = (b.name || '').toLowerCase();
+          break;
+        case 'description':
+          aVal = (a.description || '').toLowerCase();
+          bVal = (b.description || '').toLowerCase();
+          break;
+        case 'created_at':
+          aVal = new Date(a.created_at).getTime();
+          bVal = new Date(b.created_at).getTime();
+          break;
+        default:
+          return 0;
+      }
+      if (sortState.sortDir === 'asc') {
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      } else {
+        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+      }
+    })
+  );
 
   async function fetchBrands(offset = 0, limit = 20) {
     try {
@@ -210,14 +239,20 @@
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 40%;">{labels.brandName}</th>
-            <th class="text-left p-4 font-semibold w-48">{labels.description}</th>
-            <th class="text-left p-4 font-semibold w-36">{labels.createdAt}</th>
+            <th class="text-left p-4 font-semibold" style="width: 40%;">
+              <SortableHeader label={labels.brandName} column="name" sortColumn={sortState.sortBy} sortDirection={sortState.sortDir} onsort={handleSort} />
+            </th>
+            <th class="text-left p-4 font-semibold w-48">
+              <SortableHeader label={labels.description} column="description" sortColumn={sortState.sortBy} sortDirection={sortState.sortDir} onsort={handleSort} />
+            </th>
+            <th class="text-left p-4 font-semibold w-36">
+              <SortableHeader label={labels.createdAt} column="created_at" sortColumn={sortState.sortBy} sortDirection={sortState.sortDir} onsort={handleSort} />
+            </th>
             <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
           </tr>
         </thead>
         <tbody>
-          {#each brands as brand (brand.id)}
+          {#each sortedBrands as brand (brand.id)}
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
               <td class="p-4 pr-6" style="width: 40%;">
                 <div class="flex items-center gap-3">

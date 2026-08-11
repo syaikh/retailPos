@@ -162,18 +162,18 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
   });
 
   it('NILAI column is right-aligned', () => {
-    expect(src).toContain('{labels.nilai.toUpperCase()}');
+    expect(src).toContain('{labels.nilai}');
     expect(src).toContain('text-right');
   });
 
   it('has method column sortable', () => {
     expect(src).toContain('column="pricing_method"');
-    expect(src).toContain('{labels.metode.toUpperCase()}');
+    expect(src).toContain('{labels.metode}');
   });
 
   it('has status sortable column', () => {
     expect(src).toContain('column="status"');
-    expect(src).toContain('{labels.status.toUpperCase()}');
+    expect(src).toContain('{labels.status}');
   });
 
   it('loading skeleton has 5 rows', () => {

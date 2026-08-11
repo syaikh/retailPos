@@ -8,6 +8,7 @@
   import { Permissions } from '$shared/constants/permissions';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
   import { labels, t } from '$shared/i18n';
+  import { useSortable } from '$shared/composables/useSortable.svelte';
 
   const authStore = useAuthStore();
   const rbac = useRBAC();
@@ -26,8 +27,7 @@
   let selectedCategory = $state(null);
   let modalMode = $state('add');
   let saving = $state(false);
-  let sortBy = $state('name');
-  let sortDir = $state('asc');
+  const { sortState, handleSort } = useSortable('name', 'asc');
 
   let form = $state({
     name: '',
@@ -47,19 +47,10 @@ let canView = $derived(authStore.user != null);
     return formatDateInJakarta(dateStr);
   }
 
-  function handleSort(column) {
-    if (sortBy === column) {
-      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-      sortBy = column;
-      sortDir = 'asc';
-    }
-  }
-
   let sortedCategories = $derived(
     [...categories].sort((a, b) => {
       let aVal, bVal;
-      switch (sortBy) {
+      switch (sortState.sortBy) {
         case 'name':
           aVal = a.name.toLowerCase();
           bVal = b.name.toLowerCase();
@@ -79,7 +70,7 @@ let canView = $derived(authStore.user != null);
         default:
           return 0;
       }
-      if (sortDir === 'asc') {
+      if (sortState.sortDir === 'asc') {
         return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       } else {
         return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
@@ -287,16 +278,16 @@ let canView = $derived(authStore.user != null);
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold" style="width: 50%;">
-              <SortableHeader label={labels.categoryName} column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+              <SortableHeader label={labels.categoryName} column="name" sortColumn={sortState.sortBy} sortDirection={sortState.sortDir} onsort={handleSort} />
             </th>
             <th class="text-left p-4 font-semibold w-32">
-              <SortableHeader label={labels.slugLabel} column="slug" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+              <SortableHeader label={labels.slugLabel} column="slug" sortColumn={sortState.sortBy} sortDirection={sortState.sortDir} onsort={handleSort} />
             </th>
             <th class="text-right p-4 font-semibold w-24">
-              <SortableHeader label={labels.products} column="product_count" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
+              <SortableHeader label={labels.products} column="product_count" sortColumn={sortState.sortBy} sortDirection={sortState.sortDir} onsort={handleSort} align="right" />
             </th>
             <th class="text-left p-4 font-semibold w-28">
-              <SortableHeader label={labels.createdAt} column="created_at" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+              <SortableHeader label={labels.createdAt} column="created_at" sortColumn={sortState.sortBy} sortDirection={sortState.sortDir} onsort={handleSort} />
             </th>
             <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
           </tr>

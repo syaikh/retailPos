@@ -357,7 +357,7 @@
               <th class="text-left p-4 font-semibold w-8"></th>
               <th class="text-left p-4 font-semibold" style="width: 35%;">{labels.roleLabel}</th>
               <th class="text-left p-4 font-semibold w-20">{labels.type}</th>
-              <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">{labels.permissionsLabel}</th>
+              <th class="text-right p-4 font-semibold w-28 text-xs uppercase tracking-wider">{labels.permissionsCountLabel}</th>
               <th class="text-left p-4 font-semibold" style="width: 20%;">{labels.descriptionLabel}</th>
               <th class="text-right p-4 font-semibold w-10"></th>
             </tr>
@@ -403,8 +403,8 @@
                 <SortableHeader label={labels.roleLabel} column="name" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} />
               </th>
               <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">{labels.type}</th>
-              <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">
-                <SortableHeader label={labels.permissionsLabel} column="permissions" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} />
+              <th class="text-right p-4 font-semibold w-28 text-xs uppercase tracking-wider">
+                <SortableHeader label={labels.permissionsCountLabel} column="permissions" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} align="right" />
               </th>
               <th class="text-left p-4 font-semibold" style="width: 20%;">{labels.descriptionLabel}</th>
               <th class="text-right p-4 font-semibold w-10"></th>
@@ -421,7 +421,7 @@
                     </div>
                   </td>
                   <td class="p-4">{#if role.is_system}<Badge variant="primary" size="sm">{labels.system}</Badge>{:else}<Badge variant="muted" size="sm">{labels.custom}</Badge>{/if}</td>
-                  <td class="p-4"><span class="text-sm text-text-primary">{rolePerms.length} {labels.permissions}</span></td>
+                  <td class="p-4 text-right"><span class="text-sm text-text-primary">{rolePerms.length}</span></td>
                   <td class="p-4">{#if role.description}<span class="text-sm text-text-primary truncate block max-w-xs" title={role.description}>{role.description}</span>{:else}<span class="text-sm text-text-muted/50 italic">{labels.noDescription}</span>{/if}</td>
                   <td class="p-4">
                     <div class="flex items-center justify-end">

@@ -4,6 +4,7 @@
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
   import { labels, t } from '$shared/i18n';
+  import { useSortable } from '$shared/composables/useSortable.svelte';
   import { getCustomerGroups, createCustomerGroup, updateCustomerGroup, deleteCustomerGroup, bulkUpdateCustomerGroups, bulkDeleteCustomerGroups } from '../services/customer-group-service';
   import type { CustomerGroup } from '../types';
   import { Pagination } from '$shared/ui';
@@ -31,8 +32,7 @@
   let searchQuery = $state('');
   let statusFilter = $state('all');
   let hasCustomersFilter = $state('all');
-  let sortBy = $state('name');
-  let sortDir = $state<'asc' | 'desc'>('asc');
+  const { sortState, handleSort } = useSortable('name', 'asc', load);
 
   let showCreateModal = $state(false);
   let creating = $state(false);
@@ -56,16 +56,16 @@
 
       const result = await getCustomerGroups(filters);
 
-      if (sortBy === 'name') {
-        result.data.sort((a, b) => sortDir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
-      } else if (sortBy === 'status') {
-        result.data.sort((a, b) => sortDir === 'asc' ? (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0) : (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0));
-      } else if (sortBy === 'created_at') {
-        result.data.sort((a, b) => sortDir === 'asc' ? (a.created_at || '').localeCompare(b.created_at || '') : (b.created_at || '').localeCompare(a.created_at || ''));
-      } else if (sortBy === 'customer_count') {
-        result.data.sort((a, b) => sortDir === 'asc' ? (a.customer_count || 0) - (b.customer_count || 0) : (b.customer_count || 0) - (a.customer_count || 0));
-      } else if (sortBy === 'updated_at') {
-        result.data.sort((a, b) => sortDir === 'asc' ? (a.updated_at || '').localeCompare(b.updated_at || '') : (b.updated_at || '').localeCompare(a.updated_at || ''));
+      if (sortState.sortBy === 'name') {
+        result.data.sort((a, b) => sortState.sortDir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
+      } else if (sortState.sortBy === 'status') {
+        result.data.sort((a, b) => sortState.sortDir === 'asc' ? (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0) : (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0));
+      } else if (sortState.sortBy === 'created_at') {
+        result.data.sort((a, b) => sortState.sortDir === 'asc' ? (a.created_at || '').localeCompare(b.created_at || '') : (b.created_at || '').localeCompare(a.created_at || ''));
+      } else if (sortState.sortBy === 'customer_count') {
+        result.data.sort((a, b) => sortState.sortDir === 'asc' ? (a.customer_count || 0) - (b.customer_count || 0) : (b.customer_count || 0) - (a.customer_count || 0));
+      } else if (sortState.sortBy === 'updated_at') {
+        result.data.sort((a, b) => sortState.sortDir === 'asc' ? (a.updated_at || '').localeCompare(b.updated_at || '') : (b.updated_at || '').localeCompare(a.updated_at || ''));
       }
 
       groups = result.data;
@@ -84,11 +84,6 @@
   function handlePageChange(newOffset: number, newLimit: number) {
     limit = newLimit;
     offset = newOffset;
-    load();
-  }
-  function handleSort(col: string) {
-    if (sortBy === col) { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; }
-    else { sortBy = col; sortDir = 'asc'; }
     load();
   }
 
@@ -232,8 +227,8 @@
       {canUpdate}
       {canDelete}
       {canCreate}
-      bind:sortBy
-      bind:sortDir
+      sortBy={sortState.sortBy}
+      sortDir={sortState.sortDir}
       onsort={handleSort}
       onviewmembers={viewMembers}
       onduplicate={duplicateGroup}

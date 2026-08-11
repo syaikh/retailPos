@@ -320,27 +320,27 @@ import { useAuthStore } from '$modules/auth';
       <table class="w-full text-sm table-fixed">
         <thead>
           <tr class="border-b border-border bg-surface-secondary">
-            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top {isCashier ? 'w-[170px]' : 'w-[150px]'}">
+            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top {isCashier ? 'w-[170px]' : 'w-[135px]'}">
               <SortableHeader label={labels.openedAtLabel} column="opened_at" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} />
             </th>
                 {#if !isCashier && authStore.user}
-            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top w-[120px]">{labels.cashier}</th>
+            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top w-[95px]">{labels.cashier}</th>
             {/if}
             <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
               <SortableHeader label={labels.openingRp} column="opening_balance" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
             </th>
-            <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[150px]">
               <SortableHeader label={labels.cashSalesRp} column="cash_sales" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
             </th>
-            <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[150px]">
               <SortableHeader label={labels.totalSalesRp} column="total_sales" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
             </th>
-            <th class="text-center px-3 py-3 font-semibold text-text-secondary align-top w-[50px]">{labels.txn}</th>
-            <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[50px]">{labels.txn}</th>
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[115px]">
               <SortableHeader label={labels.discrepancyLabel} column="discrepancy" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
             </th>
             <th class="text-center px-3 py-3 font-semibold text-text-secondary align-top w-[80px]">{labels.status}</th>
-            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top w-[150px]">
+            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top w-[145px]">
               <SortableHeader label={labels.closedAtLabel} column="closed_at" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} />
             </th>
           </tr>
@@ -369,7 +369,7 @@ import { useAuthStore } from '$modules/auth';
                 <td class="px-3 py-3 text-right text-text-primary text-xs tabular-nums">{formatNumber(shift.opening_balance)}</td>
                 <td class="px-3 py-3 text-right text-text-primary text-xs tabular-nums">{formatNumber(shift.cash_sales)}</td>
                 <td class="px-3 py-3 text-right font-medium text-text-primary text-xs tabular-nums">{formatNumber(shift.total_sales)}</td>
-                <td class="px-3 py-3 text-center text-text-secondary text-xs">{shift.transaction_count}</td>
+                <td class="px-3 py-3 text-right text-text-secondary text-xs tabular-nums">{shift.transaction_count}</td>
                 <td class="px-3 py-3 text-right text-xs">
                   {#if shift.discrepancy != null}
                     <span class="{shift.discrepancy === 0 ? 'text-success' : 'text-danger'} tabular-nums">

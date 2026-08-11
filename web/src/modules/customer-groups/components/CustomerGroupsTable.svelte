@@ -106,7 +106,7 @@
       <tr class="border-b text-left text-xs text-text-muted">
         <th class="px-3 py-3"></th>
         <th class="px-4 py-3 font-semibold">{labels.nameLabel}</th>
-        <th class="px-4 py-3 font-semibold text-right">{labels.customers.toUpperCase()}</th>
+        <th class="px-4 py-3 font-semibold text-right">{labels.customers}</th>
         <th class="px-4 py-3 font-semibold">{labels.statusLabel}</th>
         <th class="px-4 py-3 font-semibold">{labels.updatedAtLabel}</th>
         <th class="px-4 py-3 font-semibold text-center">{labels.actionsLabel}</th>
@@ -154,7 +154,7 @@
           <SortableHeader label={labels.nameLabel} column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="px-4 py-3 font-semibold text-right">
-          <SortableHeader label={labels.customers.toUpperCase()} column="customer_count" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
+          <SortableHeader label={labels.customers} column="customer_count" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
         </th>
         <th class="px-4 py-3 font-semibold">
           <SortableHeader label={labels.statusLabel} column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />

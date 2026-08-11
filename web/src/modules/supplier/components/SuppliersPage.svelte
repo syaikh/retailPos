@@ -7,6 +7,7 @@
   import type { Supplier } from '../types';
   import { Pagination } from '$shared/ui';
   import { debounce } from '$shared/utils/debounce';
+  import { useSortable } from '$shared/composables/useSortable.svelte';
   import SuppliersToolbar from './SuppliersToolbar.svelte';
   import SuppliersTable from './SuppliersTable.svelte';
   import SupplierFormModal from './SupplierFormModal.svelte';
@@ -30,8 +31,7 @@
   let offset = $state(0);
   let searchQuery = $state('');
   let statusFilter = $state('all');
-  let sortBy = $state('name');
-  let sortDir = $state<'asc' | 'desc'>('asc');
+  const { sortState, handleSort } = useSortable('name', 'asc', load);
 
   let showFormModal = $state(false);
   let formMode = $state<'add' | 'edit'>('add');
@@ -49,7 +49,7 @@
   async function load() {
     loading = true;
     try {
-      const params: any = { limit, offset, search: searchQuery, sort_by: sortBy, sort_dir: sortDir };
+      const params: any = { limit, offset, search: searchQuery, sort_by: sortState.sortBy, sort_dir: sortState.sortDir };
       if (statusFilter === 'active') params.is_active = true;
       else if (statusFilter === 'inactive') params.is_active = false;
 
@@ -70,11 +70,6 @@
   function handlePageChange(newOffset: number, newLimit: number) {
     limit = newLimit;
     offset = newOffset;
-    load();
-  }
-  function handleSort(col: string) {
-    if (sortBy === col) { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; }
-    else { sortBy = col; sortDir = 'asc'; }
     load();
   }
 
@@ -219,8 +214,8 @@
       canEdit={canUpdate}
       {canDelete}
       {canCreate}
-      {sortBy}
-      {sortDir}
+      sortBy={sortState.sortBy}
+      sortDir={sortState.sortDir}
       onsort={handleSort}
       onedit={openEdit}
       ondelete={openDelete}

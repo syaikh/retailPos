@@ -9,6 +9,7 @@
   import { Button, Input, Modal, Pagination, ConfirmDeleteModal, Badge, ImportWizard } from '$shared/ui';
   import { Loader2, AlertTriangle } from 'lucide-svelte';
   import { labels, t } from '$shared/i18n';
+  import { useSortable } from '$shared/composables/useSortable.svelte';
   import PricingRulesToolbar from './PricingRulesToolbar.svelte';
   import PricingRulesTable from './PricingRulesTable.svelte';
   import PricingRuleDetailDrawer from './PricingRuleDetailDrawer.svelte';
@@ -29,8 +30,7 @@
   let selectedRule = $state<PricingRule | null>(null);
   let modalMode = $state<'add' | 'edit'>('add');
   let saving = $state(false);
-  let sortBy = $state('name');
-  let sortDir = $state<'asc' | 'desc'>('asc');
+  const { sortState, handleSort } = useSortable('name', 'asc', fetchRules);
   let statusFilter = $state('all');
   let approvalFilter = $state('all');
   let typeFilter = $state('all');
@@ -124,12 +124,12 @@
   let sortedRules = $derived.by(() => {
     const sorted = [...rules];
     sorted.sort((a, b) => {
-      let av: any = a[sortBy as keyof PricingRule];
-      let bv: any = b[sortBy as keyof PricingRule];
+      let av: any = a[sortState.sortBy as keyof PricingRule];
+      let bv: any = b[sortState.sortBy as keyof PricingRule];
       if (typeof av === 'string') av = av.toLowerCase();
       if (typeof bv === 'string') bv = bv.toLowerCase();
-      if (av < bv) return sortDir === 'asc' ? -1 : 1;
-      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      if (av < bv) return sortState.sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortState.sortDir === 'asc' ? 1 : -1;
       return 0;
     });
     return sorted;
@@ -137,7 +137,7 @@
 
   async function fetchRules() {
     loading = true;
-    const params: any = { limit, offset, search: searchQuery, sort_by: sortBy, sort_dir: sortDir };
+    const params: any = { limit, offset, search: searchQuery, sort_by: sortState.sortBy, sort_dir: sortState.sortDir };
     if (statusFilter === 'active') params.is_active = true;
     else if (statusFilter === 'inactive') params.is_active = false;
     if (approvalFilter !== 'all') params.status = approvalFilter;
@@ -167,16 +167,6 @@
       categories = cat;
       brands = br;
     }
-  }
-
-  function handleSort(col: string) {
-    if (sortBy === col) {
-      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-      sortBy = col;
-      sortDir = 'asc';
-    }
-    fetchRules();
   }
 
   function resetForm() {
@@ -668,8 +658,8 @@
       rules={sortedRules}
       {loading}
       {searchQuery}
-      {sortBy}
-      {sortDir}
+      sortBy={sortState.sortBy}
+      sortDir={sortState.sortDir}
       {canEdit}
       {canDelete}
       {canCreate}

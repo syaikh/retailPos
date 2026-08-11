@@ -102,7 +102,7 @@
               <SortableHeader label={labels.dateLabel} column="created_at" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="text-left p-4 font-semibold w-[30%]">{labels.customerLabel}</th>
-            <th class="text-left p-4 font-semibold">{labels.itemsLabel}</th>
+            <th class="text-right p-4 font-semibold">{labels.itemsLabel}</th>
             <th class="text-left p-4 font-semibold">
               <SortableHeader label={labels.paymentLabel} column="payment_method" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
@@ -131,8 +131,8 @@
               <td class="p-4 text-sm text-text-secondary">
                 {sale.customer_name || labels.walkInGeneral}
               </td>
-              <td class="p-4 text-sm text-text-secondary">
-                {t('itemsCount', { count: sale.items?.length || 0 })}
+              <td class="p-4 text-sm text-right text-text-secondary">
+                {sale.items?.length || 0}
               </td>
               <td class="p-4">
                 {#if sale.payment_method && sale.payment_method.includes(',')}

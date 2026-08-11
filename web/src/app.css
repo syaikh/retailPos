@@ -372,24 +372,26 @@
 }
 
 /* Global Table Styles */
-table {
-  @apply w-full border-collapse;
-}
+@layer base {
+  table {
+    @apply w-full border-collapse;
+  }
 
-thead {
-  @apply bg-bg-secondary;
-}
+  thead {
+    @apply bg-bg-secondary;
+  }
 
-th {
-  @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted;
-}
+  th {
+    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted;
+  }
 
-td {
-  @apply border-t border-border-default px-4 py-3 text-sm text-text-primary;
-}
+  td {
+    @apply border-t border-border-default px-4 py-3 text-sm text-text-primary;
+  }
 
-tbody tr {
-  @apply transition-colors duration-150 hover:bg-surface-default/60;
+  tbody tr {
+    @apply transition-colors duration-150 hover:bg-surface-default/60;
+  }
 }
 
 /* Native date picker calendar indicator — white on dark theme */

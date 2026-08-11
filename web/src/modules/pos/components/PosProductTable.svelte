@@ -61,7 +61,7 @@
           <th class="p-4 w-52 font-semibold">{labels.productName}</th>
           <th class="p-4 text-right w-20 font-semibold">{labels.stock}</th>
           <th class="p-4 text-right w-28 font-semibold">{labels.price}</th>
-          <th class="p-4 w-20 font-semibold"></th>
+          <th class="p-4 text-right w-20 font-semibold"></th>
         </tr>
       </thead>
       <tbody>

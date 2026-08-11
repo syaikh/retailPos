@@ -501,9 +501,9 @@
               <tr class="text-[11px] font-semibold text-text-muted uppercase tracking-wider h-10">
                 <th class="px-3">{labels.product}</th>
                 <th class="px-3">{labels.sku}</th>
-                <th class="px-3">{labels.opening}</th>
-                <th class="px-3">{labels.physical}</th>
-                <th class="px-3">{labels.diff}</th>
+                <th class="px-3 text-right">{labels.opening}</th>
+                <th class="px-3 text-right">{labels.physical}</th>
+                <th class="px-3 text-right">{labels.diff}</th>
                 <th class="px-3">{labels.status}</th>
                 {#if canEnterCount}
                   <th class="px-3">{labels.action}</th>
@@ -515,9 +515,9 @@
                 <tr class="hover:bg-surface-subtle">
                   <td class="px-3 py-2.5 font-medium text-text-primary">{item.product_name}</td>
                   <td class="px-3 py-2.5 text-text-secondary">{item.sku}</td>
-                  <td class="px-3 py-2.5 text-text-secondary">{item.opening_qty} {item.uom_name}</td>
-                  <td class="px-3 py-2.5 text-text-primary font-semibold">{item.physical_qty}</td>
-                  <td class="px-3 py-2.5 {item.difference_qty === 0 ? 'text-text-secondary' : item.difference_qty > 0 ? 'text-success-light' : 'text-danger-light'}">
+                  <td class="px-3 py-2.5 text-right text-text-secondary">{item.opening_qty} {item.uom_name}</td>
+                  <td class="px-3 py-2.5 text-right text-text-primary font-semibold">{item.physical_qty}</td>
+                  <td class="px-3 py-2.5 text-right {item.difference_qty === 0 ? 'text-text-secondary' : item.difference_qty > 0 ? 'text-success-light' : 'text-danger-light'}">
                     {item.difference_qty === 0 ? '—' : item.difference_qty}
                   </td>
                   <td class="px-3 py-2.5">

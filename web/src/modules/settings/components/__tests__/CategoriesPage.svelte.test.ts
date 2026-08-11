@@ -43,9 +43,9 @@ describe('CategoriesPage.svelte source-structure guards', () => {
   });
 
   it('has sort state and handleSort function', () => {
-    expect(src).toContain('let sortBy = $state');
-    expect(src).toContain('let sortDir = $state');
-    expect(src).toContain('function handleSort');
+    expect(src).toContain("const { sortState, handleSort } = useSortable('name', 'asc')");
+    expect(src).toContain('sortState.sortBy');
+    expect(src).toContain('sortState.sortDir');
   });
 
   it('has fetchCategories, openAdd, openEdit, saveCategory functions', () => {

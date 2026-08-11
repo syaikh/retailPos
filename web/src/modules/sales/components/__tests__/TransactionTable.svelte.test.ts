@@ -71,8 +71,8 @@ describe('TransactionTable.svelte source-structure guards', () => {
     expect(src).toContain('labels.walkInGeneral');
   });
 
-  it('localizes items count and more count', () => {
-    expect(src).toContain("t('itemsCount'");
+  it('shows items as a plain number and localizes more count', () => {
+    expect(src).toContain('sale.items?.length');
     expect(src).toContain("t('moreWithCount'");
   });
 

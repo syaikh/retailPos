@@ -15,6 +15,7 @@ export { default as ExpandableRow } from './ExpandableRow.svelte';
 export { default as FilterChip } from './FilterChip.svelte';
 export { default as FilterChipBar } from './FilterChipBar.svelte';
 export { default as ImportSummary } from './ImportSummary.svelte';
+export { default as LanguageSwitch } from './LanguageSwitch.svelte';
 export { default as ImportWizard } from './ImportWizard.svelte';
 export { default as Input } from './Input.svelte';
 export { default as Modal } from './Modal.svelte';

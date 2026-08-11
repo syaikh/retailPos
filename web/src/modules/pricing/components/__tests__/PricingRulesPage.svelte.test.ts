@@ -188,7 +188,7 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
   });
 
   it('has handleSort function', () => {
-    expect(src).toContain('function handleSort(col: string)');
+    expect(src).toContain('const { sortState, handleSort } = useSortable(');
   });
 
   it('has handlePageChange function', () => {

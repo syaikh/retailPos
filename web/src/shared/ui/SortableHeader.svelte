@@ -28,7 +28,7 @@
 
 <button
   type="button"
-  class="flex items-center gap-1 hover:text-primary transition-colors {align === 'right' ? 'justify-end w-full' : ''}"
+  class="flex items-center gap-1 uppercase hover:text-primary transition-colors {align === 'right' ? 'justify-end w-full text-right' : 'text-left'}"
   onclick={() => onsort(column)}
   aria-label={`Sort by ${label}, currently ${ariaSort}`}
 >

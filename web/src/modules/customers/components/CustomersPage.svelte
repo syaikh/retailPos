@@ -7,6 +7,7 @@
   import { Pagination, ImportWizard } from '$shared/ui';
   import { debounce } from '$shared/utils/debounce';
   import { labels, t } from '$shared/i18n';
+  import { useSortable } from '$shared/composables/useSortable.svelte';
   import { getCustomerGroups } from '$modules/customer-groups';
   import { ArrowLeft } from 'lucide-svelte';
   import CreateCustomerModal from './CreateCustomerModal.svelte';
@@ -93,8 +94,7 @@
   let editTarget = $state<any>(null);
   let isSaving = $state(false);
 
-  let sortBy = $state('name');
-  let sortDir = $state<'asc' | 'desc'>('asc');
+  const { sortState, handleSort } = useSortable('name', 'asc', sortCustomers);
 
   let showCreateModal = $state(false);
   let creating = $state(false);
@@ -210,20 +210,10 @@
     load(0, limit);
   }
 
-  function handleSort(column: string) {
-    if (sortBy === column) {
-      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-      sortBy = column;
-      sortDir = 'asc';
-    }
-    sortCustomers();
-  }
-
   function sortCustomers() {
     customers.sort((a, b) => {
       let aVal: any, bVal: any;
-      switch (sortBy) {
+      switch (sortState.sortBy) {
         case 'name': aVal = (a.name || '').toLowerCase(); bVal = (b.name || '').toLowerCase(); break;
         case 'phone': aVal = (a.phone || '').toLowerCase(); bVal = (b.phone || '').toLowerCase(); break;
         case 'email': aVal = (a.email || '').toLowerCase(); bVal = (b.email || '').toLowerCase(); break;
@@ -231,7 +221,7 @@
         case 'status': aVal = a.is_active !== false ? 1 : 0; bVal = b.is_active !== false ? 1 : 0; break;
         default: return 0;
       }
-      if (sortDir === 'asc') {
+      if (sortState.sortDir === 'asc') {
         return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       } else {
         return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
@@ -393,8 +383,8 @@
       {canUpdate}
       {canDelete}
       bind:selectedIds
-      bind:sortBy
-      bind:sortDir
+      sortBy={sortState.sortBy}
+      sortDir={sortState.sortDir}
       onsort={handleSort}
       onedit={startEdit}
       ondeactivate={deactivateCustomer}

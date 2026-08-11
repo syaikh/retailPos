@@ -183,17 +183,17 @@
           <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label={labels.pilihSemua} />
         </th>
         <th class="px-4 py-3 font-semibold">
-          <SortableHeader label={labels.nama.toUpperCase()} column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.nama} column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
-        <th class="px-4 py-3 font-semibold text-right" scope="col">{labels.nilai.toUpperCase()}</th>
+        <th class="px-4 py-3 font-semibold text-right" scope="col">{labels.nilai}</th>
         <th class="px-4 py-3 font-semibold">
-          <SortableHeader label={labels.metode.toUpperCase()} column="pricing_method" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.metode} column="pricing_method" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
-        <th class="px-4 py-3 font-semibold" scope="col">{labels.target.toUpperCase()}</th>
+        <th class="px-4 py-3 font-semibold" scope="col">{labels.target}</th>
         <th class="px-4 py-3 font-semibold">
-          <SortableHeader label={labels.status.toUpperCase()} column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.status} column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
-        <th class="px-4 py-3 font-semibold text-center" scope="col">{labels.actions.toUpperCase()}</th>
+        <th class="px-4 py-3 font-semibold text-center" scope="col">{labels.actions}</th>
       </tr>
     </thead>
     <tbody>

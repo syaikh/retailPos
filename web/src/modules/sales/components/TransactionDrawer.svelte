@@ -186,7 +186,7 @@
               <thead class="sticky top-0 bg-surface-subtle z-10">
                 <tr>
                   <th class="text-left py-3 px-4 font-semibold text-text-primary">{labels.description}</th>
-                  <th class="text-center py-3 px-4 font-semibold text-text-primary w-20">{labels.qty}</th>
+                  <th class="text-right py-3 px-4 font-semibold text-text-primary w-20">{labels.qty}</th>
                   <th class="text-right py-3 px-4 font-semibold text-text-primary w-28">{labels.price}</th>
                   <th class="text-right py-3 px-4 font-semibold text-text-primary w-32">{labels.subTotal}</th>
                 </tr>
@@ -200,7 +200,7 @@
                         <div class="text-[10px] text-primary-light mt-0.5 font-medium">{item.pricing_rule_name}</div>
                       {/if}
                     </td>
-                    <td class="py-3 px-4 text-center text-text-secondary">{item.quantity}</td>
+                    <td class="py-3 px-4 text-right text-text-secondary">{item.quantity}</td>
                     <td class="py-3 px-4 text-right text-text-secondary">
                       {#if item.original_price && item.original_price > item.unit_price}
                         <span class="line-through text-text-muted text-[10px] block">{item.original_price.toLocaleString('id-ID')}</span>
