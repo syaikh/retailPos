@@ -371,6 +371,146 @@ func TestHandler_CancelImport_InvalidJobID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func setupStoreScopedHandler(claimStore int) (*gin.Engine, *progress.Engine) {
+	gin.SetMode(gin.TestMode)
+
+	schemaReg := schema.NewRegistry()
+	_ = schemaReg.Register(testSchema)
+
+	adapterReg := importexport.NewAdapterRegistry()
+	_ = adapterReg.Register(&mockTestAdapter{repo: &mockTestRepo{}})
+
+	val := validation.NewDefaultPipeline()
+	progEng := progress.NewEngine(progress.NewInMemoryStore())
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
+	exportEng := export.NewEngine()
+	templateEng := template.NewEngine()
+
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
+
+	r := gin.New()
+	sid := claimStore
+	auth := func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("storeID", &sid)
+		c.Next()
+	}
+	perm := func(_ permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+	h.RegisterRoutes(r.Group("/api"), auth, perm)
+
+	return r, progEng
+}
+
+func TestHandler_GetProgress_StoreScoped_OwnStore(t *testing.T) {
+	r, progEng := setupStoreScopedHandler(5)
+
+	ctx := context.Background()
+	jobID, err := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 5)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/progress/%d", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestHandler_GetProgress_StoreScoped_OtherStore(t *testing.T) {
+	r, progEng := setupStoreScopedHandler(5)
+
+	ctx := context.Background()
+	jobID, err := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 9)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/progress/%d", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestHandler_CancelImport_StoreScoped_OwnStore(t *testing.T) {
+	r, progEng := setupStoreScopedHandler(5)
+
+	ctx := context.Background()
+	jobID, err := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 5)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/import-export/cancel/%d", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestHandler_CancelImport_StoreScoped_OtherStore(t *testing.T) {
+	r, progEng := setupStoreScopedHandler(5)
+
+	ctx := context.Background()
+	jobID, err := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 9)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/import-export/cancel/%d", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestHandler_ListImportHistory_StoreScoped(t *testing.T) {
+	r, progEng := setupStoreScopedHandler(5)
+
+	ctx := context.Background()
+	_, err := progEng.CreateJob(ctx, "categories", "1.0.0", "a.csv", 1, 5)
+	require.NoError(t, err)
+	_, err = progEng.CreateJob(ctx, "categories", "1.0.0", "b.csv", 1, 9)
+	require.NoError(t, err)
+	_, err = progEng.CreateJob(ctx, "categories", "1.0.0", "c.csv", 1, 5)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/history/categories", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp []map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Len(t, resp, 2)
+}
+
+func TestHandler_GetImportDetail_StoreScoped_OtherStore(t *testing.T) {
+	r, progEng := setupStoreScopedHandler(5)
+
+	ctx := context.Background()
+	jobID, err := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 9)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/history/categories/%d", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestHandler_GetImportRows_StoreScoped_OtherStore(t *testing.T) {
+	r, progEng := setupStoreScopedHandler(5)
+
+	ctx := context.Background()
+	jobID, err := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 9)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/history/categories/%d/rows", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
 func TestHandler_ExportCSV(t *testing.T) {
 	setupExportTest := func() *gin.Engine {
 		gin.SetMode(gin.TestMode)
@@ -915,7 +1055,7 @@ type failingProgressStore struct {
 	err error
 }
 
-func (f *failingProgressStore) ListJobs(_ context.Context, _ string, _ int) ([]*progress.Progress, error) {
+func (f *failingProgressStore) ListJobs(_ context.Context, _ string, _ int, _ *int) ([]*progress.Progress, error) {
 	return nil, f.err
 }
 

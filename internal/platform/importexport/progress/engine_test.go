@@ -173,7 +173,7 @@ func TestListJobs_FilterByModule(t *testing.T) {
 	_, _ = e.CreateJob(context.Background(), "categories", "1.0.0", "b.csv", 2, 1)
 	_, _ = e.CreateJob(context.Background(), "products", "1.0.0", "c.csv", 3, 1)
 
-	jobs, err := e.ListJobs(context.Background(), "products", 50)
+	jobs, err := e.ListJobs(context.Background(), "products", 50, nil)
 	if err != nil {
 		t.Fatalf("ListJobs failed: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestListJobs_FilterByModule_NoneFound(t *testing.T) {
 
 	_, _ = e.CreateJob(context.Background(), "products", "1.0.0", "a.csv", 1, 1)
 
-	jobs, err := e.ListJobs(context.Background(), "categories", 50)
+	jobs, err := e.ListJobs(context.Background(), "categories", 50, nil)
 	if err != nil {
 		t.Fatalf("ListJobs failed: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestListJobs_Limit(t *testing.T) {
 		_, _ = e.CreateJob(context.Background(), "products", "1.0.0", "test.csv", 1, 1)
 	}
 
-	jobs, err := e.ListJobs(context.Background(), "products", 3)
+	jobs, err := e.ListJobs(context.Background(), "products", 3, nil)
 	if err != nil {
 		t.Fatalf("ListJobs failed: %v", err)
 	}
@@ -221,12 +221,57 @@ func TestListJobs_EmptyModuleFilter(t *testing.T) {
 	_, _ = e.CreateJob(context.Background(), "products", "1.0.0", "a.csv", 1, 1)
 	_, _ = e.CreateJob(context.Background(), "categories", "1.0.0", "b.csv", 2, 1)
 
-	jobs, err := e.ListJobs(context.Background(), "", 50)
+	jobs, err := e.ListJobs(context.Background(), "", 50, nil)
 	if err != nil {
 		t.Fatalf("ListJobs failed: %v", err)
 	}
 	if len(jobs) != 2 {
 		t.Fatalf("expected 2 jobs with empty filter, got %d", len(jobs))
+	}
+}
+
+func TestListJobs_StoreFilter(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	_, _ = e.CreateJob(context.Background(), "products", "1.0.0", "a.csv", 1, 1)
+	_, _ = e.CreateJob(context.Background(), "products", "1.0.0", "b.csv", 1, 2)
+	_, _ = e.CreateJob(context.Background(), "products", "1.0.0", "c.csv", 1, 1)
+
+	sid := 1
+	jobs, err := e.ListJobs(context.Background(), "products", 50, &sid)
+	if err != nil {
+		t.Fatalf("ListJobs failed: %v", err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("expected 2 jobs for store 1, got %d", len(jobs))
+	}
+}
+
+func TestGetJobMeta(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	id, _ := e.CreateJob(context.Background(), "products", "1.0.0", "a.csv", 1, 2)
+	module, storeID, err := e.GetJobMeta(context.Background(), id)
+	if err != nil {
+		t.Fatalf("GetJobMeta failed: %v", err)
+	}
+	if module != "products" {
+		t.Fatalf("expected module products, got %s", module)
+	}
+	if storeID == nil || *storeID != 2 {
+		t.Fatalf("expected store 2, got %v", storeID)
+	}
+}
+
+func TestGetJobMeta_NotFound(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	_, _, err := e.GetJobMeta(context.Background(), 999)
+	if err == nil {
+		t.Fatal("expected error for missing job")
 	}
 }
 
@@ -308,7 +353,7 @@ func TestListJobs_WithCompletedDuration(t *testing.T) {
 	time.Sleep(time.Millisecond)
 	_ = e.SetStatus(context.Background(), id, StatusCompleted)
 
-	jobs, err := e.ListJobs(context.Background(), "products", 50)
+	jobs, err := e.ListJobs(context.Background(), "products", 50, nil)
 	if err != nil {
 		t.Fatalf("ListJobs failed: %v", err)
 	}

@@ -43,7 +43,8 @@ type Repository interface {
 	UpdateProgress(ctx context.Context, jobID int64, processed, total, errors, inserted, updated int) error
 	SetErrorReport(ctx context.Context, jobID int64, errorReport string) error
 	GetProgress(ctx context.Context, jobID int64) (*Progress, error)
-	ListJobs(ctx context.Context, module string, limit int) ([]*Progress, error)
+	GetJobMeta(ctx context.Context, jobID int64) (module string, storeID *int, err error)
+	ListJobs(ctx context.Context, module string, limit int, storeID *int) ([]*Progress, error)
 	RequestCancel(ctx context.Context, jobID int64) error
 	IsCancelRequested(ctx context.Context, jobID int64) (bool, error)
 }
@@ -76,8 +77,14 @@ func (e *Engine) GetProgress(ctx context.Context, jobID int64) (*Progress, error
 	return e.repo.GetProgress(ctx, jobID)
 }
 
-func (e *Engine) ListJobs(ctx context.Context, module string, limit int) ([]*Progress, error) {
-	return e.repo.ListJobs(ctx, module, limit)
+// GetJobMeta resolves a job's module and owning store. Returns (module, storeID,
+// nil). storeID is nil for jobs not bound to a store (superadmin-created).
+func (e *Engine) GetJobMeta(ctx context.Context, jobID int64) (string, *int, error) {
+	return e.repo.GetJobMeta(ctx, jobID)
+}
+
+func (e *Engine) ListJobs(ctx context.Context, module string, limit int, storeID *int) ([]*Progress, error) {
+	return e.repo.ListJobs(ctx, module, limit, storeID)
 }
 
 func (e *Engine) RequestCancel(ctx context.Context, jobID int64) error {
@@ -206,12 +213,30 @@ func (s *InMemoryStore) GetProgress(_ context.Context, jobID int64) (*Progress, 
 	return p, nil
 }
 
-func (s *InMemoryStore) ListJobs(_ context.Context, module string, limit int) ([]*Progress, error) {
+func (s *InMemoryStore) GetJobMeta(_ context.Context, jobID int64) (string, *int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	job, ok := s.jobs[jobID]
+	if !ok {
+		return "", nil, fmt.Errorf("job %d not found", jobID)
+	}
+	var storeID *int
+	if job.StoreID > 0 {
+		sid := job.StoreID
+		storeID = &sid
+	}
+	return job.Module, storeID, nil
+}
+
+func (s *InMemoryStore) ListJobs(_ context.Context, module string, limit int, storeID *int) ([]*Progress, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var result []*Progress
 	for _, job := range s.jobs {
 		if module != "" && job.Module != module {
+			continue
+		}
+		if storeID != nil && job.StoreID != *storeID {
 			continue
 		}
 		p := &Progress{

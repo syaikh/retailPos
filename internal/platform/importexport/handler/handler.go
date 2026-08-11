@@ -109,6 +109,51 @@ func (h *Handler) requirePerm(action string) gin.HandlerFunc {
 	}
 }
 
+// checkModulePerm enforces the module-specific permission for the given action
+// (e.g. "products:import" → ProductImport). Reuses the same permFunc machinery
+// as requirePerm so behaviour stays identical.
+func (h *Handler) checkModulePerm(c *gin.Context, module, action string) bool {
+	key := module + ":" + action
+	permCode, ok := modulePerms[key]
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusForbidden, shared.NewError(shared.ErrForbidden, "permission not defined for module"))
+		return false
+	}
+	h.permFunc(permCode)(c)
+	return !c.IsAborted()
+}
+
+// checkJobStore rejects access to a job that does not belong to the caller's
+// store. Callers without a store (superadmin/admin, StoreID nil in claims)
+// may access any store's jobs; store-scoped callers are restricted.
+func (h *Handler) checkJobStore(c *gin.Context, jobStoreID *int) bool {
+	claimsStore := shared.GetStoreID(c)
+	if claimsStore == nil {
+		return true
+	}
+	if jobStoreID == nil || *jobStoreID != *claimsStore {
+		c.AbortWithStatusJSON(http.StatusForbidden, shared.NewError(shared.ErrForbidden, "job does not belong to your store"))
+		return false
+	}
+	return true
+}
+
+// authorizeJob resolves a job's module and owning store from the job row,
+// then enforces the module permission and store ownership. This is used for
+// /progress/:jobId and /cancel/:jobId which have no :module path param, so the
+// module is never taken from the caller.
+func (h *Handler) authorizeJob(c *gin.Context, jobID int64, action string) bool {
+	module, storeID, err := h.progressEng.GetJobMeta(c.Request.Context(), jobID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return false
+	}
+	if !h.checkModulePerm(c, module, action) {
+		return false
+	}
+	return h.checkJobStore(c, storeID)
+}
+
 func (h *Handler) ListModules(c *gin.Context) {
 	allSchemas := h.schemaReg.All()
 	modules := make([]gin.H, 0, len(allSchemas))
@@ -249,6 +294,10 @@ func (h *Handler) GetProgress(c *gin.Context) {
 		return
 	}
 
+	if !h.authorizeJob(c, req.JobID, "import") {
+		return
+	}
+
 	p, err := h.progressEng.GetProgress(c.Request.Context(), req.JobID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -264,6 +313,10 @@ func (h *Handler) CancelImport(c *gin.Context) {
 	}
 	if err := c.ShouldBindUri(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+
+	if !h.authorizeJob(c, req.JobID, "import") {
 		return
 	}
 
@@ -283,7 +336,7 @@ func (h *Handler) ListImportHistory(c *gin.Context) {
 		return
 	}
 
-	jobs, err := h.progressEng.ListJobs(c.Request.Context(), module, 50)
+	jobs, err := h.progressEng.ListJobs(c.Request.Context(), module, 50, shared.GetStoreID(c))
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -356,6 +409,10 @@ func (h *Handler) GetImportDetail(c *gin.Context) {
 		return
 	}
 
+	if !h.authorizeJob(c, jobID, "history") {
+		return
+	}
+
 	jobProgress, err := h.progressEng.GetProgress(c.Request.Context(), jobID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -393,6 +450,10 @@ func (h *Handler) GetImportRows(c *gin.Context) {
 	jobID, err := strconv.ParseInt(c.Param("jobId"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+
+	if !h.authorizeJob(c, jobID, "history") {
 		return
 	}
 

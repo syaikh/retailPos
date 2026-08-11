@@ -138,15 +138,40 @@ func (r *PgRepository) GetProgress(ctx context.Context, jobID int64) (*Progress,
 	return p, nil
 }
 
-func (r *PgRepository) ListJobs(ctx context.Context, module string, limit int) ([]*Progress, error) {
-	rows, err := r.db.Query(ctx, `
+// GetJobMeta resolves a job's module and owning store. Returns (module,
+// storeID, nil); storeID is nil for jobs not bound to a store.
+func (r *PgRepository) GetJobMeta(ctx context.Context, jobID int64) (string, *int, error) {
+	var module string
+	var storeID *int
+	err := r.db.QueryRow(ctx, `
+		SELECT module, store_id FROM import_jobs WHERE id = $1
+	`, jobID).Scan(&module, &storeID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", nil, fmt.Errorf("job %d not found", jobID)
+		}
+		return "", nil, fmt.Errorf("get job meta: %w", err)
+	}
+	return module, storeID, nil
+}
+
+func (r *PgRepository) ListJobs(ctx context.Context, module string, limit int, storeID *int) ([]*Progress, error) {
+	query := `
 		SELECT id, module, status, total_rows, inserted, updated, error_count, progress_pct,
 		       COALESCE(error_report_path, ''), started_at, completed_at
 		FROM import_jobs
-		WHERE module = $1
-		ORDER BY created_at DESC
-		LIMIT $2
-	`, module, limit)
+		WHERE module = $1`
+	args := []interface{}{module}
+	next := 2
+	if storeID != nil {
+		query += fmt.Sprintf(" AND store_id = $%d", next)
+		args = append(args, *storeID)
+		next++
+	}
+	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d", next)
+	args = append(args, limit)
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list jobs: %w", err)
 	}

@@ -209,6 +209,60 @@ func TestPgRepository_GetProgress_NoCompletionTime(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestPgRepository_GetJobMeta(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	sid := 7
+	rows := pgxmock.NewRows([]string{"module", "store_id"}).AddRow("product", &sid)
+	mock.ExpectQuery("SELECT module, store_id FROM import_jobs WHERE id = \\$1").
+		WithArgs(int64(1)).
+		WillReturnRows(rows)
+
+	repo := NewPgRepository(mock)
+	module, storeID, err := repo.GetJobMeta(context.Background(), 1)
+	require.NoError(t, err)
+	assert.Equal(t, "product", module)
+	assert.NotNil(t, storeID)
+	assert.Equal(t, 7, *storeID)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPgRepository_GetJobMeta_NoStore(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	rows := pgxmock.NewRows([]string{"module", "store_id"}).AddRow("product", nil)
+	mock.ExpectQuery("SELECT module, store_id FROM import_jobs WHERE id = \\$1").
+		WithArgs(int64(1)).
+		WillReturnRows(rows)
+
+	repo := NewPgRepository(mock)
+	module, storeID, err := repo.GetJobMeta(context.Background(), 1)
+	require.NoError(t, err)
+	assert.Equal(t, "product", module)
+	assert.Nil(t, storeID)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPgRepository_GetJobMeta_NotFound(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectQuery("SELECT module, store_id FROM import_jobs WHERE id = \\$1").
+		WithArgs(int64(999)).
+		WillReturnError(pgx.ErrNoRows)
+
+	repo := NewPgRepository(mock)
+	_, _, err = repo.GetJobMeta(context.Background(), 999)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestPgRepository_ListJobs(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
@@ -224,11 +278,32 @@ func TestPgRepository_ListJobs(t *testing.T) {
 		WillReturnRows(rows)
 
 	repo := NewPgRepository(mock)
-	jobs, err := repo.ListJobs(context.Background(), "product", 10)
+	jobs, err := repo.ListJobs(context.Background(), "product", 10, nil)
 	require.NoError(t, err)
 	assert.Len(t, jobs, 2)
 	assert.Equal(t, StatusCompleted, jobs[0].Status)
 	assert.Equal(t, StatusImporting, jobs[1].Status)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPgRepository_ListJobs_StoreScoped(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	now := time.Now()
+	completed := now.Add(time.Minute)
+	sid := 7
+	rows := pgxmock.NewRows([]string{"id", "module", "status", "total_rows", "inserted", "updated", "error_count", "progress_pct", "error_report_path", "started_at", "completed_at"}).
+		AddRow(int64(1), "product", "completed", 100, 98, 2, 0, 100, "", &now, &completed)
+	mock.ExpectQuery("SELECT (.+) FROM import_jobs WHERE module = \\$1 AND store_id = \\$2").
+		WithArgs("product", 7, 10).
+		WillReturnRows(rows)
+
+	repo := NewPgRepository(mock)
+	jobs, err := repo.ListJobs(context.Background(), "product", 10, &sid)
+	require.NoError(t, err)
+	assert.Len(t, jobs, 1)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -243,7 +318,7 @@ func TestPgRepository_ListJobs_Empty(t *testing.T) {
 		WillReturnRows(rows)
 
 	repo := NewPgRepository(mock)
-	jobs, err := repo.ListJobs(context.Background(), "product", 10)
+	jobs, err := repo.ListJobs(context.Background(), "product", 10, nil)
 	require.NoError(t, err)
 	assert.Len(t, jobs, 0)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -263,7 +338,7 @@ func TestPgRepository_ListJobs_CompletedJobHasDuration(t *testing.T) {
 		WillReturnRows(rows)
 
 	repo := NewPgRepository(mock)
-	jobs, err := repo.ListJobs(context.Background(), "product", 10)
+	jobs, err := repo.ListJobs(context.Background(), "product", 10, nil)
 	require.NoError(t, err)
 	assert.Len(t, jobs, 1)
 	assert.Greater(t, jobs[0].DurationMs, 0)
