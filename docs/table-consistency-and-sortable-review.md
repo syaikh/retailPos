@@ -28,22 +28,22 @@ its label inside a `<button>`, which is the one spot not guaranteed to inherit t
 
 ## Decisions & work executed
 
-### 1. Uppercase is now a single mechanism
+### 1. Uppercase is now a single mechanism ✓
 
-- Kept the global `th` rule in `app.css` as the source of truth.
-- Added `uppercase` to the `SortableHeader` button class
+- ✓ Kept the global `th` rule in `app.css` as the source of truth.
+- ✓ Added `uppercase` to the `SortableHeader` button class
   (`web/src/shared/ui/SortableHeader.svelte`) so sortable labels are uppercased
   at the component level, independent of CSS inheritance.
-- Removed the now-redundant `uppercase` class from all `<thead>` elements.
-- Removed the `labels.X.toUpperCase()` label hacks in
+- ✓ Removed the now-redundant `uppercase` class from all `<thead>` elements.
+- ✓ Removed the `labels.X.toUpperCase()` label hacks in
   `CustomerGroupsTable.svelte` and `PricingRulesTable.svelte`.
 
-### 2. Brands table is now sortable
+### 2. Brands table is now sortable ✓
 
 `BrandsPage.svelte` uses `SortableHeader` on `name` / `description` / `created_at`
 with client-side sorting, mirroring `CategoriesPage`.
 
-### 3. Sort logic consolidated into a `useSortable` composable
+### 3. Sort logic consolidated into a `useSortable` composable ✓
 
 New `web/src/shared/composables/useSortable.svelte.ts` centralizes the identical
 `sortBy`/`sortDir` state and `handleSort` toggle logic. The reactive state lives in
@@ -57,10 +57,10 @@ const { sortState, handleSort } = useSortable('name', 'asc'[, onChange]);
 // templates: <SortableHeader sortColumn={sortState.sortBy} sortDirection={sortState.sortDir} onsort={handleSort} />
 ```
 
-- `onChange` is invoked after each toggle (used by pages that re-sort or refetch).
-- Migrated 9 tables: Brands, Categories, Stores, Customers, Suppliers,
+- ✓ `onChange` is invoked after each toggle (used by pages that re-sort or refetch).
+- ✓ Migrated 9 tables: Brands, Categories, Stores, Customers, Suppliers,
   PricingRules, Products, CustomerGroups, StorageLocations.
-- Left as-is (documented, owned elsewhere): `PurchaseOrdersPage` (sort state lives
+- ✓ Left as-is (documented, owned elsewhere): `PurchaseOrdersPage` (sort state lives
   in a store) and `TransactionTable` (`sortBy`/`sortDir` are `$bindable` props owned
   by the parent).
 
