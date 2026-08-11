@@ -461,6 +461,35 @@ func TestAuthService_RefreshToken_Success(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestAuthService_RefreshToken_InactiveUser(t *testing.T) {
+	svc := newAuthServiceWithDB(t)
+	ctx := context.Background()
+	hash := testPasswordHash()
+
+	user := &User{
+		Username: "refresh_inactive_test",
+		Email:    "refresh_inactive@test.com",
+		Password: hash,
+		RoleID:   1,
+		IsActive: true,
+	}
+	err := NewRepository(dbPool).CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	resp, err := svc.Login(ctx, "refresh_inactive_test", "password")
+	require.NoError(t, err)
+
+	user.IsActive = false
+	err = NewRepository(dbPool).UpdateUser(ctx, user)
+	require.NoError(t, err)
+
+	_, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
+	assert.ErrorIs(t, err, ErrInvalidCredentials)
+
+	_, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
+	assert.Error(t, err, "refresh token must not be reusable after the inactive rejection")
+}
+
 func TestAuthService_RefreshToken_InvalidToken(t *testing.T) {
 	svc := newAuthServiceWithDB(t)
 	ctx := context.Background()

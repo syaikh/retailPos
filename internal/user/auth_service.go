@@ -173,6 +173,9 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 	if err != nil {
 		return "", "", ErrUserNotFound
 	}
+	if !user.IsActive {
+		return "", "", ErrInvalidCredentials
+	}
 
 	permissions, err := s.repo.GetRolePermissions(ctx, user.RoleID)
 	if err != nil {
