@@ -1,7 +1,8 @@
 <script>
-  import { Badge, Button, Drawer } from '$shared/ui';
-  import { Shield, Users, Copy, Pencil, Trash2 } from 'lucide-svelte';
+  import { Badge, Button, Drawer, SearchBar } from '$shared/ui';
+  import { ChevronRight, Copy, Pencil, Search, Shield, Trash2, Users } from 'lucide-svelte';
   import { labels } from '$shared/i18n';
+  import { groupPermissions } from '$shared/utils/permissionGroups';
 
   let {
     open = $bindable(false),
@@ -16,37 +17,48 @@
   } = $props();
 
   function getRolePermissions(role) {
-    if (!role.permissions || !role.permissions.length) return [];
+    if (!role || !role.permissions || !role.permissions.length) return [];
     const permCodes = new Set(role.permissions);
     return permissions.filter(p => permCodes.has(p.code));
   }
 
-  function getGroupedPermissions(rolePerms) {
-    const grouped = {};
-    for (const perm of rolePerms) {
-      let key = perm.code.split(':')[0];
-      if (key === 'role') key = 'user';
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(perm);
+  let rolePerms = $derived(getRolePermissions(selectedRole));
+  let permSearch = $state('');
+  let collapsedKeys = $state(new Set());
+
+  $effect(() => {
+    if (open) {
+      permSearch = '';
+      collapsedKeys = new Set(groupPermissions(rolePerms).map(g => g.key));
     }
-    return Object.entries(grouped);
+  });
+
+  let isSearching = $derived(permSearch.trim().length > 0);
+
+  let filteredGrouped = $derived.by(() => {
+    const search = permSearch.trim().toLowerCase();
+    const filtered = search
+      ? rolePerms.filter(p => p.name.toLowerCase().includes(search) || p.code.toLowerCase().includes(search))
+      : rolePerms;
+    return groupPermissions(filtered);
+  });
+
+  function isCollapsed(key) {
+    return !isSearching && collapsedKeys.has(key);
   }
 
-  let rolePerms = $derived(getRolePermissions(selectedRole));
-  let grouped = $derived(getGroupedPermissions(rolePerms));
+  function toggleGroup(key) {
+    const next = new Set(collapsedKeys);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    collapsedKeys = next;
+  }
 
-  const groupMeta = {
-    'user': { label: `${labels.user} & ${labels.role}`, icon: Users },
-    'product': { label: labels.product, icon: Shield },
-    'category': { label: labels.category, icon: Shield },
-    'sale': { label: 'Sales', icon: Shield },
-    'inventory': { label: labels.inventory, icon: Shield },
-    'customer': { label: labels.customer, icon: Shield },
-    'report': { label: labels.reports, icon: Shield },
-    'dashboard': { label: labels.dashboard, icon: Shield },
-    'pos': { label: 'POS', icon: Shield },
-    'audit': { label: labels.system, icon: Shield },
-  };
+  let allCollapsed = $derived(filteredGrouped.length > 0 && filteredGrouped.every(g => collapsedKeys.has(g.key)));
+
+  function setAll(expanded) {
+    collapsedKeys = expanded ? new Set() : new Set(filteredGrouped.map(g => g.key));
+  }
 </script>
 
 <Drawer bind:open width={520} ariaLabel={`${labels.role} ${labels.details}`} onclose={() => onclose()}>
@@ -65,25 +77,69 @@
     {/if}
 
     <div class="rounded-2xl bg-surface-default border border-border overflow-hidden">
-      <div class="px-4 py-2.5 border-b border-border/60 flex items-center gap-2">
-        <Users size={14} class="text-text-muted" />
-        <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted/80">{labels.permissions} ({rolePerms.length})</h3>
+      <div class="px-4 py-3 border-b border-border/60 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-7 h-7 rounded-lg bg-primary-subtle flex items-center justify-center shrink-0">
+            <Users size={14} class="text-primary-light" />
+          </div>
+          <h3 class="text-sm font-semibold text-text-primary truncate">{labels.permissions}</h3>
+          <span class="inline-flex items-center text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">{rolePerms.length}</span>
+        </div>
+        {#if rolePerms.length > 0 && !isSearching && filteredGrouped.length > 1}
+          <button
+            type="button"
+            class="text-xs font-semibold text-primary hover:text-primary-light transition-colors shrink-0"
+            onclick={() => setAll(allCollapsed)}
+          >
+            {allCollapsed ? labels.expandAll : labels.collapseAll}
+          </button>
+        {/if}
       </div>
       {#if rolePerms.length > 0}
-        <div class="p-4 grid grid-cols-1 gap-3">
-          {#each grouped as [key, perms]}
-            <div class="rounded-lg border border-border/40 bg-surface-subtle/20 p-3">
-              <p class="text-xs font-semibold text-primary-light uppercase tracking-wider mb-2">{groupMeta[key]?.label || key}</p>
-              <div class="flex flex-wrap gap-1.5">
-                {#each perms as perm}
-                  <span class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-surface-default/80 text-text-secondary border border-border/30" title={perm.description || perm.code}>{perm.name}</span>
-                {/each}
+        <div class="p-3 border-b border-border/40">
+          <SearchBar bind:value={permSearch} placeholder={labels.searchPermissions} inputClass="h-9 text-sm" />
+        </div>
+        <div class="p-3 space-y-2">
+          {#if filteredGrouped.length > 0}
+            {#each filteredGrouped as group (group.key)}
+              {@const Icon = group.icon}
+              {@const collapsed = isCollapsed(group.key)}
+              <div class="rounded-xl border overflow-hidden transition-colors {collapsed ? 'border-border/70 bg-surface-subtle/30' : 'border-primary/20 bg-primary-subtle/10'}">
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-surface-hover/60"
+                  aria-expanded={!collapsed}
+                  aria-controls="perm-group-{group.key}"
+                  onclick={() => toggleGroup(group.key)}
+                >
+                  <div class="w-6 h-6 rounded-md bg-primary-subtle flex items-center justify-center shrink-0">
+                    <Icon size={12} class="text-primary-light" />
+                  </div>
+                  <span class="text-sm font-medium text-text-primary truncate flex-1">{group.label}</span>
+                  <span class="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full bg-surface-default border border-border/60 text-text-secondary shrink-0">{group.permissions.length}</span>
+                  <ChevronRight size={15} class="text-text-muted shrink-0 transition-transform duration-200 {collapsed ? '' : 'rotate-90'}" />
+                </button>
+                {#if !collapsed}
+                  <div id="perm-group-{group.key}" class="grid grid-cols-2 gap-1.5 px-3 pt-2 pb-3" role="list">
+                    {#each group.permissions as perm (perm.id)}
+                      <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border/50 bg-surface-default hover:border-primary/30 hover:bg-primary-subtle/20 transition-colors" role="listitem" title={perm.description || perm.code}>
+                        <span class="w-1.5 h-1.5 rounded-full bg-primary/50 shrink-0"></span>
+                        <span class="text-[13px] text-text-secondary truncate">{perm.name}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
               </div>
+            {/each}
+          {:else}
+            <div class="py-8 text-center">
+              <div class="w-10 h-10 rounded-xl bg-surface-default border border-border mx-auto mb-2.5 flex items-center justify-center"><Search size={16} class="text-text-muted" /></div>
+              <p class="text-sm text-text-muted">{labels.noResults}: "{permSearch}"</p>
             </div>
-          {/each}
+          {/if}
         </div>
       {:else}
-        <div class="p-4">
+        <div class="p-6 text-center">
           <p class="text-sm text-text-muted italic">{labels.noPermissionsAssigned}</p>
         </div>
       {/if}

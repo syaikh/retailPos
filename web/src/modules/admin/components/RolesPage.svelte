@@ -7,9 +7,10 @@
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Permissions } from '$shared/constants/permissions';
   import { labels } from '$shared/i18n';
+  import { groupPermissions, permissionGroupKey } from '$shared/utils/permissionGroups';
 
   import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton, ConfirmDeleteModal, SortableHeader } from '$shared/ui';
-  import { Plus, Pencil, Trash2, Shield, Loader2, Search, ChevronRight, ChevronDown, ChevronLeft, ChevronsUpDown, Check, ChevronsLeft, ChevronsRight, Package, Tag, ShoppingCart, Warehouse, UserPlus, BarChart3, LayoutDashboard, Settings, Store, Eye, RefreshCw, Copy, AlertTriangle, MoreVertical, Users } from 'lucide-svelte';
+  import { Plus, Pencil, Trash2, Shield, Loader2, ChevronRight, ChevronDown, ChevronsUpDown, Check, Eye, RefreshCw, Copy, AlertTriangle, MoreVertical } from 'lucide-svelte';
 
   const authStore = useAuthStore();
   const rbac = useRBAC();
@@ -124,19 +125,6 @@
   let initialPermissionIds = $state([]);
   let initialFormData = $state({ name: '', description: '' });
 
-  const groupMeta = {
-    'user': { label: `${labels.user} & ${labels.role}`, icon: Users },
-    'product': { label: labels.product, icon: Package },
-    'category': { label: labels.category, icon: Tag },
-    'sale': { label: 'Sales', icon: ShoppingCart },
-    'inventory': { label: labels.inventory, icon: Warehouse },
-    'customer': { label: labels.customer, icon: UserPlus },
-    'report': { label: labels.reports, icon: BarChart3 },
-    'dashboard': { label: labels.dashboard, icon: LayoutDashboard },
-    'pos': { label: 'POS', icon: Store },
-    'audit': { label: labels.system, icon: Settings },
-  };
-
   let groupedPermissions = $derived.by(() => {
     const filtered = permissionSearch.trim()
       ? permissions.filter(p =>
@@ -144,29 +132,14 @@
           p.code.toLowerCase().includes(permissionSearch.toLowerCase())
         )
       : permissions;
-    const groups = {};
-    for (const p of filtered) {
-      let key = p.code.split(':')[0];
-      if (key === 'role') key = 'user';
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(p);
-    }
-    const order = ['user', 'product', 'category', 'sale', 'inventory', 'customer', 'report', 'dashboard', 'pos', 'audit'];
-    return order
-      .filter(key => groups[key]?.length)
-      .map(key => ({
-        key,
-        label: groupMeta[key]?.label || key,
-        icon: groupMeta[key]?.icon || Shield,
-        permissions: groups[key],
-      }));
+    return groupPermissions(filtered);
   });
 
   let selectedGroupCount = $derived.by(() => {
     const uniqueGroups = new Set();
     for (const gid of form.permission_ids) {
       const p = permissions.find(pp => pp.id === gid);
-      if (p) { let key = p.code.split(':')[0]; if (key === 'role') key = 'user'; uniqueGroups.add(key); }
+      if (p) uniqueGroups.add(permissionGroupKey(p.code));
     }
     return uniqueGroups.size;
   });
@@ -231,14 +204,14 @@
 
   function resetModal() {
     modalMode = 'add'; modalStep = 1; permissionSearch = '';
-    collapsedGroups = new Set(permissions.map(p => { let k = p.code.split(':')[0]; return k === 'role' ? 'user' : k; }));
+    collapsedGroups = new Set(permissions.map(p => permissionGroupKey(p.code)));
     nameTouched = false; initialPermissionIds = []; initialFormData = { name: '', description: '' };
     form = { name: '', description: '', permission_ids: [] };
   }
   function openAdd() { resetModal(); showModal = true; }
   function openEdit(role) {
     modalMode = 'edit'; modalStep = 1; permissionSearch = '';
-    collapsedGroups = new Set(permissions.map(p => { let k = p.code.split(':')[0]; return k === 'role' ? 'user' : k; }));
+    collapsedGroups = new Set(permissions.map(p => permissionGroupKey(p.code)));
     nameTouched = false; selectedRole = role;
     const currentPermIds = permissions.filter(p => role.permissions.includes(p.code)).map(p => p.id);
     initialPermissionIds = [...currentPermIds];
@@ -255,8 +228,7 @@
   function proceedToPermissions() {
     nameTouched = true; if (nameErrorText) { toast.error(nameErrorText); return; }
     modalStep = 2;
-    const allKeys = new Set(); for (const p of permissions) { let k = p.code.split(':')[0]; if (k === 'role') k = 'user'; allKeys.add(k); }
-    collapsedGroups = allKeys;
+    collapsedGroups = new Set(permissions.map(p => permissionGroupKey(p.code)));
   }
 
   function closeAll() { expandedRoleId = null; }
@@ -456,7 +428,7 @@
                       <Dropdown>
                         {#snippet trigger({ toggle })}
                           <button
-                            onclick={toggle}
+                            onclick={(e) => { e.stopPropagation(); toggle(); }}
                             class="p-1.5 rounded-lg transition-colors hover:bg-surface-hover text-text-muted hover:text-text-primary"
                             title={labels.action}
                             aria-label={labels.roleActions}

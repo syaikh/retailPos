@@ -150,6 +150,8 @@ export const en: Labels = {
   collapse: 'Collapse',
   collapseSidebar: 'Collapse sidebar',
   expandSidebar: 'Expand sidebar',
+  expandAll: 'Expand all',
+  collapseAll: 'Collapse all',
   closeShiftFirst: 'Close shift first',
   live: 'Live',
   offline: 'Offline',

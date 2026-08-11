@@ -149,6 +149,8 @@ export const id = {
   collapse: 'Ciutkan',
   collapseSidebar: 'Ciutkan sidebar',
   expandSidebar: 'Perluas sidebar',
+  expandAll: 'Perluas semua',
+  collapseAll: 'Ciutkan semua',
   closeShiftFirst: 'Tutup shift terlebih dahulu',
   live: 'Live',
   offline: 'Offline',

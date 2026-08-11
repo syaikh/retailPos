@@ -12,15 +12,19 @@ describe('RoleDetailDrawer.svelte source-structure guards', () => {
   const src = getSource();
 
   it('imports Badge, Button and Drawer from shared/ui', () => {
-    expect(src).toContain("import { Badge, Button, Drawer } from '$shared/ui'");
+    expect(src).toContain("import { Badge, Button, Drawer, SearchBar } from '$shared/ui'");
   });
 
   it('imports lucide icons', () => {
-    expect(src).toContain("import { Shield, Users, Copy, Pencil, Trash2 } from 'lucide-svelte'");
+    expect(src).toContain("import { ChevronRight, Copy, Pencil, Search, Shield, Trash2, Users } from 'lucide-svelte'");
   });
 
   it('imports i18n labels', () => {
     expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
+  it('imports shared permission grouping util', () => {
+    expect(src).toContain("import { groupPermissions } from '$shared/utils/permissionGroups'");
   });
 
   it('uses $props for component props', () => {
@@ -51,17 +55,26 @@ describe('RoleDetailDrawer.svelte source-structure guards', () => {
     expect(src).toContain('function getRolePermissions');
   });
 
-  it('has getGroupedPermissions helper function', () => {
-    expect(src).toContain('function getGroupedPermissions');
-  });
-
-  it('has groupMeta constant', () => {
-    expect(src).toContain('const groupMeta');
-  });
-
   it('has permission list with grouped display', () => {
     expect(src).toContain('getRolePermissions(selectedRole)');
-    expect(src).toContain('getGroupedPermissions(rolePerms)');
+    expect(src).toContain('groupPermissions(filtered)');
+  });
+
+  it('renders permission categories in a 2-column grid', () => {
+    expect(src).toContain('grid grid-cols-2');
+  });
+
+  it('category panels are collapsible and collapsed by default', () => {
+    expect(src).toContain('collapsedKeys = $state(new Set())');
+    expect(src).toContain('toggleGroup(group.key)');
+    expect(src).toContain('aria-expanded={!collapsed}');
+    expect(src).toContain('groupPermissions(rolePerms).map(g => g.key)');
+  });
+
+  it('provides expand/collapse all control', () => {
+    expect(src).toContain('labels.expandAll');
+    expect(src).toContain('labels.collapseAll');
+    expect(src).toContain('setAll(allCollapsed)');
   });
 
   it('has edit/duplicate/delete action buttons', () => {
