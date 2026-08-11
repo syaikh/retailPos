@@ -445,7 +445,7 @@
       {/if}
     </div>
 
-    <Dropdown placement="bottom-start">
+    <Dropdown placement="bottom-start" menuClass="min-w-[320px]">
       {#snippet trigger({ toggle })}
         <button
           class="flex items-center gap-2 px-3 h-10 w-32 rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
@@ -456,18 +456,20 @@
         </button>
       {/snippet}
       {#snippet content({ close })}
-        {#each resourceFilters as f}
-          <button
-            class="w-full text-left px-4 py-2 text-sm transition-colors {selectedResource === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-            onclick={() => { selectedResource = f.id; selectedAction = 'all'; close(); }}
-          >
-            {f.label}
-          </button>
-        {/each}
+        <div class="grid grid-cols-2 gap-1">
+          {#each resourceFilters as f}
+            <button
+              class="w-full text-left px-3 py-1.5 text-sm transition-colors {selectedResource === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+              onclick={() => { selectedResource = f.id; selectedAction = 'all'; close(); }}
+            >
+              {f.label}
+            </button>
+          {/each}
+        </div>
       {/snippet}
     </Dropdown>
 
-    <Dropdown placement="bottom-start">
+    <Dropdown placement="bottom-start" menuClass="w-[140px] min-w-0">
       {#snippet trigger({ toggle })}
         <button
           class="flex items-center gap-2 px-3 h-10 w-[140px] rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
@@ -480,7 +482,7 @@
       {#snippet content({ close })}
         {#each availableActionFilters as f}
           <button
-            class="w-full text-left px-4 py-2 text-sm transition-colors {selectedAction === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+            class="w-full text-left px-3 py-1.5 text-sm transition-colors {selectedAction === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
             onclick={() => { selectedAction = f.id; close(); }}
           >
             {f.label}
