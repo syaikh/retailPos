@@ -508,6 +508,74 @@ func TestCartService_CheckoutPaymentMismatch(t *testing.T) {
 	assert.ErrorIs(t, err, ErrPaymentTotalMismatch)
 }
 
+// P2-1 D2 CartCheckout regression: a cart that ends up with duplicate rows for
+// the same product (reachable via direct API calls, since cart_items has no
+// unique constraint) must be aggregated at checkout — stock deducted once for
+// the combined quantity, no duplicate sale-item rows, and no oversell.
+func TestCartService_CheckoutAggregatesDuplicateCartItems(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	svc, _ := newCartTestService(ctx, t)
+
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-DUP-PROD", "Cart Dup Product", 3500, 10, 11)
+
+	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
+	require.NoError(t, err)
+	// First line adds 3 of the product; a second line adds 4 more of the same
+	// product. The UI merges, but the API does not enforce uniqueness, so the
+	// cart now holds two rows for prodID.
+	cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 3, nil, cashierID)
+	require.NoError(t, err)
+	cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 4, nil, cashierID)
+	require.NoError(t, err)
+	require.Len(t, cart.Items, 2, "cart holds two rows for the same product")
+
+	total := cart.TotalAmount
+
+	sale, err := svc.CheckoutCart(ctx, cart.ID, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: total}}, cashierID)
+	require.NoError(t, err)
+	require.Len(t, sale.Items, 1, "duplicate cart rows collapse into a single sale item")
+	assert.Equal(t, prodID, sale.Items[0].ProductID)
+	assert.Equal(t, 7, sale.Items[0].Quantity, "quantities are aggregated (3+4)")
+
+	var stockAfter int
+	err = dbPool.QueryRow(ctx, `SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, prodID).Scan(&stockAfter)
+	require.NoError(t, err)
+	assert.Equal(t, 3, stockAfter, "combined quantity 7 deducted from 10, never oversold")
+}
+
+// P2-1 D2 CartCheckout regression: a cart whose duplicate product rows exceed
+// available stock must fail cleanly with ErrInsufficientStock and leave stock
+// untouched (no negative stock). Each line individually fits, but the combined
+// quantity does not — without aggregation this would have gone negative.
+func TestCartService_CheckoutAggregatedOversellRejected(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	svc, _ := newCartTestService(ctx, t)
+
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-DUP-OVER", "Cart Dup Over", 3500, 8, 11)
+
+	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
+	require.NoError(t, err)
+	cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 5, nil, cashierID)
+	require.NoError(t, err)
+	cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 5, nil, cashierID)
+	require.NoError(t, err)
+	require.Len(t, cart.Items, 2, "cart holds two rows for the same product")
+
+	total := cart.TotalAmount
+
+	_, err = svc.CheckoutCart(ctx, cart.ID, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: total}}, cashierID)
+	require.ErrorIs(t, err, ErrInsufficientStock)
+
+	var stockAfter int
+	err = dbPool.QueryRow(ctx, `SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, prodID).Scan(&stockAfter)
+	require.NoError(t, err)
+	assert.Equal(t, 8, stockAfter, "stock untouched after rejected checkout")
+}
+
 func TestCartService_ResumeHeldCartIdempotentForOpen(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()

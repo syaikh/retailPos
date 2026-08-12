@@ -154,11 +154,18 @@ func validateCheckoutItems(items []Item) error {
 	return nil
 }
 
-// toStockDeductItems reduces sale items to the minimal deduction contract.
+// toStockDeductItems reduces sale items to the minimal deduction contract,
+// aggregating quantities per product so a duplicated line item can never cause
+// overselling. The receipt/ledger item rows are unaffected; only the deduction
+// list is deduplicated (P2-1 D2).
 func toStockDeductItems(items []Item) []shared.StockDeductItem {
-	result := make([]shared.StockDeductItem, len(items))
-	for i, item := range items {
-		result[i] = shared.StockDeductItem{ProductID: item.ProductID, Quantity: item.Quantity}
+	byProduct := make(map[int]int, len(items))
+	for _, item := range items {
+		byProduct[item.ProductID] += item.Quantity
+	}
+	result := make([]shared.StockDeductItem, 0, len(byProduct))
+	for productID, quantity := range byProduct {
+		result = append(result, shared.StockDeductItem{ProductID: productID, Quantity: quantity})
 	}
 	return result
 }

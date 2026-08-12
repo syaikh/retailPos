@@ -268,6 +268,71 @@ func TestSaleService_CreateSaleDeductsStock(t *testing.T) {
 	assert.Equal(t, initialStock-quantity, stockAfter, "stock should be reduced by sale quantity")
 }
 
+// P2-1 D2: duplicated line items for the same product must be aggregated before
+// deduction so the sale deducts the combined quantity exactly once and can never
+// oversell against the available stock.
+func TestSaleService_CreateSaleDuplicateLineItemsAggregate(t *testing.T) {
+	repo := newTestRepo(t)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
+	ctx := context.Background()
+
+	t.Run("within capacity deducts combined once", func(t *testing.T) {
+		_ = shared.TruncateTestData(dbPool)
+		prodID := insertTestProduct(ctx, t, "SVC-DUP-OK", "Duplicate OK", 5000, 10)
+
+		sale := &Sale{
+			InvoiceNumber: "INV-SVC-DUP-OK-001",
+			CashierID:     insertTestCashier(ctx, t),
+			Subtotal:      50000,
+			TotalAmount:   50000,
+			PaymentMethod: "CASH",
+			Status:        "completed",
+		}
+		items := []Item{
+			{ProductID: prodID, Quantity: 3, UnitPrice: 5000, Subtotal: 15000, DPPAmount: 15000},
+			{ProductID: prodID, Quantity: 4, UnitPrice: 5000, Subtotal: 20000, DPPAmount: 20000},
+		}
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 50000}})
+		require.NoError(t, err)
+
+		var stockAfter int
+		err = dbPool.QueryRow(ctx, `SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, prodID).Scan(&stockAfter)
+		require.NoError(t, err)
+		assert.Equal(t, 3, stockAfter, "3+4=7 deducted from 10, not double-counted")
+	})
+
+	t.Run("combined quantity over stock aborts without negative stock", func(t *testing.T) {
+		_ = shared.TruncateTestData(dbPool)
+		prodID := insertTestProduct(ctx, t, "SVC-DUP-OVER", "Duplicate Over", 5000, 8)
+
+		sale := &Sale{
+			InvoiceNumber: "INV-SVC-DUP-OVER-001",
+			CashierID:     insertTestCashier(ctx, t),
+			Subtotal:      50000,
+			TotalAmount:   50000,
+			PaymentMethod: "CASH",
+			Status:        "completed",
+		}
+		items := []Item{
+			{ProductID: prodID, Quantity: 5, UnitPrice: 5000, Subtotal: 25000, DPPAmount: 25000},
+			{ProductID: prodID, Quantity: 5, UnitPrice: 5000, Subtotal: 25000, DPPAmount: 25000},
+		}
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 50000}})
+		require.ErrorIs(t, err, ErrInsufficientStock)
+
+		var stockAfter int
+		err = dbPool.QueryRow(ctx, `SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, prodID).Scan(&stockAfter)
+		require.NoError(t, err)
+		assert.Equal(t, 8, stockAfter, "stock untouched after aborted sale")
+	})
+}
+
 func TestSaleService_CreateSaleWithShift(t *testing.T) {
 	repo := newTestRepo(t)
 	bus := eventbus.New()

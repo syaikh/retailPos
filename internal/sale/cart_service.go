@@ -430,10 +430,14 @@ func (s *service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 		return nil, ErrCartEmpty
 	}
 
-	// Build sale items from the immutable snapshots.
-	items := make([]Item, 0, len(cart.Items))
+	// Build sale items from the immutable snapshots, collapsing duplicate
+	// product rows (same product + unit price snapshot) into one line so a cart
+	// filled via direct API calls can neither oversell nor emit duplicate
+	// receipt/ledger rows (P2-1 D2).
+	aggregated := aggregateCartItems(cart.Items)
+	items := make([]Item, 0, len(aggregated))
 	var subtotal, dppTotal, taxTotal int
-	for _, ci := range cart.Items {
+	for _, ci := range aggregated {
 		if ci.UnitPrice != ci.Subtotal/ci.Quantity {
 			return nil, fmt.Errorf("%w: product %d", ErrPriceMismatch, ci.ProductID)
 		}
@@ -575,6 +579,57 @@ func computeCartTotals(items []CartItem) (subtotal, discount, tax, total int) {
 		total = 0
 	}
 	return subtotal, discount, tax, total
+}
+
+// aggregateCartItems collapses duplicate cart lines (same product, same
+// unit-price and tax snapshot) into a single line by summing quantity and line
+// totals. The cart UI merges on add, but the API InsertCartItem is a plain
+// insert with no unique constraint, so direct callers can create duplicate rows;
+// collapsing them at checkout prevents overselling and duplicate receipt/ledger
+// rows (P2-1 D2). Lines that differ in product, unit price, or tax class are
+// kept as-is, so a merged line always reflects a single price/tax snapshot.
+func aggregateCartItems(items []CartItem) []CartItem {
+	index := make(map[cartItemKey]int, len(items))
+	aggregated := make([]CartItem, 0, len(items))
+	for _, item := range items {
+		taxClassID, hasTax := taxClassKey(item.TaxClassID)
+		key := cartItemKey{
+			ProductID:  item.ProductID,
+			UnitPrice:  item.UnitPrice,
+			TaxClassID: taxClassID,
+			HasTax:     hasTax,
+		}
+		if idx, ok := index[key]; ok {
+			agg := &aggregated[idx]
+			agg.Quantity += item.Quantity
+			agg.Subtotal += item.Subtotal
+			agg.DPPAmount += item.DPPAmount
+			agg.TaxAmount += item.TaxAmount
+			continue
+		}
+		index[key] = len(aggregated)
+		aggregated = append(aggregated, item)
+	}
+	return aggregated
+}
+
+// taxClassKey is a value-based representation of an optional *int tax class id
+// that is comparable as a map key (two separate pointers to the same value must
+// merge).
+func taxClassKey(id *int) (int, bool) {
+	if id == nil {
+		return 0, false
+	}
+	return *id, true
+}
+
+// cartItemKey identifies cart lines that can be safely aggregated: the same
+// product at the same unit-price and tax-class snapshot.
+type cartItemKey struct {
+	ProductID  int
+	UnitPrice  int
+	TaxClassID int
+	HasTax     bool
 }
 
 // computeLineTotals computes subtotal, DPP, and tax for a single line.
