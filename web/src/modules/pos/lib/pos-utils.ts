@@ -1,4 +1,4 @@
-import type { CartItem, CheckoutPayload } from '../types';
+import type { CartItem } from '../types';
 
 export function formatCurrency(value?: number): string {
   if (value == null || isNaN(value)) return 'Rp 0';
@@ -21,42 +21,6 @@ export function calculateSubtotal(items: CartItem[]): number {
 
 export function calculateTotalItems(items: CartItem[]): number {
   return items.reduce((sum, item) => sum + item.quantity, 0);
-}
-
-export function buildCheckoutPayload(
-  cart: CartItem[],
-  paymentMethod: string,
-  customerId: number | null,
-  cashierId: number,
-  storeId: number | null,
-): CheckoutPayload {
-  const subtotal = calculateSubtotal(cart);
-  const tax = calculateTax(cart);
-  return {
-    items: cart.map((item) => ({
-      product_id: item.product_id,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      subtotal: item.unit_price * item.quantity,
-      ...(item.pricing_rule_id ? {
-        pricing_rule_id: item.pricing_rule_id,
-        pricing_rule_name: item.pricing_rule_name,
-        pricing_rule_type: item.pricing_rule_type,
-        pricing_type: item.pricing_type,
-        original_price: item.original_price,
-      } : {}),
-    })),
-    cashier_id: cashierId,
-    store_id: storeId,
-    shift_id: null,
-    subtotal,
-    discount: 0,
-    tax,
-    total_amount: subtotal,
-    payment_method: paymentMethod,
-    customer_id: customerId,
-    status: 'completed',
-  };
 }
 
 export const QUICK_CASH_PRESETS = [50000, 100000, 150000, 200000];

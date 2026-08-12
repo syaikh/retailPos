@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/permissions"
+	"retail-pos-system/internal/shared"
 )
 
 func init() {
@@ -34,6 +36,7 @@ type mockService struct {
 	getNextInvoiceNumberFn     func(ctx context.Context) (string, error)
 	getAllPaymentMethodsFn     func(ctx context.Context) ([]PaymentMethod, error)
 	getPaymentMethodByCodeFn   func(ctx context.Context, code string) (*PaymentMethod, error)
+	resolveCheckoutPricesFn    func(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error)
 	parkSaleFn                 func(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int) error
 	recallSaleFn               func(ctx context.Context, saleID int) (*Sale, error)
 	cancelParkedSaleFn         func(ctx context.Context, saleID int) error
@@ -90,6 +93,29 @@ func (m *mockService) GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod
 }
 func (m *mockService) GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error) {
 	return m.getPaymentMethodByCodeFn(ctx, code)
+}
+
+// ResolveCheckoutPrices defaults to resolving every line at 10000 so handler
+// tests that only exercise error mapping or payment plumbing don't have to
+// configure a resolver. Tests focused on pricing override it.
+func (m *mockService) ResolveCheckoutPrices(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error) {
+	if m.resolveCheckoutPricesFn != nil {
+		return m.resolveCheckoutPricesFn(ctx, items)
+	}
+	snaps := make([]PriceSnapshot, len(items))
+	for i, it := range items {
+		snaps[i] = PriceSnapshot{
+			ProductID:     it.ProductID,
+			ProductName:   "Mock Product",
+			UnitPrice:     10000,
+			OriginalPrice: 10000,
+			Discount:      0,
+			Type:          Type("default"),
+			Cost:          5000,
+			SnapshotAt:    time.Now().In(shared.JakartaLocation()),
+		}
+	}
+	return snaps, nil
 }
 func (m *mockService) ParkSale(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int) error {
 	return m.parkSaleFn(ctx, sale, items, recalledSaleID)
@@ -256,7 +282,7 @@ func setupSaleHandlerUser(svc Service, auditSvc audit.Creator, userID interface{
 // branches in CreateSale, ParkSale, ListParkedSales and GetParkedSaleByID.
 func TestSaleHandler_UserContextBranches(t *testing.T) {
 	svc := &mockService{}
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}]}`
+	body := `{"items":[{"product_id":1,"quantity":1}]}`
 
 	cases := []struct {
 		name   string
@@ -264,7 +290,7 @@ func TestSaleHandler_UserContextBranches(t *testing.T) {
 		path   string
 		body   string
 	}{
-		{"create sale", http.MethodPost, "/sales", `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}],"payment_method":"cash"}`},
+		{"create sale", http.MethodPost, "/sales", `{"items":[{"product_id":1,"quantity":1}],"payment_method":"cash"}`},
 		{"park sale", http.MethodPost, "/sales/parked", body},
 		{"list parked", http.MethodGet, "/sales/parked", ""},
 		{"get parked by id", http.MethodGet, "/sales/parked/1", ""},
@@ -309,33 +335,71 @@ func TestSaleHandler_UserContextBranches(t *testing.T) {
 	})
 }
 
-func TestSaleHandler_CreateSale_Success(t *testing.T) {
-	var capturedSale *Sale
-	svc := &mockService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
-			sale.ID = 1
-			capturedSale = sale
-			return nil
-		},
-		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
-			return "INV-001", nil
-		},
-		getPaymentMethodByCodeFn: func(ctx context.Context, code string) (*PaymentMethod, error) {
-			return &PaymentMethod{Code: "cash", Name: "Cash"}, nil
-		},
-	}
+// TestSaleHandler_CreateSale_RejectsLegacyPricingFields asserts prices are
+// server-authoritative: a payload that still sends unit_price, subtotal,
+// discount or tax is rejected rather than silently corrected.
+func TestSaleHandler_CreateSale_RejectsLegacyPricingFields(t *testing.T) {
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":2,"subtotal":20000}],"payment_method":"cash","tax":1100}`
+	body := `{"items":[{"product_id":1,"quantity":2,"unit_price":1}],"payment_method":"cash","discount":500,"tax":1100}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusCreated, w.Code)
-	require.NotNil(t, capturedSale)
-	assert.Equal(t, "INV-001", capturedSale.InvoiceNumber)
-	assert.Equal(t, 1, capturedSale.CashierID)
-	assert.Equal(t, 1100, capturedSale.Tax, "tax should be captured from request body")
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "discount is not accepted")
+}
+
+func TestSaleHandler_CreateSale_RejectsItemSubtotal(t *testing.T) {
+	svc := &mockService{}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":2,"subtotal":1}],"payment_method":"cash"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "subtotal is not accepted for product 1")
+}
+
+func TestSaleHandler_CreateSale_RejectsTaxField(t *testing.T) {
+	svc := &mockService{}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1}],"payment_method":"cash","tax":1100}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "tax is not accepted")
+}
+
+func TestSaleHandler_CreateSale_RejectsClientPricingRootFields(t *testing.T) {
+	cases := []struct {
+		name     string
+		body     string
+		expected string
+	}{
+		{"top-level subtotal", `{"items":[{"product_id":1,"quantity":1}],"subtotal":100000}`, "subtotal is not accepted"},
+		{"top-level total_amount", `{"items":[{"product_id":1,"quantity":1}],"total_amount":100000}`, "total_amount is not accepted"},
+		{"item unit_price", `{"items":[{"product_id":1,"quantity":1,"unit_price":100000}],"payment_method":"cash"}`, "unit_price is not accepted for product 1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &mockService{}
+			r := setupSaleHandler(svc, nil)
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest("POST", "/sales", strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), tc.expected)
+		})
+	}
 }
 
 func TestSaleHandler_CreateSale_WithShiftID(t *testing.T) {
@@ -355,7 +419,7 @@ func TestSaleHandler_CreateSale_WithShiftID(t *testing.T) {
 	}
 	r := setupSaleHandler(svc, nil)
 	shiftID := 42
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}],"shift_id":42,"payment_method":"cash"}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"shift_id":42,"payment_method":"cash"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -390,7 +454,7 @@ func TestSaleHandler_CreateSale_WithAuditLog(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, auditSvc)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}],"payment_method":"cash"}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payment_method":"cash"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -478,36 +542,74 @@ func TestSaleHandler_CreateSale_WithCartSessionID_AuditLogged(t *testing.T) {
 	assert.True(t, auditCalled, "audit log should be created for cart-based sale")
 }
 
-func TestSaleHandler_CreateSale_NegativeDiscount(t *testing.T) {
+// TestSaleHandler_CreateSale_EngineDiscountApplied asserts the pricing engine's
+// rule-based discount (UnitPrice < OriginalPrice with a pricing rule) is applied
+// server-side and captured on the sale item so the discount stays auditable.
+func TestSaleHandler_CreateSale_EngineDiscountApplied(t *testing.T) {
+	var capturedSale *Sale
+	var capturedItems []Item
 	svc := &mockService{
+		createSaleFn: func(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
+			sale.ID = 1
+			capturedSale = sale
+			capturedItems = items
+			return nil
+		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
-			return "INV-003", nil
+			return "INV-GRP-001", nil
+		},
+		resolveCheckoutPricesFn: func(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error) {
+			snaps := make([]PriceSnapshot, len(items))
+			for i, it := range items {
+				snaps[i] = PriceSnapshot{
+					ProductID:     it.ProductID,
+					ProductName:   "Discounted Product",
+					UnitPrice:     15000,
+					OriginalPrice: 20000,
+					Discount:      5000,
+					Type:          Type("rule"),
+					Rule:          &Rule{ID: 7, Name: "Hot Deal", Type: Type("rule")},
+					Cost:          10000,
+					SnapshotAt:    time.Now().In(shared.JakartaLocation()),
+				}
+			}
+			return snaps, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}],"discount":-5}`
+	body := `{"items":[{"product_id":1,"quantity":2}],"payment_method":"cash"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "discount must not be negative")
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	require.NotNil(t, capturedSale)
+	require.Len(t, capturedItems, 1)
+	assert.Equal(t, 0, capturedSale.Discount, "no ad-hoc discount captured")
+	assert.Equal(t, 30000, capturedSale.Subtotal, "engine unit price drives the subtotal")
+	assert.Equal(t, 30000, capturedSale.TotalAmount)
+	item := capturedItems[0]
+	assert.Equal(t, 15000, item.UnitPrice)
+	assert.Equal(t, 30000, item.Subtotal)
+	require.NotNil(t, item.OriginalPrice)
+	assert.Equal(t, 20000, *item.OriginalPrice, "engine discount kept auditable via original price")
+	require.NotNil(t, item.PricingRuleID)
+	assert.Equal(t, 7, *item.PricingRuleID)
 }
 
-func TestSaleHandler_CreateSale_DiscountExceedsSubtotal(t *testing.T) {
-	svc := &mockService{
-		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
-			return "INV-004", nil
-		},
-	}
+// TestSaleHandler_CreateSale_RejectsClientInvoiceNumber asserts invoice numbers
+// cannot be forged client-side; the server always generates them.
+func TestSaleHandler_CreateSale_RejectsClientInvoiceNumber(t *testing.T) {
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}],"discount":20000}`
+	body := `{"invoice_number":"CUSTOM-INV","items":[{"product_id":1,"quantity":1}],"payment_method":"cash"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "discount must not exceed subtotal")
+	assert.Contains(t, w.Body.String(), "invoice number is generated by the server")
 }
 
 func TestSaleHandler_CreateSale_InvalidPaymentMethod(t *testing.T) {
@@ -520,7 +622,7 @@ func TestSaleHandler_CreateSale_InvalidPaymentMethod(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}],"payment_method":"invalid"}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payment_method":"invalid"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -536,7 +638,7 @@ func TestSaleHandler_CreateSale_InvoiceNumberError(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}]}`
+	body := `{"items":[{"product_id":1,"quantity":1}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -558,7 +660,7 @@ func TestSaleHandler_CreateSale_InsufficientStock(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}],"payment_method":"cash"}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payment_method":"cash"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -580,7 +682,7 @@ func TestSaleHandler_CreateSale_ServiceError(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}],"payment_method":"cash"}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payment_method":"cash"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -588,28 +690,32 @@ func TestSaleHandler_CreateSale_ServiceError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestSaleHandler_CreateSale_ProvidedInvoiceNumber(t *testing.T) {
-	var capturedSale *Sale
-	svc := &mockService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
-			capturedSale = sale
-			sale.ID = 1
-			return nil
-		},
-		getPaymentMethodByCodeFn: func(ctx context.Context, code string) (*PaymentMethod, error) {
-			return &PaymentMethod{Code: "cash"}, nil
-		},
-	}
-	r := setupSaleHandler(svc, nil)
-	body := `{"invoice_number":"CUSTOM-INV","items":[{"product_id":1,"quantity":1,"subtotal":10000}],"payment_method":"cash"}`
+// TestSaleHandler_CreateSale_RejectsPayloadStoreID asserts a caller can never
+// create a sale for a store other than the one in its claims — a payload
+// store_id is rejected outright instead of silently ignored.
+func TestSaleHandler_CreateSale_RejectsPayloadStoreID(t *testing.T) {
+	svc := &mockService{}
+	gin.SetMode(gin.TestMode)
+	claimsStore := 42
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("storeID", &claimsStore)
+		c.Next()
+	})
+	h := NewHandler(svc, nil)
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+
+	body := `{"items":[{"product_id":1,"quantity":1}],"store_id":99,"payment_method":"cash"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusCreated, w.Code)
-	require.NotNil(t, capturedSale)
-	assert.Equal(t, "CUSTOM-INV", capturedSale.InvoiceNumber)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "store_id is not accepted")
 }
 
 func TestSaleHandler_GetSalesHistory_Success(t *testing.T) {
@@ -992,7 +1098,7 @@ func TestSaleHandler_ParkSale_Success(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":2,"subtotal":20000}],"payment_method":"CASH"}`
+	body := `{"items":[{"product_id":1,"quantity":2}],"payment_method":"CASH"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales/parked", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1178,7 +1284,7 @@ func TestSaleHandler_CreateSale_ParkedSaleNotRecalled(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}],"parked_sale_id":1,"payment_method":"CASH"}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"parked_sale_id":1,"payment_method":"CASH"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1217,7 +1323,7 @@ func TestSaleHandler_CreateSale_WithParkedSaleID(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":2,"subtotal":20000}],"payment_method":"CASH","parked_sale_id":5}`
+	body := `{"items":[{"product_id":1,"quantity":2}],"payment_method":"CASH","parked_sale_id":5}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1247,7 +1353,7 @@ func TestSaleHandler_CreateSale_SplitPayments_Success(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"CASH","amount":30000},{"payment_method_code":"QRIS","amount":20000}]}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payments":[{"payment_method_code":"CASH","amount":30000},{"payment_method_code":"QRIS","amount":20000}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1277,7 +1383,7 @@ func TestSaleHandler_CreateSale_SplitPayments_WithReference(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":100000}],"payments":[{"payment_method_code":"CASH","amount":60000},{"payment_method_code":"CARD","amount":40000,"reference_number":"TXN-123"}]}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payments":[{"payment_method_code":"CASH","amount":60000},{"payment_method_code":"CARD","amount":40000,"reference_number":"TXN-123"}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1297,7 +1403,7 @@ func TestSaleHandler_CreateSale_MissingPayments(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}]}`
+	body := `{"items":[{"product_id":1,"quantity":1}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1317,7 +1423,7 @@ func TestSaleHandler_CreateSale_SplitPayment_TotalMismatch(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"CASH","amount":30000}]}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payments":[{"payment_method_code":"CASH","amount":30000}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1337,7 +1443,7 @@ func TestSaleHandler_CreateSale_SplitPayment_DuplicateMethod(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"QRIS","amount":25000},{"payment_method_code":"QRIS","amount":25000}]}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payments":[{"payment_method_code":"QRIS","amount":25000},{"payment_method_code":"QRIS","amount":25000}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1357,7 +1463,7 @@ func TestSaleHandler_CreateSale_SplitPayment_MultipleCash(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"CASH","amount":25000},{"payment_method_code":"CASH","amount":25000}]}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payments":[{"payment_method_code":"CASH","amount":25000},{"payment_method_code":"CASH","amount":25000}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1377,7 +1483,7 @@ func TestSaleHandler_CreateSale_SplitPayment_MaxExceeded(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":100000}],"payments":[{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000}]}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payments":[{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1397,7 +1503,7 @@ func TestSaleHandler_CreateSale_SplitPayment_ReferenceRequired(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"CARD","amount":50000}]}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payments":[{"payment_method_code":"CARD","amount":50000}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1417,7 +1523,7 @@ func TestSaleHandler_CreateSale_SplitPayment_InvalidMethod(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"BITCOIN","amount":50000}]}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payments":[{"payment_method_code":"BITCOIN","amount":50000}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1437,7 +1543,7 @@ func TestSaleHandler_CreateSale_SplitPayment_InactiveMethod(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"INACTIVE","amount":50000}]}`
+	body := `{"items":[{"product_id":1,"quantity":1}],"payments":[{"payment_method_code":"INACTIVE","amount":50000}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1457,7 +1563,7 @@ func TestSaleHandler_ParkSale_ServiceError(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":2,"subtotal":20000}],"payment_method":"CASH"}`
+	body := `{"items":[{"product_id":1,"quantity":2}],"payment_method":"CASH"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales/parked", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1473,7 +1579,7 @@ func TestSaleHandler_ParkSale_AutoInvoiceError(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":2,"subtotal":20000}]}`
+	body := `{"items":[{"product_id":1,"quantity":2}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales/parked", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

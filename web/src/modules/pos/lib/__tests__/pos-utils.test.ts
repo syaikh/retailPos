@@ -64,28 +64,4 @@ describe('pos-utils', () => {
       expect(calculateTotalItems([])).toBe(0);
     });
   });
-
-  describe('buildCheckoutPayload', () => {
-    it('builds correct sale payload', async () => {
-      const { buildCheckoutPayload } = await import('../pos-utils');
-      const payload = buildCheckoutPayload(mockCart, 'Cash', null, 1, null);
-
-      expect(payload.payment_method).toBe('Cash');
-      expect(payload.customer_id).toBeNull();
-      expect(payload.cashier_id).toBe(1);
-      expect(payload.subtotal).toBe(35000);
-      expect(payload.total_amount).toBe(35000);
-      expect(payload.items).toHaveLength(2);
-      expect(payload.items[0].product_id).toBe(1);
-      expect(payload.items[0].quantity).toBe(2);
-    });
-
-    it('includes customer ID when provided', async () => {
-      const { buildCheckoutPayload } = await import('../pos-utils');
-      const payload = buildCheckoutPayload(mockCart, 'Card', 5, 1, 2);
-
-      expect(payload.customer_id).toBe(5);
-      expect(payload.store_id).toBe(2);
-    });
-  });
 });

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"retail-pos-system/internal/events"
+	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/shared"
 )
 
@@ -150,6 +151,9 @@ func (s *service) AddCartItem(ctx context.Context, cartID int, productID, quanti
 		CustomerGroupID: customerGroupID,
 	}})
 	if err != nil {
+		if errors.Is(err, pricing.ErrProductNotFound) {
+			return nil, fmt.Errorf("%w: %w", ErrCheckoutProductNotFound, err)
+		}
 		return nil, fmt.Errorf("resolve price snapshot: %w", err)
 	}
 	snap := snapshots[0]
@@ -165,7 +169,7 @@ func (s *service) AddCartItem(ctx context.Context, cartID int, productID, quanti
 		PricingRuleID:     nil,
 		PricingRuleName:   nil,
 		PricingRuleType:   nil,
-		Type:       stringPtr(string(snap.Type)),
+		Type:              stringPtr(string(snap.Type)),
 		Cost:              snap.Cost,
 		TaxClassID:        snap.TaxClassID,
 		TaxRate:           snap.TaxRate,

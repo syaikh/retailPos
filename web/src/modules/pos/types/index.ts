@@ -56,31 +56,6 @@ export interface PaymentAllocation {
   reference_number?: string;
 }
 
-export interface CheckoutPayload {
-  items: {
-    product_id: number;
-    quantity: number;
-    unit_price: number;
-    subtotal: number;
-    pricing_rule_id?: number;
-    pricing_rule_name?: string;
-    pricing_rule_type?: string;
-    pricing_type?: string;
-    original_price?: number;
-  }[];
-  cashier_id: number;
-  store_id: number | null;
-  shift_id: number | null;
-  subtotal: number;
-  discount: number;
-  tax: number;
-  total_amount: number;
-  payment_method: string;
-  payments?: PaymentAllocation[];
-  customer_id: number | null;
-  status: string;
-}
-
 export interface PaymentOption {
   id: string;
   label: string;

@@ -2,6 +2,7 @@ package pricing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -388,16 +389,16 @@ func (h *Handler) RejectRule(c *gin.Context) {
 }
 
 type checkConflictsRequest struct {
-	ProductID       *int          `json:"product_id"`
-	CategoryID      *int          `json:"category_id"`
-	BrandID         *int          `json:"brand_id"`
-	Type     Type   `json:"pricing_type" binding:"required"`
-	Method   Method `json:"pricing_method" binding:"required"`
-	PricingValue    float64       `json:"pricing_value"`
-	MinimumQuantity int           `json:"minimum_quantity"`
-	MaximumQuantity *int          `json:"maximum_quantity"`
-	Priority        int           `json:"priority"`
-	ExcludeID       int           `json:"exclude_id"`
+	ProductID       *int    `json:"product_id"`
+	CategoryID      *int    `json:"category_id"`
+	BrandID         *int    `json:"brand_id"`
+	Type            Type    `json:"pricing_type" binding:"required"`
+	Method          Method  `json:"pricing_method" binding:"required"`
+	PricingValue    float64 `json:"pricing_value"`
+	MinimumQuantity int     `json:"minimum_quantity"`
+	MaximumQuantity *int    `json:"maximum_quantity"`
+	Priority        int     `json:"priority"`
+	ExcludeID       int     `json:"exclude_id"`
 }
 
 // CheckConflicts godoc
@@ -425,8 +426,8 @@ func (h *Handler) CheckConflicts(c *gin.Context) {
 		ProductID:       req.ProductID,
 		CategoryID:      req.CategoryID,
 		BrandID:         req.BrandID,
-		Type:     req.Type,
-		Method:   req.Method,
+		Type:            req.Type,
+		Method:          req.Method,
 		PricingValue:    req.PricingValue,
 		MinimumQuantity: req.MinimumQuantity,
 		MaximumQuantity: req.MaximumQuantity,
@@ -467,6 +468,10 @@ func (h *Handler) ResolvePrices(c *gin.Context) {
 
 	results, err := h.resolver.ResolveBatch(c.Request.Context(), req.Items)
 	if err != nil {
+		if errors.Is(err, ErrProductNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			return
+		}
 		shared.InternalError(c, err)
 		return
 	}

@@ -96,7 +96,7 @@ func TestCartItem_ToSaleItem_VerbatimSnapshot(t *testing.T) {
 		PricingRuleID:     &ruleID,
 		PricingRuleName:   &ruleName,
 		PricingRuleType:   &ruleType,
-		Type:       &pricingType,
+		Type:              &pricingType,
 		Cost:              2500,
 		TaxClassID:        &taxClassID,
 		TaxRate:           &taxRate,

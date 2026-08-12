@@ -97,8 +97,8 @@ func rule(id int, pType Type, method Method, value float64, minQty, priority int
 	return Rule{
 		ID:              id,
 		ProductID:       &pid,
-		Type:     pType,
-		Method:   method,
+		Type:            pType,
+		Method:          method,
 		PricingValue:    value,
 		Name:            string(pType),
 		MinimumQuantity: minQty,
@@ -507,6 +507,20 @@ func TestResolver_ResolveBatch_MixedProducts(t *testing.T) {
 	assert.Equal(t, PricingTypePromotion, results[2].Type)
 }
 
+func TestResolver_ResolveBatch_ProductNotFound(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 15000},
+		rules:      map[int][]Rule{},
+	}
+	resolver := NewResolver(repo)
+
+	_, err := resolver.ResolveBatch(context.Background(), []ResolveItem{
+		{ProductID: 1, Quantity: 1},
+		{ProductID: 999, Quantity: 1},
+	})
+	require.ErrorIs(t, err, ErrProductNotFound)
+}
+
 func TestResolver_ResolveBatch_EmptyItems(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{},
@@ -626,8 +640,8 @@ func ruleAdvanced(id int, pType Type, method Method, value float64, minQty int, 
 	r := Rule{
 		ID:              id,
 		ProductID:       &pid,
-		Type:     pType,
-		Method:   method,
+		Type:            pType,
+		Method:          method,
 		PricingValue:    value,
 		Name:            string(pType),
 		MinimumQuantity: minQty,

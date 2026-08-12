@@ -88,8 +88,8 @@ type ResolveItem struct {
 
 // Rule is the subset of a pricing rule carried by a cart snapshot.
 type Rule struct {
-	ID          int
-	Name        string
+	ID   int
+	Name string
 	Type Type
 }
 
@@ -101,7 +101,7 @@ type PriceSnapshot struct {
 	UnitPrice     int
 	OriginalPrice int
 	Discount      int
-	Type   Type
+	Type          Type
 	Rule          *Rule
 	Cost          int
 	TaxClassID    *int

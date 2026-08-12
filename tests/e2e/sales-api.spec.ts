@@ -16,9 +16,8 @@ test.describe('Sales API - Get By ID', () => {
     const res = await request.post(`${API_BASE}/api/sales`, {
       headers: authHeader(token),
       data: {
-        items: [{ product_id: product.id, quantity: 1, subtotal: product.price || 10000 }],
+        items: [{ product_id: product.id, quantity: 1 }],
         payment_method: 'cash',
-        total_amount: product.price || 10000,
       },
     });
     if (!res.ok()) return null;

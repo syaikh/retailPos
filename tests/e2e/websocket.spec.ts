@@ -39,7 +39,7 @@ test.describe('WebSocket Real-time Events', () => {
     const saleRes = await page.request.post(`${API_BASE}/api/sales`, {
       headers: authHeader(token!),
       data: {
-        items: [{ product_id: productId, quantity: 1, subtotal: 25000 }],
+        items: [{ product_id: productId, quantity: 1 }],
         payment_method: 'CASH',
       },
     });
@@ -257,7 +257,7 @@ test.describe('WebSocket Real-time Events', () => {
         page.request.post(`${API_BASE}/api/sales`, {
           headers: authHeader(token!),
           data: {
-            items: [{ product_id: productId, quantity: 1, subtotal: 10000 }],
+            items: [{ product_id: productId, quantity: 1 }],
             payment_method: 'CASH',
           },
         })

@@ -2,6 +2,7 @@ package pricing
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -73,6 +74,11 @@ func (r *Resolver) ResolveBatch(ctx context.Context, items []ResolveItem) ([]Res
 	if err != nil {
 		return nil, err
 	}
+	for _, id := range productIDs {
+		if _, ok := basePrices[id]; !ok {
+			return nil, fmt.Errorf("%w: product %d", ErrProductNotFound, id)
+		}
+	}
 
 	scopes, err := r.repo.GetProductScopesBatch(ctx, productIDs)
 	if err != nil {
@@ -118,8 +124,8 @@ func (r *Resolver) ResolveSnapshot(ctx context.Context, rc ResolveContext) (*Pri
 		UnitPrice:     resolved.UnitPrice,
 		OriginalPrice: resolved.OriginalPrice,
 		Discount:      resolved.Discount,
-		Type:   resolved.Type,
-		Method: resolved.Method,
+		Type:          resolved.Type,
+		Method:        resolved.Method,
 		Rule:          resolved.Rule,
 		Cost:          costTax.Cost,
 		TaxClassID:    costTax.TaxClassID,
@@ -166,8 +172,8 @@ func (r *Resolver) ResolveSnapshotsBatch(ctx context.Context, items []ResolveIte
 			UnitPrice:     resolved[i].UnitPrice,
 			OriginalPrice: resolved[i].OriginalPrice,
 			Discount:      resolved[i].Discount,
-			Type:   resolved[i].Type,
-			Method: resolved[i].Method,
+			Type:          resolved[i].Type,
+			Method:        resolved[i].Method,
 			Rule:          resolved[i].Rule,
 			Cost:          ct.Cost,
 			TaxClassID:    ct.TaxClassID,
@@ -187,8 +193,8 @@ func resolvePricing(basePrice int, eligible []Rule, productID int, categoryID, b
 			UnitPrice:     basePrice,
 			OriginalPrice: basePrice,
 			Discount:      0,
-			Type:   PricingTypeDefault,
-			Method: PricingMethodFixedPrice,
+			Type:          PricingTypeDefault,
+			Method:        PricingMethodFixedPrice,
 			Rule:          nil,
 		}
 	}
@@ -206,8 +212,8 @@ func resolvePricing(basePrice int, eligible []Rule, productID int, categoryID, b
 			UnitPrice:     int(running + 0.5),
 			OriginalPrice: basePrice,
 			Discount:      discount,
-			Type:   bestNon.Type,
-			Method: bestNon.Method,
+			Type:          bestNon.Type,
+			Method:        bestNon.Method,
 			Rule:          bestNon,
 		}
 	}
@@ -223,8 +229,8 @@ func resolvePricing(basePrice int, eligible []Rule, productID int, categoryID, b
 			UnitPrice:     int(running + 0.5),
 			OriginalPrice: basePrice,
 			Discount:      discount,
-			Type:   combinable[0].Type,
-			Method: combinable[0].Method,
+			Type:          combinable[0].Type,
+			Method:        combinable[0].Method,
 			Rule:          &combinable[0],
 		}
 	}
@@ -235,8 +241,8 @@ func resolvePricing(basePrice int, eligible []Rule, productID int, categoryID, b
 			UnitPrice:     basePrice,
 			OriginalPrice: basePrice,
 			Discount:      0,
-			Type:   PricingTypeDefault,
-			Method: PricingMethodFixedPrice,
+			Type:          PricingTypeDefault,
+			Method:        PricingMethodFixedPrice,
 			Rule:          nil,
 		}
 	}
@@ -251,8 +257,8 @@ func resolvePricing(basePrice int, eligible []Rule, productID int, categoryID, b
 		UnitPrice:     unitPrice,
 		OriginalPrice: basePrice,
 		Discount:      discount,
-		Type:   best.Type,
-		Method: best.Method,
+		Type:          best.Type,
+		Method:        best.Method,
 		Rule:          best,
 	}
 }

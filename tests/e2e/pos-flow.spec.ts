@@ -161,11 +161,9 @@ test.describe('POS API Tests', () => {
     const saleResponse = await page.request.post(`${API_BASE}/api/sales`, {
       headers: { Authorization: `Bearer ${token}` },
       data: {
-        invoice_number: `INV-${Date.now()}`,
-        discount: 0,
         payment_method: 'CASH',
         items: [
-           { product_id: 4690, quantity: 1, subtotal: 1195000 }
+           { product_id: 4690, quantity: 1 }
         ]
       }
     });
@@ -204,13 +202,9 @@ test.describe('POS API Tests', () => {
     const res = await request.post(`${API_BASE}/api/sales`, {
       headers,
       data: {
-        invoice_number: `INV-SPLIT-${Date.now()}`,
-        discount: 0,
-        tax: 0,
-        total_amount: totalAmount,
         payment_method: 'CASH,QRIS',
         status: 'completed',
-        items: [{ product_id: product.id, quantity: qty, unit_price: product.price, subtotal }],
+        items: [{ product_id: product.id, quantity: qty }],
         payments: [
           { payment_method_code: 'CASH', amount: cashAmount },
           { payment_method_code: 'QRIS', amount: qrisAmount },
@@ -237,13 +231,9 @@ test.describe('POS API Tests', () => {
     const res = await request.post(`${API_BASE}/api/sales`, {
       headers,
       data: {
-        invoice_number: `INV-LEGACY-${Date.now()}`,
-        discount: 0,
-        tax: 0,
-        total_amount: subtotal,
         payment_method: 'CASH',
         status: 'completed',
-        items: [{ product_id: product.id, quantity: qty, unit_price: product.price, subtotal }],
+        items: [{ product_id: product.id, quantity: qty }],
       },
     });
 
@@ -264,13 +254,9 @@ test.describe('POS API Tests', () => {
     const res = await request.post(`${API_BASE}/api/sales`, {
       headers,
       data: {
-        invoice_number: `INV-MISMATCH-${Date.now()}`,
-        discount: 0,
-        tax: 0,
-        total_amount: totalAmount,
         payment_method: 'CASH,QRIS',
         status: 'completed',
-        items: [{ product_id: product.id, quantity: 1, unit_price: product.price, subtotal: product.price }],
+        items: [{ product_id: product.id, quantity: 1 }],
         payments: [
           { payment_method_code: 'CASH', amount: totalAmount - 2 },
           { payment_method_code: 'QRIS', amount: 1 },
@@ -291,13 +277,9 @@ test.describe('POS API Tests', () => {
     const res = await request.post(`${API_BASE}/api/sales`, {
       headers,
       data: {
-        invoice_number: `INV-DUP-${Date.now()}`,
-        discount: 0,
-        tax: 0,
-        total_amount: totalAmount,
         payment_method: 'CASH',
         status: 'completed',
-        items: [{ product_id: product.id, quantity: 1, unit_price: product.price, subtotal: product.price }],
+        items: [{ product_id: product.id, quantity: 1 }],
         payments: [
           { payment_method_code: 'CASH', amount: Math.floor(totalAmount / 2) },
           { payment_method_code: 'CASH', amount: Math.ceil(totalAmount / 2) },
@@ -318,13 +300,9 @@ test.describe('POS API Tests', () => {
     const res = await request.post(`${API_BASE}/api/sales`, {
       headers,
       data: {
-        invoice_number: `INV-REF-${Date.now()}`,
-        discount: 0,
-        tax: 0,
-        total_amount: totalAmount,
         payment_method: 'CARD',
         status: 'completed',
-        items: [{ product_id: product.id, quantity: 1, unit_price: product.price, subtotal: product.price }],
+        items: [{ product_id: product.id, quantity: 1 }],
         payments: [
           { payment_method_code: 'CARD', amount: totalAmount },
         ],
@@ -344,13 +322,9 @@ test.describe('POS API Tests', () => {
     const res = await request.post(`${API_BASE}/api/sales`, {
       headers,
       data: {
-        invoice_number: `INV-UNKNOWN-${Date.now()}`,
-        discount: 0,
-        tax: 0,
-        total_amount: totalAmount,
         payment_method: 'BITCOIN',
         status: 'completed',
-        items: [{ product_id: product.id, quantity: 1, unit_price: product.price, subtotal: product.price }],
+        items: [{ product_id: product.id, quantity: 1 }],
         payments: [
           { payment_method_code: 'BITCOIN', amount: totalAmount },
         ],

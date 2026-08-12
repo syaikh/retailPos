@@ -108,7 +108,7 @@ test.describe('Hold & Recall API Flow', () => {
       headers,
       data: {
         payment_method: 'CASH',
-        items: [{ product_id: productA.id, quantity: qty, subtotal }],
+        items: [{ product_id: productA.id, quantity: qty }],
         parked_sale_id: parkedSale.id,
       },
     });
@@ -183,7 +183,7 @@ test.describe('Hold & Recall API Flow', () => {
       headers,
       data: {
         payment_method: 'CASH',
-        items: [{ product_id: productA.id, quantity: 1, subtotal: productA.price }],
+        items: [{ product_id: productA.id, quantity: 1 }],
         parked_sale_id: sale.id,
       },
     });

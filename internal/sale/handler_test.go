@@ -57,6 +57,7 @@ func setupSaleRouter(t *testing.T) *gin.Engine {
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
+	svc.SetPriceResolver(newPricingTestResolver())
 	h := NewHandler(svc, nil)
 
 	ctx := context.Background()
@@ -138,7 +139,7 @@ func TestHandler_CreateSale(t *testing.T) {
 		ctx := context.Background()
 		prodID := insertTestProduct(ctx, t, "HDL-CREATE-PROD", "Handler Create Product", 15000, 100)
 
-		body := `{"invoice_number":"INV-HDL-CREATE-001","items":[{"product_id":` + strconv.Itoa(prodID) + `,"quantity":2,"subtotal":30000}],"payment_method":"CASH"}`
+		body := `{"items":[{"product_id":` + strconv.Itoa(prodID) + `,"quantity":2}],"payment_method":"CASH"}`
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -150,17 +151,56 @@ func TestHandler_CreateSale(t *testing.T) {
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		assert.Equal(t, "INV-HDL-CREATE-001", resp.Data.InvoiceNumber)
-		assert.Equal(t, 30000, resp.Data.Subtotal)
+		assert.NotEmpty(t, resp.Data.InvoiceNumber, "invoice number generated server-side")
+		assert.Equal(t, 30000, resp.Data.Subtotal, "server price (2 x 15000)")
 		assert.Equal(t, 30000, resp.Data.TotalAmount)
 		assert.Greater(t, resp.Data.ID, 0)
+	})
+
+	t.Run("legacy pricing fields rejected", func(t *testing.T) {
+		ctx := context.Background()
+		prodID := insertTestProduct(ctx, t, "HDL-DISC-PROD", "Handler Discount Product", 15000, 100)
+
+		body := `{"items":[{"product_id":` + strconv.Itoa(prodID) + `,"quantity":1,"unit_price":1}],"discount":14000,"tax":1,"payment_method":"CASH"}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var resp struct {
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Contains(t, resp.Error.Message, "discount is not accepted")
+	})
+
+	t.Run("product not found", func(t *testing.T) {
+		body := `{"items":[{"product_id":999999,"quantity":1}],"payment_method":"CASH"}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var resp struct {
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Contains(t, resp.Error.Message, "product not found")
 	})
 
 	t.Run("insufficient stock", func(t *testing.T) {
 		ctx := context.Background()
 		prodID := insertTestProduct(ctx, t, "HDL-LOW-STOCK", "Handler Low Stock", 5000, 1)
 
-		body := `{"invoice_number":"INV-HDL-LOW-001","items":[{"product_id":` + strconv.Itoa(prodID) + `,"quantity":10,"subtotal":50000}],"payment_method":"CASH"}`
+		body := `{"items":[{"product_id":` + strconv.Itoa(prodID) + `,"quantity":10}],"payment_method":"CASH"}`
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")

@@ -73,7 +73,7 @@ func (a *pricingTestResolver) ResolveSnapshotsBatch(ctx context.Context, items [
 			UnitPrice:     snap.UnitPrice,
 			OriginalPrice: snap.OriginalPrice,
 			Discount:      snap.Discount,
-			Type:   Type(snap.Type),
+			Type:          Type(snap.Type),
 			Cost:          snap.Cost,
 			TaxClassID:    snap.TaxClassID,
 			TaxRate:       snap.TaxRate,
@@ -81,8 +81,8 @@ func (a *pricingTestResolver) ResolveSnapshotsBatch(ctx context.Context, items [
 		}
 		if snap.Rule != nil {
 			result[i].Rule = &Rule{
-				ID:          snap.Rule.ID,
-				Name:        snap.Rule.Name,
+				ID:   snap.Rule.ID,
+				Name: snap.Rule.Name,
 				Type: Type(snap.Rule.Type),
 			}
 		}

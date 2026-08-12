@@ -9,14 +9,9 @@ async function createTestSale(request: any, token: string, productId = 1) {
   const res = await request.post(`${API_BASE}/api/sales`, {
     headers: authHeader(token),
     data: {
-      invoice_number: invoiceNumber,
       cashier_id: 1,
-      subtotal,
-      discount: 0,
-      tax: 0,
-      total_amount: totalAmount,
       payment_method: 'cash',
-      items: [{ product_id: productId, quantity: 1, unit_price: totalAmount, subtotal }],
+      items: [{ product_id: productId, quantity: 1 }],
     },
   });
 
@@ -71,14 +66,9 @@ test.describe('Dashboard Live Stats', () => {
     const saleRes = await request.post(`${API_BASE}/api/sales`, {
       headers: authHeader(token),
       data: {
-        invoice_number: `INV-LIVE-${Date.now()}`,
         cashier_id: 1,
-        subtotal: productPrice,
-        discount: 0,
-        tax: 0,
-        total_amount: productPrice,
         payment_method: 'cash',
-        items: [{ product_id: productId, quantity: 1, unit_price: productPrice, subtotal: productPrice }],
+        items: [{ product_id: productId, quantity: 1 }],
       },
     });
 

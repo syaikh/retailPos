@@ -157,7 +157,7 @@ test.describe('Transactions Page', () => {
       headers: { Authorization: `Bearer ${token}` },
       data: {
         payment_method: 'CASH',
-        items: [{ product_id: 4690, quantity: 1, subtotal: 50000 }],
+        items: [{ product_id: 4690, quantity: 1 }],
       },
     });
     expect(saleRes.ok()).toBeTruthy();
@@ -184,7 +184,7 @@ test.describe('Transactions Page', () => {
       data: {
         payment_method: 'CASH',
         customer_id: 2,
-        items: [{ product_id: 4690, quantity: 1, subtotal: 75000 }],
+        items: [{ product_id: 4690, quantity: 1 }],
       },
     });
     expect(saleRes.ok()).toBeTruthy();
@@ -241,7 +241,7 @@ test.describe('Transactions Page', () => {
     const saleRes = await page.request.post(`${API_BASE}/api/sales`, {
       headers: { Authorization: `Bearer ${token}` },
       data: {
-        items: [{ product_id: productId, quantity: 1, subtotal: 10000 }],
+        items: [{ product_id: productId, quantity: 1 }],
         payment_method: 'CASH',
         created_at: midnightUTC,
       },

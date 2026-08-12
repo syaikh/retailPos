@@ -20,23 +20,23 @@ const MaxPaymentsPerSale = 10
 // ==================== ENTITIES ====================
 
 type Sale struct {
-	ID            int           `json:"id"`
-	InvoiceNumber string        `json:"invoice_number"`
-	CashierID     int           `json:"cashier_id"`
-	ShiftID       *int          `json:"shift_id,omitempty"`
-	CustomerID    *int          `json:"customer_id,omitempty"`
-	CustomerName  string        `json:"customer_name,omitempty"`
-	StoreID       *int          `json:"store_id,omitempty"`
-	Subtotal      int           `json:"subtotal"`
-	Discount      int           `json:"discount"`
-	Tax           int           `json:"tax"`
-	TotalAmount   int           `json:"total_amount"`
-	PaymentMethod string        `json:"payment_method"`
-	Status        string        `json:"status"`
+	ID            int       `json:"id"`
+	InvoiceNumber string    `json:"invoice_number"`
+	CashierID     int       `json:"cashier_id"`
+	ShiftID       *int      `json:"shift_id,omitempty"`
+	CustomerID    *int      `json:"customer_id,omitempty"`
+	CustomerName  string    `json:"customer_name,omitempty"`
+	StoreID       *int      `json:"store_id,omitempty"`
+	Subtotal      int       `json:"subtotal"`
+	Discount      int       `json:"discount"`
+	Tax           int       `json:"tax"`
+	TotalAmount   int       `json:"total_amount"`
+	PaymentMethod string    `json:"payment_method"`
+	Status        string    `json:"status"`
 	Items         []Item    `json:"items,omitempty"`
 	Payments      []Payment `json:"payments,omitempty"`
-	CreatedAt     string        `json:"created_at,omitempty"`
-	UpdatedAt     string        `json:"updated_at,omitempty"`
+	CreatedAt     string    `json:"created_at,omitempty"`
+	UpdatedAt     string    `json:"updated_at,omitempty"`
 }
 
 type Item struct {
@@ -52,7 +52,7 @@ type Item struct {
 	PricingRuleID     *int     `json:"pricing_rule_id,omitempty"`
 	PricingRuleName   *string  `json:"pricing_rule_name,omitempty"`
 	PricingRuleType   *string  `json:"pricing_rule_type,omitempty"`
-	Type       *string  `json:"pricing_type,omitempty"`
+	Type              *string  `json:"pricing_type,omitempty"`
 	OriginalPrice     *int     `json:"original_price,omitempty"`
 	Cost              int      `json:"cost,omitempty"`
 	TaxClassID        *int     `json:"tax_class_id,omitempty"`
@@ -97,7 +97,7 @@ type CreateRequest struct {
 	TotalAmount   int                    `json:"total_amount"`
 	PaymentMethod string                 `json:"payment_method"`
 	CustomerID    *int                   `json:"customer_id,omitempty"`
-	Items         []Item             `json:"items"`
+	Items         []Item                 `json:"items"`
 	Payments      []CreatePaymentRequest `json:"payments"`
 }
 

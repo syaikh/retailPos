@@ -560,9 +560,9 @@ func (r *Repository) StreamSalesExportCSV(ctx context.Context, w io.Writer, sear
 
 	type csvRow struct {
 		invoiceNumber, createdAt, paymentMethod string
-		customerID int
-		itemCount  int
-		totalAmount int64
+		customerID                              int
+		itemCount                               int
+		totalAmount                             int64
 	}
 	var buffered []csvRow
 	for rows.Next() {

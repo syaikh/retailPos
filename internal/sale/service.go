@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"retail-pos-system/internal/events"
+	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/shared"
 )
 
@@ -18,6 +19,7 @@ var ErrInsufficientStock = shared.ErrInsufficientStock
 var ErrPriceMismatch = errors.New("price mismatch: client-submitted price does not match server price")
 var ErrSaleNotFound = errors.New("sale not found")
 var ErrParkedSaleNotRecalled = errors.New("parked sale not in recalled state")
+var ErrCheckoutProductNotFound = errors.New("checkout product not found")
 
 type ProductPriceGetter interface {
 	GetProductPrice(ctx context.Context, productID int) (int, error)
@@ -59,13 +61,13 @@ type Repo interface {
 }
 
 type service struct {
-	repo        Repo
-	eventBus    shared.EventBus
-	priceStore  ProductPriceGetter
-	resolver    PriceResolver
-	stockStore  StockDeducer
-	shiftStore  ShiftTotalUpdater
-	cartConfig  CartConfig
+	repo       Repo
+	eventBus   shared.EventBus
+	priceStore ProductPriceGetter
+	resolver   PriceResolver
+	stockStore StockDeducer
+	shiftStore ShiftTotalUpdater
+	cartConfig CartConfig
 }
 
 func NewService(repo Repo, eventBus shared.EventBus) Service {
@@ -81,6 +83,25 @@ func (s *service) SetPriceStore(ps ProductPriceGetter) {
 
 func (s *service) SetPriceResolver(r PriceResolver) {
 	s.resolver = r
+}
+
+// ResolveCheckoutPrices re-resolves server-authoritative unit prices (including
+// engine-computed rule discounts) for a direct checkout. The pricing engine is
+// the single source of truth for sale prices; the client's submitted prices are
+// never trusted. Requiring a wired resolver fails fast at runtime, matching the
+// stock/shift ports, instead of silently accepting client prices.
+func (s *service) ResolveCheckoutPrices(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error) {
+	if s.resolver == nil {
+		return nil, errors.New("sale service: price resolver not wired; call SetPriceResolver")
+	}
+	snaps, err := s.resolver.ResolveSnapshotsBatch(ctx, items)
+	if err != nil {
+		if errors.Is(err, pricing.ErrProductNotFound) {
+			return nil, fmt.Errorf("%w: %w", ErrCheckoutProductNotFound, err)
+		}
+		return nil, err
+	}
+	return snaps, nil
 }
 
 func (s *service) SetStockDeducer(sd StockDeducer) {

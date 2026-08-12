@@ -164,6 +164,51 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// e2ePriceResolverAdapter bridges the sale package's checkout port to the
+// pricing resolver, mirroring internal/wiring for the in-process test router.
+type e2ePriceResolverAdapter struct {
+	resolver *pricing.Resolver
+}
+
+func (a e2ePriceResolverAdapter) ResolveSnapshotsBatch(ctx context.Context, items []sale.ResolveItem) ([]sale.PriceSnapshot, error) {
+	pricingItems := make([]pricing.ResolveItem, len(items))
+	for i, it := range items {
+		pricingItems[i] = pricing.ResolveItem{
+			ProductID:       it.ProductID,
+			Quantity:        it.Quantity,
+			CustomerGroupID: it.CustomerGroupID,
+			StoreID:         it.StoreID,
+		}
+	}
+	snaps, err := a.resolver.ResolveSnapshotsBatch(ctx, pricingItems)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]sale.PriceSnapshot, len(snaps))
+	for i, snap := range snaps {
+		result[i] = sale.PriceSnapshot{
+			ProductID:     snap.ProductID,
+			ProductName:   snap.ProductName,
+			UnitPrice:     snap.UnitPrice,
+			OriginalPrice: snap.OriginalPrice,
+			Discount:      snap.Discount,
+			Type:          sale.Type(snap.Type),
+			Cost:          snap.Cost,
+			TaxClassID:    snap.TaxClassID,
+			TaxRate:       snap.TaxRate,
+			SnapshotAt:    snap.SnapshotAt,
+		}
+		if snap.Rule != nil {
+			result[i].Rule = &sale.Rule{
+				ID:   snap.Rule.ID,
+				Name: snap.Rule.Name,
+				Type: sale.Type(snap.Rule.Type),
+			}
+		}
+	}
+	return result, nil
+}
+
 func setupE2ERouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	if e2ePool == nil {
@@ -217,6 +262,7 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	cgSvc := customergroup.NewService(cgRepo)
 	storeSvc := store.NewService(storeRepo)
 	resolver := pricing.NewResolver(pricingRepo)
+	saleSvc.SetPriceResolver(e2ePriceResolverAdapter{resolver: resolver})
 	pricingSvc := pricing.NewService(pricingRepo)
 
 	purchaseSvc := purchase.NewService(purchaseRepo, bus)
@@ -1135,11 +1181,9 @@ func TestE2E_SplitPayment(t *testing.T) {
 	t.Run("backward compat: payment_method field creates single payment", func(t *testing.T) {
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
-			"subtotal": 100000,
-			"total_amount": 100000,
 			"payment_method": "CASH",
 			"status": "completed",
-			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+			"items": [{"product_id": %d, "quantity": 1}]
 		}`, productID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
@@ -1184,11 +1228,9 @@ func TestE2E_SplitPayment(t *testing.T) {
 	t.Run("new payments array: single cash payment", func(t *testing.T) {
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
-			"subtotal": 100000,
-			"total_amount": 100000,
 			"payments": [{"payment_method_code": "CASH", "amount": 100000}],
 			"status": "completed",
-			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+			"items": [{"product_id": %d, "quantity": 1}]
 		}`, productID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
@@ -1201,14 +1243,12 @@ func TestE2E_SplitPayment(t *testing.T) {
 	t.Run("split payment: cash + card", func(t *testing.T) {
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
-			"subtotal": 100000,
-			"total_amount": 100000,
 			"payments": [
 				{"payment_method_code": "CASH", "amount": 50000},
 				{"payment_method_code": "CARD", "amount": 50000, "reference_number": "REF-12345"}
 			],
 			"status": "completed",
-			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+			"items": [{"product_id": %d, "quantity": 1}]
 		}`, productID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
@@ -1255,15 +1295,13 @@ func TestE2E_SplitPayment(t *testing.T) {
 	t.Run("three-way split payment", func(t *testing.T) {
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
-			"subtotal": 100000,
-			"total_amount": 100000,
 			"payments": [
 				{"payment_method_code": "CASH", "amount": 30000},
 				{"payment_method_code": "QRIS", "amount": 30000},
 				{"payment_method_code": "CARD", "amount": 40000, "reference_number": "CARD-67890"}
 			],
 			"status": "completed",
-			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+			"items": [{"product_id": %d, "quantity": 1}]
 		}`, productID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
@@ -1297,11 +1335,9 @@ func TestE2E_SplitPayment(t *testing.T) {
 	t.Run("payment total mismatch returns 400", func(t *testing.T) {
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
-			"subtotal": 100000,
-			"total_amount": 100000,
 			"payments": [{"payment_method_code": "CASH", "amount": 80000}],
 			"status": "completed",
-			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+			"items": [{"product_id": %d, "quantity": 1}]
 		}`, productID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
@@ -1314,14 +1350,12 @@ func TestE2E_SplitPayment(t *testing.T) {
 	t.Run("duplicate payment method returns 400", func(t *testing.T) {
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
-			"subtotal": 100000,
-			"total_amount": 100000,
 			"payments": [
 				{"payment_method_code": "CASH", "amount": 50000},
 				{"payment_method_code": "CASH", "amount": 50000}
 			],
 			"status": "completed",
-			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+			"items": [{"product_id": %d, "quantity": 1}]
 		}`, productID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
@@ -1334,11 +1368,9 @@ func TestE2E_SplitPayment(t *testing.T) {
 	t.Run("zero payment amount returns 400", func(t *testing.T) {
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
-			"subtotal": 100000,
-			"total_amount": 100000,
 			"payments": [{"payment_method_code": "CASH", "amount": 0}],
 			"status": "completed",
-			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+			"items": [{"product_id": %d, "quantity": 1}]
 		}`, productID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
@@ -1351,11 +1383,9 @@ func TestE2E_SplitPayment(t *testing.T) {
 	t.Run("invalid payment method code returns 400", func(t *testing.T) {
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
-			"subtotal": 100000,
-			"total_amount": 100000,
 			"payments": [{"payment_method_code": "NONEXISTENT", "amount": 100000}],
 			"status": "completed",
-			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+			"items": [{"product_id": %d, "quantity": 1}]
 		}`, productID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
@@ -1372,11 +1402,9 @@ func TestE2E_SplitPayment(t *testing.T) {
 		}
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
-			"subtotal": 100000,
-			"total_amount": 100000,
 			"payments": [%s],
 			"status": "completed",
-			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+			"items": [{"product_id": %d, "quantity": 1}]
 		}`, strings.Join(payments, ","), productID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
@@ -1389,8 +1417,6 @@ func TestE2E_SplitPayment(t *testing.T) {
 	t.Run("all 5 unique payment methods succeeds", func(t *testing.T) {
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
-			"subtotal": 100000,
-			"total_amount": 100000,
 			"payments": [
 				{"payment_method_code": "CASH", "amount": 20000},
 				{"payment_method_code": "QRIS", "amount": 20000},
@@ -1399,7 +1425,7 @@ func TestE2E_SplitPayment(t *testing.T) {
 				{"payment_method_code": "TRANSFER", "amount": 20000, "reference_number": "REF-TRF"}
 			],
 			"status": "completed",
-			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+			"items": [{"product_id": %d, "quantity": 1}]
 		}`, productID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
@@ -1416,11 +1442,9 @@ func TestE2E_SplitPayment(t *testing.T) {
 		}
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
-			"subtotal": 100000,
-			"total_amount": 100000,
 			"payments": [%s],
 			"status": "completed",
-			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+			"items": [{"product_id": %d, "quantity": 1}]
 		}`, strings.Join(payments, ","), productID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
@@ -1433,10 +1457,8 @@ func TestE2E_SplitPayment(t *testing.T) {
 	t.Run("empty payments and no payment_method returns 400", func(t *testing.T) {
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
-			"subtotal": 100000,
-			"total_amount": 100000,
 			"status": "completed",
-			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+			"items": [{"product_id": %d, "quantity": 1}]
 		}`, productID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
@@ -1445,6 +1467,40 @@ func TestE2E_SplitPayment(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+}
+
+// TestE2E_CreateSale_RejectsLegacyPricingFields asserts the direct sale
+// endpoint is server-authoritative: any payload still carrying a client pricing
+// field is rejected instead of silently corrected.
+func TestE2E_CreateSale_RejectsLegacyPricingFields(t *testing.T) {
+	router := setupE2ERouter(t)
+	token := loginAs(t, router, "superadmin", "admin123")
+	seedE2EPaymentMethods(t)
+	productID := createE2EProduct(t, router, token)
+
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"item subtotal", fmt.Sprintf(`{"items":[{"product_id": %d, "quantity": 1, "subtotal": 100000}]}`, productID)},
+		{"item unit_price", fmt.Sprintf(`{"items":[{"product_id": %d, "quantity": 1, "unit_price": 100000}]}`, productID)},
+		{"top-level subtotal", fmt.Sprintf(`{"items":[{"product_id": %d, "quantity": 1}],"subtotal": 100000}`, productID)},
+		{"top-level total_amount", fmt.Sprintf(`{"items":[{"product_id": %d, "quantity": 1}],"total_amount": 100000}`, productID)},
+		{"discount", fmt.Sprintf(`{"items":[{"product_id": %d, "quantity": 1}],"discount": 5000}`, productID)},
+		{"tax", fmt.Sprintf(`{"items":[{"product_id": %d, "quantity": 1}],"tax": 1000}`, productID)},
+		{"store_id", fmt.Sprintf(`{"items":[{"product_id": %d, "quantity": 1}],"store_id": 99}`, productID)},
+		{"invoice_number", fmt.Sprintf(`{"items":[{"product_id": %d, "quantity": 1}],"invoice_number": "INV-E2E-LEGACY"}`, productID)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+token)
+			router.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	}
 }
 
 func seedE2EProduct(t *testing.T) int {
@@ -1786,7 +1842,9 @@ func TestE2E_PurchaseOrderGoodsReceipt(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		var detailResp struct {
 			Data struct {
-				Items []struct{ ID int `json:"id"` } `json:"items"`
+				Items []struct {
+					ID int `json:"id"`
+				} `json:"items"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &detailResp))
@@ -1840,7 +1898,9 @@ func TestE2E_PurchaseOrderGoodsReceipt(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 		var listResp struct {
-			Data []struct{ ID int `json:"id"` } `json:"data"`
+			Data []struct {
+				ID int `json:"id"`
+			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &listResp))
 		assert.GreaterOrEqual(t, len(listResp.Data), 1)
@@ -1877,7 +1937,11 @@ func TestE2E_PurchaseOrderDeleteDraft(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+token)
 		router.ServeHTTP(w, req)
 		require.Equal(t, http.StatusCreated, w.Code)
-		var resp struct{ Data struct{ ID int `json:"id"` } `json:"data"` }
+		var resp struct {
+			Data struct {
+				ID int `json:"id"`
+			} `json:"data"`
+		}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 		poID = resp.Data.ID
 	})
