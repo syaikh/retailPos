@@ -183,6 +183,15 @@ func (h *Handler) GetRule(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "pricing rule not found"})
 		return
 	}
+	if !isAdmin(c) {
+		claimsStore := shared.GetStoreID(c)
+		if claimsStore != nil {
+			if rule.StoreID != nil && *rule.StoreID != *claimsStore {
+				c.JSON(http.StatusForbidden, gin.H{"error": "store is not in your store"})
+				return
+			}
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": rule})
 }
 
@@ -450,6 +459,12 @@ func (h *Handler) CheckConflicts(c *gin.Context) {
 		Priority:        req.Priority,
 	}
 
+	if !isAdmin(c) {
+		if claimsStore := shared.GetStoreID(c); claimsStore != nil {
+			rule.StoreID = claimsStore
+		}
+	}
+
 	conflicts, err := h.svc.FindConflictsForRule(c.Request.Context(), rule, req.ExcludeID)
 	if err != nil {
 		shared.InternalError(c, err)
@@ -457,6 +472,18 @@ func (h *Handler) CheckConflicts(c *gin.Context) {
 	}
 	if conflicts == nil {
 		conflicts = []Rule{}
+	}
+	if !isAdmin(c) {
+		claimsStore := shared.GetStoreID(c)
+		if claimsStore != nil {
+			filtered := conflicts[:0]
+			for _, conflict := range conflicts {
+				if conflict.StoreID == nil || *conflict.StoreID == *claimsStore {
+					filtered = append(filtered, conflict)
+				}
+			}
+			conflicts = filtered
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"data": conflicts, "has_conflicts": len(conflicts) > 0})
 }

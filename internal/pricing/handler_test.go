@@ -568,6 +568,119 @@ func TestHandler_GetRule_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+func TestHandler_GetRule_StoreScoped(t *testing.T) {
+	skipIfNoDB(t)
+	repo := newWiredRepo()
+
+	productID := insertTestProduct(t.Context(), t, "HDL-GR-STORE-"+time.Now().Format("0102150405"), "GetRule Store Scoped Product", 15000)
+	storeA := insertTestStore(t.Context(), t, "HDL-GR-STORE-A")
+	storeB := insertTestStore(t.Context(), t, "HDL-GR-STORE-B")
+	globalRule := &Rule{
+		ProductID:       &productID,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
+		PricingValue:    12000,
+		Name:            "Global Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+		Status:          StatusDraft,
+	}
+	ruleStoreA := &Rule{
+		ProductID:       &productID,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
+		PricingValue:    11000,
+		Name:            "Store A Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+		Status:          StatusDraft,
+		StoreID:         &storeA,
+	}
+	ruleStoreB := &Rule{
+		ProductID:       &productID,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
+		PricingValue:    10000,
+		Name:            "Store B Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+		Status:          StatusDraft,
+		StoreID:         &storeB,
+	}
+	require.NoError(t, repo.Create(t.Context(), globalRule))
+	require.NoError(t, repo.Create(t.Context(), ruleStoreA))
+	require.NoError(t, repo.Create(t.Context(), ruleStoreB))
+
+	t.Run("store-scoped user can view own store rule", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "store_user")
+			c.Set("roleID", 2)
+			c.Set("role", "manager")
+			c.Set("permissions", []string{"pricing.view"})
+			c.Set("storeID", &storeA)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules/"+strconv.Itoa(ruleStoreA.ID), nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("store-scoped user cannot view another store rule", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "store_user")
+			c.Set("roleID", 2)
+			c.Set("role", "manager")
+			c.Set("permissions", []string{"pricing.view"})
+			c.Set("storeID", &storeA)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules/"+strconv.Itoa(ruleStoreB.ID), nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("store-scoped user can view global rule", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "store_user")
+			c.Set("roleID", 2)
+			c.Set("role", "manager")
+			c.Set("permissions", []string{"pricing.view"})
+			c.Set("storeID", &storeA)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules/"+strconv.Itoa(globalRule.ID), nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
 func TestHandler_ListRules_WithFilters(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
@@ -913,5 +1026,122 @@ func TestHandler_CheckConflicts(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func TestHandler_CheckConflicts_StoreScoped(t *testing.T) {
+	skipIfNoDB(t)
+	repo := newWiredRepo()
+
+	productID := insertTestProduct(t.Context(), t, "HDL-CHK-STORE-"+time.Now().Format("0102150405"), "Conflict Store Scoped Product", 15000)
+	storeA := insertTestStore(t.Context(), t, "HDL-CHK-STORE-A")
+	storeB := insertTestStore(t.Context(), t, "HDL-CHK-STORE-B")
+	globalRule := &Rule{
+		ProductID:       &productID,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
+		PricingValue:    10000,
+		Name:            "Global Conflict Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+		Status:          StatusApproved,
+		Priority:        10,
+	}
+	ruleStoreA := &Rule{
+		ProductID:       &productID,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
+		PricingValue:    9000,
+		Name:            "Store A Conflict Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+		Status:          StatusApproved,
+		Priority:        10,
+		StoreID:         &storeA,
+	}
+	ruleStoreB := &Rule{
+		ProductID:       &productID,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
+		PricingValue:    8000,
+		Name:            "Store B Conflict Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+		Status:          StatusApproved,
+		Priority:        10,
+		StoreID:         &storeB,
+	}
+	require.NoError(t, repo.Create(t.Context(), globalRule))
+	require.NoError(t, repo.Create(t.Context(), ruleStoreA))
+	require.NoError(t, repo.Create(t.Context(), ruleStoreB))
+
+	t.Run("store-scoped user sees only own store and global conflicts", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "store_user")
+			c.Set("roleID", 2)
+			c.Set("role", "manager")
+			c.Set("permissions", []string{"pricing.view"})
+			c.Set("storeID", &storeA)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+
+		body := `{"product_id":` + strconv.Itoa(productID) + `,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":9999,"minimum_quantity":1,"priority":10}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules/check-conflicts", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data         []Rule `json:"data"`
+			HasConflicts bool   `json:"has_conflicts"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.True(t, resp.HasConflicts)
+		for _, conflict := range resp.Data {
+			assert.True(t, conflict.StoreID == nil || *conflict.StoreID == storeA, "conflict rule %d has store_id=%v, expected nil or %d", conflict.ID, conflict.StoreID, storeA)
+		}
+	})
+
+	t.Run("admin sees all conflicts", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "admin")
+			c.Set("roleID", 1)
+			c.Set("role", "superadmin")
+			c.Set("permissions", []string{"pricing.view"})
+			c.Set("storeID", nil)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+
+		body := `{"product_id":` + strconv.Itoa(productID) + `,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":9999,"minimum_quantity":1,"priority":10}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules/check-conflicts", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data         []Rule `json:"data"`
+			HasConflicts bool   `json:"has_conflicts"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.True(t, resp.HasConflicts)
+		assert.GreaterOrEqual(t, len(resp.Data), 3)
 	})
 }
