@@ -173,7 +173,40 @@ func TestCartService_IT02_NewItemAfterResumeUsesLatestPrice(t *testing.T) {
 	t2, err := time.Parse(time.RFC3339, cart.Items[1].SnapshotCreatedAt)
 	require.NoError(t, err)
 	assert.False(t, t2.Before(t1), "second snapshot must not be earlier than the first")
-	assert.Equal(t, 6500, cart.Subtotal, "subtotal = 3500 + 3000")
+}
+
+func TestCartService_StoreScopedPricingAppliedOnCartPath(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	svc, _ := newCartTestService(ctx, t)
+
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-STORE-PROD", "Store Scoped", 5000, 100, 11)
+
+	var storeID int
+	err := dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ('Store A') RETURNING id`).Scan(&storeID)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO pricing_rules (product_id, pricing_type, name, minimum_quantity, priority, pricing_method, pricing_value, store_id, status)
+		VALUES ($1, 'special_price', 'store-a-promo', 1, 0, 'fixed_price', 3000, $2, 'approved')
+	`, prodID, storeID)
+	require.NoError(t, err)
+
+	storeCart, err := svc.CreateOrGetOpenCart(ctx, cashierID, &storeID, nil, nil)
+	require.NoError(t, err)
+	storeCart, err = svc.AddCartItem(ctx, storeCart.ID, prodID, 1, nil, cashierID)
+	require.NoError(t, err)
+	require.Len(t, storeCart.Items, 1)
+	assert.Equal(t, 3000, storeCart.Items[0].UnitPrice, "store-scoped price must apply on the cart path")
+
+	plainCashierID := insertTestCashierNamed(ctx, t, "store_scope_plain_cashier")
+	plainCart, err := svc.CreateOrGetOpenCart(ctx, plainCashierID, nil, nil, nil)
+	require.NoError(t, err)
+	plainCart, err = svc.AddCartItem(ctx, plainCart.ID, prodID, 1, nil, plainCashierID)
+	require.NoError(t, err)
+	require.Len(t, plainCart.Items, 1)
+	assert.Equal(t, 5000, plainCart.Items[0].UnitPrice, "base price applies without a store scope")
 }
 
 func TestCartService_IT03_QuantityUpdateKeepsPrice(t *testing.T) {

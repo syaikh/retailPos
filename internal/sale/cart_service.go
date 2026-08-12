@@ -149,6 +149,7 @@ func (s *service) AddCartItem(ctx context.Context, cartID int, productID, quanti
 		ProductID:       productID,
 		Quantity:        quantity,
 		CustomerGroupID: customerGroupID,
+		StoreID:         cart.StoreID,
 	}})
 	if err != nil {
 		if errors.Is(err, pricing.ErrProductNotFound) {

@@ -629,16 +629,18 @@ func (h *Handler) GetPaymentMethodByCode(c *gin.Context) {
 }
 
 func (h *Handler) ParkSale(c *gin.Context) {
-	type createSaleItem struct {
+	type parkSaleItem struct {
 		ProductID int `json:"product_id"`
 		Quantity  int `json:"quantity"`
+		UnitPrice int `json:"unit_price"`
 		Subtotal  int `json:"subtotal"`
 	}
 	type parkSaleReq struct {
-		InvoiceNumber  string           `json:"invoice_number"`
-		Items          []createSaleItem `json:"items" binding:"required"`
-		PaymentMethod  string           `json:"payment_method"`
-		RecalledSaleID *int             `json:"recalled_sale_id"`
+		InvoiceNumber  string         `json:"invoice_number"`
+		Items          []parkSaleItem `json:"items" binding:"required"`
+		PaymentMethod  string         `json:"payment_method"`
+		CustomerGroupID *int          `json:"customer_group_id"`
+		RecalledSaleID *int           `json:"recalled_sale_id"`
 	}
 
 	var req parkSaleReq
@@ -663,9 +665,56 @@ func (h *Handler) ParkSale(c *gin.Context) {
 		return
 	}
 
+	// Legacy client-priced fields are rejected so the server remains the
+	// single source of truth for parked totals too (mirrors CreateSale).
+	for _, item := range req.Items {
+		if item.UnitPrice != 0 {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest,
+				fmt.Sprintf("unit_price is not accepted for product %d", item.ProductID))
+			return
+		}
+		if item.Subtotal != 0 {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest,
+				fmt.Sprintf("subtotal is not accepted for product %d", item.ProductID))
+			return
+		}
+	}
+
+	storeIDPtr := shared.GetStoreID(c)
+	resolveItems := make([]ResolveItem, 0, len(req.Items))
+	for _, item := range req.Items {
+		if item.Quantity <= 0 {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest,
+				fmt.Sprintf("invalid quantity %d for product %d", item.Quantity, item.ProductID))
+			return
+		}
+		resolveItems = append(resolveItems, ResolveItem{
+			ProductID:       item.ProductID,
+			Quantity:        item.Quantity,
+			CustomerGroupID: req.CustomerGroupID,
+			StoreID:         storeIDPtr,
+		})
+	}
+
+	snapshots, err := h.svc.ResolveCheckoutPrices(ctx, resolveItems)
+	if err != nil {
+		if errors.Is(err, ErrCheckoutProductNotFound) {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+			return
+		}
+		shared.JSONError(c, http.StatusInternalServerError, shared.ErrInternal, "failed to resolve product prices")
+		return
+	}
+
+	if len(snapshots) != len(resolveItems) {
+		shared.InternalError(c, errors.New("price resolver returned unexpected number of prices"))
+		return
+	}
+
+	// Invoice numbers are generated only after resolution passes, so a failed
+	// park request does not burn a sequence value.
 	invoiceNumber := req.InvoiceNumber
 	if invoiceNumber == "" {
-		var err error
 		invoiceNumber, err = h.svc.GetNextInvoiceNumber(ctx)
 		if err != nil {
 			shared.JSONError(c, http.StatusInternalServerError, shared.ErrInternal, "failed to generate invoice number")
@@ -673,26 +722,50 @@ func (h *Handler) ParkSale(c *gin.Context) {
 		}
 	}
 
+	items := make([]Item, 0, len(snapshots))
 	var subtotal int
-	items := make([]Item, 0, len(req.Items))
-	for _, item := range req.Items {
-		unitPrice := 0
-		if item.Quantity > 0 {
-			unitPrice = item.Subtotal / item.Quantity
+	for i, snap := range snapshots {
+		if snap.ProductID != resolveItems[i].ProductID {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest,
+				fmt.Sprintf("failed to resolve price for product %d", resolveItems[i].ProductID))
+			return
 		}
-		items = append(items, Item{
-			ProductID: item.ProductID,
-			Quantity:  item.Quantity,
-			UnitPrice: unitPrice,
-			Subtotal:  item.Subtotal,
-		})
-		subtotal += item.Subtotal
+		quantity := resolveItems[i].Quantity
+		lineSubtotal, dpp, lineTax := computeLineTotals(quantity, snap.UnitPrice, snap.TaxRate)
+		item := Item{
+			ProductID:         snap.ProductID,
+			ProductName:       snap.ProductName,
+			Quantity:          quantity,
+			UnitPrice:         snap.UnitPrice,
+			Subtotal:          lineSubtotal,
+			DPPAmount:         dpp,
+			TaxAmount:         lineTax,
+			Type:              stringPtr(string(snap.Type)),
+			Cost:              snap.Cost,
+			TaxClassID:        snap.TaxClassID,
+			TaxRate:           snap.TaxRate,
+			SnapshotCreatedAt: snap.SnapshotAt.In(shared.JakartaLocation()).Format(time.RFC3339),
+		}
+		if snap.Rule != nil {
+			ruleID := snap.Rule.ID
+			ruleName := snap.Rule.Name
+			ruleType := string(snap.Rule.Type)
+			item.PricingRuleID = &ruleID
+			item.PricingRuleName = &ruleName
+			item.PricingRuleType = &ruleType
+		}
+		if snap.OriginalPrice > 0 {
+			originalPrice := snap.OriginalPrice
+			item.OriginalPrice = &originalPrice
+		}
+		items = append(items, item)
+		subtotal += lineSubtotal
 	}
 
 	sale := &Sale{
 		InvoiceNumber: invoiceNumber,
 		CashierID:     cashierID,
-		StoreID:       shared.GetStoreID(c),
+		StoreID:       storeIDPtr,
 		Subtotal:      subtotal,
 		TotalAmount:   subtotal,
 		PaymentMethod: req.PaymentMethod,

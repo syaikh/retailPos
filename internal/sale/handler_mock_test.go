@@ -1121,6 +1121,28 @@ func TestSaleHandler_ParkSale_EmptyItems(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestSaleHandler_ParkSale_RejectsClientPricing(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "per-item subtotal", body: `{"items":[{"product_id":1,"quantity":2,"subtotal":20000}],"payment_method":"CASH"}`},
+		{name: "per-item unit price", body: `{"items":[{"product_id":1,"quantity":2,"unit_price":10000}],"payment_method":"CASH"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &mockService{}
+			r := setupSaleHandler(svc, nil)
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest("POST", "/sales/parked", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	}
+}
+
 func TestSaleHandler_GetParkedSales_Success(t *testing.T) {
 	svc := &mockService{
 		listParkedSalesFn: func(ctx context.Context, cashierID int) ([]Sale, error) {
