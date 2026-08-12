@@ -581,23 +581,27 @@ func computeCartTotals(items []CartItem) (subtotal, discount, tax, total int) {
 	return subtotal, discount, tax, total
 }
 
-// aggregateCartItems collapses duplicate cart lines (same product, same
-// unit-price and tax snapshot) into a single line by summing quantity and line
-// totals. The cart UI merges on add, but the API InsertCartItem is a plain
+// aggregateCartItems collapses duplicate cart lines (same product, unit-price,
+// tax, and pricing-rule snapshot) into a single line by summing quantity and
+// line totals. The cart UI merges on add, but the API InsertCartItem is a plain
 // insert with no unique constraint, so direct callers can create duplicate rows;
 // collapsing them at checkout prevents overselling and duplicate receipt/ledger
-// rows (P2-1 D2). Lines that differ in product, unit price, or tax class are
-// kept as-is, so a merged line always reflects a single price/tax snapshot.
+// rows (P2-1 D2). Lines that differ in product, unit price, tax class, or
+// pricing rule are kept as-is, so a merged line always reflects a single
+// price/tax/rule snapshot.
 func aggregateCartItems(items []CartItem) []CartItem {
 	index := make(map[cartItemKey]int, len(items))
 	aggregated := make([]CartItem, 0, len(items))
 	for _, item := range items {
-		taxClassID, hasTax := taxClassKey(item.TaxClassID)
+		taxClassID, hasTax := optionalID(item.TaxClassID)
+		pricingRuleID, hasRule := optionalID(item.PricingRuleID)
 		key := cartItemKey{
-			ProductID:  item.ProductID,
-			UnitPrice:  item.UnitPrice,
-			TaxClassID: taxClassID,
-			HasTax:     hasTax,
+			ProductID:     item.ProductID,
+			UnitPrice:     item.UnitPrice,
+			TaxClassID:    taxClassID,
+			HasTax:        hasTax,
+			PricingRuleID: pricingRuleID,
+			HasRule:       hasRule,
 		}
 		if idx, ok := index[key]; ok {
 			agg := &aggregated[idx]
@@ -613,10 +617,9 @@ func aggregateCartItems(items []CartItem) []CartItem {
 	return aggregated
 }
 
-// taxClassKey is a value-based representation of an optional *int tax class id
-// that is comparable as a map key (two separate pointers to the same value must
-// merge).
-func taxClassKey(id *int) (int, bool) {
+// optionalID is a value-based representation of an optional *int id that is
+// comparable as a map key (two separate pointers to the same value must merge).
+func optionalID(id *int) (int, bool) {
 	if id == nil {
 		return 0, false
 	}
@@ -624,12 +627,14 @@ func taxClassKey(id *int) (int, bool) {
 }
 
 // cartItemKey identifies cart lines that can be safely aggregated: the same
-// product at the same unit-price and tax-class snapshot.
+// product at the same unit-price, tax-class, and pricing-rule snapshot.
 type cartItemKey struct {
-	ProductID  int
-	UnitPrice  int
-	TaxClassID int
-	HasTax     bool
+	ProductID     int
+	UnitPrice     int
+	TaxClassID    int
+	HasTax        bool
+	PricingRuleID int
+	HasRule       bool
 }
 
 // computeLineTotals computes subtotal, DPP, and tax for a single line.

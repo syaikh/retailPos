@@ -576,6 +576,40 @@ func TestCartService_CheckoutAggregatedOversellRejected(t *testing.T) {
 	assert.Equal(t, 8, stockAfter, "stock untouched after rejected checkout")
 }
 
+// P2-1 D2 unit test: aggregateCartItems must only merge lines that share the
+// full pricing snapshot. Two duplicate rows for the same product at the same
+// unit price but resolved under different pricing rules (reachable when the
+// same product is priced at different times via direct API calls) must NOT
+// merge — a merged line would silently keep the first row's pricing-rule
+// metadata while summing quantity.
+func TestAggregateCartItemsKeepsDistinctPricingSnapshots(t *testing.T) {
+	mkItem := func(qty int, ruleID *int, taxID *int) CartItem {
+		return CartItem{ProductID: 1, UnitPrice: 3500, Quantity: qty, PricingRuleID: ruleID, TaxClassID: taxID}
+	}
+
+	t.Run("same product, price, tax, and rule merge", func(t *testing.T) {
+		merged := aggregateCartItems([]CartItem{mkItem(2, intPtr(5), intPtr(11)), mkItem(3, intPtr(5), intPtr(11))})
+		require.Len(t, merged, 1, "identical snapshots collapse")
+		assert.Equal(t, 5, merged[0].Quantity)
+	})
+
+	t.Run("same product and price but different pricing rule do not merge", func(t *testing.T) {
+		merged := aggregateCartItems([]CartItem{mkItem(2, intPtr(5), intPtr(11)), mkItem(3, intPtr(7), intPtr(11))})
+		require.Len(t, merged, 2, "different pricing rules stay separate")
+	})
+
+	t.Run("same product and price but different tax class do not merge", func(t *testing.T) {
+		merged := aggregateCartItems([]CartItem{mkItem(2, intPtr(5), intPtr(11)), mkItem(3, intPtr(5), intPtr(12))})
+		require.Len(t, merged, 2, "different tax classes stay separate")
+	})
+
+	t.Run("tax-less lines merge with each other only", func(t *testing.T) {
+		merged := aggregateCartItems([]CartItem{mkItem(2, nil, nil), mkItem(3, nil, nil)})
+		require.Len(t, merged, 1, "two nil-tax lines collapse")
+		assert.Equal(t, 5, merged[0].Quantity)
+	})
+}
+
 func TestCartService_ResumeHeldCartIdempotentForOpen(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
