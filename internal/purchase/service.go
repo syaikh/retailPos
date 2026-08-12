@@ -34,9 +34,9 @@ type Repo interface {
 }
 
 type service struct {
-	repo          Repo
-	eventBus      shared.EventBus
-	productLookup ProductLookup
+	repo           Repo
+	eventBus       shared.EventBus
+	productLookup  ProductLookup
 	supplierLookup SupplierLookup
 }
 

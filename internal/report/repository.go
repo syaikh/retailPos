@@ -15,11 +15,11 @@ import (
 )
 
 type Repository struct {
-	db                shared.DBPool
-	cache             *cache.Cache
-	saleStats         SaleStatsProvider
-	productStats      ProductStatsProvider
-	stockStats        StockStatsProvider
+	db           shared.DBPool
+	cache        *cache.Cache
+	saleStats    SaleStatsProvider
+	productStats ProductStatsProvider
+	stockStats   StockStatsProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -311,6 +311,7 @@ type liveDashboardResult struct {
 	totalProducts int
 	lowStockCount int
 }
+
 func (r *Repository) GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error) {
 	key := "dashboard:live"
 	if storeID != nil {

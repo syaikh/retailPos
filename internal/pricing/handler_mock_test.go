@@ -95,8 +95,8 @@ func (m *mockPriceResolver) ResolveSnapshot(ctx context.Context, rc ResolveConte
 			UnitPrice:     resolved.UnitPrice,
 			OriginalPrice: resolved.OriginalPrice,
 			Discount:      resolved.Discount,
-			Type:   resolved.Type,
-			Method: resolved.Method,
+			Type:          resolved.Type,
+			Method:        resolved.Method,
 			Rule:          resolved.Rule,
 		}, nil
 	}
@@ -116,8 +116,8 @@ func (m *mockPriceResolver) ResolveSnapshotsBatch(ctx context.Context, items []R
 				UnitPrice:     r.UnitPrice,
 				OriginalPrice: r.OriginalPrice,
 				Discount:      r.Discount,
-				Type:   r.Type,
-				Method: r.Method,
+				Type:          r.Type,
+				Method:        r.Method,
 				Rule:          r.Rule,
 			}
 		}
@@ -362,7 +362,7 @@ func TestPricingHandler_CheckConflicts_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp struct {
 		Data         []Rule `json:"data"`
-		HasConflicts bool          `json:"has_conflicts"`
+		HasConflicts bool   `json:"has_conflicts"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)

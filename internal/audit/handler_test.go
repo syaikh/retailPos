@@ -84,7 +84,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
 			Data  []Log `json:"data"`
-			Total int        `json:"total"`
+			Total int   `json:"total"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
@@ -100,7 +100,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
 			Data  []Log `json:"data"`
-			Total int        `json:"total"`
+			Total int   `json:"total"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
 			Data  []Log `json:"data"`
-			Total int        `json:"total"`
+			Total int   `json:"total"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
 			Data  []Log `json:"data"`
-			Total int        `json:"total"`
+			Total int   `json:"total"`
 		}
 		err = json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
@@ -169,7 +169,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
 			Data  []Log `json:"data"`
-			Total int        `json:"total"`
+			Total int   `json:"total"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
@@ -336,7 +336,7 @@ func TestHandler_ListAuditLogs_CreatedAtJakartaTimezone(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp struct {
 		Data  []LogListItem `json:"data"`
-		Total int                `json:"total"`
+		Total int           `json:"total"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)

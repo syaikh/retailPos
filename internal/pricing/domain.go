@@ -49,29 +49,29 @@ const (
 // Rule is a business rule entity — it defines eligibility, priority,
 // validity, and the pricing method/value to apply.
 type Rule struct {
-	ID              int               `json:"id"                         db:"id"`
-	ProductID       *int              `json:"product_id,omitempty"       db:"product_id"`
-	CategoryID      *int              `json:"category_id,omitempty"      db:"category_id"`
-	BrandID         *int              `json:"brand_id,omitempty"         db:"brand_id"`
-	Type     Type       `json:"pricing_type"               db:"pricing_type"     validate:"required,oneof=special_price promotion"`
-	Method   Method     `json:"pricing_method"             db:"pricing_method"   validate:"required,oneof=fixed_price discount_percent discount_amount markup_percent"`
-	PricingValue    float64           `json:"pricing_value"              db:"pricing_value"    validate:"gte=0"`
-	Name            string            `json:"name"                       db:"name"             validate:"required"`
-	MinimumQuantity int               `json:"minimum_quantity"           db:"minimum_quantity" validate:"gte=1"`
-	MaximumQuantity *int              `json:"maximum_quantity,omitempty" db:"maximum_quantity"`
-	Priority        int               `json:"priority"                   db:"priority"`
-	CustomerGroupID *int              `json:"customer_group_id,omitempty" db:"customer_group_id"`
-	StoreID         *int              `json:"store_id,omitempty"         db:"store_id"`
-	RecurrenceDays  []string          `json:"recurrence_days,omitempty"  db:"recurrence_days"`
-	TimeFrom        *string           `json:"time_from,omitempty"        db:"time_from"`
-	TimeTo          *string           `json:"time_to,omitempty"          db:"time_to"`
-	AllowCombine    bool              `json:"allow_combine"              db:"allow_combine"`
-	IsActive        bool              `json:"is_active"                  db:"is_active"`
+	ID              int        `json:"id"                         db:"id"`
+	ProductID       *int       `json:"product_id,omitempty"       db:"product_id"`
+	CategoryID      *int       `json:"category_id,omitempty"      db:"category_id"`
+	BrandID         *int       `json:"brand_id,omitempty"         db:"brand_id"`
+	Type            Type       `json:"pricing_type"               db:"pricing_type"     validate:"required,oneof=special_price promotion"`
+	Method          Method     `json:"pricing_method"             db:"pricing_method"   validate:"required,oneof=fixed_price discount_percent discount_amount markup_percent"`
+	PricingValue    float64    `json:"pricing_value"              db:"pricing_value"    validate:"gte=0"`
+	Name            string     `json:"name"                       db:"name"             validate:"required"`
+	MinimumQuantity int        `json:"minimum_quantity"           db:"minimum_quantity" validate:"gte=1"`
+	MaximumQuantity *int       `json:"maximum_quantity,omitempty" db:"maximum_quantity"`
+	Priority        int        `json:"priority"                   db:"priority"`
+	CustomerGroupID *int       `json:"customer_group_id,omitempty" db:"customer_group_id"`
+	StoreID         *int       `json:"store_id,omitempty"         db:"store_id"`
+	RecurrenceDays  []string   `json:"recurrence_days,omitempty"  db:"recurrence_days"`
+	TimeFrom        *string    `json:"time_from,omitempty"        db:"time_from"`
+	TimeTo          *string    `json:"time_to,omitempty"          db:"time_to"`
+	AllowCombine    bool       `json:"allow_combine"              db:"allow_combine"`
+	IsActive        bool       `json:"is_active"                  db:"is_active"`
 	Status          RuleStatus `json:"status"                     db:"status"`
-	EffectiveFrom   *time.Time        `json:"effective_from,omitempty"   db:"effective_from"`
-	EffectiveUntil  *time.Time        `json:"effective_until,omitempty"  db:"effective_until"`
-	CreatedAt       string            `json:"created_at,omitempty"       db:"created_at"`
-	UpdatedAt       string            `json:"updated_at,omitempty"       db:"updated_at"`
+	EffectiveFrom   *time.Time `json:"effective_from,omitempty"   db:"effective_from"`
+	EffectiveUntil  *time.Time `json:"effective_until,omitempty"  db:"effective_until"`
+	CreatedAt       string     `json:"created_at,omitempty"       db:"created_at"`
+	UpdatedAt       string     `json:"updated_at,omitempty"       db:"updated_at"`
 
 	// Scope fields populated on read (not stored in pricing_rules)
 	ScopeType string `json:"scope_type,omitempty" db:"scope_type"` // "product", "category", "brand"
@@ -79,11 +79,11 @@ type Rule struct {
 
 // ResolvedPrice is the output of the pricing resolution algorithm.
 type ResolvedPrice struct {
-	UnitPrice     int           `json:"unit_price"`
-	OriginalPrice int           `json:"original_price"`
-	Discount      int           `json:"discount"`
-	Type   Type   `json:"pricing_type"`
-	Method Method `json:"pricing_method"`
+	UnitPrice     int    `json:"unit_price"`
+	OriginalPrice int    `json:"original_price"`
+	Discount      int    `json:"discount"`
+	Type          Type   `json:"pricing_type"`
+	Method        Method `json:"pricing_method"`
 	Rule          *Rule  `json:"rule,omitempty"`
 }
 
@@ -95,8 +95,8 @@ type PriceSnapshot struct {
 	UnitPrice     int
 	OriginalPrice int
 	Discount      int
-	Type   Type
-	Method Method
+	Type          Type
+	Method        Method
 	Rule          *Rule
 	Cost          int
 	TaxClassID    *int

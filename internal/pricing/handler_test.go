@@ -127,8 +127,8 @@ func TestHandler_UpdateRule(t *testing.T) {
 	repo := newWiredRepo()
 	rule := &Rule{
 		ProductID:       &productID,
-		Type:     PricingTypePromotion,
-		Method:   PricingMethodFixedPrice,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
 		PricingValue:    12000,
 		Name:            "Before Update",
 		MinimumQuantity: 1,
@@ -174,8 +174,8 @@ func TestHandler_UpdateRule(t *testing.T) {
 	t.Run("duplicate name", func(t *testing.T) {
 		secondRule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    8000,
 			Name:            "Unique Name For Update Test",
 			MinimumQuantity: 1,
@@ -205,8 +205,8 @@ func TestHandler_DeleteRule(t *testing.T) {
 	repo := newWiredRepo()
 	rule := &Rule{
 		ProductID:       &productID,
-		Type:     PricingTypePromotion,
-		Method:   PricingMethodFixedPrice,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
 		PricingValue:    5000,
 		Name:            "Delete Me",
 		MinimumQuantity: 1,
@@ -259,6 +259,16 @@ func TestHandler_ResolvePrices(t *testing.T) {
 		require.Len(t, resp.Data, 1)
 		assert.Equal(t, 15000, resp.Data[0].UnitPrice)
 		assert.Equal(t, 15000, resp.Data[0].OriginalPrice)
+	})
+
+	t.Run("product not found", func(t *testing.T) {
+		body := `{"items":[{"product_id":999999,"quantity":1}]}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing/resolve", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("empty items", func(t *testing.T) {
@@ -334,8 +344,8 @@ func TestHandler_SubmitForApproval(t *testing.T) {
 	t.Run("submit draft rule", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    12000,
 			Name:            "Submit Test Rule " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -366,8 +376,8 @@ func TestHandler_SubmitForApproval(t *testing.T) {
 	t.Run("submit non-draft rule fails", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    11000,
 			Name:            "Non-Draft Submit " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -394,8 +404,8 @@ func TestHandler_ApproveRule(t *testing.T) {
 	t.Run("approve pending rule", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    12000,
 			Name:            "Approve Test Rule " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -418,8 +428,8 @@ func TestHandler_ApproveRule(t *testing.T) {
 	t.Run("approve non-pending rule fails", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    11000,
 			Name:            "Draft Approve " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -446,8 +456,8 @@ func TestHandler_RejectRule(t *testing.T) {
 	t.Run("reject pending rule", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    12000,
 			Name:            "Reject Test Rule " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -470,8 +480,8 @@ func TestHandler_RejectRule(t *testing.T) {
 	t.Run("reject non-pending rule fails", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    11000,
 			Name:            "Draft Reject " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -498,8 +508,8 @@ func TestHandler_GetRule(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    12000,
 			Name:            "GetRule Success " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -557,8 +567,8 @@ func TestHandler_ListRules_WithFilters(t *testing.T) {
 	productID := insertTestProduct(t.Context(), t, "HDL-LF-"+time.Now().Format("0102150405"), "Filter Test Product", 15000)
 	rule := &Rule{
 		ProductID:       &productID,
-		Type:     PricingTypePromotion,
-		Method:   PricingMethodFixedPrice,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
 		PricingValue:    10000,
 		Name:            "Filter Test Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -768,7 +778,7 @@ func TestHandler_CheckConflicts(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
 			Data         []Rule `json:"data"`
-			HasConflicts bool          `json:"has_conflicts"`
+			HasConflicts bool   `json:"has_conflicts"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)

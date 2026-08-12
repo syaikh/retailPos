@@ -17,25 +17,25 @@ import (
 )
 
 type mockUserService struct {
-	getByIDFn         func(ctx context.Context, id int) (*User, error)
-	getByUsernameFn   func(ctx context.Context, username string) (*User, error)
-	getAllUsersFn     func(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool) ([]User, int, error)
-	createUserFn      func(ctx context.Context, user *User) error
-	updateUserFn      func(ctx context.Context, user *User) error
-	deleteUserFn      func(ctx context.Context, id int) error
-	getSubordinatesFn func(ctx context.Context, managerID int) ([]User, error)
-	getManagerFn      func(ctx context.Context, userID int) (*User, error)
-	getOrgChartFn     func(ctx context.Context) ([]User, error)
-	isSubordinateFn   func(ctx context.Context, managerID, userID int) (bool, error)
-	getAllRolesFn     func(ctx context.Context) ([]Role, error)
-	getRoleByIDFn     func(ctx context.Context, id int) (*Role, error)
-	createRoleFn      func(ctx context.Context, role *Role) error
-	updateRoleFn      func(ctx context.Context, role *Role) error
-	deleteRoleFn      func(ctx context.Context, id int) error
-	countByRoleFn     func(ctx context.Context, roleID int) (int, error)
-	getAllPermsFn     func(ctx context.Context) ([]Permission, error)
+	getByIDFn            func(ctx context.Context, id int) (*User, error)
+	getByUsernameFn      func(ctx context.Context, username string) (*User, error)
+	getAllUsersFn        func(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool) ([]User, int, error)
+	createUserFn         func(ctx context.Context, user *User) error
+	updateUserFn         func(ctx context.Context, user *User) error
+	deleteUserFn         func(ctx context.Context, id int) error
+	getSubordinatesFn    func(ctx context.Context, managerID int) ([]User, error)
+	getManagerFn         func(ctx context.Context, userID int) (*User, error)
+	getOrgChartFn        func(ctx context.Context) ([]User, error)
+	isSubordinateFn      func(ctx context.Context, managerID, userID int) (bool, error)
+	getAllRolesFn        func(ctx context.Context) ([]Role, error)
+	getRoleByIDFn        func(ctx context.Context, id int) (*Role, error)
+	createRoleFn         func(ctx context.Context, role *Role) error
+	updateRoleFn         func(ctx context.Context, role *Role) error
+	deleteRoleFn         func(ctx context.Context, id int) error
+	countByRoleFn        func(ctx context.Context, roleID int) (int, error)
+	getAllPermsFn        func(ctx context.Context) ([]Permission, error)
 	getRolePermissionsFn func(ctx context.Context, roleID int) ([]Permission, error)
-	updatePermsFn     func(ctx context.Context, roleID int, permissionIDs []int) error
+	updatePermsFn        func(ctx context.Context, roleID int, permissionIDs []int) error
 }
 
 func (m *mockUserService) GetUserByID(ctx context.Context, id int) (*User, error) {

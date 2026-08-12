@@ -14,8 +14,8 @@ func validRule() *Rule {
 	return &Rule{
 		Name:            "Test Rule",
 		ProductID:       &pid,
-		Type:     PricingTypeSpecialPrice,
-		Method:   PricingMethodFixedPrice,
+		Type:            PricingTypeSpecialPrice,
+		Method:          PricingMethodFixedPrice,
 		PricingValue:    50000,
 		MinimumQuantity: 1,
 		IsActive:        true,
@@ -157,8 +157,8 @@ func TestService_GetByID(t *testing.T) {
 	productID := insertTestProduct(ctx, t, "SVC-GID-"+time.Now().Format("0102150405"), "Service GetByID Product", 15000)
 	rule := &Rule{
 		ProductID:       &productID,
-		Type:     PricingTypePromotion,
-		Method:   PricingMethodFixedPrice,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
 		PricingValue:    12000,
 		Name:            "SVC GetByID Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -187,8 +187,8 @@ func TestService_GetByProductID(t *testing.T) {
 	productID := insertTestProduct(ctx, t, "SVC-GBPID-"+time.Now().Format("0102150405"), "Service GetByProductID Product", 15000)
 	rule := &Rule{
 		ProductID:       &productID,
-		Type:     PricingTypeSpecialPrice,
-		Method:   PricingMethodDiscountAmt,
+		Type:            PricingTypeSpecialPrice,
+		Method:          PricingMethodDiscountAmt,
 		PricingValue:    3000,
 		Name:            "SVC GetByProductID Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -220,8 +220,8 @@ func TestService_Delete(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "SVC Delete Rule " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -249,8 +249,8 @@ func TestService_Update(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    15000,
 			Name:            "SVC Update Rule " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -267,8 +267,8 @@ func TestService_Update(t *testing.T) {
 		rule := &Rule{
 			ID:              999999,
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "Non-existent Update",
 			MinimumQuantity: 1,
@@ -281,8 +281,8 @@ func TestService_Update(t *testing.T) {
 	t.Run("validation fails", func(t *testing.T) {
 		rule := &Rule{
 			ID:              999999,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "",
 			MinimumQuantity: 1,
@@ -304,8 +304,8 @@ func TestService_Create(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "SVC Create Rule " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -318,8 +318,8 @@ func TestService_Create(t *testing.T) {
 
 	t.Run("validation fails", func(t *testing.T) {
 		rule := &Rule{
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "",
 			MinimumQuantity: 1,

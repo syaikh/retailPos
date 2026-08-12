@@ -12,10 +12,10 @@ import (
 )
 
 type Repository struct {
-	db                       shared.DBPool
-	productPricingProvider   ProductPricingProvider
-	categorySearchProvider   CategoryNameSearchProvider
-	brandSearchProvider      BrandNameSearchProvider
+	db                     shared.DBPool
+	productPricingProvider ProductPricingProvider
+	categorySearchProvider CategoryNameSearchProvider
+	brandSearchProvider    BrandNameSearchProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -638,8 +638,8 @@ type RuleImportRow struct {
 	ProductID       *int
 	CategoryID      *int
 	BrandID         *int
-	Type     string
-	Method   string
+	Type            string
+	Method          string
 	PricingValue    float64
 	Name            string
 	MinimumQuantity int
@@ -660,8 +660,8 @@ type RuleImportPayload struct {
 	ProductID       *int
 	CategoryID      *int
 	BrandID         *int
-	Type     string
-	Method   string
+	Type            string
+	Method          string
 	PricingValue    float64
 	Name            string
 	MinimumQuantity int
