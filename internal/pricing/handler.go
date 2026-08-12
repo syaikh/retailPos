@@ -45,6 +45,11 @@ func NewHandler(svc Service, resolver PriceResolver, auditSvc audit.Creator) *Ha
 	return &Handler{svc: svc, resolver: resolver, auditSvc: auditSvc}
 }
 
+func isAdmin(c *gin.Context) bool {
+	role := shared.GetRole(c)
+	return role == "superadmin" || role == "admin"
+}
+
 // SetProductSearcher sets the optional product search provider.
 func (h *Handler) SetProductSearcher(s ProductSearcher) {
 	h.searcher = s
@@ -133,6 +138,17 @@ func (h *Handler) ListRules(c *gin.Context) {
 	}
 
 	status := c.Query("status")
+
+	claimsStore := shared.GetStoreID(c)
+	if !isAdmin(c) {
+		if claimsStore != nil && storeID != nil && *storeID != *claimsStore {
+			c.JSON(http.StatusForbidden, gin.H{"error": "store is not in your store"})
+			return
+		}
+		if claimsStore != nil && storeID == nil {
+			storeID = claimsStore
+		}
+	}
 
 	rules, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, productID, pricingType, pricingMethod, categoryID, brandID, customerGroupID, storeID, isActive, status)
 	if err != nil {

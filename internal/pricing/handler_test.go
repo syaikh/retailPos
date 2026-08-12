@@ -1,6 +1,7 @@
 package pricing
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +22,14 @@ func skipIfNoDB(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
+}
+
+func insertTestStore(ctx context.Context, t *testing.T, name string) int {
+	t.Helper()
+	var id int
+	err := dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ($1) RETURNING id`, name).Scan(&id)
+	require.NoError(t, err)
+	return id
 }
 
 func testAuthMiddleware() gin.HandlerFunc {
@@ -678,6 +687,108 @@ func TestHandler_ListRules_WithFilters(t *testing.T) {
 	t.Run("filter by search", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/pricing-rules?search=Filter", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func TestHandler_ListRules_StoreScoped(t *testing.T) {
+	skipIfNoDB(t)
+	repo := newWiredRepo()
+
+	productID := insertTestProduct(t.Context(), t, "HDL-STORE-"+time.Now().Format("0102150405"), "Store Scoped Product", 15000)
+	storeA := insertTestStore(t.Context(), t, "HDL-STORE-A")
+	storeB := insertTestStore(t.Context(), t, "HDL-STORE-B")
+	ruleStoreA := &Rule{
+		ProductID:       &productID,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
+		PricingValue:    10000,
+		Name:            "Store A Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+		Status:          StatusDraft,
+		StoreID:         &storeA,
+	}
+	ruleStoreB := &Rule{
+		ProductID:       &productID,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
+		PricingValue:    9000,
+		Name:            "Store B Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+		Status:          StatusDraft,
+		StoreID:         &storeB,
+	}
+	require.NoError(t, repo.Create(t.Context(), ruleStoreA))
+	require.NoError(t, repo.Create(t.Context(), ruleStoreB))
+
+	t.Run("store-scoped user can view own store rules", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "store_user")
+			c.Set("roleID", 2)
+			c.Set("role", "manager")
+			c.Set("permissions", []string{"pricing.view"})
+			c.Set("storeID", &storeA)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?store_id="+strconv.Itoa(storeA), nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("store-scoped user cannot view another store rules", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "store_user")
+			c.Set("roleID", 2)
+			c.Set("role", "manager")
+			c.Set("permissions", []string{"pricing.view"})
+			c.Set("storeID", &storeA)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?store_id="+strconv.Itoa(storeB), nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("store-scoped user defaults to own store when no store_id provided", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "store_user")
+			c.Set("roleID", 2)
+			c.Set("role", "manager")
+			c.Set("permissions", []string{"pricing.view"})
+			c.Set("storeID", &storeA)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules", nil)
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
