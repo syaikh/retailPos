@@ -26,6 +26,7 @@ type Sale struct {
 	ShiftID       *int      `json:"shift_id,omitempty"`
 	CustomerID    *int      `json:"customer_id,omitempty"`
 	CustomerName  string    `json:"customer_name,omitempty"`
+	HoldNote      string    `json:"hold_note,omitempty"`
 	StoreID       *int      `json:"store_id,omitempty"`
 	Subtotal      int       `json:"subtotal"`
 	Discount      int       `json:"discount"`
@@ -109,4 +110,46 @@ type PaymentMethod struct {
 	RequiresReference bool   `json:"requires_reference"`
 	SortOrder         int    `json:"sort_order"`
 	CreatedAt         string `json:"created_at,omitempty"`
+}
+
+// Caller identifies the authenticated actor behind a parked-sale operation.
+// It drives the P2-6 ownership/scope rules: cashiers are restricted to their
+// own parked sales, managers may recall any parked sale (but never cancel, and
+// may only complete a sale when it carries a parked_sale_id), and
+// superadmin/admin are elevated over all parked sales.
+type Caller struct {
+	UserID  int
+	Role    string
+	StoreID *int
+}
+
+// IsElevated reports whether the caller bypasses cashier/manager scoping
+// (superadmin and admin).
+func (c Caller) IsElevated() bool {
+	return c.Role == "superadmin" || c.Role == "admin"
+}
+
+// IsManager reports whether the caller is a manager (recall-only rules).
+func (c Caller) IsManager() bool {
+	return c.Role == "manager"
+}
+
+// ownerScope returns the cashier owner filter to apply at the repository level.
+// A nil scope means no cashier restriction (manager/elevated). All other roles
+// (cashier, staff, unknown) are treated as owner-scoped so they can never touch
+// another cashier's parked sale.
+func (c Caller) ownerScope() *int {
+	if c.IsElevated() || c.IsManager() {
+		return nil
+	}
+	uid := c.UserID
+	return &uid
+}
+
+// storeScope returns the caller's store filter, if any. It is applied on top of
+// ownership so that manager/elevated users (nil owner scope) are still confined
+// to their own store, mirroring GetAllSales/GetSaleByID. Users issued a token
+// without a store claim (nil) are unscoped by design.
+func (c Caller) storeScope() *int {
+	return c.StoreID
 }

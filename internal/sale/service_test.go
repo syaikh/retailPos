@@ -563,7 +563,7 @@ func TestSaleService_ParkSale(t *testing.T) {
 			TaxAmount: 0,
 		}}
 
-		err := svc.ParkSale(ctx, sale, items, nil)
+		err := svc.ParkSale(ctx, sale, items, nil, Caller{UserID: cashierID})
 		require.NoError(t, err)
 		assert.Greater(t, sale.ID, 0)
 		assert.Equal(t, "parked", sale.Status)
@@ -592,13 +592,13 @@ func TestSaleService_ParkSale(t *testing.T) {
 			Subtotal:  10000,
 		}}
 
-		err := svc.ParkSale(ctx, sale, items, nil)
+		err := svc.ParkSale(ctx, sale, items, nil, Caller{UserID: cashierID})
 		assert.ErrorContains(t, err, "invalid quantity")
 	})
 
 	t.Run("with recalled sale ID", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-PARK-RECALL", "parked", prodID, 1, 10000)
-		recalled, err := repo.RecallSale(ctx, parked.ID)
+		recalled, err := repo.RecallSale(ctx, parked.ID, &cashierID, nil)
 		require.NoError(t, err)
 
 		sale := &Sale{
@@ -618,7 +618,7 @@ func TestSaleService_ParkSale(t *testing.T) {
 			TaxAmount: 0,
 		}}
 
-		err = svc.ParkSale(ctx, sale, items, &recalled.ID)
+		err = svc.ParkSale(ctx, sale, items, &recalled.ID, Caller{UserID: cashierID})
 		require.NoError(t, err)
 		assert.Equal(t, "parked", sale.Status)
 
@@ -647,20 +647,20 @@ func TestSaleService_RecallSale(t *testing.T) {
 	t.Run("recall parked sale", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-RECALL-001", "parked", prodID, 2, 10000)
 
-		sale, err := svc.RecallSale(ctx, parked.ID)
+		sale, err := svc.RecallSale(ctx, parked.ID, Caller{UserID: cashierID})
 		require.NoError(t, err)
 		assert.Equal(t, "recalled", sale.Status)
 		assert.NotEmpty(t, sale.Items)
 	})
 
 	t.Run("recall non-existent returns error", func(t *testing.T) {
-		_, err := svc.RecallSale(ctx, -999)
+		_, err := svc.RecallSale(ctx, -999, Caller{UserID: cashierID})
 		assert.ErrorIs(t, err, ErrSaleNotFound)
 	})
 
 	t.Run("recall completed returns error", func(t *testing.T) {
 		completed := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-RECALL-CMP", "completed", prodID, 1, 10000)
-		_, err := svc.RecallSale(ctx, completed.ID)
+		_, err := svc.RecallSale(ctx, completed.ID, Caller{UserID: cashierID})
 		assert.ErrorIs(t, err, ErrSaleNotFound)
 	})
 }
@@ -682,12 +682,12 @@ func TestSaleService_CancelParkedSale(t *testing.T) {
 
 	t.Run("cancel parked", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-CANCEL-001", "parked", prodID, 1, 10000)
-		err := svc.CancelParkedSale(ctx, parked.ID)
+		err := svc.CancelParkedSale(ctx, parked.ID, Caller{UserID: cashierID})
 		assert.NoError(t, err)
 	})
 
 	t.Run("cancel non-existent returns error", func(t *testing.T) {
-		err := svc.CancelParkedSale(ctx, -999)
+		err := svc.CancelParkedSale(ctx, -999, Caller{UserID: cashierID})
 		assert.Error(t, err)
 	})
 }
@@ -857,7 +857,7 @@ func TestSaleService_ListParkedSales(t *testing.T) {
 	_ = createParkedSale(ctx, t, repo, cashierID, "INV-SVC-LP-002", "recalled", prodID, 2, 10000)
 	_ = createParkedSale(ctx, t, repo, cashierID, "INV-SVC-LP-003", "completed", prodID, 3, 10000)
 
-	sales, err := svc.ListParkedSales(ctx, cashierID)
+	sales, err := svc.ListParkedSales(ctx, Caller{UserID: cashierID})
 	require.NoError(t, err)
 	assert.Len(t, sales, 2)
 	for _, s := range sales {
@@ -882,7 +882,7 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 
 	t.Run("checkout from recalled sale", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-COP-001", "parked", prodID, 2, 10000)
-		_, err := repo.RecallSale(ctx, parked.ID)
+		_, err := repo.RecallSale(ctx, parked.ID, &cashierID, nil)
 		require.NoError(t, err)
 
 		sale := &Sale{
@@ -902,7 +902,7 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 			TaxAmount: 0,
 		}}
 
-		err = svc.CreateSaleWithParkedSale(ctx, sale, items, &parked.ID, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 20000}})
+		err = svc.CreateSaleWithParkedSale(ctx, sale, items, &parked.ID, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 20000}}, Caller{UserID: cashierID})
 		require.NoError(t, err)
 		assert.Greater(t, sale.ID, 0)
 
@@ -932,7 +932,7 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 			TaxAmount: 0,
 		}}
 
-		err := svc.CreateSaleWithParkedSale(ctx, sale, items, &parked.ID, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 10000}})
+		err := svc.CreateSaleWithParkedSale(ctx, sale, items, &parked.ID, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 10000}}, Caller{UserID: cashierID})
 		assert.ErrorIs(t, err, ErrParkedSaleNotRecalled)
 	})
 }
@@ -1148,7 +1148,7 @@ func TestSaleService_GetParkedSaleByID(t *testing.T) {
 	prodID := insertTestProduct(ctx, t, "SVC-GETPID-001", "Get Parked ByID", 10000, 50)
 	parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-GETPID-001", "parked", prodID, 2, 10000)
 
-	sale, err := svc.GetParkedSaleByID(ctx, parked.ID, cashierID)
+	sale, err := svc.GetParkedSaleByID(ctx, parked.ID, Caller{UserID: cashierID})
 	require.NoError(t, err)
 	assert.Equal(t, parked.ID, sale.ID)
 	assert.Equal(t, "parked", sale.Status)
@@ -1163,7 +1163,7 @@ func TestSaleService_GetParkedSaleByID_NotFound(t *testing.T) {
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
-	_, err := svc.GetParkedSaleByID(ctx, -999, 0)
+	_, err := svc.GetParkedSaleByID(ctx, -999, Caller{UserID: 0})
 	assert.ErrorIs(t, err, ErrSaleNotFound)
 }
 

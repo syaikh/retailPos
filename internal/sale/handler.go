@@ -21,7 +21,7 @@ import (
 
 type Service interface {
 	CreateSale(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error
-	CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error
+	CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error
 	GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error)
 	ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int, cashierID *int) ([]Sale, int, error)
 	GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error)
@@ -30,11 +30,11 @@ type Service interface {
 	GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error)
 	GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error)
 	ResolveCheckoutPrices(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error)
-	ParkSale(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int) error
-	RecallSale(ctx context.Context, saleID int) (*Sale, error)
-	CancelParkedSale(ctx context.Context, saleID int) error
-	ListParkedSales(ctx context.Context, cashierID int) ([]Sale, error)
-	GetParkedSaleByID(ctx context.Context, saleID int, cashierID int) (*Sale, error)
+	ParkSale(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int, caller Caller) error
+	RecallSale(ctx context.Context, saleID int, caller Caller) (*Sale, error)
+	CancelParkedSale(ctx context.Context, saleID int, caller Caller) error
+	ListParkedSales(ctx context.Context, caller Caller) ([]Sale, error)
+	GetParkedSaleByID(ctx context.Context, saleID int, caller Caller) (*Sale, error)
 
 	CreateOrGetOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error)
 	GetOpenCart(ctx context.Context, cashierID int) (*CartSession, error)
@@ -76,7 +76,72 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/sales/parked", auth, perm(permissions.SalePark), h.ListParkedSales)
 	r.GET("/sales/parked/:id", auth, perm(permissions.SalePark), h.GetParkedSaleByID)
 	r.POST("/sales/parked/:id/recall", auth, perm(permissions.SalePark), h.RecallParkedSale)
+	r.POST("/sales/parked/:id/complete", auth, perm(permissions.SalePark), h.CompleteParkedSale)
 	r.DELETE("/sales/parked/:id", auth, perm(permissions.SalePark), h.CancelParkedSale)
+}
+
+// callerFromContext builds the P2-6 Caller from the authenticated request. The
+// gin context values are set by the auth middleware; the request context values
+// are the audit-path fallback for tests that only set one side.
+func callerFromContext(c *gin.Context) Caller {
+	var userID int
+	if v, exists := c.Get("userID"); exists {
+		if id, ok := v.(int); ok {
+			userID = id
+		}
+	}
+	role := middleware.RoleFromContext(c.Request.Context())
+	if role == "" {
+		if v, exists := c.Get("role"); exists {
+			role, _ = v.(string)
+		}
+	}
+	return Caller{UserID: userID, Role: role, StoreID: shared.GetStoreID(c)}
+}
+
+// buildItemsFromSnapshots converts server-resolved price snapshots into sale
+// items plus their line totals. Shared by CreateSale, ParkSale and
+// CompleteParkedSale so every path stays server-authoritative.
+func buildItemsFromSnapshots(snapshots []PriceSnapshot, resolveItems []ResolveItem) ([]Item, int, int, error) {
+	items := make([]Item, 0, len(snapshots))
+	var subtotal, taxTotal int
+	for i, snap := range snapshots {
+		if snap.ProductID != resolveItems[i].ProductID {
+			return nil, 0, 0, fmt.Errorf("failed to resolve price for product %d", resolveItems[i].ProductID)
+		}
+		quantity := resolveItems[i].Quantity
+		lineSubtotal, dpp, lineTax := computeLineTotals(quantity, snap.UnitPrice, snap.TaxRate)
+		item := Item{
+			ProductID:         snap.ProductID,
+			ProductName:       snap.ProductName,
+			Quantity:          quantity,
+			UnitPrice:         snap.UnitPrice,
+			Subtotal:          lineSubtotal,
+			DPPAmount:         dpp,
+			TaxAmount:         lineTax,
+			Type:              stringPtr(string(snap.Type)),
+			Cost:              snap.Cost,
+			TaxClassID:        snap.TaxClassID,
+			TaxRate:           snap.TaxRate,
+			SnapshotCreatedAt: snap.SnapshotAt.In(shared.JakartaLocation()).Format(time.RFC3339),
+		}
+		if snap.Rule != nil {
+			ruleID := snap.Rule.ID
+			ruleName := snap.Rule.Name
+			ruleType := string(snap.Rule.Type)
+			item.PricingRuleID = &ruleID
+			item.PricingRuleName = &ruleName
+			item.PricingRuleType = &ruleType
+		}
+		if snap.OriginalPrice > 0 {
+			originalPrice := snap.OriginalPrice
+			item.OriginalPrice = &originalPrice
+		}
+		items = append(items, item)
+		subtotal += lineSubtotal
+		taxTotal += lineTax
+	}
+	return items, subtotal, taxTotal, nil
 }
 
 func (h *Handler) RegisterPaymentMethodsPublicRoutes(r *gin.RouterGroup) {
@@ -255,45 +320,10 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		return
 	}
 
-	items := make([]Item, 0, len(snapshots))
-	var subtotal, taxTotal int
-	for i, snap := range snapshots {
-		if snap.ProductID != resolveItems[i].ProductID {
-			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest,
-				fmt.Sprintf("failed to resolve price for product %d", resolveItems[i].ProductID))
-			return
-		}
-		quantity := resolveItems[i].Quantity
-		lineSubtotal, dpp, lineTax := computeLineTotals(quantity, snap.UnitPrice, snap.TaxRate)
-		item := Item{
-			ProductID:         snap.ProductID,
-			ProductName:       snap.ProductName,
-			Quantity:          quantity,
-			UnitPrice:         snap.UnitPrice,
-			Subtotal:          lineSubtotal,
-			DPPAmount:         dpp,
-			TaxAmount:         lineTax,
-			Type:              stringPtr(string(snap.Type)),
-			Cost:              snap.Cost,
-			TaxClassID:        snap.TaxClassID,
-			TaxRate:           snap.TaxRate,
-			SnapshotCreatedAt: snap.SnapshotAt.In(shared.JakartaLocation()).Format(time.RFC3339),
-		}
-		if snap.Rule != nil {
-			ruleID := snap.Rule.ID
-			ruleName := snap.Rule.Name
-			ruleType := string(snap.Rule.Type)
-			item.PricingRuleID = &ruleID
-			item.PricingRuleName = &ruleName
-			item.PricingRuleType = &ruleType
-		}
-		if snap.OriginalPrice > 0 {
-			originalPrice := snap.OriginalPrice
-			item.OriginalPrice = &originalPrice
-		}
-		items = append(items, item)
-		subtotal += lineSubtotal
-		taxTotal += lineTax
+	items, subtotal, taxTotal, err := buildItemsFromSnapshots(snapshots, resolveItems)
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
 	}
 
 	// Build payments array: prefer new `payments` field, fall back to `payment_method` for backward compat
@@ -325,7 +355,11 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		Status:        "completed",
 	}
 
-	if err := h.svc.CreateSaleWithParkedSale(ctx, sale, items, req.ParkedSaleID, payments); err != nil {
+	if err := h.svc.CreateSaleWithParkedSale(ctx, sale, items, req.ParkedSaleID, payments, callerFromContext(c)); err != nil {
+		if errors.Is(err, ErrPermissionDenied) {
+			shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager can only complete a recalled parked sale")
+			return
+		}
 		if errors.Is(err, ErrInsufficientStock) {
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
 			return
@@ -636,11 +670,13 @@ func (h *Handler) ParkSale(c *gin.Context) {
 		Subtotal  int `json:"subtotal"`
 	}
 	type parkSaleReq struct {
-		InvoiceNumber  string         `json:"invoice_number"`
-		Items          []parkSaleItem `json:"items" binding:"required"`
-		PaymentMethod  string         `json:"payment_method"`
-		CustomerGroupID *int          `json:"customer_group_id"`
-		RecalledSaleID *int           `json:"recalled_sale_id"`
+		InvoiceNumber   string         `json:"invoice_number"`
+		Items           []parkSaleItem `json:"items" binding:"required"`
+		PaymentMethod   string         `json:"payment_method"`
+		CustomerGroupID *int           `json:"customer_group_id"`
+		CustomerID      *int           `json:"customer_id"`
+		HoldNote        string         `json:"hold_note"`
+		RecalledSaleID  *int           `json:"recalled_sale_id"`
 	}
 
 	var req parkSaleReq
@@ -722,57 +758,25 @@ func (h *Handler) ParkSale(c *gin.Context) {
 		}
 	}
 
-	items := make([]Item, 0, len(snapshots))
-	var subtotal int
-	for i, snap := range snapshots {
-		if snap.ProductID != resolveItems[i].ProductID {
-			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest,
-				fmt.Sprintf("failed to resolve price for product %d", resolveItems[i].ProductID))
-			return
-		}
-		quantity := resolveItems[i].Quantity
-		lineSubtotal, dpp, lineTax := computeLineTotals(quantity, snap.UnitPrice, snap.TaxRate)
-		item := Item{
-			ProductID:         snap.ProductID,
-			ProductName:       snap.ProductName,
-			Quantity:          quantity,
-			UnitPrice:         snap.UnitPrice,
-			Subtotal:          lineSubtotal,
-			DPPAmount:         dpp,
-			TaxAmount:         lineTax,
-			Type:              stringPtr(string(snap.Type)),
-			Cost:              snap.Cost,
-			TaxClassID:        snap.TaxClassID,
-			TaxRate:           snap.TaxRate,
-			SnapshotCreatedAt: snap.SnapshotAt.In(shared.JakartaLocation()).Format(time.RFC3339),
-		}
-		if snap.Rule != nil {
-			ruleID := snap.Rule.ID
-			ruleName := snap.Rule.Name
-			ruleType := string(snap.Rule.Type)
-			item.PricingRuleID = &ruleID
-			item.PricingRuleName = &ruleName
-			item.PricingRuleType = &ruleType
-		}
-		if snap.OriginalPrice > 0 {
-			originalPrice := snap.OriginalPrice
-			item.OriginalPrice = &originalPrice
-		}
-		items = append(items, item)
-		subtotal += lineSubtotal
+	items, subtotal, _, err := buildItemsFromSnapshots(snapshots, resolveItems)
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
 	}
 
 	sale := &Sale{
 		InvoiceNumber: invoiceNumber,
 		CashierID:     cashierID,
 		StoreID:       storeIDPtr,
+		CustomerID:    req.CustomerID,
+		HoldNote:      req.HoldNote,
 		Subtotal:      subtotal,
 		TotalAmount:   subtotal,
 		PaymentMethod: req.PaymentMethod,
 		Status:        "parked",
 	}
 
-	if err := h.svc.ParkSale(ctx, sale, items, req.RecalledSaleID); err != nil {
+	if err := h.svc.ParkSale(ctx, sale, items, req.RecalledSaleID, callerFromContext(c)); err != nil {
 		shared.InternalError(c, err)
 		return
 	}
@@ -787,13 +791,13 @@ func (h *Handler) ListParkedSales(c *gin.Context) {
 		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "user not authenticated")
 		return
 	}
-	cashierID, ok := userID.(int)
-	if !ok {
+	if _, ok := userID.(int); !ok {
 		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "invalid user ID in context")
 		return
 	}
 
-	sales, err := h.svc.ListParkedSales(ctx, cashierID)
+	caller := callerFromContext(c)
+	sales, err := h.svc.ListParkedSales(ctx, caller)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -814,13 +818,12 @@ func (h *Handler) GetParkedSaleByID(c *gin.Context) {
 		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "user not authenticated")
 		return
 	}
-	cashierID, ok := userID.(int)
-	if !ok {
+	if _, ok := userID.(int); !ok {
 		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "invalid user ID in context")
 		return
 	}
 
-	sale, err := h.svc.GetParkedSaleByID(ctx, id, cashierID)
+	sale, err := h.svc.GetParkedSaleByID(ctx, id, callerFromContext(c))
 	if err != nil {
 		if errors.Is(err, ErrSaleNotFound) {
 			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "sale not found")
@@ -840,7 +843,8 @@ func (h *Handler) RecallParkedSale(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	sale, err := h.svc.RecallSale(ctx, id)
+	caller := callerFromContext(c)
+	sale, err := h.svc.RecallSale(ctx, id, caller)
 	if err != nil {
 		if errors.Is(err, ErrSaleNotFound) {
 			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "sale not found")
@@ -849,6 +853,24 @@ func (h *Handler) RecallParkedSale(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
+
+	// Manager recalls of another cashier's parked sale are audited (P2-6 D4).
+	if caller.IsManager() && h.auditSvc != nil {
+		actorID := middleware.UserIDFromContext(ctx)
+		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
+			UserID:      actorID,
+			Username:    middleware.UsernameFromContext(ctx),
+			Role:        caller.Role,
+			Action:      "recall_sale",
+			EntityType:  "sale",
+			EntityID:    &sale.ID,
+			NewValues:   shared.ToJSONMap(sale),
+			IPAddress:   middleware.IPAddressFromContext(ctx),
+			UserAgent:   middleware.UserAgentFromContext(ctx),
+			Description: fmt.Sprintf("Manager recalled parked sale %s (cashier %d)", sale.InvoiceNumber, sale.CashierID),
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{"data": sale})
 }
 
@@ -860,13 +882,227 @@ func (h *Handler) CancelParkedSale(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	if err := h.svc.CancelParkedSale(ctx, id); err != nil {
+	if err := h.svc.CancelParkedSale(ctx, id, callerFromContext(c)); err != nil {
 		if errors.Is(err, ErrSaleNotFound) {
 			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "sale not found")
+			return
+		}
+		if errors.Is(err, ErrPermissionDenied) {
+			shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager cannot cancel a parked sale")
 			return
 		}
 		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusNoContent, nil)
+}
+
+// CompleteParkedSale godoc
+// @Summary Complete a recalled parked sale
+// @Description Manager scoped-completion path (P2-6 D4): completes the recalled
+// parked sale identified by the route and creates a completed sale from
+// server-resolved prices. The parked_sale_id is bound to the URL so a manager
+// can never complete a sale without one (no blanket sale.create for Manager).
+// Pricing fields in the payload are rejected exactly like POST /sales.
+// @Tags sales
+// @Accept json
+// @Produce json
+// @Param id path int true "Parked sale ID"
+// @Param request body map[string]interface{} true "Sale payload (no pricing fields)"
+// @Security BearerAuth
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 403 {object} map[string]interface{}
+// @Failure 409 {object} map[string]interface{}
+// @Router /sales/parked/:id/complete [post]
+//
+//gocritic:ignore unnamedResult
+func (h *Handler) CompleteParkedSale(c *gin.Context) {
+	type completeItem struct {
+		ProductID int `json:"product_id"`
+		Quantity  int `json:"quantity"`
+		UnitPrice int `json:"unit_price"`
+		Subtotal  int `json:"subtotal"`
+	}
+	type completePaymentReq struct {
+		PaymentMethodCode string `json:"payment_method_code" binding:"required"`
+		Amount            int    `json:"amount" binding:"required"`
+		ReferenceNumber   string `json:"reference_number"`
+	}
+	type completeReq struct {
+		CustomerID      *int                 `json:"customer_id"`
+		CustomerGroupID *int                 `json:"customer_group_id"`
+		ShiftID         *int                 `json:"shift_id"`
+		Items           []completeItem       `json:"items" binding:"required"`
+		Payments        []completePaymentReq `json:"payments"`
+		PaymentMethod   string               `json:"payment_method"`
+		InvoiceNumber   string               `json:"invoice_number"`
+		Discount        int                  `json:"discount"`
+		Tax             int                  `json:"tax"`
+		Subtotal        int                  `json:"subtotal"`
+		TotalAmount     int                  `json:"total_amount"`
+	}
+
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid sale ID")
+		return
+	}
+
+	var req completeReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
+
+	ctx := c.Request.Context()
+	userID, exists := c.Get("userID")
+	if !exists {
+		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "user not authenticated")
+		return
+	}
+	cashierID, ok := userID.(int)
+	if !ok {
+		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "invalid user ID in context")
+		return
+	}
+	storeIDPtr := shared.GetStoreID(c)
+
+	if len(req.Items) == 0 {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "items is required")
+		return
+	}
+
+	// Server-authoritative pricing mirrors POST /sales: client pricing and
+	// server-generated identity fields are rejected, never silently corrected.
+	if req.InvoiceNumber != "" {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invoice number is generated by the server")
+		return
+	}
+	if req.Discount != 0 || req.Tax != 0 || req.Subtotal != 0 || req.TotalAmount != 0 {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "discount, tax, subtotal and total_amount are not accepted")
+		return
+	}
+	for _, item := range req.Items {
+		if item.UnitPrice != 0 {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest,
+				fmt.Sprintf("unit_price is not accepted for product %d", item.ProductID))
+			return
+		}
+		if item.Subtotal != 0 {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest,
+				fmt.Sprintf("subtotal is not accepted for product %d", item.ProductID))
+			return
+		}
+	}
+
+	resolveItems := make([]ResolveItem, 0, len(req.Items))
+	for _, item := range req.Items {
+		if item.Quantity <= 0 {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest,
+				fmt.Sprintf("invalid quantity %d for product %d", item.Quantity, item.ProductID))
+			return
+		}
+		resolveItems = append(resolveItems, ResolveItem{
+			ProductID:       item.ProductID,
+			Quantity:        item.Quantity,
+			CustomerGroupID: req.CustomerGroupID,
+			StoreID:         storeIDPtr,
+		})
+	}
+
+	snapshots, err := h.svc.ResolveCheckoutPrices(ctx, resolveItems)
+	if err != nil {
+		if errors.Is(err, ErrCheckoutProductNotFound) {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+			return
+		}
+		shared.JSONError(c, http.StatusInternalServerError, shared.ErrInternal, "failed to resolve product prices")
+		return
+	}
+	if len(snapshots) != len(resolveItems) {
+		shared.InternalError(c, errors.New("price resolver returned unexpected number of prices"))
+		return
+	}
+
+	items, subtotal, taxTotal, err := buildItemsFromSnapshots(snapshots, resolveItems)
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
+
+	invoiceNumber, err := h.svc.GetNextInvoiceNumber(ctx)
+	if err != nil {
+		shared.JSONError(c, http.StatusInternalServerError, shared.ErrInternal, "failed to generate invoice number")
+		return
+	}
+
+	payments := make([]CreatePaymentRequest, len(req.Payments))
+	for i, p := range req.Payments {
+		payments[i] = CreatePaymentRequest(p)
+	}
+
+	sale := &Sale{
+		InvoiceNumber: invoiceNumber,
+		CashierID:     cashierID,
+		ShiftID:       req.ShiftID,
+		StoreID:       storeIDPtr,
+		CustomerID:    req.CustomerID,
+		Subtotal:      subtotal,
+		Discount:      0,
+		Tax:           taxTotal,
+		TotalAmount:   subtotal,
+		Status:        "completed",
+	}
+
+	caller := callerFromContext(c)
+	if err := h.svc.CreateSaleWithParkedSale(ctx, sale, items, &id, payments, caller); err != nil {
+		if errors.Is(err, ErrPermissionDenied) {
+			shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager can only complete a recalled parked sale")
+			return
+		}
+		if errors.Is(err, ErrSaleNotFound) {
+			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "parked sale not found")
+			return
+		}
+		if errors.Is(err, ErrParkedSaleNotRecalled) {
+			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "parked sale already checked out or cancelled")
+			return
+		}
+		if errors.Is(err, ErrInsufficientStock) {
+			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
+			return
+		}
+		if errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
+			errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
+			errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
+			errors.Is(err, ErrMaxPaymentsExceeded) || errors.Is(err, ErrMultipleCashPayments) {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+			return
+		}
+		shared.InternalError(c, err)
+		return
+	}
+
+	if caller.IsManager() && h.auditSvc != nil {
+		actorID := middleware.UserIDFromContext(ctx)
+		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
+			UserID:      actorID,
+			Username:    middleware.UsernameFromContext(ctx),
+			Role:        caller.Role,
+			Action:      "complete_parked_sale",
+			EntityType:  "sale",
+			EntityID:    &sale.ID,
+			NewValues:   shared.ToJSONMap(sale),
+			IPAddress:   middleware.IPAddressFromContext(ctx),
+			UserAgent:   middleware.UserAgentFromContext(ctx),
+			Description: fmt.Sprintf("Manager completed recalled parked sale %d as sale %s (total %d)", id, sale.InvoiceNumber, sale.TotalAmount),
+		})
+	}
+
+	if detail, err := h.svc.GetSaleByID(ctx, sale.ID, storeIDPtr); err == nil {
+		c.JSON(http.StatusCreated, gin.H{"data": detail})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"data": sale})
 }

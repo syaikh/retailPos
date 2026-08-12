@@ -19,6 +19,7 @@ var ErrInsufficientStock = shared.ErrInsufficientStock
 var ErrPriceMismatch = errors.New("price mismatch: client-submitted price does not match server price")
 var ErrSaleNotFound = errors.New("sale not found")
 var ErrParkedSaleNotRecalled = errors.New("parked sale not in recalled state")
+var ErrPermissionDenied = errors.New("permission denied")
 var ErrCheckoutProductNotFound = errors.New("checkout product not found")
 
 type ProductPriceGetter interface {
@@ -32,8 +33,8 @@ type ProductBatchPriceGetter interface {
 type Repo interface {
 	AtomicGetOrCreateOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error)
 	BeginTx(ctx context.Context) (pgx.Tx, error)
-	CancelParkedSale(ctx context.Context, saleID int) error
-	ConsumeParkedSale(ctx context.Context, tx pgx.Tx, parkedSaleID int) error
+	CancelParkedSale(ctx context.Context, saleID int, ownerID, storeID *int) error
+	ConsumeParkedSale(ctx context.Context, tx pgx.Tx, parkedSaleID int, ownerID, storeID *int) error
 	CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item) error
 	CreateSalePayments(ctx context.Context, tx pgx.Tx, saleID int, payments []Payment) error
 	DeleteCartItem(ctx context.Context, tx pgx.Tx, cartID, itemID int) error
@@ -43,8 +44,8 @@ type Repo interface {
 	GetCartSessionByID(ctx context.Context, cartID int) (*CartSession, error)
 	GetNextInvoiceNumber(ctx context.Context) (string, error)
 	GetOpenCartByCashier(ctx context.Context, cashierID int) (*CartSession, error)
-	GetParkedSaleByID(ctx context.Context, id int, cashierID int) (*Sale, error)
-	GetParkedSales(ctx context.Context, cashierID int) ([]Sale, error)
+	GetParkedSaleByID(ctx context.Context, id int, ownerID, storeID *int) (*Sale, error)
+	GetParkedSales(ctx context.Context, ownerID, storeID *int) ([]Sale, error)
 	GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error)
 	GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error)
 	GetSalesForExport(ctx context.Context, search, startDate, endDate string, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error)
@@ -52,7 +53,7 @@ type Repo interface {
 	ListHeldCarts(ctx context.Context, cashierID int) ([]CartSession, error)
 	LoadCartItemsForCheckout(ctx context.Context, tx pgx.Tx, cartID int) ([]CartItem, error)
 	LockCartSession(ctx context.Context, tx pgx.Tx, cartID int) (status string, expiredAt *time.Time, err error)
-	RecallSale(ctx context.Context, saleID int) (*Sale, error)
+	RecallSale(ctx context.Context, saleID int, ownerID, storeID *int) (*Sale, error)
 	StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error
 	UpdateCartCustomer(ctx context.Context, tx pgx.Tx, cartID int, customerID *int) error
 	UpdateCartItemQuantity(ctx context.Context, tx pgx.Tx, cartID, itemID, quantity, subtotal, dppAmount, taxAmount int) error
@@ -283,7 +284,7 @@ func (s *service) GetPaymentMethodByCode(ctx context.Context, code string) (*Pay
 	return s.repo.GetPaymentMethodByCode(ctx, code)
 }
 
-func (s *service) ParkSale(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int) error {
+func (s *service) ParkSale(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int, caller Caller) error {
 	for _, item := range items {
 		if item.Quantity <= 0 {
 			return fmt.Errorf("invalid quantity %d for product %d", item.Quantity, item.ProductID)
@@ -296,11 +297,24 @@ func (s *service) ParkSale(ctx context.Context, sale *Sale, items []Item, recall
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	// Re-parking cancels the previously recalled sale. Cashiers may only cancel
+	// their own recalled sale (owner-scoped); managers/elevated may cancel any
+	// within their store, mirroring RecallSale/CancelParkedSale (P2-6 D4).
 	if recalledSaleID != nil {
-		_, err = tx.Exec(ctx, `
+		args := []interface{}{*recalledSaleID}
+		query := `
 			UPDATE sales SET status = 'cancelled', updated_at = NOW()
 			WHERE id = $1 AND status = 'recalled'
-		`, *recalledSaleID)
+		`
+		if ownerID := caller.ownerScope(); ownerID != nil {
+			args = append(args, *ownerID)
+			query += fmt.Sprintf(` AND cashier_id = $%d`, len(args))
+		}
+		if storeID := caller.storeScope(); storeID != nil {
+			args = append(args, *storeID)
+			query += fmt.Sprintf(` AND store_id = $%d`, len(args))
+		}
+		_, err = tx.Exec(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf("cancel previous recalled sale: %w", err)
 		}
@@ -319,24 +333,41 @@ func (s *service) ParkSale(ctx context.Context, sale *Sale, items []Item, recall
 	return nil
 }
 
-func (s *service) RecallSale(ctx context.Context, saleID int) (*Sale, error) {
-	return s.repo.RecallSale(ctx, saleID)
+// RecallSale marks a parked sale as recalled. Cashiers are restricted to their
+// own sales (non-owner renders ErrSaleNotFound); managers and elevated roles
+// may recall any cashier's parked sale (P2-6 D4).
+func (s *service) RecallSale(ctx context.Context, saleID int, caller Caller) (*Sale, error) {
+	return s.repo.RecallSale(ctx, saleID, caller.ownerScope(), caller.storeScope())
 }
 
-func (s *service) CancelParkedSale(ctx context.Context, saleID int) error {
-	return s.repo.CancelParkedSale(ctx, saleID)
+// CancelParkedSale voids a parked/recalled sale. Managers are denied outright
+// (recall-only); cashiers are restricted to their own sales; elevated roles may
+// cancel any (P2-6 D4).
+func (s *service) CancelParkedSale(ctx context.Context, saleID int, caller Caller) error {
+	if caller.IsManager() {
+		return ErrPermissionDenied
+	}
+	return s.repo.CancelParkedSale(ctx, saleID, caller.ownerScope(), caller.storeScope())
 }
 
-func (s *service) ListParkedSales(ctx context.Context, cashierID int) ([]Sale, error) {
-	return s.repo.GetParkedSales(ctx, cashierID)
+func (s *service) ListParkedSales(ctx context.Context, caller Caller) ([]Sale, error) {
+	return s.repo.GetParkedSales(ctx, caller.ownerScope(), caller.storeScope())
 }
 
-func (s *service) GetParkedSaleByID(ctx context.Context, saleID int, cashierID int) (*Sale, error) {
-	return s.repo.GetParkedSaleByID(ctx, saleID, cashierID)
+func (s *service) GetParkedSaleByID(ctx context.Context, saleID int, caller Caller) (*Sale, error) {
+	return s.repo.GetParkedSaleByID(ctx, saleID, caller.ownerScope(), caller.storeScope())
 }
 
-func (s *service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
+// CreateSaleWithParkedSale creates a completed sale, optionally consuming a
+// previously recalled parked sale. Managers have no blanket sale.create: a
+// manager-initiated sale without a parked_sale_id is rejected (defense in depth
+// with the SalePark-gated dedicated completion route). Cashiers consume only
+// their own recalled sales (P2-6 D4).
+func (s *service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error {
 	if parkedSaleID == nil {
+		if caller.IsManager() {
+			return ErrPermissionDenied
+		}
 		return s.CreateSale(ctx, sale, items, payments)
 	}
 
@@ -347,9 +378,14 @@ func (s *service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var parkedStatus string
-	err = tx.QueryRow(ctx, `
-		SELECT status FROM sales WHERE id = $1 AND status = 'recalled' FOR UPDATE
-	`, *parkedSaleID).Scan(&parkedStatus)
+	args := []interface{}{*parkedSaleID}
+	lockQuery := `SELECT status FROM sales WHERE id = $1 AND status = 'recalled'`
+	if storeID := caller.storeScope(); storeID != nil {
+		args = append(args, *storeID)
+		lockQuery += fmt.Sprintf(` AND store_id = $%d`, len(args))
+	}
+	lockQuery += ` FOR UPDATE`
+	err = tx.QueryRow(ctx, lockQuery, args...).Scan(&parkedStatus)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return ErrParkedSaleNotRecalled
@@ -378,7 +414,7 @@ func (s *service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 	}
 
 	if parkedSaleID != nil {
-		if err := s.repo.ConsumeParkedSale(ctx, tx, *parkedSaleID); err != nil {
+		if err := s.repo.ConsumeParkedSale(ctx, tx, *parkedSaleID, caller.ownerScope(), caller.storeScope()); err != nil {
 			return err
 		}
 	}

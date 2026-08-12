@@ -117,10 +117,10 @@ func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item) error {
 	var createdAt, updatedAt time.Time
 	err := tx.QueryRow(ctx, `
-		INSERT INTO sales (invoice_number, cashier_id, store_id, customer_id, shift_id, subtotal, discount, tax, total_amount, payment_method, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO sales (invoice_number, cashier_id, store_id, customer_id, shift_id, subtotal, discount, tax, total_amount, payment_method, status, hold_note)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, created_at, updated_at
-	`, sale.InvoiceNumber, sale.CashierID, sale.StoreID, sale.CustomerID, sale.ShiftID, sale.Subtotal, sale.Discount, sale.Tax, sale.TotalAmount, sale.PaymentMethod, sale.Status).
+	`, sale.InvoiceNumber, sale.CashierID, sale.StoreID, sale.CustomerID, sale.ShiftID, sale.Subtotal, sale.Discount, sale.Tax, sale.TotalAmount, sale.PaymentMethod, sale.Status, sale.HoldNote).
 		Scan(&sale.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert sale: %w", err)
@@ -684,13 +684,27 @@ func (r *Repository) GetPaymentMethodByCode(ctx context.Context, code string) (*
 
 // ==================== PARKED SALES ====================
 
-func (r *Repository) GetParkedSales(ctx context.Context, cashierID int) ([]Sale, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at
+// GetParkedSales lists parked/recalled sales. A nil ownerID returns every
+// parked sale (manager/elevated view); a non-nil ownerID restricts the results
+// to that cashier's own sales (P2-6 owner scoping).
+func (r *Repository) GetParkedSales(ctx context.Context, ownerID, storeID *int) ([]Sale, error) {
+	query := `
+		SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.customer_id, s.hold_note, s.created_at, s.updated_at
 		FROM sales s
-		WHERE s.cashier_id = $1 AND s.status IN ('parked', 'recalled')
-		ORDER BY s.created_at DESC
-	`, cashierID)
+		WHERE s.status IN ('parked', 'recalled')
+	`
+	args := []interface{}{}
+	if ownerID != nil {
+		args = append(args, *ownerID)
+		query += fmt.Sprintf(` AND s.cashier_id = $%d`, len(args))
+	}
+	if storeID != nil {
+		args = append(args, *storeID)
+		query += fmt.Sprintf(` AND s.store_id = $%d`, len(args))
+	}
+	query += ` ORDER BY s.created_at DESC`
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query parked sales: %w", err)
 	}
@@ -700,15 +714,23 @@ func (r *Repository) GetParkedSales(ctx context.Context, cashierID int) ([]Sale,
 	var saleIDs []int
 	for rows.Next() {
 		var s Sale
-		var storeIDVal sql.NullInt64
+		var storeIDVal, customerIDVal sql.NullInt64
+		var holdNoteVal sql.NullString
 		var createdAt, updatedAt time.Time
 		if err := rows.Scan(&s.ID, &s.InvoiceNumber, &s.CashierID, &storeIDVal, &s.Subtotal, &s.Discount, &s.Tax,
-			&s.TotalAmount, &s.PaymentMethod, &s.Status, &createdAt, &updatedAt); err != nil {
+			&s.TotalAmount, &s.PaymentMethod, &s.Status, &customerIDVal, &holdNoteVal, &createdAt, &updatedAt); err != nil {
 			return nil, fmt.Errorf("scan parked sale: %w", err)
 		}
 		if storeIDVal.Valid {
 			v := int(storeIDVal.Int64)
 			s.StoreID = &v
+		}
+		if customerIDVal.Valid {
+			v := int(customerIDVal.Int64)
+			s.CustomerID = &v
+		}
+		if holdNoteVal.Valid {
+			s.HoldNote = holdNoteVal.String
 		}
 		s.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		s.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -770,17 +792,28 @@ func (r *Repository) GetParkedSales(ctx context.Context, cashierID int) ([]Sale,
 	return sales, nil
 }
 
-func (r *Repository) GetParkedSaleByID(ctx context.Context, id int, cashierID int) (*Sale, error) {
+func (r *Repository) GetParkedSaleByID(ctx context.Context, id int, ownerID, storeID *int) (*Sale, error) {
 	var sale Sale
-	var storeIDVal sql.NullInt64
+	var storeIDVal, customerIDVal sql.NullInt64
+	var holdNoteVal sql.NullString
 	var createdAt, updatedAt time.Time
 
-	err := r.db.QueryRow(ctx, `
-		SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at
+	query := `
+		SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.customer_id, s.hold_note, s.created_at, s.updated_at
 		FROM sales s
-		WHERE s.id = $1 AND s.cashier_id = $2 AND s.status IN ('parked', 'recalled')
-	`, id, cashierID).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &storeIDVal, &sale.Subtotal, &sale.Discount, &sale.Tax,
-		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &createdAt, &updatedAt)
+		WHERE s.id = $1 AND s.status IN ('parked', 'recalled')
+	`
+	args := []interface{}{id}
+	if ownerID != nil {
+		args = append(args, *ownerID)
+		query += fmt.Sprintf(` AND s.cashier_id = $%d`, len(args))
+	}
+	if storeID != nil {
+		args = append(args, *storeID)
+		query += fmt.Sprintf(` AND s.store_id = $%d`, len(args))
+	}
+	err := r.db.QueryRow(ctx, query, args...).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &storeIDVal, &sale.Subtotal, &sale.Discount, &sale.Tax,
+		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &customerIDVal, &holdNoteVal, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrSaleNotFound
@@ -790,6 +823,13 @@ func (r *Repository) GetParkedSaleByID(ctx context.Context, id int, cashierID in
 	if storeIDVal.Valid {
 		v := int(storeIDVal.Int64)
 		sale.StoreID = &v
+	}
+	if customerIDVal.Valid {
+		v := int(customerIDVal.Int64)
+		sale.CustomerID = &v
+	}
+	if holdNoteVal.Valid {
+		sale.HoldNote = holdNoteVal.String
 	}
 	sale.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	sale.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -828,16 +868,28 @@ func (r *Repository) GetParkedSaleByID(ctx context.Context, id int, cashierID in
 	return &sale, nil
 }
 
-func (r *Repository) RecallSale(ctx context.Context, saleID int) (*Sale, error) {
+func (r *Repository) RecallSale(ctx context.Context, saleID int, ownerID, storeID *int) (*Sale, error) {
 	var sale Sale
 	var storeIDVal sql.NullInt64
 	var createdAt, updatedAt time.Time
 
-	err := r.db.QueryRow(ctx, `
+	query := `
 		UPDATE sales SET status = 'recalled', updated_at = NOW()
 		WHERE id = $1 AND status IN ('parked', 'recalled')
+	`
+	args := []interface{}{saleID}
+	if ownerID != nil {
+		args = append(args, *ownerID)
+		query += fmt.Sprintf(` AND cashier_id = $%d`, len(args))
+	}
+	if storeID != nil {
+		args = append(args, *storeID)
+		query += fmt.Sprintf(` AND store_id = $%d`, len(args))
+	}
+	query += `
 		RETURNING id, invoice_number, cashier_id, store_id, subtotal, discount, tax, total_amount, payment_method, status, created_at, updated_at
-	`, saleID).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &storeIDVal, &sale.Subtotal, &sale.Discount, &sale.Tax,
+	`
+	err := r.db.QueryRow(ctx, query, args...).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &storeIDVal, &sale.Subtotal, &sale.Discount, &sale.Tax,
 		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -886,11 +938,21 @@ func (r *Repository) RecallSale(ctx context.Context, saleID int) (*Sale, error) 
 	return &sale, nil
 }
 
-func (r *Repository) CancelParkedSale(ctx context.Context, saleID int) error {
-	tag, err := r.db.Exec(ctx, `
+func (r *Repository) CancelParkedSale(ctx context.Context, saleID int, ownerID, storeID *int) error {
+	query := `
 		UPDATE sales SET status = 'cancelled', updated_at = NOW()
 		WHERE id = $1 AND status IN ('parked', 'recalled')
-	`, saleID)
+	`
+	args := []interface{}{saleID}
+	if ownerID != nil {
+		args = append(args, *ownerID)
+		query += fmt.Sprintf(` AND cashier_id = $%d`, len(args))
+	}
+	if storeID != nil {
+		args = append(args, *storeID)
+		query += fmt.Sprintf(` AND store_id = $%d`, len(args))
+	}
+	tag, err := r.db.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("cancel parked sale: %w", err)
 	}
@@ -900,11 +962,21 @@ func (r *Repository) CancelParkedSale(ctx context.Context, saleID int) error {
 	return nil
 }
 
-func (r *Repository) ConsumeParkedSale(ctx context.Context, tx pgx.Tx, parkedSaleID int) error {
-	tag, err := tx.Exec(ctx, `
+func (r *Repository) ConsumeParkedSale(ctx context.Context, tx pgx.Tx, parkedSaleID int, ownerID, storeID *int) error {
+	query := `
 		UPDATE sales SET status = 'cancelled', updated_at = NOW()
 		WHERE id = $1 AND status = 'recalled'
-	`, parkedSaleID)
+	`
+	args := []interface{}{parkedSaleID}
+	if ownerID != nil {
+		args = append(args, *ownerID)
+		query += fmt.Sprintf(` AND cashier_id = $%d`, len(args))
+	}
+	if storeID != nil {
+		args = append(args, *storeID)
+		query += fmt.Sprintf(` AND store_id = $%d`, len(args))
+	}
+	tag, err := tx.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("consume parked sale: %w", err)
 	}
