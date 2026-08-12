@@ -35,6 +35,15 @@ func (l *PurchaseReceiptListener) HandleEvent(ctx context.Context, event eventbu
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	// A store-scoped goods receipt routes every adjusted row to that store's
+	// product_stock bucket; store_id 0 means the receipt is not store-scoped
+	// (global bucket).
+	var storeID *int
+	if payload.StoreID > 0 {
+		sid := payload.StoreID
+		storeID = &sid
+	}
+
 	var adjustments []StockAdjustment
 	for _, item := range payload.Items {
 		if item.QtyGood <= 0 {
@@ -50,6 +59,7 @@ func (l *PurchaseReceiptListener) HandleEvent(ctx context.Context, event eventbu
 		adjustments = append(adjustments, StockAdjustment{
 			ProductID:      item.ProductID,
 			QuantityChange: item.QtyGood,
+			StoreID:        storeID,
 		})
 	}
 

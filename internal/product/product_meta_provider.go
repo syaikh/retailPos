@@ -24,7 +24,7 @@ func (ProductMetaLookup) ProductMetasByIDs(ctx context.Context, db shared.DBPool
 	}
 	metas := make(map[int]shared.ProductMeta, len(ids))
 	rows, err := db.Query(ctx, `
-		SELECT id, COALESCE(sku, ''), COALESCE(name, '')
+		SELECT id, COALESCE(sku, ''), COALESCE(name, ''), store_id
 		FROM products
 		WHERE id = ANY($1)
 	`, ids)
@@ -35,9 +35,11 @@ func (ProductMetaLookup) ProductMetasByIDs(ctx context.Context, db shared.DBPool
 	for rows.Next() {
 		var id int
 		var m shared.ProductMeta
-		if err := rows.Scan(&id, &m.SKU, &m.Name); err != nil {
+		var storeID *int
+		if err := rows.Scan(&id, &m.SKU, &m.Name, &storeID); err != nil {
 			return nil, fmt.Errorf("failed to scan product meta: %w", err)
 		}
+		m.StoreID = storeID
 		metas[id] = m
 	}
 	return metas, rows.Err()

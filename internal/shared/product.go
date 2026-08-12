@@ -6,8 +6,9 @@ package shared
 // internal/inventory (transaksional) that enrich stock listings with product
 // display data without importing internal/product.
 type ProductMeta struct {
-	SKU  string `json:"sku"`
-	Name string `json:"name"`
+	SKU     string `json:"sku"`
+	Name    string `json:"name"`
+	StoreID *int   `json:"store_id,omitempty"`
 }
 
 // SnapshotProduct is the catalog half of the stock opname snapshot read-model:

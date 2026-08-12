@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"retail-pos-system/internal/shared"
 )
@@ -100,7 +101,12 @@ func (r *Repository) GetStockByProductID(ctx context.Context, productID int) (*P
 	return &ps, nil
 }
 
-func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityChange int, userID *int, notes string) error {
+// AdjustStock applies a signed delta to a product's stock. A non-nil storeID
+// (store-scoped manager/staff) routes the delta to that store's product_stock
+// row after validating the product belongs to the store; nil storeID
+// (superadmin/admin) keeps the global bucket. The products.stock mirror is
+// synced to the adjusted bucket's new value.
+func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityChange int, storeID *int, userID *int, notes string) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -109,7 +115,13 @@ func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityCha
 		_ = tx.Rollback(ctx)
 	}()
 
-	if err := r.adjustStockInTx(ctx, tx, productID, quantityChange, userID, notes); err != nil {
+	if storeID != nil {
+		if err := r.checkProductStore(ctx, tx, productID, storeID); err != nil {
+			return err
+		}
+	}
+
+	if err := r.adjustStockInTx(ctx, tx, productID, quantityChange, storeID, userID, notes); err != nil {
 		return err
 	}
 
@@ -120,8 +132,31 @@ func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityCha
 	return nil
 }
 
+// checkProductStore verifies a store-scoped adjustment only touches a product
+// that actually belongs to the caller's store. The product ownership read goes
+// through the ProductMetaProvider port so internal/inventory never queries the
+// Katalog-owned products table directly. The db parameter is the connection
+// pool or an in-flight transaction; passing the transaction makes the
+// ownership check atomic with the subsequent stock write.
+func (r *Repository) checkProductStore(ctx context.Context, db shared.DBPool, productID int, storeID *int) error {
+	metas, err := r.productMetaProvider().ProductMetasByIDs(ctx, db, []int{productID})
+	if err != nil {
+		return fmt.Errorf("failed to load product store: %w", err)
+	}
+	meta, ok := metas[productID]
+	if !ok {
+		return fmt.Errorf("product not found")
+	}
+	if meta.StoreID == nil || *meta.StoreID != *storeID {
+		return ErrStoreForbidden
+	}
+	return nil
+}
+
 // AdjustStockBatch applies all stock deltas in a single transaction so a
-// multi-item goods receipt is no longer one transaction per product.
+// multi-item goods receipt is no longer one transaction per product. Each
+// store-scoped adjustment is validated against product ownership before it is
+// applied, matching the single-item AdjustStock authorization rule.
 func (r *Repository) AdjustStockBatch(ctx context.Context, adjustments []StockAdjustment, userID *int, notes string) error {
 	if len(adjustments) == 0 {
 		return nil
@@ -136,7 +171,12 @@ func (r *Repository) AdjustStockBatch(ctx context.Context, adjustments []StockAd
 	}()
 
 	for _, adj := range adjustments {
-		if err := r.adjustStockInTx(ctx, tx, adj.ProductID, adj.QuantityChange, userID, notes); err != nil {
+		if adj.StoreID != nil {
+			if err := r.checkProductStore(ctx, tx, adj.ProductID, adj.StoreID); err != nil {
+				return err
+			}
+		}
+		if err := r.adjustStockInTx(ctx, tx, adj.ProductID, adj.QuantityChange, adj.StoreID, userID, notes); err != nil {
 			return err
 		}
 	}
@@ -148,19 +188,33 @@ func (r *Repository) AdjustStockBatch(ctx context.Context, adjustments []StockAd
 	return nil
 }
 
-func (r *Repository) adjustStockInTx(ctx context.Context, tx pgx.Tx, productID int, quantityChange int, userID *int, notes string) error {
+// adjustStockInTx is the single store-aware stock deducer shared by
+// AdjustStock and AdjustStockBatch. A non-nil storeID targets the per-store row
+// (product_id, store_id, warehouse_id IS NULL, location_id IS NULL); a nil
+// storeID targets the global bucket. The product_stock row is created on first
+// use and the products.stock mirror is synced to the adjusted bucket's value.
+func (r *Repository) adjustStockInTx(ctx context.Context, tx pgx.Tx, productID int, quantityChange int, storeID *int, userID *int, notes string) error {
 	if quantityChange == 0 {
 		return fmt.Errorf("quantity change must not be zero")
 	}
 
 	var currentStock int
-	err := tx.QueryRow(ctx, `
-		SELECT COALESCE(quantity, 0) FROM product_stock
-		WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL
-		FOR UPDATE
-	`, productID).Scan(&currentStock)
+	var err error
+	if storeID != nil {
+		err = tx.QueryRow(ctx, `
+			SELECT COALESCE(quantity, 0) FROM product_stock
+			WHERE product_id = $1 AND store_id = $2 AND warehouse_id IS NULL AND location_id IS NULL
+			FOR UPDATE
+		`, productID, *storeID).Scan(&currentStock)
+	} else {
+		err = tx.QueryRow(ctx, `
+			SELECT COALESCE(quantity, 0) FROM product_stock
+			WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL AND location_id IS NULL
+			FOR UPDATE
+		`, productID).Scan(&currentStock)
+	}
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			currentStock = 0
 		} else {
 			return fmt.Errorf("failed to load product stock: %w", err)
@@ -172,20 +226,40 @@ func (r *Repository) adjustStockInTx(ctx context.Context, tx pgx.Tx, productID i
 		return fmt.Errorf("insufficient stock: current %d, requested %d", currentStock, quantityChange)
 	}
 
-	tag, err := tx.Exec(ctx, `
-		UPDATE product_stock SET quantity = $1, updated_at = NOW()
-		WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL
-	`, newStock, productID)
-	if err != nil {
-		return fmt.Errorf("failed to update stock: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		_, err = tx.Exec(ctx, `
-			INSERT INTO product_stock (product_id, quantity, updated_at)
-			VALUES ($1, $2, NOW())
-		`, productID, newStock)
+	var tag pgconn.CommandTag
+	if storeID != nil {
+		tag, err = tx.Exec(ctx, `
+			UPDATE product_stock SET quantity = $1, updated_at = NOW()
+			WHERE product_id = $2 AND store_id = $3 AND warehouse_id IS NULL AND location_id IS NULL
+		`, newStock, productID, *storeID)
 		if err != nil {
-			return fmt.Errorf("failed to insert stock: %w", err)
+			return fmt.Errorf("failed to update stock: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			_, err = tx.Exec(ctx, `
+				INSERT INTO product_stock (product_id, store_id, quantity, updated_at)
+				VALUES ($1, $2, $3, NOW())
+			`, productID, *storeID, newStock)
+			if err != nil {
+				return fmt.Errorf("failed to insert stock: %w", err)
+			}
+		}
+	} else {
+		tag, err = tx.Exec(ctx, `
+			UPDATE product_stock SET quantity = $1, updated_at = NOW()
+			WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL AND location_id IS NULL
+		`, newStock, productID)
+		if err != nil {
+			return fmt.Errorf("failed to update stock: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			_, err = tx.Exec(ctx, `
+				INSERT INTO product_stock (product_id, quantity, updated_at)
+				VALUES ($1, $2, NOW())
+			`, productID, newStock)
+			if err != nil {
+				return fmt.Errorf("failed to insert stock: %w", err)
+			}
 		}
 	}
 	if r.stockSyncer == nil {

@@ -13,6 +13,7 @@ var (
 	ErrSameLocation              = errors.New("source and destination location must differ")
 	ErrNegativeQuantity          = errors.New("quantity must not be negative")
 	ErrNonPositiveQuantity       = errors.New("quantity must be positive")
+	ErrStoreForbidden            = errors.New("product is not in your store")
 )
 
 // LocationStockItem is a rack-level stock row: how much of a product sits in a
@@ -47,10 +48,13 @@ type ProductStock struct {
 	UpdatedAt       string `json:"updated_at"`
 }
 
-// StockAdjustment is one product's stock delta to apply within a batch.
+// StockAdjustment is one product's stock delta to apply within a batch. A
+// non-nil StoreID routes the delta to that store's product_stock row; nil
+// routes it to the global bucket (superadmin semantics).
 type StockAdjustment struct {
 	ProductID      int
 	QuantityChange int
+	StoreID        *int
 }
 
 type Movement struct {

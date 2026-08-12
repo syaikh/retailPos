@@ -62,7 +62,7 @@ func TestInventoryService_AdjustStock(t *testing.T) {
 			},
 		))
 
-		err := svc.AdjustStock(ctx, productID, 10, 1, "service test")
+		err := svc.AdjustStock(ctx, productID, 10, nil, 1, "service test")
 		require.NoError(t, err)
 
 		select {
@@ -80,7 +80,7 @@ func TestInventoryService_AdjustStock(t *testing.T) {
 		productID := insertTestProduct(ctx, t, "SVC-ADJ-INSF-001")
 		insertTestStock(ctx, t, productID, 3)
 
-		err := svc.AdjustStock(ctx, productID, -10, 1, "overdraft")
+		err := svc.AdjustStock(ctx, productID, -10, nil, 1, "overdraft")
 		assert.Error(t, err)
 
 		stock, err := svc.GetStockByProductID(ctx, productID)
@@ -94,7 +94,7 @@ func TestInventoryService_AdjustStock(t *testing.T) {
 		insertTestStock(ctx, t, productID, 20)
 		insertTestUser(ctx, t, 1)
 
-		err := svcFailing.AdjustStock(ctx, productID, 5, 1, "event fail test")
+		err := svcFailing.AdjustStock(ctx, productID, 5, nil, 1, "event fail test")
 		require.NoError(t, err)
 
 		stock, err := svcFailing.GetStockByProductID(ctx, productID)
@@ -116,7 +116,7 @@ func TestInventoryService_AdjustStock_RepoError(t *testing.T) {
 	defer bus.Shutdown()
 	svc := NewService(repo, bus)
 
-	err = svc.AdjustStock(context.Background(), 1, 5, 1, "test")
+	err = svc.AdjustStock(context.Background(), 1, 5, nil, 1, "test")
 	assert.ErrorContains(t, err, "adjust stock")
 }
 
@@ -210,13 +210,13 @@ func TestInventoryService_LocationDelegation(t *testing.T) {
 	locA := createTestLocation(ctx, t, "SVC-A", "Svc Rack A", &whID, nil, true)
 	locB := createTestLocation(ctx, t, "SVC-B", "Svc Rack B", &whID, nil, true)
 
-	require.NoError(t, svc.SetLocationStock(ctx, productID, locA, 20, userID))
-	items, err := svc.ListLocationStock(ctx, productID, 0)
+	require.NoError(t, svc.SetLocationStock(ctx, productID, locA, 20, userID, nil))
+	items, err := svc.ListLocationStock(ctx, productID, 0, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, items)
 
-	require.NoError(t, svc.TransferLocationStock(ctx, productID, locA, locB, 5, userID))
-	items, err = svc.ListLocationStock(ctx, productID, 0)
+	require.NoError(t, svc.TransferLocationStock(ctx, productID, locA, locB, 5, userID, nil))
+	items, err = svc.ListLocationStock(ctx, productID, 0, nil)
 	require.NoError(t, err)
 	require.Len(t, items, 2)
 }

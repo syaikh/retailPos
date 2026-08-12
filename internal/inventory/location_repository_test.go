@@ -78,7 +78,7 @@ func TestLocationStock_SetRecordsRackRow_GlobalUnchanged(t *testing.T) {
 	whID := createTestWarehouse(ctx, t, "LOC-SET-WH")
 	locID := createTestLocation(ctx, t, "LOC-SET-RACK", "Rack Set", &whID, nil, true)
 
-	require.NoError(t, repo.SetLocationStock(ctx, productID, locID, 12, 1))
+	require.NoError(t, repo.SetLocationStock(ctx, productID, locID, 12, 1, nil))
 
 	qty, ok := rackStock(ctx, t, productID, locID)
 	require.True(t, ok)
@@ -112,8 +112,8 @@ func TestLocationStock_SetUpdatesExistingRow(t *testing.T) {
 	whID := createTestWarehouse(ctx, t, "LOC-SET-WH2")
 	locID := createTestLocation(ctx, t, "LOC-SET-RACK2", "Rack Set 2", &whID, nil, true)
 
-	require.NoError(t, repo.SetLocationStock(ctx, productID, locID, 5, 1))
-	require.NoError(t, repo.SetLocationStock(ctx, productID, locID, 8, 1))
+	require.NoError(t, repo.SetLocationStock(ctx, productID, locID, 5, 1, nil))
+	require.NoError(t, repo.SetLocationStock(ctx, productID, locID, 8, 1, nil))
 
 	qty, ok := rackStock(ctx, t, productID, locID)
 	require.True(t, ok)
@@ -151,13 +151,13 @@ func TestLocationStock_SetErrors(t *testing.T) {
 	inactiveLoc := createTestLocation(ctx, t, "LOC-SET-INA", "Rack Inactive", &whID, nil, false)
 
 	t.Run("negative quantity", func(t *testing.T) {
-		assert.Error(t, repo.SetLocationStock(ctx, productID, activeLoc, -1, 1))
+		assert.Error(t, repo.SetLocationStock(ctx, productID, activeLoc, -1, 1, nil))
 	})
 	t.Run("missing location", func(t *testing.T) {
-		assert.ErrorIs(t, repo.SetLocationStock(ctx, productID, 999999, 5, 1), ErrLocationNotFound)
+		assert.ErrorIs(t, repo.SetLocationStock(ctx, productID, 999999, 5, 1, nil), ErrLocationNotFound)
 	})
 	t.Run("inactive location", func(t *testing.T) {
-		assert.ErrorIs(t, repo.SetLocationStock(ctx, productID, inactiveLoc, 5, 1), ErrLocationInactive)
+		assert.ErrorIs(t, repo.SetLocationStock(ctx, productID, inactiveLoc, 5, 1, nil), ErrLocationInactive)
 	})
 }
 
@@ -173,9 +173,9 @@ func TestLocationStock_TransferMovesBetweenRacks_GlobalUnchanged(t *testing.T) {
 	from := createTestLocation(ctx, t, "LOC-TFR-A", "Rack A", &whID, nil, true)
 	to := createTestLocation(ctx, t, "LOC-TFR-B", "Rack B", &whID, nil, true)
 
-	require.NoError(t, repo.SetLocationStock(ctx, productID, from, 30, 1))
-	require.NoError(t, repo.SetLocationStock(ctx, productID, to, 10, 1))
-	require.NoError(t, repo.TransferLocationStock(ctx, productID, from, to, 7, 1))
+	require.NoError(t, repo.SetLocationStock(ctx, productID, from, 30, 1, nil))
+	require.NoError(t, repo.SetLocationStock(ctx, productID, to, 10, 1, nil))
+	require.NoError(t, repo.TransferLocationStock(ctx, productID, from, to, 7, 1, nil))
 
 	fromQty, _ := rackStock(ctx, t, productID, from)
 	toQty, _ := rackStock(ctx, t, productID, to)
@@ -205,16 +205,16 @@ func TestLocationStock_TransferErrors(t *testing.T) {
 	to := createTestLocation(ctx, t, "LOC-TFR-B2", "Rack B2", &whID, nil, true)
 
 	t.Run("insufficient source", func(t *testing.T) {
-		require.NoError(t, repo.SetLocationStock(ctx, productID, from, 3, 1))
-		err := repo.TransferLocationStock(ctx, productID, from, to, 5, 1)
+		require.NoError(t, repo.SetLocationStock(ctx, productID, from, 3, 1, nil))
+		err := repo.TransferLocationStock(ctx, productID, from, to, 5, 1, nil)
 		assert.ErrorIs(t, err, ErrInsufficientLocationStock)
 	})
 	t.Run("same location", func(t *testing.T) {
-		err := repo.TransferLocationStock(ctx, productID, from, from, 1, 1)
+		err := repo.TransferLocationStock(ctx, productID, from, from, 1, 1, nil)
 		assert.ErrorIs(t, err, ErrSameLocation)
 	})
 	t.Run("missing location", func(t *testing.T) {
-		err := repo.TransferLocationStock(ctx, productID, from, 999999, 1, 1)
+		err := repo.TransferLocationStock(ctx, productID, from, 999999, 1, 1, nil)
 		assert.ErrorIs(t, err, ErrLocationNotFound)
 	})
 }
@@ -231,17 +231,17 @@ func TestLocationStock_ListFilters(t *testing.T) {
 	locA := createTestLocation(ctx, t, "LOC-LST-A", "Rack List A", &whID, nil, true)
 	locB := createTestLocation(ctx, t, "LOC-LST-B", "Rack List B", &whID, nil, true)
 
-	require.NoError(t, repo.SetLocationStock(ctx, productA, locA, 4, 1))
-	require.NoError(t, repo.SetLocationStock(ctx, productA, locB, 6, 1))
-	require.NoError(t, repo.SetLocationStock(ctx, productB, locA, 9, 1))
+	require.NoError(t, repo.SetLocationStock(ctx, productA, locA, 4, 1, nil))
+	require.NoError(t, repo.SetLocationStock(ctx, productA, locB, 6, 1, nil))
+	require.NoError(t, repo.SetLocationStock(ctx, productB, locA, 9, 1, nil))
 
 	t.Run("all", func(t *testing.T) {
-		items, err := repo.ListLocationStock(ctx, 0, 0)
+		items, err := repo.ListLocationStock(ctx, 0, 0, nil)
 		require.NoError(t, err)
 		assert.Len(t, items, 3)
 	})
 	t.Run("by product", func(t *testing.T) {
-		items, err := repo.ListLocationStock(ctx, productA, 0)
+		items, err := repo.ListLocationStock(ctx, productA, 0, nil)
 		require.NoError(t, err)
 		assert.Len(t, items, 2)
 		for _, it := range items {
@@ -249,7 +249,7 @@ func TestLocationStock_ListFilters(t *testing.T) {
 		}
 	})
 	t.Run("by location", func(t *testing.T) {
-		items, err := repo.ListLocationStock(ctx, 0, locA)
+		items, err := repo.ListLocationStock(ctx, 0, locA, nil)
 		require.NoError(t, err)
 		assert.Len(t, items, 2)
 		for _, it := range items {
@@ -259,7 +259,7 @@ func TestLocationStock_ListFilters(t *testing.T) {
 		}
 	})
 	t.Run("by product and location", func(t *testing.T) {
-		items, err := repo.ListLocationStock(ctx, productA, locB)
+		items, err := repo.ListLocationStock(ctx, productA, locB, nil)
 		require.NoError(t, err)
 		require.Len(t, items, 1)
 		assert.Equal(t, 6, items[0].Quantity)
@@ -277,8 +277,8 @@ func TestLocationStock_TransferToEmptyRackCreatesRow(t *testing.T) {
 	from := createTestLocation(ctx, t, "LOC-TFR-A3", "Rack A3", &whID, nil, true)
 	to := createTestLocation(ctx, t, "LOC-TFR-B3", "Rack B3", &whID, nil, true)
 
-	require.NoError(t, repo.SetLocationStock(ctx, productID, from, 10, 1))
-	require.NoError(t, repo.TransferLocationStock(ctx, productID, from, to, 4, 1))
+	require.NoError(t, repo.SetLocationStock(ctx, productID, from, 10, 1, nil))
+	require.NoError(t, repo.TransferLocationStock(ctx, productID, from, to, 4, 1, nil))
 
 	fromQty, _ := rackStock(ctx, t, productID, from)
 	toQty, ok := rackStock(ctx, t, productID, to)
@@ -298,13 +298,13 @@ func TestLocationStock_TransferInvalidQuantity(t *testing.T) {
 	from := createTestLocation(ctx, t, "LOC-TFR-A4", "Rack A4", &whID, nil, true)
 	to := createTestLocation(ctx, t, "LOC-TFR-B4", "Rack B4", &whID, nil, true)
 
-	require.NoError(t, repo.SetLocationStock(ctx, productID, from, 5, 1))
+	require.NoError(t, repo.SetLocationStock(ctx, productID, from, 5, 1, nil))
 
 	t.Run("zero quantity", func(t *testing.T) {
-		assert.Error(t, repo.TransferLocationStock(ctx, productID, from, to, 0, 1))
+		assert.Error(t, repo.TransferLocationStock(ctx, productID, from, to, 0, 1, nil))
 	})
 	t.Run("negative quantity", func(t *testing.T) {
-		assert.Error(t, repo.TransferLocationStock(ctx, productID, from, to, -2, 1))
+		assert.Error(t, repo.TransferLocationStock(ctx, productID, from, to, -2, 1, nil))
 	})
 }
 
@@ -313,7 +313,7 @@ func TestLocationStock_ListEmpty(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepo(t)
 
-	items, err := repo.ListLocationStock(ctx, 0, 0)
+	items, err := repo.ListLocationStock(ctx, 0, 0, nil)
 	require.NoError(t, err)
 	assert.Empty(t, items)
 }
@@ -328,7 +328,7 @@ func TestLocationStock_StoreOnlyRack(t *testing.T) {
 	storeID := createTestStore(ctx, t, "LOC-STO")
 	locID := createTestLocation(ctx, t, "LOC-STO-RACK", "Store Rack", nil, &storeID, true)
 
-	require.NoError(t, repo.SetLocationStock(ctx, productID, locID, 7, 1))
+	require.NoError(t, repo.SetLocationStock(ctx, productID, locID, 7, 1, nil))
 
 	qty, ok := rackStock(ctx, t, productID, locID)
 	require.True(t, ok)

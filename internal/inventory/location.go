@@ -25,7 +25,7 @@ import (
 func (h *Handler) ListLocationStock(c *gin.Context) {
 	productID, _ := shared.ParseIntParam(c.Query("product_id"))
 	locationID, _ := shared.ParseIntParam(c.Query("location_id"))
-	items, err := h.svc.ListLocationStock(c.Request.Context(), productID, locationID)
+	items, err := h.svc.ListLocationStock(c.Request.Context(), productID, locationID, shared.GetStoreID(c))
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -61,7 +61,7 @@ func (h *Handler) SetLocationStock(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.svc.SetLocationStock(c.Request.Context(), req.ProductID, req.LocationID, req.Quantity, uid); err != nil {
+	if err := h.svc.SetLocationStock(c.Request.Context(), req.ProductID, req.LocationID, req.Quantity, uid, shared.GetStoreID(c)); err != nil {
 		badRequestOrInternal(c, err)
 		return
 	}
@@ -100,7 +100,7 @@ func (h *Handler) TransferLocationStock(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.svc.TransferLocationStock(c.Request.Context(), req.ProductID, req.FromLocationID, req.ToLocationID, req.Quantity, uid); err != nil {
+	if err := h.svc.TransferLocationStock(c.Request.Context(), req.ProductID, req.FromLocationID, req.ToLocationID, req.Quantity, uid, shared.GetStoreID(c)); err != nil {
 		badRequestOrInternal(c, err)
 		return
 	}
@@ -125,6 +125,8 @@ func badRequestOrInternal(c *gin.Context, err error) {
 	case ErrInsufficientLocationStock, ErrLocationInactive, ErrLocationNotFound, ErrSameLocation,
 		ErrNegativeQuantity, ErrNonPositiveQuantity:
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case ErrStoreForbidden:
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	default:
 		shared.InternalError(c, err)
 	}

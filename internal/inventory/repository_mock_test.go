@@ -52,7 +52,7 @@ func TestInventoryRepository_AdjustStock_BeginError(t *testing.T) {
 	mock.ExpectBegin().WillReturnError(fmt.Errorf("begin failed"))
 
 	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, 5, nil, "test")
+	err = repo.AdjustStock(context.Background(), 1, 5, nil, nil, "test")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to begin transaction")
 }
@@ -66,7 +66,7 @@ func TestInventoryRepository_AdjustStock_QueryRowError(t *testing.T) {
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnError(fmt.Errorf("query failed"))
 
 	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, 5, nil, "test")
+	err = repo.AdjustStock(context.Background(), 1, 5, nil, nil, "test")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load product stock")
 }
@@ -83,7 +83,7 @@ func TestInventoryRepository_AdjustStock_UpsertError(t *testing.T) {
 	mock.ExpectExec("INSERT INTO product_stock").WithArgs(1, 5).WillReturnError(fmt.Errorf("insert failed"))
 
 	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, 5, nil, "test")
+	err = repo.AdjustStock(context.Background(), 1, 5, nil, nil, "test")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to insert stock")
 }
@@ -101,7 +101,7 @@ func TestInventoryRepository_AdjustStock_SyncError(t *testing.T) {
 	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(fmt.Errorf("sync failed"))
 
 	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, 5, nil, "test")
+	err = repo.AdjustStock(context.Background(), 1, 5, nil, nil, "test")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to sync product stock")
 }
@@ -120,7 +120,7 @@ func TestInventoryRepository_AdjustStock_MovementError(t *testing.T) {
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(fmt.Errorf("movement failed"))
 
 	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, 5, nil, "test")
+	err = repo.AdjustStock(context.Background(), 1, 5, nil, nil, "test")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to record inventory movement")
 }
@@ -140,7 +140,7 @@ func TestInventoryRepository_AdjustStock_CommitError(t *testing.T) {
 	mock.ExpectCommit().WillReturnError(fmt.Errorf("commit failed"))
 
 	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, 5, nil, "test")
+	err = repo.AdjustStock(context.Background(), 1, 5, nil, nil, "test")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to commit stock adjustment")
 }
@@ -160,7 +160,7 @@ func TestInventoryRepository_AdjustStock_NoRowsPath_Mock(t *testing.T) {
 	mock.ExpectCommit()
 
 	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, 5, nil, "test")
+	err = repo.AdjustStock(context.Background(), 1, 5, nil, nil, "test")
 	assert.NoError(t, err)
 }
 
@@ -178,7 +178,7 @@ func TestInventoryRepository_AdjustStock_Success_Mock(t *testing.T) {
 	mock.ExpectCommit()
 
 	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, 5, nil, "test")
+	err = repo.AdjustStock(context.Background(), 1, 5, nil, nil, "test")
 	assert.NoError(t, err)
 }
 
@@ -196,7 +196,7 @@ func TestInventoryRepository_AdjustStock_Decrease_Mock(t *testing.T) {
 	mock.ExpectCommit()
 
 	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, -5, nil, "test")
+	err = repo.AdjustStock(context.Background(), 1, -5, nil, nil, "test")
 	assert.NoError(t, err)
 }
 
@@ -210,7 +210,7 @@ func TestInventoryRepository_AdjustStock_InsufficientStock_Mock(t *testing.T) {
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(existingRows)
 
 	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, -10, nil, "test")
+	err = repo.AdjustStock(context.Background(), 1, -10, nil, nil, "test")
 	assert.ErrorContains(t, err, "insufficient stock")
 }
 
@@ -229,7 +229,7 @@ func TestInventoryRepository_AdjustStock_NoRowsExisting_Mock(t *testing.T) {
 	mock.ExpectCommit()
 
 	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, 5, nil, "initial stock")
+	err = repo.AdjustStock(context.Background(), 1, 5, nil, nil, "initial stock")
 	assert.NoError(t, err)
 }
 
@@ -248,7 +248,7 @@ func TestInventoryRepository_AdjustStock_WithUserID_Mock(t *testing.T) {
 	mock.ExpectCommit()
 
 	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, -10, &uid, "user adj")
+	err = repo.AdjustStock(context.Background(), 1, -10, nil, &uid, "user adj")
 	assert.NoError(t, err)
 }
 
@@ -260,7 +260,7 @@ func TestInventoryRepository_ListLocationStock_QueryError(t *testing.T) {
 	mock.ExpectQuery("SELECT").WithArgs(1, 2).WillReturnError(fmt.Errorf("query failed"))
 
 	repo := newMockRepo(mock)
-	_, err = repo.ListLocationStock(context.Background(), 1, 2)
+	_, err = repo.ListLocationStock(context.Background(), 1, 2, nil)
 	assert.ErrorContains(t, err, "failed to list location stock")
 }
 
@@ -273,7 +273,7 @@ func TestInventoryRepository_ListLocationStock_ScanError(t *testing.T) {
 	mock.ExpectQuery("SELECT").WithArgs(1, 2).WillReturnRows(rows)
 
 	repo := newMockRepo(mock)
-	_, err = repo.ListLocationStock(context.Background(), 1, 2)
+	_, err = repo.ListLocationStock(context.Background(), 1, 2, nil)
 	assert.ErrorContains(t, err, "failed to scan location stock")
 }
 
@@ -286,7 +286,7 @@ func TestInventoryRepository_LoadLocationForStock_NotFound(t *testing.T) {
 	mock.ExpectQuery("SELECT id, code, name").WithArgs(99).WillReturnRows(rows)
 
 	repo := newMockRepo(mock)
-	_, err = repo.LoadLocationForStock(context.Background(), 99)
+	_, err = repo.LoadLocationForStock(context.Background(), mock, 99)
 	assert.ErrorIs(t, err, ErrLocationNotFound)
 }
 
@@ -297,12 +297,12 @@ func TestInventoryRepository_SetLocationStock_ReadError(t *testing.T) {
 
 	rackRows := pgxmock.NewRows([]string{"id", "code", "name", "warehouse_id", "store_id", "is_active"}).
 		AddRow(7, "A1", "Rack A1", nil, nil, true)
-	mock.ExpectQuery("SELECT id, code, name").WithArgs(7).WillReturnRows(rackRows)
 	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT id, code, name").WithArgs(7).WillReturnRows(rackRows)
 	mock.ExpectQuery("SELECT quantity FROM product_stock").WithArgs(1, 7).WillReturnError(fmt.Errorf("read failed"))
 
 	repo := newMockRepo(mock)
-	err = repo.SetLocationStock(context.Background(), 1, 7, 10, 1)
+	err = repo.SetLocationStock(context.Background(), 1, 7, 10, 1, nil)
 	assert.ErrorContains(t, err, "failed to read current location stock")
 }
 
@@ -315,13 +315,13 @@ func TestInventoryRepository_TransferLocationStock_LockError(t *testing.T) {
 		AddRow(5, "A1", "Rack A1", nil, nil, true)
 	rackRows2 := pgxmock.NewRows([]string{"id", "code", "name", "warehouse_id", "store_id", "is_active"}).
 		AddRow(6, "B1", "Rack B1", nil, nil, true)
+	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT id, code, name").WithArgs(5).WillReturnRows(rackRows)
 	mock.ExpectQuery("SELECT id, code, name").WithArgs(6).WillReturnRows(rackRows2)
-	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT location_id").WithArgs(1, 5, 6).WillReturnError(fmt.Errorf("lock failed"))
 
 	repo := newMockRepo(mock)
-	err = repo.TransferLocationStock(context.Background(), 1, 5, 6, 3, 1)
+	err = repo.TransferLocationStock(context.Background(), 1, 5, 6, 3, 1, nil)
 	assert.ErrorContains(t, err, "failed to lock location stock")
 }
 

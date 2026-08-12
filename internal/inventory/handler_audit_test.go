@@ -45,7 +45,7 @@ func setupMockInventoryRouterWithAudit(svc Service) *gin.Engine {
 
 func TestAuditHandler_AdjustStock(t *testing.T) {
 	svc := &mockService{
-		adjustStockFn: func(ctx context.Context, productID int, quantityChange int, userID int, notes string) error {
+		adjustStockFn: func(ctx context.Context, productID int, quantityChange int, storeID *int, userID int, notes string) error {
 			return nil
 		},
 	}
@@ -60,7 +60,7 @@ func TestAuditHandler_AdjustStock(t *testing.T) {
 
 func TestAuditHandler_AdjustStock_ServiceError(t *testing.T) {
 	svc := &mockService{
-		adjustStockFn: func(ctx context.Context, productID int, quantityChange int, userID int, notes string) error {
+		adjustStockFn: func(ctx context.Context, productID int, quantityChange int, storeID *int, userID int, notes string) error {
 			return errors.New("product not found")
 		},
 	}

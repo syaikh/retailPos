@@ -19,23 +19,22 @@ func TestPurchaseReceiptListener_HandleEvent_AdjustsStock(t *testing.T) {
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "LISTENER-PROD")
-	insertTestStock(ctx, t, prodID, 100)
+	insertTestUser(ctx, t, 1)
+	storeID := createTestStore(ctx, t, "LISTENER-STORE")
+	_, err := dbPool.Exec(ctx, `UPDATE products SET store_id = $1 WHERE id = $2`, storeID, prodID)
+	require.NoError(t, err)
 	userID := 9999
-	_, err := dbPool.Exec(ctx, `
+	_, err = dbPool.Exec(ctx, `
 		INSERT INTO users (id, username, email, password_hash, role_id)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (id) DO UPDATE SET email = excluded.email
 	`, userID, "listener_user_"+string(rune(userID)), "listener@test.com", "hash", 1)
 	require.NoError(t, err)
 
-	stockBefore, err := repo.GetStockByProductID(ctx, prodID)
-	require.NoError(t, err)
-	require.NotNil(t, stockBefore)
-
 	payload := events.PurchaseReceiptCompleted{
 		POID:    1,
 		GRID:    1,
-		StoreID: 1,
+		StoreID: storeID,
 		UserID:  userID,
 		Items: []events.PurchaseReceiptItem{
 			{ProductID: prodID, QtyGood: 5},
@@ -55,7 +54,7 @@ func TestPurchaseReceiptListener_HandleEvent_AdjustsStock(t *testing.T) {
 	stockAfter, err := repo.GetStockByProductID(ctx, prodID)
 	require.NoError(t, err)
 	require.NotNil(t, stockAfter)
-	assert.Equal(t, 105, stockAfter.Quantity)
+	assert.Equal(t, 5, stockAfter.Quantity)
 }
 
 func TestPurchaseReceiptListener_HandleEvent_AdjustsMultipleItemsInOneBatch(t *testing.T) {
@@ -65,11 +64,13 @@ func TestPurchaseReceiptListener_HandleEvent_AdjustsMultipleItemsInOneBatch(t *t
 	ctx := context.Background()
 
 	prodA := insertTestProduct(ctx, t, "LISTENER-MULTI-A")
-	insertTestStock(ctx, t, prodA, 100)
 	prodB := insertTestProduct(ctx, t, "LISTENER-MULTI-B")
-	insertTestStock(ctx, t, prodB, 50)
+	insertTestUser(ctx, t, 1)
+	storeID := createTestStore(ctx, t, "LISTENER-MULTI-STORE")
+	_, err := dbPool.Exec(ctx, `UPDATE products SET store_id = $1 WHERE id = ANY($2)`, storeID, []int{prodA, prodB})
+	require.NoError(t, err)
 	userID := 9998
-	_, err := dbPool.Exec(ctx, `
+	_, err = dbPool.Exec(ctx, `
 		INSERT INTO users (id, username, email, password_hash, role_id)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (id) DO UPDATE SET email = excluded.email
@@ -79,7 +80,7 @@ func TestPurchaseReceiptListener_HandleEvent_AdjustsMultipleItemsInOneBatch(t *t
 	payload := events.PurchaseReceiptCompleted{
 		POID:    2,
 		GRID:    2,
-		StoreID: 1,
+		StoreID: storeID,
 		UserID:  userID,
 		Items: []events.PurchaseReceiptItem{
 			{ProductID: prodA, QtyGood: 5},
@@ -100,11 +101,11 @@ func TestPurchaseReceiptListener_HandleEvent_AdjustsMultipleItemsInOneBatch(t *t
 
 	stockA, err := repo.GetStockByProductID(ctx, prodA)
 	require.NoError(t, err)
-	assert.Equal(t, 105, stockA.Quantity)
+	assert.Equal(t, 5, stockA.Quantity)
 
 	stockB, err := repo.GetStockByProductID(ctx, prodB)
 	require.NoError(t, err)
-	assert.Equal(t, 60, stockB.Quantity)
+	assert.Equal(t, 10, stockB.Quantity)
 }
 
 func TestPurchaseReceiptListener_HandleEvent_IsIdempotent(t *testing.T) {
@@ -114,9 +115,12 @@ func TestPurchaseReceiptListener_HandleEvent_IsIdempotent(t *testing.T) {
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "LISTENER-IDEMP")
-	insertTestStock(ctx, t, prodID, 100)
+	insertTestUser(ctx, t, 1)
+	storeID := createTestStore(ctx, t, "LISTENER-IDEMP-STORE")
+	_, err := dbPool.Exec(ctx, `UPDATE products SET store_id = $1 WHERE id = $2`, storeID, prodID)
+	require.NoError(t, err)
 	userID := 9997
-	_, err := dbPool.Exec(ctx, `
+	_, err = dbPool.Exec(ctx, `
 		INSERT INTO users (id, username, email, password_hash, role_id)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (id) DO UPDATE SET email = excluded.email
@@ -126,7 +130,7 @@ func TestPurchaseReceiptListener_HandleEvent_IsIdempotent(t *testing.T) {
 	payload := events.PurchaseReceiptCompleted{
 		POID:    3,
 		GRID:    3,
-		StoreID: 1,
+		StoreID: storeID,
 		UserID:  userID,
 		Items: []events.PurchaseReceiptItem{
 			{ProductID: prodID, QtyGood: 5},
@@ -144,5 +148,5 @@ func TestPurchaseReceiptListener_HandleEvent_IsIdempotent(t *testing.T) {
 
 	stock, err := repo.GetStockByProductID(ctx, prodID)
 	require.NoError(t, err)
-	assert.Equal(t, 105, stock.Quantity, "duplicate event must not double-adjust stock")
+	assert.Equal(t, 5, stock.Quantity, "duplicate event must not double-adjust stock")
 }

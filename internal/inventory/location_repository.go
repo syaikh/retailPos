@@ -18,16 +18,21 @@ type queryer interface {
 }
 
 // ListLocationStock returns rack-level stock rows, optionally filtered by a
-// single product and/or a single location. The rack rows are read from the
-// owned product_stock table and then enriched with storage_locations and
-// products metadata through consumer-side ports
+// single product and/or a single location. A non-nil storeID (store-scoped
+// caller) additionally restricts the rows to racks owned by that store. The
+// rack rows are read from the owned product_stock table and then enriched with
+// storage_locations and products metadata through consumer-side ports
 // (LocationRackProvider/ProductMetaProvider) instead of cross-context JOINs.
-func (r *Repository) ListLocationStock(ctx context.Context, productID, locationID int) ([]LocationStockItem, error) {
+func (r *Repository) ListLocationStock(ctx context.Context, productID, locationID int, storeID *int) ([]LocationStockItem, error) {
 	query := `
 		SELECT ps.product_id, ps.location_id, ps.quantity
 		FROM product_stock ps
 		WHERE ps.location_id IS NOT NULL`
 	args := []interface{}{}
+	if storeID != nil {
+		args = append(args, *storeID)
+		query += fmt.Sprintf(" AND ps.store_id = $%d", len(args))
+	}
 	if productID > 0 {
 		args = append(args, productID)
 		query += fmt.Sprintf(" AND ps.product_id = $%d", len(args))
@@ -118,24 +123,20 @@ func sortedKeys(set map[int]struct{}) []int {
 
 // LoadLocationForStock returns the rack metadata for writing rack stock rows.
 // The caller must check IsActive before writing. The storage_locations read is
-// delegated to the LocationRackProvider (internal/storagelocation).
-func (r *Repository) LoadLocationForStock(ctx context.Context, locationID int) (*LocationRack, error) {
-	return r.locationProvider().GetRack(ctx, r.db, locationID)
+// delegated to the LocationRackProvider (internal/storagelocation). Passing
+// the transaction keeps the authorization read in the same atomic snapshot
+// as the subsequent stock write.
+func (r *Repository) LoadLocationForStock(ctx context.Context, db shared.DBPool, locationID int) (*LocationRack, error) {
+	return r.locationProvider().GetRack(ctx, db, locationID)
 }
 
 // SetLocationStock records how much of a product sits in a rack, creating the
 // rack row on first use. The rack row mirrors the rack's warehouse_id/store_id.
 // Global stock is intentionally left unchanged (rack rows are bookkeeping).
-func (r *Repository) SetLocationStock(ctx context.Context, productID, locationID, quantity, userID int) error {
+// A store-scoped caller may only write a rack that belongs to their store.
+func (r *Repository) SetLocationStock(ctx context.Context, productID, locationID, quantity, userID int, storeID *int) error {
 	if quantity < 0 {
 		return ErrNegativeQuantity
-	}
-	rack, err := r.LoadLocationForStock(ctx, locationID)
-	if err != nil {
-		return err
-	}
-	if !rack.IsActive {
-		return ErrLocationInactive
 	}
 
 	tx, err := r.db.Begin(ctx)
@@ -143,6 +144,17 @@ func (r *Repository) SetLocationStock(ctx context.Context, productID, locationID
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	rack, err := r.LoadLocationForStock(ctx, tx, locationID)
+	if err != nil {
+		return err
+	}
+	if !rack.IsActive {
+		return ErrLocationInactive
+	}
+	if err := checkRackStore(rack, storeID); err != nil {
+		return err
+	}
 
 	// quantity_change is a signed delta (matching every other movement type),
 	// so read the current rack figure before overwriting it.
@@ -171,26 +183,13 @@ func (r *Repository) SetLocationStock(ctx context.Context, productID, locationID
 
 // TransferLocationStock moves quantity between two racks. Global stock is
 // unchanged. Both rack rows are locked to keep concurrent transfers correct.
-func (r *Repository) TransferLocationStock(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error {
+// A store-scoped caller may only move stock between racks of their own store.
+func (r *Repository) TransferLocationStock(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int, storeID *int) error {
 	if quantity <= 0 {
 		return ErrNonPositiveQuantity
 	}
 	if fromLocationID == toLocationID {
 		return ErrSameLocation
-	}
-	fromRack, err := r.LoadLocationForStock(ctx, fromLocationID)
-	if err != nil {
-		return err
-	}
-	if !fromRack.IsActive {
-		return ErrLocationInactive
-	}
-	toRack, err := r.LoadLocationForStock(ctx, toLocationID)
-	if err != nil {
-		return err
-	}
-	if !toRack.IsActive {
-		return ErrLocationInactive
 	}
 
 	tx, err := r.db.Begin(ctx)
@@ -198,6 +197,27 @@ func (r *Repository) TransferLocationStock(ctx context.Context, productID, fromL
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	fromRack, err := r.LoadLocationForStock(ctx, tx, fromLocationID)
+	if err != nil {
+		return err
+	}
+	if !fromRack.IsActive {
+		return ErrLocationInactive
+	}
+	toRack, err := r.LoadLocationForStock(ctx, tx, toLocationID)
+	if err != nil {
+		return err
+	}
+	if !toRack.IsActive {
+		return ErrLocationInactive
+	}
+	if err := checkRackStore(fromRack, storeID); err != nil {
+		return err
+	}
+	if err := checkRackStore(toRack, storeID); err != nil {
+		return err
+	}
 
 	fromQty, toQty, err := r.lockLocationRows(ctx, tx, productID, fromLocationID, toLocationID)
 	if err != nil {
@@ -223,6 +243,19 @@ func (r *Repository) TransferLocationStock(ctx context.Context, productID, fromL
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit location transfer: %w", err)
+	}
+	return nil
+}
+
+// checkRackStore enforces store isolation on rack writes. A nil storeID
+// (superadmin/admin) may write any rack; otherwise the rack must belong to the
+// caller's store.
+func checkRackStore(rack *LocationRack, storeID *int) error {
+	if storeID == nil {
+		return nil
+	}
+	if rack.StoreID == nil || *rack.StoreID != *storeID {
+		return ErrStoreForbidden
 	}
 	return nil
 }

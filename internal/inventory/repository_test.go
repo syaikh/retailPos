@@ -111,7 +111,7 @@ func TestInventoryRepository_AdjustStock(t *testing.T) {
 		productID := insertTestProduct(ctx, t, "REPO-ADJ-INC-001")
 		insertTestStock(ctx, t, productID, 10)
 
-		err := repo.AdjustStock(ctx, productID, 5, nil, "test increase")
+		err := repo.AdjustStock(ctx, productID, 5, nil, nil, "test increase")
 		require.NoError(t, err)
 
 		stock, err := repo.GetStockByProductID(ctx, productID)
@@ -123,7 +123,7 @@ func TestInventoryRepository_AdjustStock(t *testing.T) {
 		productID := insertTestProduct(ctx, t, "REPO-ADJ-DEC-001")
 		insertTestStock(ctx, t, productID, 20)
 
-		err := repo.AdjustStock(ctx, productID, -8, nil, "test decrease")
+		err := repo.AdjustStock(ctx, productID, -8, nil, nil, "test decrease")
 		require.NoError(t, err)
 
 		stock, err := repo.GetStockByProductID(ctx, productID)
@@ -135,7 +135,7 @@ func TestInventoryRepository_AdjustStock(t *testing.T) {
 		productID := insertTestProduct(ctx, t, "REPO-ADJ-INSF-001")
 		insertTestStock(ctx, t, productID, 5)
 
-		err := repo.AdjustStock(ctx, productID, -10, nil, "overdraft")
+		err := repo.AdjustStock(ctx, productID, -10, nil, nil, "overdraft")
 		assert.ErrorContains(t, err, "insufficient stock")
 
 		stock, err := repo.GetStockByProductID(ctx, productID)
@@ -144,14 +144,14 @@ func TestInventoryRepository_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("zero change returns error", func(t *testing.T) {
-		err := repo.AdjustStock(ctx, 1, 0, nil, "no change")
+		err := repo.AdjustStock(ctx, 1, 0, nil, nil, "no change")
 		assert.ErrorContains(t, err, "must not be zero")
 	})
 
 	t.Run("creates row if none exists", func(t *testing.T) {
 		productID := insertTestProduct(ctx, t, "REPO-ADJ-CREATE-001")
 
-		err := repo.AdjustStock(ctx, productID, 30, nil, "initial stock")
+		err := repo.AdjustStock(ctx, productID, 30, nil, nil, "initial stock")
 		require.NoError(t, err)
 
 		stock, err := repo.GetStockByProductID(ctx, productID)
@@ -165,7 +165,7 @@ func TestInventoryRepository_AdjustStock(t *testing.T) {
 		insertTestUser(ctx, t, 1)
 		userID := 1
 
-		err := repo.AdjustStock(ctx, productID, -10, &userID, "user adjustment")
+		err := repo.AdjustStock(ctx, productID, -10, nil, &userID, "user adjustment")
 		require.NoError(t, err)
 
 		stock, err := repo.GetStockByProductID(ctx, productID)

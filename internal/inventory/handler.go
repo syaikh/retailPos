@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -15,12 +16,12 @@ import (
 )
 
 type Service interface {
-	AdjustStock(ctx context.Context, productID int, quantityChange int, userID int, notes string) error
+	AdjustStock(ctx context.Context, productID int, quantityChange int, storeID *int, userID int, notes string) error
 	AdjustStockBatch(ctx context.Context, adjustments []StockAdjustment, userID int, notes string) error
 	GetStockByProductID(ctx context.Context, productID int) (*ProductStock, error)
-	ListLocationStock(ctx context.Context, productID, locationID int) ([]LocationStockItem, error)
-	SetLocationStock(ctx context.Context, productID, locationID, quantity, userID int) error
-	TransferLocationStock(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error
+	ListLocationStock(ctx context.Context, productID, locationID int, storeID *int) ([]LocationStockItem, error)
+	SetLocationStock(ctx context.Context, productID, locationID, quantity, userID int, storeID *int) error
+	TransferLocationStock(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int, storeID *int) error
 }
 
 type Handler struct {
@@ -63,7 +64,12 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
 		return
 	}
-	if err := h.svc.AdjustStock(c.Request.Context(), req.ProductID, req.QuantityChange, uid, req.Notes); err != nil {
+	storeID := shared.GetStoreID(c)
+	if err := h.svc.AdjustStock(c.Request.Context(), req.ProductID, req.QuantityChange, storeID, uid, req.Notes); err != nil {
+		if errors.Is(err, ErrStoreForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		shared.InternalError(c, err)
 		return
 	}
