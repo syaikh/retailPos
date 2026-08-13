@@ -612,19 +612,15 @@ func TestReportRepository_GetPricingBreakdown_WithStoreID(t *testing.T) {
 	_ = items
 }
 
-func newTestCoordinator() *RefreshCoordinator {
-	return NewRefreshCoordinator(10*time.Millisecond, func(ctx context.Context) error { return nil })
-}
-
 func TestReportRepository_NewSaleCreatedListener(t *testing.T) {
 	repo := NewRepository(dbPool)
-	listener := repo.NewSaleCreatedListener(newTestCoordinator())
+	listener := repo.NewSaleCreatedListener()
 	assert.NotNil(t, listener)
 }
 
 func TestReportRepository_SaleCreatedListener_EventTypes(t *testing.T) {
 	repo := NewRepository(dbPool)
-	listener := repo.NewSaleCreatedListener(newTestCoordinator())
+	listener := repo.NewSaleCreatedListener()
 
 	types := listener.EventTypes()
 	assert.Contains(t, types, eventbus.EventType(events.TopicSaleCreated))
@@ -632,7 +628,7 @@ func TestReportRepository_SaleCreatedListener_EventTypes(t *testing.T) {
 
 func TestReportRepository_SaleCreatedListener_HandleEvent_InvalidPayload(t *testing.T) {
 	repo := NewRepository(dbPool)
-	listener := repo.NewSaleCreatedListener(newTestCoordinator())
+	listener := repo.NewSaleCreatedListener()
 
 	err := listener.HandleEvent(context.Background(), eventbus.Event{
 		Type:    events.TopicSaleCreated,
@@ -647,10 +643,7 @@ func TestReportRepository_SaleCreatedListener_HandleEvent_ValidSale(t *testing.T
 	}
 	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
-	coord := newTestCoordinator()
-	coord.Start()
-	defer coord.Shutdown()
-	listener := repo.NewSaleCreatedListener(coord)
+	listener := repo.NewSaleCreatedListener()
 	ctx := context.Background()
 
 	_, _, _, _ = seedSale(ctx, t)
@@ -660,7 +653,6 @@ func TestReportRepository_SaleCreatedListener_HandleEvent_ValidSale(t *testing.T
 		Payload: &events.SaleCreated{ID: 1},
 	})
 	assert.NoError(t, err)
-	assert.False(t, coord.IsDirty(), "boundary-based coordinator does not track dirty state")
 }
 
 func TestReportRepository_DashboardStats_Seeded(t *testing.T) {

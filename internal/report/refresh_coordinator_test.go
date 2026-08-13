@@ -134,31 +134,3 @@ func TestRefreshCoordinator_ShutdownWithoutStart(t *testing.T) {
 	coord := NewRefreshCoordinator(time.Second, func(ctx context.Context) error { return nil })
 	coord.Shutdown()
 }
-
-func TestRefreshCoordinator_MarkDirtyIsNoop(t *testing.T) {
-	discardLogs(t)
-
-	var runs atomic.Int64
-	coord := NewRefreshCoordinator(time.Second, func(ctx context.Context) error {
-		runs.Add(1)
-		return nil
-	})
-
-	coord.MarkDirty()
-	coord.MarkDirty()
-	assert.Equal(t, int64(0), runs.Load(), "MarkDirty must not trigger refresh before Start")
-
-	coord.Start()
-	defer coord.Shutdown()
-
-	// Wait for the startup catch-up refresh so the following no-op check is
-	// not racing the goroutine that fires it.
-	require.Eventually(t, func() bool { return runs.Load() == 1 }, time.Second, 10*time.Millisecond)
-
-	// MarkDirty during operation must remain a no-op; only the boundary timer
-	// and startup catch-up drive refreshes.
-	coord.MarkDirty()
-	time.Sleep(200 * time.Millisecond)
-	assert.Equal(t, int64(1), runs.Load(), "MarkDirty must not trigger extra refreshes")
-	assert.False(t, coord.IsDirty(), "IsDirty always returns false")
-}

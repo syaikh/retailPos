@@ -64,11 +64,6 @@ func NewRefreshCoordinator(debounce time.Duration, refresh RefreshFunc) *Refresh
 	}
 }
 
-// MarkDirty is a no-op kept for backward compatibility with existing
-// SaleCreated listeners. The coordinator now refreshes on a fixed boundary
-// schedule and does not need dirty signals.
-func (c *RefreshCoordinator) MarkDirty() {}
-
 // Start launches the single background refresh worker. It performs an immediate
 // refresh to catch up after downtime, then refreshes at each hour boundary.
 // It is idempotent.
@@ -97,11 +92,6 @@ func (c *RefreshCoordinator) Shutdown() {
 	c.mu.Unlock()
 	cancel()
 	<-c.done
-}
-
-// IsDirty always returns false; the coordinator no longer tracks dirty state.
-func (c *RefreshCoordinator) IsDirty() bool {
-	return false
 }
 
 // Metrics exposes the coordinator counters for observability and tests.

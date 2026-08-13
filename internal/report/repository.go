@@ -81,13 +81,12 @@ func (r *Repository) RefreshSalesMV(ctx context.Context) error {
 	return nil
 }
 
-func (r *Repository) NewSaleCreatedListener(coord *RefreshCoordinator) eventbus.Listener {
-	return &saleCreatedListener{repo: r, coord: coord}
+func (r *Repository) NewSaleCreatedListener() eventbus.Listener {
+	return &saleCreatedListener{repo: r}
 }
 
 type saleCreatedListener struct {
-	repo  *Repository
-	coord *RefreshCoordinator
+	repo *Repository
 }
 
 func (l *saleCreatedListener) EventTypes() []eventbus.EventType {
@@ -104,9 +103,7 @@ func (l *saleCreatedListener) HandleEvent(ctx context.Context, event eventbus.Ev
 	// without triggering a refresh. The RefreshCoordinator worker owns the
 	// materialized view refresh — once at startup and then at each Jakarta
 	// hour boundary — so a refresh failure can never fail the SaleCreated
-	// event or trigger eventbus retries. MarkDirty() is retained as a no-op
-	// for backward compatibility.
-	l.coord.MarkDirty()
+	// event or trigger eventbus retries.
 	return nil
 }
 

@@ -533,7 +533,7 @@ func Initialize(p Providers) *Dependencies {
 	d.Bus.Subscribe(websocket.NewPOCancelledListener(d.Hub))
 	d.Bus.Subscribe(websocket.NewStockOpnameStatusListener(d.Hub))
 	d.Bus.Subscribe(websocket.NewStockAdjustedListener(d.Hub, wsProductLookup))
-	d.Bus.Subscribe(d.ReportRepo.NewSaleCreatedListener(d.ReportRefreshCoord))
+	d.Bus.Subscribe(d.ReportRepo.NewSaleCreatedListener())
 	d.Bus.Subscribe(inventory.NewPurchaseReceiptListener(d.InventoryRepo, d.InventorySvc))
 
 	return d
