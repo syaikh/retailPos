@@ -61,10 +61,15 @@ func TestCategoryService_DeleteWithActiveProductsFails(t *testing.T) {
 	require.NoError(t, err)
 
 	sku := fmt.Sprintf("SVC-BLOCK-%d", cat.ID)
+	var prodID int
+	require.NoError(t, dbPool.QueryRow(ctx, `
+		INSERT INTO products (sku, name, price, cost, status, category_id)
+		VALUES ($1, 'Svc Blocking Product', 10000, 5000, 'active', $2)
+		RETURNING id
+	`, sku, cat.ID).Scan(&prodID))
 	_, err = dbPool.Exec(ctx, `
-		INSERT INTO products (sku, name, price, cost, stock, status, category_id)
-		VALUES ($1, 'Svc Blocking Product', 10000, 5000, 10, 'active', $2)
-	`, sku, cat.ID)
+		INSERT INTO product_stock (product_id, quantity) VALUES ($1, 10)
+	`, prodID)
 	require.NoError(t, err)
 
 	err = svc.DeleteCategory(ctx, cat.ID)

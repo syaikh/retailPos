@@ -328,11 +328,11 @@ func (r *Repository) CreateProduct(ctx context.Context, product *Product) error 
 
 	var createdTime, updatedTime time.Time
 	err = tx.QueryRow(ctx, `
-		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, store_id, status,
+		INSERT INTO products (sku, name, barcode, category_id, price, cost, store_id, status,
 		                    brand_id, description, tax_class_id, weight_grams, unit_of_measure_id, default_discount_percent)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id, created_at, updated_at
-	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status,
+	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, storeIDVal, product.Status,
 		brandID, description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount).
 		Scan(&product.ID, &createdTime, &updatedTime)
 	if err != nil {
@@ -343,12 +343,6 @@ func (r *Repository) CreateProduct(ctx context.Context, product *Product) error 
 
 	if err := r.setStoreStock(ctx, tx, product.ID, product.StoreID, product.Stock); err != nil {
 		return err
-	}
-	_, err = tx.Exec(ctx, `
-		UPDATE products SET stock = $1 WHERE id = $2
-	`, product.Stock, product.ID)
-	if err != nil {
-		return fmt.Errorf("failed to sync product stock: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -416,10 +410,10 @@ func (r *Repository) UpdateProduct(ctx context.Context, product *Product, storeI
 	}
 
 	query := `UPDATE products SET sku = $1, name = $2, barcode = $3, category_id = $4, price = $5,
-		cost = $6, stock = $7, store_id = $8, status = $9, updated_at = NOW(),
-		brand_id = $10, description = $11, tax_class_id = $12, weight_grams = $13, unit_of_measure_id = $14, default_discount_percent = $15
-		WHERE id = $16`
-	args := []interface{}{product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status,
+		cost = $6, store_id = $7, status = $8, updated_at = NOW(),
+		brand_id = $9, description = $10, tax_class_id = $11, weight_grams = $12, unit_of_measure_id = $13, default_discount_percent = $14
+		WHERE id = $15`
+	args := []interface{}{product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, storeIDVal, product.Status,
 		brandID, description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount, product.ID}
 	if storeID != nil {
 		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
@@ -440,12 +434,6 @@ func (r *Repository) UpdateProduct(ctx context.Context, product *Product, storeI
 		if err := r.setStoreStock(ctx, tx, product.ID, product.StoreID, product.Stock); err != nil {
 			return err
 		}
-	}
-	_, err = tx.Exec(ctx, `
-		UPDATE products SET stock = $1 WHERE id = $2
-	`, product.Stock, product.ID)
-	if err != nil {
-		return fmt.Errorf("failed to sync product stock: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -493,10 +481,10 @@ func (r *Repository) RestoreProduct(ctx context.Context, product *Product) error
 	}
 
 	_, err = tx.Exec(ctx, `
-		UPDATE products SET sku = $1, name = $2, barcode = $3, category_id = $4, price = $5, cost = $6, stock = $7,
-		    store_id = $8, status = $9, deleted_at = NULL, updated_at = NOW()
-		WHERE id = $10
-	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status, product.ID)
+		UPDATE products SET sku = $1, name = $2, barcode = $3, category_id = $4, price = $5, cost = $6,
+		    store_id = $7, status = $8, deleted_at = NULL, updated_at = NOW()
+		WHERE id = $9
+	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, storeIDVal, product.Status, product.ID)
 	if err != nil {
 		return err
 	}
@@ -505,12 +493,6 @@ func (r *Repository) RestoreProduct(ctx context.Context, product *Product) error
 		if err := r.setStoreStock(ctx, tx, product.ID, product.StoreID, product.Stock); err != nil {
 			return err
 		}
-	}
-	_, err = tx.Exec(ctx, `
-		UPDATE products SET stock = $1 WHERE id = $2
-	`, product.Stock, product.ID)
-	if err != nil {
-		return fmt.Errorf("failed to sync product stock: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {

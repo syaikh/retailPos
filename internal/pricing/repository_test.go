@@ -42,10 +42,13 @@ func insertTestProduct(ctx context.Context, t *testing.T, sku string, name strin
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
-		`INSERT INTO products (sku, name, price, stock, status)
-		 VALUES ($1, $2, $3, 100, 'active') RETURNING id`,
+		`INSERT INTO products (sku, name, price, status)
+		 VALUES ($1, $2, $3, 'active') RETURNING id`,
 		sku, name, price,
 	).Scan(&id)
+	require.NoError(t, err)
+	_, err = dbPool.Exec(ctx,
+		`INSERT INTO product_stock (product_id, quantity) VALUES ($1, 100)`, id)
 	require.NoError(t, err)
 	return id
 }
@@ -338,9 +341,12 @@ func TestPricingRepository_GetAll_SearchByOwnerNames(t *testing.T) {
 		"ZZZ Brand Beta "+ts).Scan(&brandID))
 	var productID int
 	require.NoError(t, dbPool.QueryRow(ctx,
-		`INSERT INTO products (sku, name, price, stock, status, category_id, brand_id)
-		 VALUES ($1, $2, $3, 100, 'active', $4, $5) RETURNING id`,
+		`INSERT INTO products (sku, name, price, status, category_id, brand_id)
+		 VALUES ($1, $2, $3, 'active', $4, $5) RETURNING id`,
 		"PRC-SRCH-"+ts, "ZZZ Product Gamma "+ts, 15000, catID, brandID).Scan(&productID))
+	_, err := dbPool.Exec(ctx,
+		`INSERT INTO product_stock (product_id, quantity) VALUES ($1, 100)`, productID)
+	require.NoError(t, err)
 
 	newRule := func(scopeName string, productID, categoryID, brandID *int) *Rule {
 		rule := &Rule{

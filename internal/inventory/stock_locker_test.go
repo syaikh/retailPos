@@ -19,8 +19,6 @@ func TestStockLocker_LockProductStock(t *testing.T) {
 		p2 := insertTestProduct(ctx, t, "SLK-GLOBAL-2")
 		insertTestStock(ctx, t, p1, 10)
 		insertTestStock(ctx, t, p2, 7)
-		setProductsStock(ctx, t, p1, 10)
-		setProductsStock(ctx, t, p2, 7)
 
 		tx, err := dbPool.Begin(ctx)
 		require.NoError(t, err)
@@ -45,7 +43,6 @@ func TestStockLocker_LockProductStock(t *testing.T) {
 	t.Run("lock does not mutate stock", func(t *testing.T) {
 		prodID := insertTestProduct(ctx, t, "SLK-GLOBAL-NOMUT")
 		insertTestStock(ctx, t, prodID, 10)
-		setProductsStock(ctx, t, prodID, 10)
 
 		tx, err := dbPool.Begin(ctx)
 		require.NoError(t, err)

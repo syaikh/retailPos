@@ -227,7 +227,7 @@ func TestBuildInsertValues_ChunkBoundary(t *testing.T) {
 	}
 	valueStrings, valueArgs := buildInsertValues(payloads)
 	assert.Len(t, valueStrings, bulkChunkSize)
-	assert.Len(t, valueArgs, bulkChunkSize*13)
+	assert.Len(t, valueArgs, bulkChunkSize*12)
 	assert.Less(t, len(valueArgs), 65535, "a single chunk must stay below the bind-param limit")
 }
 

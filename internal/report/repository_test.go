@@ -63,8 +63,8 @@ func seedSale(ctx context.Context, t *testing.T) (saleID int, productID int, sal
 
 	// Insert product
 	err = dbPool.QueryRow(ctx,
-		`INSERT INTO products (sku, name, price, stock, status) VALUES ($1, $2, $3, $4, 'active') RETURNING id`,
-		sku, productName, price, qty,
+		`INSERT INTO products (sku, name, price, status) VALUES ($1, $2, $3, 'active') RETURNING id`,
+		sku, productName, price,
 	).Scan(&productID)
 	require.NoError(t, err)
 
@@ -165,7 +165,7 @@ func TestReportRepository_PeriodComparison_PreviousHasAnyData(t *testing.T) {
 	sku := uniqueSKU("PHD-PROD")
 	var productID int
 	err = dbPool.QueryRow(ctx,
-		`INSERT INTO products (sku, name, price, stock, status) VALUES ($1, $2, 50000, 10, 'active') RETURNING id`,
+		`INSERT INTO products (sku, name, price, status) VALUES ($1, $2, 50000, 'active') RETURNING id`,
 		sku, "Prev Period Product",
 	).Scan(&productID)
 	require.NoError(t, err)
@@ -440,7 +440,7 @@ func TestReportRepository_WithCacheAndStoreID(t *testing.T) {
 	sku := uniqueSKU("CACHE-PROD")
 	var productID int
 	err = dbPool.QueryRow(ctx,
-		`INSERT INTO products (sku, name, price, stock, status, store_id) VALUES ($1, $2, 50000, 10, 'active', 1) RETURNING id`,
+		`INSERT INTO products (sku, name, price, status, store_id) VALUES ($1, $2, 50000, 'active', 1) RETURNING id`,
 		sku, "Cache Test Product",
 	).Scan(&productID)
 	require.NoError(t, err)

@@ -26,8 +26,6 @@ func insertLocationRackFixture(ctx context.Context, t *testing.T, warehouseID in
 	productID = insertTestProduct(ctx, t, prefix+"-001")
 	insertTestStock(ctx, t, productID, 10)
 	insertTestStockLocation(ctx, t, productID, warehouseID, locID, 10)
-	_, err = dbPool.Exec(ctx, `UPDATE products SET stock = 10 WHERE id = $1`, productID)
-	require.NoError(t, err)
 	return locID, productID
 }
 
@@ -182,7 +180,6 @@ func TestHandler_LocationFullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	t.Run("verified but not posted leaves stock untouched", func(t *testing.T) {
 		assertStockQty(ctx, t, p, locID, 10)
 		assertGlobalQty(ctx, t, p, 10)
-		assertProductsStock(ctx, t, p, 10)
 	})
 
 	var adjustmentID int
@@ -200,7 +197,6 @@ func TestHandler_LocationFullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 
 		assertStockQty(ctx, t, p, locID, 13)
 		assertGlobalQty(ctx, t, p, 13)
-		assertProductsStock(ctx, t, p, 13)
 
 		var adjCount int
 		require.NoError(t, dbPool.QueryRow(ctx,

@@ -153,7 +153,6 @@ CREATE TABLE IF NOT EXISTS products (
     description TEXT,
     price INTEGER NOT NULL CHECK (price >= 0),
     cost INTEGER DEFAULT 0 CHECK (cost >= 0),
-    stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
     tax_class_id INTEGER REFERENCES tax_classes(id) ON DELETE SET NULL,
     weight_grams INTEGER,
     unit_of_measure_id INTEGER REFERENCES units_of_measure(id) ON DELETE SET NULL,
@@ -780,15 +779,6 @@ INSERT INTO users (username, email, password_hash, role_id, is_active)
 SELECT 'cashier', 'cashier@retailpos.local', crypt('admin123', gen_salt('bf', 14)), r.id, true
 FROM roles r WHERE r.name = 'cashier'
 ON CONFLICT (username) DO NOTHING;
-
--- ============================================================
--- Backfill product_stock from legacy products.stock
--- ============================================================
-INSERT INTO product_stock (product_id, quantity, created_at, updated_at)
-SELECT id, COALESCE(stock, 0), created_at, updated_at
-FROM products
-WHERE deleted_at IS NULL
-  AND NOT EXISTS (SELECT 1 FROM product_stock WHERE product_id = products.id);
 
 -- ============================================================
 -- Comments

@@ -192,7 +192,7 @@ func TestInventoryRepository_AdjustStock_StoreScoped(t *testing.T) {
 	storeA := createTestStore(ctx, t, "REPO-STORE-A")
 	storeB := createTestStore(ctx, t, "REPO-STORE-B")
 
-	t.Run("routes delta to store bucket and mirrors products.stock", func(t *testing.T) {
+	t.Run("routes delta to store bucket", func(t *testing.T) {
 		productID := insertStoreProduct(ctx, t, "REPO-ADJ-STORE-001", storeA)
 
 		err := repo.AdjustStock(ctx, productID, 10, &storeA, nil, "store restock")
@@ -211,10 +211,6 @@ func TestInventoryRepository_AdjustStock_StoreScoped(t *testing.T) {
 			WHERE product_id = $1 AND store_id IS NULL AND warehouse_id IS NULL AND location_id IS NULL
 		`, productID).Scan(&globalCount))
 		assert.Equal(t, 0, globalCount)
-
-		var mirrored int
-		require.NoError(t, dbPool.QueryRow(ctx, `SELECT stock FROM products WHERE id = $1`, productID).Scan(&mirrored))
-		assert.Equal(t, 10, mirrored)
 	})
 
 	t.Run("cross-store adjust rejected for store-scoped caller", func(t *testing.T) {

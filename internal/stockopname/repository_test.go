@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/inventory"
-	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 )
 
@@ -433,7 +432,7 @@ func TestRepository_ApprovalFlow(t *testing.T) {
 	assert.Equal(t, 10, stock[p])
 
 	require.NoError(t, repo.UpdateItemAdjustment(ctx, txAppr, items[0].ID, 10, 2, 2, "adjustment reason"))
-	require.NoError(t, (inventory.StockApplier{StockSyncer: product.StockSyncer{}}).SetProductStock(ctx, txAppr, shared.StockSetItem{ProductID: p, Quantity: 12}))
+	require.NoError(t, (inventory.StockApplier{}).SetProductStock(ctx, txAppr, shared.StockSetItem{ProductID: p, Quantity: 12}))
 	require.NoError(t, repo.InsertMovements(ctx, txAppr, s.ID, 9007, []movementRow{
 		{ProductID: p, QuantityChange: 2, Notes: "adjustment"},
 	}))

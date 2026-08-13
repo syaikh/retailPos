@@ -16,23 +16,13 @@ import (
 // product_stock (ADR_Modular_Monolith_Module_Boundaries §2.8), so the product
 // stock writes performed on stock opname posting live here rather than inside
 // internal/stockopname.
-type StockApplier struct {
-	// StockSyncer syncs the products.stock mirror (owned by internal/product,
-	// see StockSyncer). It MUST be set before use — the composition root wires
-	// it alongside the inventory repository's syncer; an unwired applier fails
-	// fast.
-	StockSyncer StockSyncer
-}
+type StockApplier struct{}
 
 // SetProductStock sets a product's global stock to an absolute value, upserting
-// the global product_stock row and syncing the products.stock column, within
-// the caller's transaction. Stock opname posting is a Unit of Work
-// (ADR_Cross_Module_Transaction_Strategy), so the caller's tx must be used to
-// preserve atomicity.
+// the global product_stock row, within the caller's transaction. Stock opname
+// posting is a Unit of Work (ADR_Cross_Module_Transaction_Strategy), so the
+// caller's tx must be used to preserve atomicity.
 func (a StockApplier) SetProductStock(ctx context.Context, tx pgx.Tx, item shared.StockSetItem) error {
-	if a.StockSyncer == nil {
-		return errors.New("stock applier: product stock syncer not wired; set StockSyncer")
-	}
 	tag, err := tx.Exec(ctx, `
 		UPDATE product_stock SET quantity = $1, updated_at = NOW()
 		WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL
@@ -48,9 +38,6 @@ func (a StockApplier) SetProductStock(ctx context.Context, tx pgx.Tx, item share
 			return fmt.Errorf("failed to insert product stock: %w", err)
 		}
 	}
-	if err := a.StockSyncer.SyncStock(ctx, tx, item.ProductID, item.Quantity); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -60,9 +47,6 @@ func (a StockApplier) SetProductStock(ctx context.Context, tx pgx.Tx, item share
 // race-free. The global row is clamped at zero (max(global-rack, 0) + newRack)
 // so an over-set rack can never drive the global row negative.
 func (a StockApplier) ReconcileLocationStock(ctx context.Context, tx pgx.Tx, reconcile shared.LocationStockReconcile) error {
-	if a.StockSyncer == nil {
-		return errors.New("stock applier: product stock syncer not wired; set StockSyncer")
-	}
 	var rackQty, globalQty int
 	row := tx.QueryRow(ctx, `
 		SELECT quantity FROM product_stock
@@ -117,8 +101,5 @@ func (a StockApplier) ReconcileLocationStock(ctx context.Context, tx pgx.Tx, rec
 		}
 	}
 
-	if err := a.StockSyncer.SyncStock(ctx, tx, reconcile.ProductID, newGlobal); err != nil {
-		return err
-	}
 	return nil
 }

@@ -194,55 +194,6 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 	return products, total, nil
 }
 
-func (r *Repository) GetDeletedProductByBarcode(ctx context.Context, barcode string, storeID *int) (*Product, error) {
-	var p Product
-	var barcodeVal sql.NullString
-	var categoryIDVal, storeIDVal sql.NullInt64
-	var categoryName sql.NullString
-	var createdAt, updatedAt time.Time
-
-	query := `
-		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.status,
-		       p.store_id, p.created_at, p.updated_at
-		FROM products p
-		LEFT JOIN categories c ON p.category_id = c.id
-		WHERE p.barcode = $1 AND p.deleted_at IS NOT NULL`
-
-	args := []interface{}{barcode}
-	if storeID != nil {
-		query += fmt.Sprintf(" AND p.store_id = $%d", len(args)+1)
-		args = append(args, *storeID)
-	}
-
-	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
-		&storeIDVal, &createdAt, &updatedAt)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("product not found")
-		}
-		return nil, err
-	}
-
-	if barcodeVal.Valid {
-		p.Barcode = &barcodeVal.String
-	}
-	if categoryIDVal.Valid {
-		v := int(categoryIDVal.Int64)
-		p.CategoryID = &v
-	}
-	if categoryName.Valid {
-		p.CategoryName = &categoryName.String
-	}
-	if storeIDVal.Valid {
-		v := int(storeIDVal.Int64)
-		p.StoreID = &v
-	}
-	p.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-	p.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-
-	return &p, nil
-}
-
 func (r *Repository) GetAllProductsForExport(ctx context.Context) ([]Product, error) {
 	rows, err := r.db.Query(ctx, productSelectCols+`
 		ORDER BY v.name

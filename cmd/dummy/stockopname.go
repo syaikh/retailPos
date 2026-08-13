@@ -243,15 +243,6 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 		}
 		defer func() { _ = stockStmt.Close() }()
 
-		productStockSyncStmt, err := tx.PrepareContext(ctx, `
-			UPDATE products SET stock = $1, updated_at = NOW() WHERE id = $2
-		`)
-		if err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("prepare product stock sync stmt: %w", err)
-		}
-		defer func() { _ = productStockSyncStmt.Close() }()
-
 		movementStmt, err := tx.PrepareContext(ctx, `
 			INSERT INTO inventory_movements
 				(product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
@@ -382,10 +373,6 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			if _, err := stockStmt.ExecContext(ctx, p.productID, newQty); err != nil {
 				_ = tx.Rollback()
 				return fmt.Errorf("update product stock: %w", err)
-			}
-			if _, err := productStockSyncStmt.ExecContext(ctx, newQty, p.productID); err != nil {
-				_ = tx.Rollback()
-				return fmt.Errorf("sync products.stock: %w", err)
 			}
 
 			movementAt := createdAt.Add(time.Duration(rand.Intn(12*3600)+8*3600) * time.Second)

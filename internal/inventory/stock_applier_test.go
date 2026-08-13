@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 )
 
@@ -39,12 +38,6 @@ func insertRackRow(ctx context.Context, t *testing.T, productID, warehouseID, lo
 	require.NoError(t, err)
 }
 
-func setProductsStock(ctx context.Context, t *testing.T, productID, quantity int) {
-	t.Helper()
-	_, err := dbPool.Exec(ctx, `UPDATE products SET stock = $1 WHERE id = $2`, quantity, productID)
-	require.NoError(t, err)
-}
-
 func rackQty(ctx context.Context, t *testing.T, productID, locationID int) int {
 	t.Helper()
 	var qty int
@@ -65,26 +58,17 @@ func globalQty(ctx context.Context, t *testing.T, productID int) int {
 	return qty
 }
 
-func productsStock(ctx context.Context, t *testing.T, productID int) int {
-	t.Helper()
-	var qty int
-	err := dbPool.QueryRow(ctx, `SELECT stock FROM products WHERE id = $1`, productID).Scan(&qty)
-	require.NoError(t, err)
-	return qty
-}
-
 // TestStockApplier_SetProductStock covers the canonical single-writer of
 // product_stock (ADR_Modular_Monolith_Module_Boundaries §2.8) that the stock
 // opname module uses when posting a non-location adjustment. It must run against
 // the caller's transaction.
 func TestStockApplier_SetProductStock(t *testing.T) {
 	ctx := context.Background()
-	a := StockApplier{StockSyncer: product.StockSyncer{}}
+	a := StockApplier{}
 
-	t.Run("upserts existing global row and syncs products.stock", func(t *testing.T) {
+	t.Run("upserts existing global row", func(t *testing.T) {
 		prodID := insertTestProduct(ctx, t, "SAS-UPSERT")
 		insertTestStock(ctx, t, prodID, 10)
-		setProductsStock(ctx, t, prodID, 10)
 
 		tx, err := dbPool.Begin(ctx)
 		require.NoError(t, err)
@@ -92,12 +76,10 @@ func TestStockApplier_SetProductStock(t *testing.T) {
 		require.NoError(t, tx.Commit(ctx))
 
 		require.Equal(t, 12, stockQuantity(ctx, t, prodID))
-		require.Equal(t, 12, productsStock(ctx, t, prodID))
 	})
 
-	t.Run("inserts global row lazily and syncs products.stock", func(t *testing.T) {
+	t.Run("inserts global row lazily", func(t *testing.T) {
 		prodID := insertTestProduct(ctx, t, "SAS-INSERT")
-		setProductsStock(ctx, t, prodID, 0)
 
 		tx, err := dbPool.Begin(ctx)
 		require.NoError(t, err)
@@ -105,13 +87,11 @@ func TestStockApplier_SetProductStock(t *testing.T) {
 		require.NoError(t, tx.Commit(ctx))
 
 		require.Equal(t, 7, stockQuantity(ctx, t, prodID))
-		require.Equal(t, 7, productsStock(ctx, t, prodID))
 	})
 
 	t.Run("rollback undoes set", func(t *testing.T) {
 		prodID := insertTestProduct(ctx, t, "SAS-ROLLBACK")
 		insertTestStock(ctx, t, prodID, 10)
-		setProductsStock(ctx, t, prodID, 10)
 
 		tx, err := dbPool.Begin(ctx)
 		require.NoError(t, err)
@@ -119,7 +99,6 @@ func TestStockApplier_SetProductStock(t *testing.T) {
 		require.NoError(t, tx.Rollback(ctx))
 
 		require.Equal(t, 10, stockQuantity(ctx, t, prodID))
-		require.Equal(t, 10, productsStock(ctx, t, prodID))
 	})
 }
 
@@ -128,7 +107,7 @@ func TestStockApplier_SetProductStock(t *testing.T) {
 // location-scoped stock opname posting.
 func TestStockApplier_ReconcileLocationStock(t *testing.T) {
 	ctx := context.Background()
-	a := StockApplier{StockSyncer: product.StockSyncer{}}
+	a := StockApplier{}
 	reconcile := func(prodID, locID int, wh *int, delta int) shared.LocationStockReconcile {
 		return shared.LocationStockReconcile{ProductID: prodID, LocationID: locID, WarehouseID: wh, Delta: delta}
 	}
@@ -136,7 +115,6 @@ func TestStockApplier_ReconcileLocationStock(t *testing.T) {
 	t.Run("creates rows lazily", func(t *testing.T) {
 		prodID := insertTestProduct(ctx, t, "SAR-LAZY")
 		insertTestStock(ctx, t, prodID, 10)
-		setProductsStock(ctx, t, prodID, 10)
 		wh := 9701
 		locID := insertTestRack(ctx, t, wh, "SAR-LAZY-LOC")
 
@@ -147,7 +125,6 @@ func TestStockApplier_ReconcileLocationStock(t *testing.T) {
 
 		require.Equal(t, 3, rackQty(ctx, t, prodID, locID))
 		require.Equal(t, 13, globalQty(ctx, t, prodID))
-		require.Equal(t, 13, productsStock(ctx, t, prodID))
 	})
 
 	t.Run("reconciles global from count", func(t *testing.T) {
@@ -159,7 +136,6 @@ func TestStockApplier_ReconcileLocationStock(t *testing.T) {
 		wh := 9702
 		locID := insertTestRack(ctx, t, wh, "SAR-DESYNC-LOC")
 		insertRackRow(ctx, t, prodID, wh, locID, 10)
-		setProductsStock(ctx, t, prodID, 7)
 
 		tx, err := dbPool.Begin(ctx)
 		require.NoError(t, err)
@@ -168,7 +144,6 @@ func TestStockApplier_ReconcileLocationStock(t *testing.T) {
 
 		require.Equal(t, 7, rackQty(ctx, t, prodID, locID))
 		require.Equal(t, 7, globalQty(ctx, t, prodID))
-		require.Equal(t, 7, productsStock(ctx, t, prodID))
 	})
 
 	t.Run("clamps global at zero", func(t *testing.T) {
@@ -179,7 +154,6 @@ func TestStockApplier_ReconcileLocationStock(t *testing.T) {
 		wh := 9703
 		locID := insertTestRack(ctx, t, wh, "SAR-CLAMP-LOC")
 		insertRackRow(ctx, t, prodID, wh, locID, 50)
-		setProductsStock(ctx, t, prodID, 10)
 
 		tx, err := dbPool.Begin(ctx)
 		require.NoError(t, err)
@@ -188,7 +162,6 @@ func TestStockApplier_ReconcileLocationStock(t *testing.T) {
 
 		require.Equal(t, 0, rackQty(ctx, t, prodID, locID))
 		require.Equal(t, 0, globalQty(ctx, t, prodID))
-		require.Equal(t, 0, productsStock(ctx, t, prodID))
 	})
 
 	t.Run("inserts global row when missing", func(t *testing.T) {
@@ -206,7 +179,6 @@ func TestStockApplier_ReconcileLocationStock(t *testing.T) {
 
 		require.Equal(t, 7, rackQty(ctx, t, prodID, locID))
 		require.Equal(t, 7, globalQty(ctx, t, prodID))
-		require.Equal(t, 7, productsStock(ctx, t, prodID))
 	})
 
 	t.Run("rollback undoes reconcile", func(t *testing.T) {
@@ -214,7 +186,6 @@ func TestStockApplier_ReconcileLocationStock(t *testing.T) {
 		insertTestStock(ctx, t, prodID, 10)
 		wh := 9705
 		locID := insertTestRack(ctx, t, wh, "SAR-ROLLBACK-LOC")
-		setProductsStock(ctx, t, prodID, 10)
 
 		tx, err := dbPool.Begin(ctx)
 		require.NoError(t, err)
@@ -222,6 +193,5 @@ func TestStockApplier_ReconcileLocationStock(t *testing.T) {
 		require.NoError(t, tx.Rollback(ctx))
 
 		require.Equal(t, 10, globalQty(ctx, t, prodID))
-		require.Equal(t, 10, productsStock(ctx, t, prodID))
 	})
 }

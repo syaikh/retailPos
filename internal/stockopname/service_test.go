@@ -10,7 +10,6 @@ import (
 
 	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/inventory"
-	"retail-pos-system/internal/product"
 )
 
 type capturingEventBus struct {
@@ -44,7 +43,7 @@ func (b *capturingEventBus) topics() []string {
 func TestService_CreateSession(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUser(ctx, t, 9101, "so_svc_user_9101")
@@ -66,7 +65,7 @@ func TestService_CreateSession(t *testing.T) {
 func TestService_CreateSessionInvalidScope(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 
 	_, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "all", ScopeID: 1}, 1, nil)
@@ -79,7 +78,7 @@ func TestService_CreateSessionNoProducts(t *testing.T) {
 	// exist from other tests, so this test only validates the error path shape).
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	_ = ctx
 	// validation errors take precedence
@@ -90,7 +89,7 @@ func TestService_CreateSessionNoProducts(t *testing.T) {
 func TestService_CreateSession_ResolvesStoreID(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9401, "so_scope_manager_9401", 3)
@@ -180,7 +179,7 @@ func countAllItems(ctx context.Context, t *testing.T, svc *Service, sessionID, c
 func TestService_AssignVerifyPostClose(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	managerID := 9102
@@ -293,7 +292,7 @@ func TestService_AssignVerifyPostClose(t *testing.T) {
 func TestService_RejectAndRecount(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	managerID := 9104
@@ -332,7 +331,7 @@ func TestService_RejectAndRecount(t *testing.T) {
 func TestService_CancelSession(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	managerID := 9106
@@ -357,7 +356,7 @@ func TestService_CancelSession(t *testing.T) {
 func TestService_SummaryAndDifferenceReport(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	managerID := 9107
@@ -410,7 +409,7 @@ func TestService_SummaryAndDifferenceReport(t *testing.T) {
 func TestService_ListAssignableUsers(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9201, "so_staff_9201", 5)
@@ -427,7 +426,7 @@ func TestService_ListAssignableUsers(t *testing.T) {
 func TestService_AssignCounterRoleValidation(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	managerID := 9203
@@ -469,7 +468,7 @@ func TestService_AssignCounterRoleValidation(t *testing.T) {
 func TestService_ReassignCounterRoleValidation(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	managerID := 9206
@@ -500,7 +499,7 @@ func TestService_ReassignCounterRoleValidation(t *testing.T) {
 func TestService_BlindCountMasksQuantities(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	managerID := 9109
@@ -549,7 +548,7 @@ func TestService_PublishesStatusEvents(t *testing.T) {
 	repo := newTestRepository()
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	managerID := 9110
@@ -587,7 +586,7 @@ func TestService_SubmitPublishesSubmittedEvent(t *testing.T) {
 	repo := newTestRepository()
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	managerID := 9112
@@ -628,7 +627,7 @@ func TestService_VerifyPublishesApprovedEvent(t *testing.T) {
 	repo := newTestRepository()
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	managerID := 9114
@@ -667,7 +666,7 @@ func TestService_PublishesGlobalEvent_NoStore(t *testing.T) {
 	repo := newTestRepository()
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	managerID := 9116
@@ -699,7 +698,7 @@ func TestService_PublishesGlobalEvent_NoStore(t *testing.T) {
 func TestService_StoreIsolation_CreateClampsStoreID(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9701, "so_store_mgr_9701", 3)
@@ -731,7 +730,7 @@ func TestService_StoreIsolation_CreateClampsStoreID(t *testing.T) {
 func TestService_StoreIsolation_CrossStoreAccess(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9701, "so_mgr_a_9701", 3)
@@ -772,7 +771,7 @@ func TestService_StoreIsolation_CrossStoreAccess(t *testing.T) {
 func TestService_StoreIsolation_WarehouseScope(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9701, "so_mgr_wh_9701", 3)
@@ -819,7 +818,7 @@ func TestService_StoreIsolation_WarehouseScope(t *testing.T) {
 func TestService_StoreIsolation_ListSessionsFilter(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9701, "so_mgr_c_9701", 3)

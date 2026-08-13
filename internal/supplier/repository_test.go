@@ -38,10 +38,13 @@ func insertTestProduct(ctx context.Context, t *testing.T, sku string, name strin
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
-		`INSERT INTO products (sku, name, price, stock, status)
-		 VALUES ($1, $2, $3, 100, 'active') RETURNING id`,
+		`INSERT INTO products (sku, name, price, status)
+		 VALUES ($1, $2, $3, 'active') RETURNING id`,
 		sku, name, price,
 	).Scan(&id)
+	require.NoError(t, err)
+	_, err = dbPool.Exec(ctx,
+		`INSERT INTO product_stock (product_id, quantity) VALUES ($1, 100)`, id)
 	require.NoError(t, err)
 	return id
 }

@@ -90,11 +90,11 @@ func (r *Repository) BulkUpsertProduct(ctx context.Context, p ImportPayload) (in
 
 	var createdTime time.Time
 	err = tx.QueryRow(ctx, `
-		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, status,
+		INSERT INTO products (sku, name, barcode, category_id, price, cost, status,
 		                    brand_id, description, weight_grams, unit_of_measure_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id, created_at
-	`, p.SKU, p.Name, barcode, categoryID, p.Price, p.Cost, p.Stock, p.Status,
+	`, p.SKU, p.Name, barcode, categoryID, p.Price, p.Cost, p.Status,
 		brandID, description, weightGrams, uomID).Scan(&existingID, &createdTime)
 	if err != nil {
 		return false, err
@@ -112,8 +112,8 @@ func (r *Repository) BulkUpsertProduct(ctx context.Context, p ImportPayload) (in
 }
 
 // bulkChunkSize bounds the number of rows per multi-row statement so the bind
-// parameter count stays well under PostgreSQL's 65,535 limit (13 params/row for
-// insert, 11 for update → ≤ 13,000 params per statement).
+// parameter count stays well under PostgreSQL's 65,535 limit (12 params/row for
+// insert, 11 for update → ≤ 12,000 params per statement).
 const bulkChunkSize = 1000
 
 // buildInsertValues renders the VALUES tuples and args for a single multi-row
@@ -121,11 +121,11 @@ const bulkChunkSize = 1000
 // starts at $1.
 func buildInsertValues(payloads []ImportPayload) ([]string, []interface{}) {
 	valueStrings := make([]string, 0, len(payloads))
-	valueArgs := make([]interface{}, 0, len(payloads)*13)
+	valueArgs := make([]interface{}, 0, len(payloads)*12)
 	for _, p := range payloads {
 		offset := len(valueArgs)
-		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
-			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10, offset+11, offset+12, offset+13))
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10, offset+11, offset+12))
 
 		var barcode interface{}
 		if p.Barcode != nil {
@@ -156,7 +156,7 @@ func buildInsertValues(payloads []ImportPayload) ([]string, []interface{}) {
 			storeID = *p.StoreID
 		}
 
-		valueArgs = append(valueArgs, p.SKU, p.Name, barcode, categoryID, p.Price, p.Cost, p.Stock, p.Status,
+		valueArgs = append(valueArgs, p.SKU, p.Name, barcode, categoryID, p.Price, p.Cost, p.Status,
 			brandID, description, weightGrams, uomID, storeID)
 	}
 	return valueStrings, valueArgs
@@ -174,7 +174,7 @@ func (r *Repository) insertProductChunks(ctx context.Context, newPayloads []Impo
 		valueStrings, valueArgs := buildInsertValues(newPayloads[start:end])
 
 		query := fmt.Sprintf(`
-			INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, status,
+			INSERT INTO products (sku, name, barcode, category_id, price, cost, status,
 			                     brand_id, description, weight_grams, unit_of_measure_id, store_id)
 			VALUES %s
 			RETURNING id

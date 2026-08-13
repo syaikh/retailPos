@@ -62,6 +62,26 @@ func insertTestProduct(ctx context.Context, t *testing.T, sku, name string, pric
 	return id
 }
 
+// insertStoreTestProduct creates a product owned by the given store with its
+// store-scoped stock row, matching how store-scoped goods receipts route
+// adjustments into the store's product_stock bucket.
+func insertStoreTestProduct(ctx context.Context, t *testing.T, sku, name string, price, stock, storeID int) int {
+	t.Helper()
+	var id int
+	err := dbPool.QueryRow(ctx, `
+		INSERT INTO products (sku, name, price, cost, status, store_id)
+		VALUES ($1, $2, $3, $4, 'active', $5)
+		RETURNING id
+	`, sku, name, price, price/2, storeID).Scan(&id)
+	require.NoError(t, err)
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO product_stock (product_id, store_id, quantity)
+		VALUES ($1, $2, $3)
+	`, id, storeID, stock)
+	require.NoError(t, err)
+	return id
+}
+
 func insertTestUser(ctx context.Context, t *testing.T, username string) int {
 	t.Helper()
 	var id int

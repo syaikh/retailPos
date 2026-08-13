@@ -11,19 +11,35 @@ import (
 
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/product"
+	"retail-pos-system/internal/storagelocation"
 )
+
+func newWiredInvRepo() *inventory.Repository {
+	repo := inventory.NewRepository(dbPool)
+	repo.SetProductMetaProvider(product.ProductMetaLookup{})
+	repo.SetLocationRackProvider(storagelocation.RackProvider{})
+	return repo
+}
+
+func ensureTestStore(t *testing.T) {
+	t.Helper()
+	_, err := dbPool.Exec(context.Background(), `
+		INSERT INTO stores (id, name, is_active) VALUES (1, 'E2E Store', true) ON CONFLICT (id) DO NOTHING
+	`)
+	require.NoError(t, err)
+}
 
 func TestE2E_MultiItemGoodsReceiptAdjustsStockViaEvent(t *testing.T) {
 	svc, bus, ctx := newSvc(t)
+	ensureTestStore(t)
 
-	invRepo := inventory.NewRepository(dbPool)
-	invRepo.SetStockSyncer(product.StockSyncer{})
+	invRepo := newWiredInvRepo()
 	invSvc := inventory.NewService(invRepo, bus)
 	bus.Subscribe(inventory.NewPurchaseReceiptListener(invRepo, invSvc))
 
 	supplierID := insertTestSupplier(ctx, t, "E2E Multi Supplier")
-	prodA := insertTestProduct(ctx, t, "E2E-MULTI-A", "E2E Product A", 10000, 100)
-	prodB := insertTestProduct(ctx, t, "E2E-MULTI-B", "E2E Product B", 12000, 200)
+	prodA := insertStoreTestProduct(ctx, t, "E2E-MULTI-A", "E2E Product A", 10000, 100, 1)
+	prodB := insertStoreTestProduct(ctx, t, "E2E-MULTI-B", "E2E Product B", 12000, 200, 1)
 	userID := insertTestUser(ctx, t, "e2e_multi_user")
 
 	po := &Order{
@@ -51,11 +67,11 @@ func TestE2E_MultiItemGoodsReceiptAdjustsStockViaEvent(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, gr.ID, 0)
 
-	stockA, err := waitForStock(t, invRepo, prodA, 110)
+	stockA, err := waitForStoreStock(t, prodA, 1, 110)
 	require.NoError(t, err)
 	assert.Equal(t, 110, stockA.Quantity)
 
-	stockB, err := waitForStock(t, invRepo, prodB, 205)
+	stockB, err := waitForStoreStock(t, prodB, 1, 205)
 	require.NoError(t, err)
 	assert.Equal(t, 205, stockB.Quantity)
 
@@ -68,15 +84,15 @@ func TestE2E_MultiItemGoodsReceiptAdjustsStockViaEvent(t *testing.T) {
 
 func TestE2E_PartialReceiptAcrossItemsAdjustsStockViaEvent(t *testing.T) {
 	svc, bus, ctx := newSvc(t)
+	ensureTestStore(t)
 
-	invRepo := inventory.NewRepository(dbPool)
-	invRepo.SetStockSyncer(product.StockSyncer{})
+	invRepo := newWiredInvRepo()
 	invSvc := inventory.NewService(invRepo, bus)
 	bus.Subscribe(inventory.NewPurchaseReceiptListener(invRepo, invSvc))
 
 	supplierID := insertTestSupplier(ctx, t, "E2E Partial Supplier")
-	prodA := insertTestProduct(ctx, t, "E2E-PART-A", "E2E Partial A", 10000, 50)
-	prodB := insertTestProduct(ctx, t, "E2E-PART-B", "E2E Partial B", 12000, 60)
+	prodA := insertStoreTestProduct(ctx, t, "E2E-PART-A", "E2E Partial A", 10000, 50, 1)
+	prodB := insertStoreTestProduct(ctx, t, "E2E-PART-B", "E2E Partial B", 12000, 60, 1)
 	userID := insertTestUser(ctx, t, "e2e_partial_user")
 
 	po := &Order{
@@ -102,7 +118,7 @@ func TestE2E_PartialReceiptAcrossItemsAdjustsStockViaEvent(t *testing.T) {
 	_, err = svc.CreateGoodsReceipt(ctx, po.ID, userID, 1, grItems1)
 	require.NoError(t, err)
 
-	stockA, err := waitForStock(t, invRepo, prodA, 54)
+	stockA, err := waitForStoreStock(t, prodA, 1, 54)
 	require.NoError(t, err)
 	assert.Equal(t, 54, stockA.Quantity)
 
@@ -112,22 +128,22 @@ func TestE2E_PartialReceiptAcrossItemsAdjustsStockViaEvent(t *testing.T) {
 	_, err = svc.CreateGoodsReceipt(ctx, po.ID, userID, 1, grItems2)
 	require.NoError(t, err)
 
-	stockB, err := waitForStock(t, invRepo, prodB, 65)
+	stockB, err := waitForStoreStock(t, prodB, 1, 65)
 	require.NoError(t, err)
 	assert.Equal(t, 65, stockB.Quantity)
 
-	stockA, err = invRepo.GetStockByProductID(ctx, prodA)
+	stockA, err = storeStockByProductID(ctx, prodA, 1)
 	require.NoError(t, err)
 	assert.Equal(t, 54, stockA.Quantity, "first receipt must not be re-applied")
 }
 
-func waitForStock(t *testing.T, repo *inventory.Repository, productID, want int) (*inventory.ProductStock, error) {
+func waitForStoreStock(t *testing.T, productID, storeID, want int) (*inventory.ProductStock, error) {
 	t.Helper()
 	ctx := context.Background()
 	deadline := time.Now().Add(5 * time.Second)
 	var last *inventory.ProductStock
 	for time.Now().Before(deadline) {
-		stock, err := repo.GetStockByProductID(ctx, productID)
+		stock, err := storeStockByProductID(ctx, productID, storeID)
 		if err != nil {
 			time.Sleep(50 * time.Millisecond)
 			continue
@@ -142,4 +158,18 @@ func waitForStock(t *testing.T, repo *inventory.Repository, productID, want int)
 		return last, fmt.Errorf("timed out waiting for stock: got %d, want %d", last.Quantity, want)
 	}
 	return nil, fmt.Errorf("timed out waiting for stock row for product %d", productID)
+}
+
+// storeStockByProductID reads the store-scoped product_stock bucket, which is
+// where store-scoped goods receipts route their adjustments.
+func storeStockByProductID(ctx context.Context, productID, storeID int) (*inventory.ProductStock, error) {
+	var quantity int
+	err := dbPool.QueryRow(ctx, `
+		SELECT quantity FROM product_stock
+		WHERE product_id = $1 AND store_id = $2 AND warehouse_id IS NULL AND location_id IS NULL
+	`, productID, storeID).Scan(&quantity)
+	if err != nil {
+		return nil, err
+	}
+	return &inventory.ProductStock{ProductID: productID, Quantity: quantity}, nil
 }

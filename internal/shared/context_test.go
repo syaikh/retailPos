@@ -210,39 +210,3 @@ func TestGetIPAddress_XForwardedFor(t *testing.T) {
 		t.Errorf("expected 192.168.1.1 (RemoteAddr used despite XFF), got %s", got)
 	}
 }
-
-func TestAbortUnauthorized(t *testing.T) {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-
-	AbortUnauthorized(c, ErrUnauthorized, "not logged in")
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestAbortForbidden(t *testing.T) {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-
-	AbortForbidden(c, ErrForbidden, "no permission")
-
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestAbortInternalError(t *testing.T) {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-
-	AbortInternalError(c, ErrInternal, "db down")
-
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
-}

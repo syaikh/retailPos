@@ -3,7 +3,6 @@ package shared
 import (
 	"context"
 	"net"
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -128,16 +127,4 @@ func GetRequestPath(ctx context.Context) string {
 
 func GetUserAgent(c *gin.Context) string {
 	return c.GetHeader("User-Agent")
-}
-
-func AbortUnauthorized(c *gin.Context, code, message string) {
-	c.AbortWithStatusJSON(http.StatusUnauthorized, NewError(code, message))
-}
-
-func AbortForbidden(c *gin.Context, code, message string) {
-	c.AbortWithStatusJSON(http.StatusForbidden, NewError(code, message))
-}
-
-func AbortInternalError(c *gin.Context, code, message string) {
-	c.AbortWithStatusJSON(http.StatusInternalServerError, NewError(code, message))
 }

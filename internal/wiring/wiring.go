@@ -379,7 +379,6 @@ func Initialize(p Providers) *Dependencies {
 	d.SaleRepo.SetProductNameProvider(product.ProductNameLookup{})
 	d.SaleRepo.SetCustomerNameProvider(customer.CustomerNameLookup{})
 	d.InventoryRepo = inventory.NewRepository(p.DB)
-	d.InventoryRepo.SetStockSyncer(product.StockSyncer{})
 	d.InventoryRepo.SetLocationRackProvider(storagelocation.RackProvider{})
 	d.InventoryRepo.SetProductMetaProvider(product.ProductMetaLookup{})
 	d.CustomerRepo = customer.NewRepository(p.DB)
@@ -467,7 +466,7 @@ func Initialize(p Providers) *Dependencies {
 	d.StoreSvc = store.NewService(d.StoreRepo)
 	d.ShiftSvc = shift.NewService(d.ShiftRepo)
 	d.StockOpnameSvc = stockopname.NewService(d.StockOpnameRepo, d.Bus)
-	d.StockOpnameSvc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	d.StockOpnameSvc.SetStockApplier(inventory.StockApplier{})
 	d.StorageLocationSvc = storagelocation.NewService(d.StorageLocationRepo)
 
 	d.UserH = user.NewHandler(d.UserSvc, d.AuditSvc)

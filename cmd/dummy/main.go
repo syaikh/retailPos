@@ -1119,8 +1119,8 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	}()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO products (sku, name, barcode, price, cost, stock, category_id, status, tax_class_id, brand_id, unit_of_measure_id, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', 1, $8, $9, $10) RETURNING id`)
+		`INSERT INTO products (sku, name, barcode, price, cost, category_id, status, tax_class_id, brand_id, unit_of_measure_id, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, 'active', 1, $7, $8, $9) RETURNING id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
@@ -1163,7 +1163,7 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		var id int
 		brandID := rand.Intn(5) + 1
 		uomID := rand.Intn(8) + 1
-		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, stock, catID, brandID, uomID, createdAt).Scan(&id)
+		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, catID, brandID, uomID, createdAt).Scan(&id)
 		if err != nil {
 			fmt.Printf("Warning: worker %d failed to insert product %d: %v\n", job.workerID, i, err)
 			continue

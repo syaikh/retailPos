@@ -227,7 +227,6 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	saleRepo.SetProductNameProvider(product.ProductNameLookup{})
 	saleRepo.SetCustomerNameProvider(customer.CustomerNameLookup{})
 	inventoryRepo := inventory.NewRepository(e2ePool)
-	inventoryRepo.SetStockSyncer(product.StockSyncer{})
 	customerRepo := customer.NewRepository(e2ePool)
 	customerRepo.SetCustomerGroupNameProvider(customergroup.CustomerGroupNameLookup{})
 	categoryRepo := category.NewRepository(e2ePool)
@@ -1511,9 +1510,12 @@ func seedE2EProduct(t *testing.T) int {
 	}
 	var id int
 	err := e2ePool.QueryRow(context.Background(),
-		`INSERT INTO products (sku, name, price, cost, stock, status)
-		 VALUES (concat('E2E-PROD-', floor(random()*100000)::int), 'E2E Test Product', 100000, 50000, 100, 'active')
+		`INSERT INTO products (sku, name, price, cost, status)
+		 VALUES (concat('E2E-PROD-', floor(random()*100000)::int), 'E2E Test Product', 100000, 50000, 'active')
 		 RETURNING id`).Scan(&id)
+	require.NoError(t, err)
+	_, err = e2ePool.Exec(context.Background(),
+		`INSERT INTO product_stock (product_id, quantity) VALUES ($1, 100)`, id)
 	require.NoError(t, err)
 	return id
 }

@@ -88,24 +88,6 @@ func TestInventoryRepository_AdjustStock_UpsertError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to insert stock")
 }
 
-func TestInventoryRepository_AdjustStock_SyncError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	mock.ExpectBegin()
-	emptyRows := pgxmock.NewRows([]string{"quantity"})
-	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(emptyRows)
-	mock.ExpectExec("UPDATE product_stock").WithArgs(5, 1).WillReturnResult(pgxmock.NewResult("U", 0))
-	mock.ExpectExec("INSERT INTO product_stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(fmt.Errorf("sync failed"))
-
-	repo := newMockRepo(mock)
-	err = repo.AdjustStock(context.Background(), 1, 5, nil, nil, "test")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to sync product stock")
-}
-
 func TestInventoryRepository_AdjustStock_MovementError(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
@@ -116,7 +98,6 @@ func TestInventoryRepository_AdjustStock_MovementError(t *testing.T) {
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(emptyRows)
 	mock.ExpectExec("UPDATE product_stock").WithArgs(5, 1).WillReturnResult(pgxmock.NewResult("U", 0))
 	mock.ExpectExec("INSERT INTO product_stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(fmt.Errorf("movement failed"))
 
 	repo := newMockRepo(mock)
@@ -135,7 +116,6 @@ func TestInventoryRepository_AdjustStock_CommitError(t *testing.T) {
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(emptyRows)
 	mock.ExpectExec("UPDATE product_stock").WithArgs(5, 1).WillReturnResult(pgxmock.NewResult("U", 0))
 	mock.ExpectExec("INSERT INTO product_stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
 	mock.ExpectCommit().WillReturnError(fmt.Errorf("commit failed"))
 
@@ -155,7 +135,6 @@ func TestInventoryRepository_AdjustStock_NoRowsPath_Mock(t *testing.T) {
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(emptyRows)
 	mock.ExpectExec("UPDATE product_stock").WithArgs(pgxmock.AnyArg(), 1).WillReturnResult(pgxmock.NewResult("U", 0))
 	mock.ExpectExec("INSERT INTO product_stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
 	mock.ExpectCommit()
 
@@ -178,7 +157,6 @@ func TestInventoryRepository_AdjustStock_StoreScoped_Success_Mock(t *testing.T) 
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1, 5).WillReturnRows(pgxmock.NewRows([]string{"quantity"}))
 	mock.ExpectExec("UPDATE product_stock").WithArgs(5, 1, 5).WillReturnResult(pgxmock.NewResult("U", 0))
 	mock.ExpectExec("INSERT INTO product_stock").WithArgs(1, 5, 5).WillReturnResult(pgxmock.NewResult("I", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
 	mock.ExpectCommit()
 
@@ -199,7 +177,6 @@ func TestInventoryRepository_AdjustStock_StoreScoped_UpdateExisting_Mock(t *test
 	mock.ExpectQuery("SELECT id, COALESCE").WithArgs([]int{1}).WillReturnRows(metaRows)
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1, 5).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(10))
 	mock.ExpectExec("UPDATE product_stock").WithArgs(15, 1, 5).WillReturnResult(pgxmock.NewResult("U", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
 	mock.ExpectCommit()
 
@@ -248,7 +225,6 @@ func TestInventoryRepository_AdjustStock_Success_Mock(t *testing.T) {
 	existingRows := pgxmock.NewRows([]string{"quantity"}).AddRow(10)
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(existingRows)
 	mock.ExpectExec("UPDATE product_stock").WithArgs(15, 1).WillReturnResult(pgxmock.NewResult("U", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
 	mock.ExpectCommit()
 
@@ -266,7 +242,6 @@ func TestInventoryRepository_AdjustStock_Decrease_Mock(t *testing.T) {
 	existingRows := pgxmock.NewRows([]string{"quantity"}).AddRow(10)
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(existingRows)
 	mock.ExpectExec("UPDATE product_stock").WithArgs(5, 1).WillReturnResult(pgxmock.NewResult("U", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
 	mock.ExpectCommit()
 
@@ -299,7 +274,6 @@ func TestInventoryRepository_AdjustStock_NoRowsExisting_Mock(t *testing.T) {
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(emptyRows)
 	mock.ExpectExec("UPDATE product_stock").WithArgs(5, 1).WillReturnResult(pgxmock.NewResult("U", 0))
 	mock.ExpectExec("INSERT INTO product_stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
 	mock.ExpectCommit()
 
@@ -318,7 +292,6 @@ func TestInventoryRepository_AdjustStock_WithUserID_Mock(t *testing.T) {
 	existingRows := pgxmock.NewRows([]string{"quantity"}).AddRow(50)
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(existingRows)
 	mock.ExpectExec("UPDATE product_stock").WithArgs(40, 1).WillReturnResult(pgxmock.NewResult("U", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
 	mock.ExpectCommit()
 
@@ -408,11 +381,9 @@ func TestInventoryRepository_AdjustStockBatch_Success_Mock(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(10))
 	mock.ExpectExec("UPDATE product_stock").WithArgs(15, 1).WillReturnResult(pgxmock.NewResult("U", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(20))
 	mock.ExpectExec("UPDATE product_stock").WithArgs(30, 2).WillReturnResult(pgxmock.NewResult("U", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
 	mock.ExpectCommit()
 
@@ -442,7 +413,6 @@ func TestInventoryRepository_AdjustStockBatch_InsufficientStock_Mock(t *testing.
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(10))
 	mock.ExpectExec("UPDATE product_stock").WithArgs(15, 1).WillReturnResult(pgxmock.NewResult("U", 1))
-	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
 	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(3))
 

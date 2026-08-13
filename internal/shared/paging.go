@@ -3,7 +3,6 @@ package shared
 import (
 	"math"
 	"strconv"
-	"strings"
 )
 
 const DefaultMaxPageLimit = 100
@@ -27,29 +26,6 @@ func ParseIntParam(s string) (int, error) {
 		return 0, nil
 	}
 	return strconv.Atoi(s)
-}
-
-var allowedSortColumns = map[string]map[string]bool{
-	"products": {"name": true, "sku": true, "price": true, "stock": true, "created_at": true, "updated_at": true},
-	"sales":    {"created_at": true, "total_amount": true, "invoice_number": true},
-	"users":    {"username": true, "email": true, "created_at": true, "updated_at": true},
-}
-
-func SanitizeSortBy(sortBy string, context string) string {
-	if cols, ok := allowedSortColumns[context]; ok {
-		if cols[sortBy] {
-			return sortBy
-		}
-	}
-	return "created_at"
-}
-
-func SanitizeSortDir(sortDir string) string {
-	sortDir = strings.ToUpper(sortDir)
-	if sortDir != "ASC" && sortDir != "DESC" {
-		return "DESC"
-	}
-	return sortDir
 }
 
 type PaginatedResponse struct {

@@ -10,10 +10,9 @@ import (
 )
 
 // newTestRepo builds a Repository over the test database wired with every port
-// the composition root (internal/wiring) wires in production: the products.stock
-// mirror sync (product.StockSyncer), the storage_locations read port
-// (storagelocation.RackProvider) and the products sku/name read port
-// (product.ProductMetaLookup).
+// the composition root (internal/wiring) wires in production: the
+// storage_locations read port (storagelocation.RackProvider) and the products
+// sku/name read port (product.ProductMetaLookup).
 func newTestRepo(t *testing.T) *Repository {
 	t.Helper()
 	repo := NewRepository(dbPool)
@@ -31,7 +30,6 @@ func newMockRepo(mock pgxmock.PgxPoolIface) *Repository {
 }
 
 func wireAllProviders(repo *Repository) {
-	repo.SetStockSyncer(product.StockSyncer{})
 	repo.SetLocationRackProvider(storagelocation.RackProvider{})
 	repo.SetProductMetaProvider(product.ProductMetaLookup{})
 }

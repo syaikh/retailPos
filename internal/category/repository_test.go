@@ -142,14 +142,19 @@ func TestCategoryRepository_CRUD(t *testing.T) {
 			require.NoError(t, repo.CreateCategory(ctx, cat))
 
 			_, err := dbPool.Exec(ctx, `
-				INSERT INTO products (sku, name, price, cost, stock, status, category_id)
-				VALUES ($1, 'Counted Active', 10000, 5000, 10, 'active', $2)
+				INSERT INTO products (sku, name, price, cost, status, category_id)
+				VALUES ($1, 'Counted Active', 10000, 5000, 'active', $2)
 			`, fmt.Sprintf("CNT-ACT-%d", cat.ID), cat.ID)
+			require.NoError(t, err)
+			_, err = dbPool.Exec(ctx, `
+				INSERT INTO product_stock (product_id, quantity)
+				SELECT id, 10 FROM products WHERE sku = $1
+			`, fmt.Sprintf("CNT-ACT-%d", cat.ID))
 			require.NoError(t, err)
 
 			_, err = dbPool.Exec(ctx, `
-				INSERT INTO products (sku, name, price, cost, stock, status, category_id, deleted_at)
-				VALUES ($1, 'Counted Deleted', 10000, 5000, 10, 'inactive', $2, NOW())
+				INSERT INTO products (sku, name, price, cost, status, category_id, deleted_at)
+				VALUES ($1, 'Counted Deleted', 10000, 5000, 'inactive', $2, NOW())
 			`, fmt.Sprintf("CNT-DEL-%d", cat.ID), cat.ID)
 			require.NoError(t, err)
 
@@ -211,10 +216,15 @@ func TestCategoryRepository_CRUD(t *testing.T) {
 		require.NoError(t, repo.CreateCategory(ctx, cat))
 
 		sku := fmt.Sprintf("BLOCK-DEL-%d", cat.ID)
+		var prodID int
+		require.NoError(t, dbPool.QueryRow(ctx, `
+			INSERT INTO products (sku, name, price, cost, status, category_id)
+			VALUES ($1, 'Blocking Product', 10000, 5000, 'active', $2)
+			RETURNING id
+		`, sku, cat.ID).Scan(&prodID))
 		_, err := dbPool.Exec(ctx, `
-			INSERT INTO products (sku, name, price, cost, stock, status, category_id)
-			VALUES ($1, 'Blocking Product', 10000, 5000, 10, 'active', $2)
-		`, sku, cat.ID)
+			INSERT INTO product_stock (product_id, quantity) VALUES ($1, 10)
+		`, prodID)
 		require.NoError(t, err)
 
 		err = repo.DeleteCategory(ctx, cat.ID)

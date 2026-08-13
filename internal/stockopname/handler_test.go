@@ -19,7 +19,6 @@ import (
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/permissions"
-	"retail-pos-system/internal/product"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -45,7 +44,7 @@ func setupStockOpnameRouterWithStore(userID int, role string, storeID *int) *gin
 	go bus.Run()
 
 	svc := NewService(repo, bus)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	auditSvc := audit.NewService(audit.NewRepository(dbPool))
 	h := NewHandler(svc, auditSvc)
 

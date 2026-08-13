@@ -15,21 +15,12 @@ import (
 
 type Repository struct {
 	db           shared.DBPool
-	stockSyncer  StockSyncer
 	locProvider  LocationRackProvider
 	metaProvider ProductMetaProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
-}
-
-// SetStockSyncer wires the products.stock mirror port, implemented by
-// internal/product (see StockSyncer). It MUST be called before
-// AdjustStock/AdjustStockBatch run; an unwired repository fails fast at the
-// sync point.
-func (r *Repository) SetStockSyncer(s StockSyncer) {
-	r.stockSyncer = s
 }
 
 // SetLocationRackProvider wires the storage_locations read port, implemented
@@ -104,8 +95,7 @@ func (r *Repository) GetStockByProductID(ctx context.Context, productID int) (*P
 // AdjustStock applies a signed delta to a product's stock. A non-nil storeID
 // (store-scoped manager/staff) routes the delta to that store's product_stock
 // row after validating the product belongs to the store; nil storeID
-// (superadmin/admin) keeps the global bucket. The products.stock mirror is
-// synced to the adjusted bucket's new value.
+// (superadmin/admin) keeps the global bucket.
 func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityChange int, storeID *int, userID *int, notes string) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -192,7 +182,7 @@ func (r *Repository) AdjustStockBatch(ctx context.Context, adjustments []StockAd
 // AdjustStock and AdjustStockBatch. A non-nil storeID targets the per-store row
 // (product_id, store_id, warehouse_id IS NULL, location_id IS NULL); a nil
 // storeID targets the global bucket. The product_stock row is created on first
-// use and the products.stock mirror is synced to the adjusted bucket's value.
+// use.
 func (r *Repository) adjustStockInTx(ctx context.Context, tx pgx.Tx, productID int, quantityChange int, storeID *int, userID *int, notes string) error {
 	if quantityChange == 0 {
 		return fmt.Errorf("quantity change must not be zero")
@@ -261,12 +251,6 @@ func (r *Repository) adjustStockInTx(ctx context.Context, tx pgx.Tx, productID i
 				return fmt.Errorf("failed to insert stock: %w", err)
 			}
 		}
-	}
-	if r.stockSyncer == nil {
-		return errors.New("inventory repository: product stock syncer not wired; call SetStockSyncer")
-	}
-	if err := r.stockSyncer.SyncStock(ctx, tx, productID, newStock); err != nil {
-		return err
 	}
 
 	_, err = tx.Exec(ctx, `

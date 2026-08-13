@@ -181,7 +181,7 @@ func TestProductRepository_ActiveProductOptions(t *testing.T) {
 	t.Run("only returns active, non-deleted products", func(t *testing.T) {
 		sku := uniqueSKU("OPTIONS")
 		_, err := dbPool.Exec(ctx,
-			`INSERT INTO products (sku, name, price, cost, stock, status) VALUES ($1, 'Options Test', 10000, 5000, 10, 'active')`,
+			`INSERT INTO products (sku, name, price, cost, status) VALUES ($1, 'Options Test', 10000, 5000, 'active')`,
 			sku,
 		)
 		require.NoError(t, err)
@@ -189,7 +189,7 @@ func TestProductRepository_ActiveProductOptions(t *testing.T) {
 		// A soft-deleted product with the same name must be excluded
 		softSKU := uniqueSKU("OPTIONS-DEL")
 		_, err = dbPool.Exec(ctx,
-			`INSERT INTO products (sku, name, price, cost, stock, status, deleted_at) VALUES ($1, 'Options Test Deleted', 10000, 5000, 10, 'active', NOW())`,
+			`INSERT INTO products (sku, name, price, cost, status, deleted_at) VALUES ($1, 'Options Test Deleted', 10000, 5000, 'active', NOW())`,
 			softSKU,
 		)
 		require.NoError(t, err)
@@ -213,31 +213,6 @@ func TestProductRepository_ActiveProductOptions(t *testing.T) {
 func TestProductRepository_DeletedProductRestore(t *testing.T) {
 	repo := testRepo()
 	ctx := context.Background()
-
-	t.Run("Get deleted by barcode", func(t *testing.T) {
-		// First create a product with a unique barcode
-		barcode := "DEL-BARCODE-001"
-		p := &Product{
-			SKU:     uniqueSKU("TEST-RESTORE-SKU"),
-			Name:    "Restore Test",
-			Price:   10000,
-			Cost:    5000,
-			Stock:   10,
-			Status:  "active",
-			Barcode: &barcode,
-		}
-		err := repo.CreateProduct(ctx, p)
-		require.NoError(t, err)
-
-		// Soft delete it
-		err = repo.DeleteProduct(ctx, p.ID, nil)
-		require.NoError(t, err)
-
-		// Look up by barcode (should be in deleted state)
-		got, err := repo.GetDeletedProductByBarcode(ctx, barcode, nil)
-		require.NoError(t, err)
-		assert.Equal(t, p.Name, got.Name)
-	})
 
 	t.Run("Restore product", func(t *testing.T) {
 		p := &Product{

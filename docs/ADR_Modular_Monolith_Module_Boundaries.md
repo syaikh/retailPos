@@ -22,7 +22,7 @@ Aplikasi saat ini adalah *layered monolith* dengan satu database PostgreSQL bers
 
 Audit kode menemukan kebocoran boundary yang signifikan:
 
-- `product_stock`/`products.stock` ditulis langsung oleh **lima titik** pada empat modul: `internal/product/bulk.go`, `internal/product/repository.go`, `internal/inventory/repository.go`, `internal/sale/service.go`, `internal/stockopname/repository.go`.
+- `product_stock` ditulis langsung oleh **beberapa titik** pada beberapa modul: `internal/product/bulk.go`, `internal/product/repository.go`, `internal/inventory/repository.go`, `internal/sale/service.go`, `internal/stockopname/repository.go`. (Kolom legacy `products.stock` sudah dihapus di migrasi `029_drop_products_stock.sql` — D6A dari security remediation plan; `v_products_full` membaca `stock` dari `product_stock.quantity`.)
 - `internal/report` dan `internal/shift` membaca `sales`/`sale_items`/`sale_payments` langsung.
 - `internal/inventory/purchase_receipt_listener.go` dan `pkg/websocket/listener.go` mengimpor package domain modul lain demi type-assert payload event (mis. `*sale.Sale`, `purchase.PurchaseReceiptPayload`).
 - Tidak ada penegakan arsitektur: `.golangci.yaml` tidak memiliki `depguard`, dan tidak ada test batas modul.

@@ -62,53 +62,6 @@ func TestParseIntParam(t *testing.T) {
 	}
 }
 
-func TestSanitizeSortBy(t *testing.T) {
-	tests := []struct {
-		name     string
-		sortBy   string
-		context  string
-		expected string
-	}{
-		{"valid products name", "name", "products", "name"},
-		{"valid products price", "price", "products", "price"},
-		{"valid sales created_at", "created_at", "sales", "created_at"},
-		{"valid users created_at", "created_at", "users", "created_at"},
-		{"invalid column defaults", "bogus", "products", "created_at"},
-		{"unknown context defaults", "name", "unknown_context", "created_at"},
-		{"sql injection defaults", "name; DROP TABLE", "products", "created_at"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := SanitizeSortBy(tt.sortBy, tt.context)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestSanitizeSortDir(t *testing.T) {
-	tests := []struct {
-		name     string
-		sortDir  string
-		expected string
-	}{
-		{"uppercase ASC", "ASC", "ASC"},
-		{"uppercase DESC", "DESC", "DESC"},
-		{"lowercase asc", "asc", "ASC"},
-		{"lowercase desc", "desc", "DESC"},
-		{"empty defaults", "", "DESC"},
-		{"bogus defaults", "bogus", "DESC"},
-		{"injection defaults", "ASC; DROP TABLE", "DESC"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := SanitizeSortDir(tt.sortDir)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestNewPaginatedResponse(t *testing.T) {
 	data := "test"
 

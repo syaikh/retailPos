@@ -18,10 +18,9 @@ type StockDeductItem struct {
 }
 
 // StockSetItem is the minimal input for setting a product's global stock to an
-// absolute value (upserting the global product_stock row and syncing the
-// products.stock column). It is the cross-module contract between
-// internal/stockopname (consumer) and internal/inventory (single-writer of
-// product_stock).
+// absolute value (upserting the global product_stock row). It is the
+// cross-module contract between internal/stockopname (consumer) and
+// internal/inventory (single-writer of product_stock).
 type StockSetItem struct {
 	ProductID int
 	Quantity  int

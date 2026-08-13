@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/inventory"
-	"retail-pos-system/internal/product"
 )
 
 // insertTestStockLocation inserts (or updates) a rack-scoped product_stock row.
@@ -64,7 +63,7 @@ func TestRepository_GetLocationScope_Errors(t *testing.T) {
 func TestService_LocationScope_InactiveLocationWithProduct(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9813, "so_loc_bad_9813", 3)
@@ -98,7 +97,7 @@ func TestService_LocationScope_UnknownLocation(t *testing.T) {
 	// as ErrLocationNotFound (404) regardless of rack contents.
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9819, "so_loc_missing_9819", 3)
@@ -114,7 +113,7 @@ func TestService_CreateSession_LocationFailureDoesNotBurnSequence(t *testing.T) 
 	// location) must not advance so_seq, so session numbers stay contiguous.
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9818, "so_loc_seq_9818", 3)
@@ -149,7 +148,7 @@ func TestService_CreateSession_LocationFailureDoesNotBurnSequence(t *testing.T) 
 func TestService_LocationScope_RequiresSoleScope(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9801, "so_loc_manager_9801", 3)
@@ -254,7 +253,7 @@ func TestRepository_CreateSession_PersistsLocationID(t *testing.T) {
 func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	repo := newTestRepository()
 	svc := NewService(repo, nil)
-	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
+	svc.SetStockApplier(inventory.StockApplier{})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 
@@ -272,8 +271,6 @@ func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	p := insertTestProduct(ctx, t, "SO-LOC-FLOW-001")
 	insertTestStock(ctx, t, p, 10)
 	insertTestStockLocation(ctx, t, p, 9804, locID, 10)
-	_, err = dbPool.Exec(ctx, `UPDATE products SET stock = 10 WHERE id = $1`, p)
-	require.NoError(t, err)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "location", ScopeID: int64(locID)}, managerID, nil)
 	require.NoError(t, err)
@@ -294,7 +291,6 @@ func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	// verified but not yet posted: rack and global unchanged
 	assertStockQty(ctx, t, p, locID, 10)
 	assertGlobalQty(ctx, t, p, 10)
-	assertProductsStock(ctx, t, p, 10)
 
 	adj, err := svc.PostAdjustment(ctx, session.ID, managerID, &PostAdjustmentRequest{Comment: "ok", Notes: "location reconcile"}, nil)
 	require.NoError(t, err)
@@ -305,11 +301,10 @@ func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, StatusPosted, status)
 
-	// both rack row and global row advanced by +3; products.stock synced
+	// both rack row and global row advanced by +3
 	// (Option A: global recomputed as max(global-rack, 0) + newRack)
 	assertStockQty(ctx, t, p, locID, 13)
 	assertGlobalQty(ctx, t, p, 13)
-	assertProductsStock(ctx, t, p, 13)
 
 	// ledger document written (one line item per product; the rack delta is
 	// applied to the rack row and the global row is reconciled to it)
@@ -349,14 +344,6 @@ func assertGlobalQty(ctx context.Context, t *testing.T, productID, want int) {
 	err := dbPool.QueryRow(ctx,
 		`SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL AND location_id IS NULL`,
 		productID).Scan(&qty)
-	require.NoError(t, err)
-	assert.Equal(t, want, qty)
-}
-
-func assertProductsStock(ctx context.Context, t *testing.T, productID, want int) {
-	t.Helper()
-	var qty int
-	err := dbPool.QueryRow(ctx, `SELECT stock FROM products WHERE id = $1`, productID).Scan(&qty)
 	require.NoError(t, err)
 	assert.Equal(t, want, qty)
 }
