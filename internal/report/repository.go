@@ -66,11 +66,17 @@ func (r *Repository) InvalidateDashboardCache(storeID *int) {
 
 // RefreshSalesMV executes a single full refresh of the reporting materialized
 // views. Used by the RefreshCoordinator worker and by the startup/seed paths;
-// SaleCreated event listeners never call it directly.
+// SaleCreated event listeners never call it directly. After a successful
+// refresh it invalidates the dashboard/report caches so the freshly rebuilt
+// totals (including mv_dashboard_totals) are not masked by stale entries.
 func (r *Repository) RefreshSalesMV(ctx context.Context) error {
 	_, err := r.db.Exec(ctx, "SELECT refresh_sales_mv()")
 	if err != nil {
 		return fmt.Errorf("refresh sales mv: %w", err)
+	}
+	if r.cache != nil {
+		r.cache.FlushByPrefix("dashboard:")
+		r.cache.FlushByPrefix("report:")
 	}
 	return nil
 }

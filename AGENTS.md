@@ -135,6 +135,7 @@ Key migrations with deployment ordering constraints:
 - `023_sprint0_finalize_permissions.sql` — revokes `staff.product.update` and `staff.inventory.adjust` (final RBAC); must be applied **last** (PALING AKHIR), after all frontend Fase 1-5 changes, otherwise permission checks fail for non-superadmin users
 - `024_add_product_history_cost_permissions.sql` — adds `product.history.view` (Superadmin/Admin) and `product.cost.view` (Superadmin/Admin/Manager); must be applied before the binary that omits `cost` from `GET /products` / `GET /products/:id` for non-holders, otherwise nobody holds `product.cost.view` and cost is hidden for everyone (degraded, non-breaking)
 - `025_add_supplier_to_products_full_view.sql` — recreates `v_products_full` to add `supplier_id`/`supplier_name` (preferred supplier) columns; must be applied before the binary whose `productSelectCols` reads those columns from the view (otherwise `GET /products` and `GET /products/:id` fail with a missing `supplier_id` column)
+- `028_mv_dashboard_totals.sql` — creates `mv_dashboard_totals` (per-store all-time totals) and extends `refresh_sales_mv()` to refresh it; must be applied before the binary whose `GetAllCompletedSalesStats` reads the view instead of `sales` (otherwise the dashboard all-time total card fails with a missing `mv_dashboard_totals` relation)
 
 ## Filesystem Convention
 
