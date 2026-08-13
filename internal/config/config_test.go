@@ -112,23 +112,6 @@ func TestLoad_ExplicitLogLevel(t *testing.T) {
 	assert.Equal(t, "warn", cfg.LogLevel)
 }
 
-func TestLoad_ExplicitStockMinimum(t *testing.T) {
-	resetConfigForTest()
-	_ = os.Setenv("ENV", "development")
-	_ = os.Setenv("JWT_SECRET", "test-secret")
-	_ = os.Setenv("STOCK_MINIMUM", "3")
-	defer func() {
-		_ = os.Unsetenv("ENV")
-		_ = os.Unsetenv("JWT_SECRET")
-		_ = os.Unsetenv("STOCK_MINIMUM")
-	}()
-
-	cfg := Load()
-	assert.Equal(t, 3, cfg.StockMinimum)
-	assert.Equal(t, 10, cfg.StockWarningThreshold)
-	assert.Equal(t, 5, cfg.StockCriticalThreshold)
-}
-
 func TestLoad_ExplicitJWTSecretRefresh(t *testing.T) {
 	resetConfigForTest()
 	_ = os.Setenv("ENV", "development")

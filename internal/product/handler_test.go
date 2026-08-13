@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/permissions"
 )
@@ -389,8 +390,9 @@ func TestHandler_PublicRoutes(t *testing.T) {
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		assert.Equal(t, 10, resp.Warning)
-		assert.Equal(t, 5, resp.Critical)
+		cfg := config.Load()
+		assert.Equal(t, cfg.StockWarningThreshold, resp.Warning)
+		assert.Equal(t, cfg.StockCriticalThreshold, resp.Critical)
 	})
 }
 

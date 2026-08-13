@@ -663,7 +663,6 @@ func TestAuthService_NewAuthService_WithConfig(t *testing.T) {
 		JWTSecretRefresh:       "direct-refresh-secret",
 		StockWarningThreshold:  10,
 		StockCriticalThreshold: 5,
-		StockMinimum:           10,
 		LogLevel:               "debug",
 		Timezone:               time.UTC,
 	}

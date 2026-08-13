@@ -535,7 +535,6 @@ Backend menyimpan data dalam UTC, namun **semua query menggunakan timezone Asia/
 | `REFRESH_RATE_LIMIT_BURST` | `10` | Burst refresh |
 | `STOCK_WARNING_THRESHOLD` | `10` | Stok di bawah ini = "perlu perhatian" |
 | `STOCK_CRITICAL_THRESHOLD` | `5` | Stok di bawah ini = "low stock" |
-| `STOCK_MINIMUM` | `10` | Stok default produk baru |
 | `CART_HOLD_TTL_HOURS` | `24` | Berapa jam sesi keranjang ditahan sebelum dianggap kedaluwarsa |
 | `REPORT_REFRESH_DEBOUNCE` | `30` | Detik debounce refresh materialized views setelah `sale.created` |
 

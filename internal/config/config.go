@@ -17,7 +17,6 @@ type Config struct {
 	JWTSecretRefresh       string
 	StockWarningThreshold  int
 	StockCriticalThreshold int
-	StockMinimum           int
 	CartHoldTTLHours       int
 	// ReportRefreshDebounce is the base retry delay between consecutive
 	// refresh failures in seconds (REPORT_REFRESH_DEBOUNCE, default 30). It no
@@ -89,7 +88,6 @@ func Load() *Config {
 
 		warningThreshold := getEnvInt("STOCK_WARNING_THRESHOLD", 10)
 		criticalThreshold := getEnvInt("STOCK_CRITICAL_THRESHOLD", 5)
-		stockMinimum := getEnvInt("STOCK_MINIMUM", 10)
 		cartHoldTTLHours := getEnvInt("CART_HOLD_TTL_HOURS", 24)
 		reportRefreshDebounce := getEnvInt("REPORT_REFRESH_DEBOUNCE", 30)
 
@@ -109,7 +107,6 @@ func Load() *Config {
 			JWTSecretRefresh:       jwtSecretRefresh,
 			StockWarningThreshold:  warningThreshold,
 			StockCriticalThreshold: criticalThreshold,
-			StockMinimum:           stockMinimum,
 			CartHoldTTLHours:       cartHoldTTLHours,
 			ReportRefreshDebounce:  reportRefreshDebounce,
 			LogLevel:               logLevel,

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
@@ -413,7 +414,8 @@ func (h *Handler) ListTaxClasses(c *gin.Context) {
 }
 
 func (h *Handler) GetStockThresholds(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"warning": 10, "critical": 5})
+	cfg := config.Load()
+	c.JSON(http.StatusOK, gin.H{"warning": cfg.StockWarningThreshold, "critical": cfg.StockCriticalThreshold})
 }
 
 // ListProductOptions godoc
