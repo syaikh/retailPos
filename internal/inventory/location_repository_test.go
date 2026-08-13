@@ -318,6 +318,66 @@ func TestLocationStock_ListEmpty(t *testing.T) {
 	assert.Empty(t, items)
 }
 
+func TestLocationStock_StoreScopedRackIsolation(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	repo := newTestRepo(t)
+
+	productID := insertTestProduct(ctx, t, "LOC-STOR-001")
+	insertTestStock(ctx, t, productID, 100)
+	insertTestUser(ctx, t, 1)
+	storeA := createTestStore(ctx, t, "LOC-STOR-A")
+	storeB := createTestStore(ctx, t, "LOC-STOR-B")
+	whID := createTestWarehouse(ctx, t, "LOC-STOR-WH")
+	rackA := createTestLocation(ctx, t, "LOC-STOR-RA", "Rack Store A", &whID, &storeA, true)
+	rackB := createTestLocation(ctx, t, "LOC-STOR-RB", "Rack Store B", &whID, &storeB, true)
+
+	t.Run("store-scoped set lands in own rack", func(t *testing.T) {
+		require.NoError(t, repo.SetLocationStock(ctx, productID, rackA, 10, 1, &storeA))
+		qty, ok := rackStock(ctx, t, productID, rackA)
+		require.True(t, ok)
+		assert.Equal(t, 10, qty)
+	})
+
+	t.Run("cross-store set rejected", func(t *testing.T) {
+		err := repo.SetLocationStock(ctx, productID, rackB, 5, 1, &storeA)
+		assert.ErrorIs(t, err, ErrStoreForbidden)
+		_, ok := rackStock(ctx, t, productID, rackB)
+		assert.False(t, ok)
+	})
+
+	t.Run("same-store rack write allowed", func(t *testing.T) {
+		require.NoError(t, repo.SetLocationStock(ctx, productID, rackB, 7, 1, &storeB))
+		qty, ok := rackStock(ctx, t, productID, rackB)
+		require.True(t, ok)
+		assert.Equal(t, 7, qty)
+	})
+
+	t.Run("cross-store transfer rejected", func(t *testing.T) {
+		require.NoError(t, repo.SetLocationStock(ctx, productID, rackA, 20, 1, &storeA))
+		err := repo.TransferLocationStock(ctx, productID, rackA, rackB, 3, 1, &storeA)
+		assert.ErrorIs(t, err, ErrStoreForbidden)
+	})
+
+	t.Run("list filtered by store", func(t *testing.T) {
+		itemsA, err := repo.ListLocationStock(ctx, 0, 0, &storeA)
+		require.NoError(t, err)
+		require.Len(t, itemsA, 1)
+		assert.Equal(t, rackA, itemsA[0].LocationID)
+
+		itemsB, err := repo.ListLocationStock(ctx, 0, 0, &storeB)
+		require.NoError(t, err)
+		require.Len(t, itemsB, 1)
+		assert.Equal(t, rackB, itemsB[0].LocationID)
+	})
+
+	t.Run("superadmin (nil store) sees all racks", func(t *testing.T) {
+		items, err := repo.ListLocationStock(ctx, 0, 0, nil)
+		require.NoError(t, err)
+		assert.Len(t, items, 2)
+	})
+}
+
 func TestLocationStock_StoreOnlyRack(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()

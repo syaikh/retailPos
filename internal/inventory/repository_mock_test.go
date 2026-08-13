@@ -164,6 +164,81 @@ func TestInventoryRepository_AdjustStock_NoRowsPath_Mock(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestInventoryRepository_AdjustStock_StoreScoped_Success_Mock(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	storeID := 5
+	metaStoreID := storeID
+	metaRows := pgxmock.NewRows([]string{"id", "sku", "name", "store_id"}).AddRow(1, "SKU-1", "Product 1", &metaStoreID)
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT id, COALESCE").WithArgs([]int{1}).WillReturnRows(metaRows)
+	// no existing store bucket row -> insert path
+	mock.ExpectQuery("SELECT COALESCE").WithArgs(1, 5).WillReturnRows(pgxmock.NewRows([]string{"quantity"}))
+	mock.ExpectExec("UPDATE product_stock").WithArgs(5, 1, 5).WillReturnResult(pgxmock.NewResult("U", 0))
+	mock.ExpectExec("INSERT INTO product_stock").WithArgs(1, 5, 5).WillReturnResult(pgxmock.NewResult("I", 1))
+	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
+	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
+	mock.ExpectCommit()
+
+	repo := newMockRepo(mock)
+	err = repo.AdjustStock(context.Background(), 1, 5, &storeID, nil, "store test")
+	assert.NoError(t, err)
+}
+
+func TestInventoryRepository_AdjustStock_StoreScoped_UpdateExisting_Mock(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	storeID := 5
+	metaStoreID := storeID
+	metaRows := pgxmock.NewRows([]string{"id", "sku", "name", "store_id"}).AddRow(1, "SKU-1", "Product 1", &metaStoreID)
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT id, COALESCE").WithArgs([]int{1}).WillReturnRows(metaRows)
+	mock.ExpectQuery("SELECT COALESCE").WithArgs(1, 5).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(10))
+	mock.ExpectExec("UPDATE product_stock").WithArgs(15, 1, 5).WillReturnResult(pgxmock.NewResult("U", 1))
+	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
+	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
+	mock.ExpectCommit()
+
+	repo := newMockRepo(mock)
+	err = repo.AdjustStock(context.Background(), 1, 5, &storeID, nil, "store test")
+	assert.NoError(t, err)
+}
+
+func TestInventoryRepository_AdjustStock_StoreForbidden_Mock(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	// product belongs to store 9, caller is store 5 -> must be rejected
+	storeID := 5
+	metaStoreID := 9
+	metaRows := pgxmock.NewRows([]string{"id", "sku", "name", "store_id"}).AddRow(1, "SKU-1", "Product 1", &metaStoreID)
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT id, COALESCE").WithArgs([]int{1}).WillReturnRows(metaRows)
+
+	repo := newMockRepo(mock)
+	err = repo.AdjustStock(context.Background(), 1, 5, &storeID, nil, "store test")
+	assert.ErrorIs(t, err, ErrStoreForbidden)
+}
+
+func TestInventoryRepository_AdjustStock_ProductNotFound_Mock(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	storeID := 5
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT id, COALESCE").WithArgs([]int{1}).WillReturnRows(pgxmock.NewRows([]string{"id", "sku", "name", "store_id"}))
+
+	repo := newMockRepo(mock)
+	err = repo.AdjustStock(context.Background(), 1, 5, &storeID, nil, "store test")
+	assert.ErrorContains(t, err, "product not found")
+}
+
 func TestInventoryRepository_AdjustStock_Success_Mock(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)

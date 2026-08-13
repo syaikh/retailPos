@@ -173,3 +173,96 @@ func TestInventoryRepository_AdjustStock(t *testing.T) {
 		assert.Equal(t, 90, stock.Quantity)
 	})
 }
+
+func insertStoreProduct(ctx context.Context, t *testing.T, sku string, storeID int) int {
+	t.Helper()
+	var id int
+	err := dbPool.QueryRow(ctx,
+		`INSERT INTO products (sku, name, price, store_id) VALUES ($1, $2, $3, $4) RETURNING id`,
+		sku, "Test Store Product "+sku, 10000, storeID).Scan(&id)
+	require.NoError(t, err)
+	require.Greater(t, id, 0)
+	return id
+}
+
+func TestInventoryRepository_AdjustStock_StoreScoped(t *testing.T) {
+	repo := newTestRepo(t)
+	ctx := context.Background()
+
+	storeA := createTestStore(ctx, t, "REPO-STORE-A")
+	storeB := createTestStore(ctx, t, "REPO-STORE-B")
+
+	t.Run("routes delta to store bucket and mirrors products.stock", func(t *testing.T) {
+		productID := insertStoreProduct(ctx, t, "REPO-ADJ-STORE-001", storeA)
+
+		err := repo.AdjustStock(ctx, productID, 10, &storeA, nil, "store restock")
+		require.NoError(t, err)
+
+		var qty int
+		require.NoError(t, dbPool.QueryRow(ctx, `
+			SELECT quantity FROM product_stock
+			WHERE product_id = $1 AND store_id = $2 AND warehouse_id IS NULL AND location_id IS NULL
+		`, productID, storeA).Scan(&qty))
+		assert.Equal(t, 10, qty)
+
+		var globalCount int
+		require.NoError(t, dbPool.QueryRow(ctx, `
+			SELECT COUNT(*) FROM product_stock
+			WHERE product_id = $1 AND store_id IS NULL AND warehouse_id IS NULL AND location_id IS NULL
+		`, productID).Scan(&globalCount))
+		assert.Equal(t, 0, globalCount)
+
+		var mirrored int
+		require.NoError(t, dbPool.QueryRow(ctx, `SELECT stock FROM products WHERE id = $1`, productID).Scan(&mirrored))
+		assert.Equal(t, 10, mirrored)
+	})
+
+	t.Run("cross-store adjust rejected for store-scoped caller", func(t *testing.T) {
+		productA := insertStoreProduct(ctx, t, "REPO-ADJ-XSTORE-001", storeA)
+
+		err := repo.AdjustStock(ctx, productA, 5, &storeB, nil, "cross store")
+		assert.ErrorIs(t, err, ErrStoreForbidden)
+
+		var count int
+		require.NoError(t, dbPool.QueryRow(ctx, `
+			SELECT COUNT(*) FROM product_stock
+			WHERE product_id = $1 AND store_id = $2
+		`, productA, storeB).Scan(&count))
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("store buckets are independent", func(t *testing.T) {
+		productA := insertStoreProduct(ctx, t, "REPO-ADJ-INDEP-A", storeA)
+		productB := insertStoreProduct(ctx, t, "REPO-ADJ-INDEP-B", storeB)
+
+		require.NoError(t, repo.AdjustStock(ctx, productA, 7, &storeA, nil, "store a"))
+		require.NoError(t, repo.AdjustStock(ctx, productB, 3, &storeB, nil, "store b"))
+
+		var qtyA, qtyB int
+		require.NoError(t, dbPool.QueryRow(ctx, `
+			SELECT quantity FROM product_stock
+			WHERE product_id = $1 AND store_id = $2
+		`, productA, storeA).Scan(&qtyA))
+		require.NoError(t, dbPool.QueryRow(ctx, `
+			SELECT quantity FROM product_stock
+			WHERE product_id = $1 AND store_id = $2
+		`, productB, storeB).Scan(&qtyB))
+		assert.Equal(t, 7, qtyA)
+		assert.Equal(t, 3, qtyB)
+	})
+
+	t.Run("cross-store decrease rejected without mutating source", func(t *testing.T) {
+		productA := insertStoreProduct(ctx, t, "REPO-ADJ-XDEC-001", storeA)
+		require.NoError(t, repo.AdjustStock(ctx, productA, 10, &storeA, nil, "seed"))
+
+		err := repo.AdjustStock(ctx, productA, -3, &storeB, nil, "cross store decrease")
+		assert.ErrorIs(t, err, ErrStoreForbidden)
+
+		var qty int
+		require.NoError(t, dbPool.QueryRow(ctx, `
+			SELECT quantity FROM product_stock
+			WHERE product_id = $1 AND store_id = $2
+		`, productA, storeA).Scan(&qty))
+		assert.Equal(t, 10, qty)
+	})
+}

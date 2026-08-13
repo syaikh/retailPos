@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockService struct {
@@ -71,6 +72,23 @@ func setupMockInventoryRouter(svc Service) *gin.Engine {
 		c.Set("userID", 1)
 		c.Set("username", "admin")
 		c.Set("role", "admin")
+		c.Next()
+	})
+	h := NewHandler(svc, nil)
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	return r
+}
+
+func setupMockInventoryStoreRouter(svc Service, storeID *int) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "staff")
+		c.Set("role", "staff")
+		c.Set("storeID", storeID)
 		c.Next()
 	})
 	h := NewHandler(svc, nil)
@@ -162,6 +180,42 @@ func TestMockHandler_AdjustStock(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("store-scoped forwards claims store", func(t *testing.T) {
+		sid := 7
+		svc := &mockService{
+			adjustStockFn: func(ctx context.Context, productID int, quantityChange int, storeID *int, userID int, notes string) error {
+				require.NotNil(t, storeID)
+				assert.Equal(t, 7, *storeID)
+				assert.Equal(t, 1, userID)
+				return nil
+			},
+		}
+		r := setupMockInventoryStoreRouter(svc, &sid)
+		body := `{"product_id":42,"quantity_change":10,"notes":"store restock"}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/inventory/adjust", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("store forbidden maps to 403", func(t *testing.T) {
+		sid := 7
+		svc := &mockService{
+			adjustStockFn: func(ctx context.Context, productID int, quantityChange int, storeID *int, userID int, notes string) error {
+				return ErrStoreForbidden
+			},
+		}
+		r := setupMockInventoryStoreRouter(svc, &sid)
+		body := `{"product_id":999,"quantity_change":5,"notes":"cross store"}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/inventory/adjust", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.Contains(t, w.Body.String(), "not in your store")
 	})
 }
 
@@ -325,6 +379,41 @@ func TestMockHandler_SetLocationStock(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("store-scoped forwards claims store", func(t *testing.T) {
+		sid := 7
+		svc := &mockService{
+			setLocationStockFn: func(ctx context.Context, productID, locationID, quantity, userID int, storeID *int) error {
+				require.NotNil(t, storeID)
+				assert.Equal(t, 7, *storeID)
+				return nil
+			},
+		}
+		r := setupMockInventoryStoreRouter(svc, &sid)
+		body := `{"product_id":42,"location_id":5,"quantity":12}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/inventory/locations", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("store forbidden maps to 403", func(t *testing.T) {
+		sid := 7
+		svc := &mockService{
+			setLocationStockFn: func(ctx context.Context, productID, locationID, quantity, userID int, storeID *int) error {
+				return ErrStoreForbidden
+			},
+		}
+		r := setupMockInventoryStoreRouter(svc, &sid)
+		body := `{"product_id":42,"location_id":5,"quantity":1}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/inventory/locations", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.Contains(t, w.Body.String(), "not in your store")
 	})
 }
 
