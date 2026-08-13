@@ -106,18 +106,6 @@ func main() {
 	go deps.Hub.Run()
 	defer deps.Hub.Shutdown()
 
-	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
-		defer ticker.Stop()
-		for range ticker.C {
-			if _, err := dbPool.Exec(context.Background(), "SELECT refresh_sales_mv()"); err != nil {
-				slog.Error("failed to refresh materialized views", "error", err)
-			} else {
-				slog.Debug("materialized views refreshed")
-			}
-		}
-	}()
-
 	router := gin.New()
 	router.Use(middleware.RequestLoggingMiddleware())
 	router.Use(gin.Recovery())

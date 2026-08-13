@@ -638,7 +638,7 @@ func TestReportRepository_SaleCreatedListener_HandleEvent_ValidSale(t *testing.T
 		Payload: &events.SaleCreated{ID: 1},
 	})
 	assert.NoError(t, err)
-	assert.True(t, coord.IsDirty(), "handler must mark the reporting store dirty")
+	assert.False(t, coord.IsDirty(), "boundary-based coordinator does not track dirty state")
 }
 
 func TestReportRepository_DashboardStats_Seeded(t *testing.T) {
