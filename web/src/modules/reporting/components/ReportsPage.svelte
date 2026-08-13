@@ -54,7 +54,7 @@
   let pricingBreakdown = $state([]);
   let loadingPricing = $state(false);
 
-  let currentTimeHour = $state(`${String(getCurrentJakartaHour()).padStart(2, '0')}:00`);
+  let currentTimeHour = $state(`${String((getCurrentJakartaHour() - 1 + 24) % 24).padStart(2, '0')}:00`);
   let currentJakartaHour = $derived(parseInt(currentTimeHour.split(':')[0]));
 
   let chartType = $derived(
@@ -383,7 +383,7 @@
   $effect(() => {
     if (selectedPeriodType !== 'realtime') return;
     function updateTime() {
-      currentTimeHour = `${String(getCurrentJakartaHour()).padStart(2, '0')}:00`;
+      currentTimeHour = `${String((getCurrentJakartaHour() - 1 + 24) % 24).padStart(2, '0')}:00`;
     }
     updateTime();
     const interval = setInterval(updateTime, 60000);
