@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -40,7 +41,21 @@ type PreviewState struct {
 	Created  time.Time
 }
 
-const previewTTL = 30 * time.Minute
+const (
+	previewTTL = 30 * time.Minute
+
+	// maxConcurrentPreviews bounds how many preview states are held in memory
+	// at once. Each state keeps the full parsed row set of an uploaded file
+	// (bounded at 32MB by the HTTP handler), so an unbounded map would let a
+	// client spray tokens and exhaust memory. When full, new previews are
+	// rejected with ErrPreviewLimitReached (surfaced as HTTP 429).
+	maxConcurrentPreviews = 100
+)
+
+// ErrPreviewLimitReached is returned when the preview store is full and no new
+// preview states can be held. Clients should retry once the TTL sweep evicts
+// expired states.
+var ErrPreviewLimitReached = errors.New("preview limit reached, try again later")
 
 type Engine struct {
 	schemaReg    *schema.Registry
@@ -119,23 +134,29 @@ func (e *Engine) Preview(ctx context.Context, module string, filename string, fi
 	preview := GeneratePreview(s, rows, errs)
 
 	token := fmt.Sprintf("pv_%s_%x", module, randomHex(16))
-	e.StorePreview(token, &PreviewState{
+	if err := e.StorePreview(token, &PreviewState{
 		Module:   module,
 		Schema:   s,
 		Rows:     rows,
 		Result:   preview,
 		FileName: filename,
 		Created:  time.Now(),
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	preview.Token = token
 	return preview, nil
 }
 
-func (e *Engine) StorePreview(token string, state *PreviewState) {
+func (e *Engine) StorePreview(token string, state *PreviewState) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if len(e.previews) >= maxConcurrentPreviews {
+		return ErrPreviewLimitReached
+	}
 	e.previews[token] = state
+	return nil
 }
 
 func (e *Engine) GetPreview(token string) *PreviewState {

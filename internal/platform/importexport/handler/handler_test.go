@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -212,6 +213,39 @@ func TestHandler_Preview_NoFile(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_Preview_LimitReached(t *testing.T) {
+	h, r, _ := setupTestHandler()
+
+	// Fill the preview store to its cap so the next preview must be rejected.
+	for i := 0; ; i++ {
+		err := h.importEng.StorePreview(fmt.Sprintf("full-%d", i), &importer.PreviewState{
+			Module:  "categories",
+			Created: time.Now(),
+		})
+		if errors.Is(err, importer.ErrPreviewLimitReached) {
+			break
+		}
+		require.NoError(t, err)
+	}
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	part, _ := writer.CreateFormFile("file", "test.csv")
+	_, _ = part.Write([]byte("Code,Name\nA1,Widget\n"))
+	_ = writer.Close()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/import-export/preview/categories", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
+
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Contains(t, resp["error"], "preview limit reached")
 }
 
 func TestHandler_Confirm(t *testing.T) {

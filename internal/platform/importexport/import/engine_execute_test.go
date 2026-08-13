@@ -513,7 +513,9 @@ func TestExecuteImport_ExecuteHappyPath(t *testing.T) {
 		UserID:   1,
 		Created:  time.Now(),
 	}
-	e.StorePreview("pv_test_ok", state)
+	if err := e.StorePreview("pv_test_ok", state); err != nil {
+		t.Fatalf("store preview: %v", err)
+	}
 
 	result, err := e.Execute(context.Background(), "pv_test_ok")
 	if err != nil {
@@ -541,7 +543,9 @@ func TestExecuteImport_ExecuteNoAdapter(t *testing.T) {
 		Result:  &importexport.PreviewResult{TotalRows: 0},
 		Created: time.Now(),
 	}
-	e.StorePreview("pv_no_adapter", state)
+	if err := e.StorePreview("pv_no_adapter", state); err != nil {
+		t.Fatalf("store preview: %v", err)
+	}
 
 	_, err := e.Execute(context.Background(), "pv_no_adapter")
 	if err == nil {

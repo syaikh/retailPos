@@ -2,6 +2,8 @@ package importer
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -88,7 +90,9 @@ func TestStoreAndGetPreview(t *testing.T) {
 		Module:  "test",
 		Created: time.Now(),
 	}
-	e.StorePreview("test-token", state)
+	if err := e.StorePreview("test-token", state); err != nil {
+		t.Fatalf("store preview: %v", err)
+	}
 
 	got := e.GetPreview("test-token")
 	if got == nil {
@@ -123,7 +127,9 @@ func TestGetPreview_Expired(t *testing.T) {
 		Module:  "test",
 		Created: time.Now().Add(-31 * time.Minute), // expired (TTL is 30 min)
 	}
-	e.StorePreview("expired-token", state)
+	if err := e.StorePreview("expired-token", state); err != nil {
+		t.Fatalf("store preview: %v", err)
+	}
 
 	got := e.GetPreview("expired-token")
 	if got != nil {
@@ -142,7 +148,9 @@ func TestDeletePreview(t *testing.T) {
 		Module:  "test",
 		Created: time.Now(),
 	}
-	e.StorePreview("delete-me", state)
+	if err := e.StorePreview("delete-me", state); err != nil {
+		t.Fatalf("store preview: %v", err)
+	}
 	e.DeletePreview("delete-me")
 
 	got := e.GetPreview("delete-me")
@@ -160,6 +168,58 @@ func TestEngine_Close(t *testing.T) {
 
 	e.Close()
 	// Should not panic
+}
+
+func TestStorePreview_ExceedsLimit(t *testing.T) {
+	reg := schema.NewRegistry()
+	v := validation.NewDefaultPipeline()
+	adapterReg := importexport.NewAdapterRegistry()
+	progEng := progress.NewEngine(progress.NewInMemoryStore())
+	e := NewEngine(reg, v, adapterReg, progEng, nil)
+
+	for i := 0; i < maxConcurrentPreviews; i++ {
+		if err := e.StorePreview(fmt.Sprintf("cap-token-%d", i), &PreviewState{
+			Module:  "test",
+			Created: time.Now(),
+		}); err != nil {
+			t.Fatalf("expected slot %d to be accepted, got error: %v", i, err)
+		}
+	}
+
+	err := e.StorePreview("one-too-many", &PreviewState{Module: "test", Created: time.Now()})
+	if !errors.Is(err, ErrPreviewLimitReached) {
+		t.Fatalf("expected ErrPreviewLimitReached, got %v", err)
+	}
+
+	e.DeletePreview("cap-token-0")
+	if err := e.StorePreview("after-free", &PreviewState{Module: "test", Created: time.Now()}); err != nil {
+		t.Fatalf("expected slot to open after delete, got error: %v", err)
+	}
+}
+
+func TestStorePreview_ExpiredStatesFreed(t *testing.T) {
+	reg := schema.NewRegistry()
+	v := validation.NewDefaultPipeline()
+	adapterReg := importexport.NewAdapterRegistry()
+	progEng := progress.NewEngine(progress.NewInMemoryStore())
+	e := NewEngine(reg, v, adapterReg, progEng, nil)
+
+	// Fill the map with expired states; the TTL sweep must free the slots so
+	// new previews are accepted again (the cap alone must not wedge the store).
+	for i := 0; i < maxConcurrentPreviews; i++ {
+		if err := e.StorePreview(fmt.Sprintf("stale-%d", i), &PreviewState{
+			Module:  "test",
+			Created: time.Now().Add(-31 * time.Minute),
+		}); err != nil {
+			t.Fatalf("expected stale slot %d to be accepted, got error: %v", i, err)
+		}
+	}
+
+	e.cleanupExpiredPreviews()
+
+	if err := e.StorePreview("fresh-after-sweep", &PreviewState{Module: "test", Created: time.Now()}); err != nil {
+		t.Fatalf("expected slot after sweep, got error: %v", err)
+	}
 }
 
 func TestEngine_PreviewEmptyRows(t *testing.T) {
@@ -249,13 +309,15 @@ func TestEngine_StartImport_NoAdapter(t *testing.T) {
 	progEng := progress.NewEngine(progress.NewInMemoryStore())
 	e := NewEngine(reg, v, adapterReg, progEng, nil)
 
-	e.StorePreview("token-no-adapter", &PreviewState{
+	if err := e.StorePreview("token-no-adapter", &PreviewState{
 		Module:  "test",
 		Schema:  testSchema,
 		Rows:    []map[string]interface{}{},
 		Result:  &importexport.PreviewResult{TotalRows: 0},
 		Created: time.Now(),
-	})
+	}); err != nil {
+		t.Fatalf("store preview: %v", err)
+	}
 
 	_, err := e.StartImport(context.Background(), "token-no-adapter", 1, 1)
 	if err == nil {

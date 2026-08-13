@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -252,7 +253,11 @@ func (h *Handler) Preview(c *gin.Context) {
 
 	result, err := h.importEng.Preview(c.Request.Context(), module, header.Filename, file)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		status := http.StatusBadRequest
+		if errors.Is(err, importer.ErrPreviewLimitReached) {
+			status = http.StatusTooManyRequests
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
 
