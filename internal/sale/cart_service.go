@@ -10,7 +10,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/shared"
 )
 
@@ -151,7 +150,8 @@ func (s *service) AddCartItem(ctx context.Context, cartID int, productID, quanti
 		StoreID:         cart.StoreID,
 	}})
 	if err != nil {
-		if errors.Is(err, pricing.ErrProductNotFound) {
+		var pnf productNotFound
+		if errors.As(err, &pnf) {
 			return nil, fmt.Errorf("%w: %w", ErrCheckoutProductNotFound, err)
 		}
 		return nil, fmt.Errorf("resolve price snapshot: %w", err)

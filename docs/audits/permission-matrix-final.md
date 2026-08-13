@@ -2,7 +2,7 @@
 
 **Status:** DRAFT (menunggu approval)
 **Tanggal:** 2026-08-04
-**Sumber kebenaran:** Live database `retail_pos` (`permissions`, `role_permissions`) — hasil query 2026-08-04. Definisi seed: `database/migrations/000_squash.sql:644-693` + migrasi `007`, `008`, `012`, `016`, `018`, `021` + `database/seeds/013_customer_permissions.sql`.
+**Sumber kebenaran:** Live database `retail_pos` (`permissions`, `role_permissions`) — hasil query 2026-08-04. Definisi seed: `database/migrations/000_squash.sql:644-693` + migrasi `007`, `008`, `012`, `016`, `018`, `021`, `030` (yang mengkonsolidasi `customer.*` dan `inventory.adjust` dari `database/seeds/` yang sudah di-retire).
 
 ---
 

@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"retail-pos-system/internal/events"
-	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/shared"
 )
 
@@ -21,6 +20,13 @@ var ErrSaleNotFound = errors.New("sale not found")
 var ErrParkedSaleNotRecalled = errors.New("parked sale not in recalled state")
 var ErrPermissionDenied = errors.New("permission denied")
 var ErrCheckoutProductNotFound = errors.New("checkout product not found")
+
+// productNotFound is a marker interface satisfied by pricing subsystem errors
+// when a product cannot be resolved. It lets sale detect not-found errors
+// via errors.As without importing internal/pricing.
+type productNotFound interface {
+	ProductNotFound()
+}
 
 type ProductPriceGetter interface {
 	GetProductPrice(ctx context.Context, productID int) (int, error)
@@ -97,7 +103,8 @@ func (s *service) ResolveCheckoutPrices(ctx context.Context, items []ResolveItem
 	}
 	snaps, err := s.resolver.ResolveSnapshotsBatch(ctx, items)
 	if err != nil {
-		if errors.Is(err, pricing.ErrProductNotFound) {
+		var pnf productNotFound
+		if errors.As(err, &pnf) {
 			return nil, fmt.Errorf("%w: %w", ErrCheckoutProductNotFound, err)
 		}
 		return nil, err

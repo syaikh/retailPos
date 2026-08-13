@@ -3,6 +3,7 @@ package pricing
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"retail-pos-system/internal/shared"
@@ -10,12 +11,33 @@ import (
 
 var (
 	ErrRuleNotFound      = errors.New("pricing rule not found")
-	ErrProductNotFound   = errors.New("product not found")
 	ErrInvalidRule       = errors.New("invalid pricing rule")
 	ErrDuplicateRuleType = errors.New("duplicate pricing type for this product")
 	ErrRuleConflict      = errors.New("conflicting pricing rule")
 	ErrDuplicateName     = errors.New("nama rule sudah digunakan")
 )
+
+// ErrProductNotFound is a sentinel error returned when a product cannot be
+// resolved. It carries no product ID itself; callers should wrap it with
+// context (e.g. fmt.Errorf("%w: product %d", ErrProductNotFound, id)) so the
+// sale package can detect the not-found case via errors.As without importing
+// this package.
+var ErrProductNotFound = &productNotFoundError{}
+
+type productNotFoundError struct {
+	productID int
+}
+
+func (e *productNotFoundError) Error() string {
+	if e == nil || e.productID == 0 {
+		return "product not found"
+	}
+	return fmt.Sprintf("product %d not found", e.productID)
+}
+
+// ProductNotFound is a marker method so the sale package can detect
+// product-not-found errors via errors.As without importing internal/pricing.
+func (e *productNotFoundError) ProductNotFound() {}
 
 // Type is a classification label — it describes what kind of pricing applies.
 type Type string

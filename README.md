@@ -569,7 +569,9 @@ sudo systemctl enable --now retail-pos
 
 ### Database Migrations
 
-Migrations berjalan otomatis saat startup (tracking via tabel `schema_migrations`). Schema saat ini: **26 migrations (000–025)**. Lihat `database/migrations/` untuk detail. Untuk environment baru, jalankan migrasi secara berurutan dimulai dari `000_squash.sql`.
+Migrations adalah file SQL di `database/migrations/` (saat ini **000–030**). Migrations **tidak** berjalan otomatis oleh server — jalankan eksplisit via `./deploy/podman-deploy.sh migrate` (atau test harness, yang mengaplikasikan pending migrations ke test DB). Tracking file yang sudah ter-apply ada di tabel `schema_migrations`.
+
+**Fresh database (spin-up baru):** `migrate` melakukan bootstrap `pgcrypto`, `invoice_seq`, dan tabel `schema_migrations` terlebih dahulu, lalu mengaplikasikan setiap file secara berurutan dari `000_squash.sql` dengan `ON_ERROR_STOP=1`. Hasilnya: schema lengkap + reference data (roles, 74 permissions, grants, 5 user default, payment methods, customer groups). Data bisnis (stores, products, customers, sales) harus diisi via `./seed-dev.sh` atau `./deploy/podman-deploy.sh seed`.
 
 > **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Beberapa migrasi punya constraint urutan (mis. `006_consolidate_permissions.sql`, `009_add_do_sequence.sql`, `012_stock_opname.sql`, `016_stock_opname_scope_workflow.sql`, `017_stock_opname_adjustment_ledger.sql`, `018_storage_locations.sql`, `020_per_rack_stock.sql`, `021_grant_storage_location_view.sql`, `024_add_product_history_cost_permissions.sql`, `025_add_supplier_to_products_full_view.sql`) — lihat AGENTS.md untuk daftar lengkap.
 
@@ -600,6 +602,11 @@ Migrations terkini:
 - `023_sprint0_finalize_permissions.sql` — Revoke `staff.product.update` dan `staff.inventory.adjust` (RBAC final, frontend permission-based)
 - `024_add_product_history_cost_permissions.sql` — Permissions baru `product.history.view` (Superadmin/Admin) dan `product.cost.view` (Superadmin/Admin/Manager)
 - `025_add_supplier_to_products_full_view.sql` — Re-create `v_products_full` dengan kolom `supplier_id`/`supplier_name` (preferred supplier)
+- `026_shift_open_unique.sql` — Unique index per-user untuk shift terbuka (`uq_open_shift_per_user`)
+- `027_parked_sale_scope.sql` — Kolom `sales.hold_note` + permission `sale.park`
+- `028_mv_dashboard_totals.sql` — Materialized view `mv_dashboard_totals` (total all-time per store) + extend `refresh_sales_mv()`
+- `029_drop_products_stock.sql` — Hapus kolom legacy `products.stock`
+- `030_consolidate_seed_permissions.sql` — Konsolidasi permission yang dulu hanya ada di seeds (`customer.*`, `inventory.adjust`) ke migrations (database/seeds di-retire)
 
 ---
 
@@ -613,7 +620,7 @@ Migrations terkini:
 | Cashier | `cashier` | `admin123` | POS only (create/view sales, park, shift) |
 | Staff | `staff` | `admin123` | Produk (view) + stock opname counting |
 
-Ganti password di production via `database/seeds/004_users.sql` atau UI change-password.
+Ganti password di production via UI change-password. (Default user password seeds previously lived in `database/seeds/`, which was retired; the default `admin123` users are created in `database/migrations/000_squash.sql`.)
 
 ---
 

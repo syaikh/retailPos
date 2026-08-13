@@ -114,6 +114,28 @@ Login credentials:
 
 ---
 
+## Database Migrations & Fresh-DB Spin-up
+
+Migrations are SQL files in `database/migrations/` (currently `000_squash.sql` through `030_consolidate_seed_permissions.sql`). They are **not** run automatically by the backend server — you must run them explicitly:
+
+```bash
+./deploy/podman-deploy.sh migrate   # applies every *.sql in database/migrations/
+```
+
+On a **fresh database** (or a fresh Postgres container), `migrate` now bootstraps the three prerequisites that `000_squash.sql` depends on before applying any migration:
+
+1. `CREATE EXTENSION IF NOT EXISTS pgcrypto`
+2. `CREATE SEQUENCE IF NOT EXISTS invoice_seq START 1`
+3. `CREATE TABLE IF NOT EXISTS schema_migrations (...)` (tracks applied files)
+
+It then applies each migration in sorted filename order with `ON_ERROR_STOP=1` and records each applied file in `schema_migrations`. Because `000_squash.sql` is idempotent and clears stale `00*.sql` tracking rows on each run, `migrate` can be re-run safely against an already-migrated database.
+
+Migrations produce the full schema plus reference data: roles (5), permissions (74), role grants, the `superadmin`/`admin`/`manager`/`cashier`/`staff` users, payment methods, and customer groups (Walk-in/Member/VIP). **They do not create stores, products, customers, or sales** — run `./deploy/podman-deploy.sh seed` afterwards for dummy/business data.
+
+> **Important:** Apply migrations **before** deploying a new server binary — several migrations carry ordering constraints (see `AGENTS.md` "Deployment" section for the full list).
+
+---
+
 ## Manual Deployment (without script)
 
 If you prefer manual control:

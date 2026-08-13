@@ -193,6 +193,21 @@ migrate() {
         podman exec postgres createdb -U "$DB_USER" "$DB_NAME"
     fi
 
+    # Bootstrap prerequisites that 000_squash.sql depends on (fresh-DB spin-up).
+    # pgcrypto + invoice_seq are required by the schema; schema_migrations tracks
+    # applied files and must exist before the first migration runs.
+    log_info "Bootstrapping schema_migrations, pgcrypto, invoice_seq..."
+    if ! podman exec postgres psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 \
+        -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;" \
+        -c "CREATE SEQUENCE IF NOT EXISTS invoice_seq START 1;" \
+        -c "CREATE TABLE IF NOT EXISTS schema_migrations (
+               filename VARCHAR(255) PRIMARY KEY,
+               applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+           )"; then
+        log_error "Migration bootstrap failed"
+        return 1
+    fi
+
     local migration_dir="$SCRIPT_DIR/database/migrations"
     # P2-4 (026_shift_open_unique.sql): in dev/dummy-data environments allow the
     # migration to auto-close older duplicate open shifts; production (ENV=production
@@ -204,7 +219,16 @@ migrate() {
     for sql_file in "$migration_dir"/*.sql; do
         if [ -f "$sql_file" ]; then
             log_info "  Migrating: $(basename "$sql_file")"
-            podman exec -i -e PGOPTIONS="$pgoptions" postgres psql -U "$DB_USER" -d "$DB_NAME" < "$sql_file"
+            podman exec -i -e PGOPTIONS="$pgoptions" postgres psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 < "$sql_file" || {
+                log_error "Migration failed: $(basename "$sql_file")"
+                return 1
+            }
+            # Record the applied file for the audit trail. Migrations that
+            # self-register keep their own row; 000_squash clears 00*.sql rows
+            # on each run, so every migration is re-applied idempotently. The
+            # ON CONFLICT guard makes recording safe for both cases.
+            podman exec postgres psql -U "$DB_USER" -d "$DB_NAME" -q \
+                -c "INSERT INTO schema_migrations (filename) VALUES ('$(basename "$sql_file")') ON CONFLICT (filename) DO NOTHING" >/dev/null
         fi
     done
     log_info "Migrations applied."

@@ -154,4 +154,4 @@ Non-code files follow this organization:
   - `docs/archived-plans/` — AI agent planning documents (copied from `.kilo/plans/`)
 - Root-level kept: `README.md`, `CONTRIBUTING.md`, `AGENTS.md`, `LICENSE`
 - Build artifacts and auto-generated files are gitignored (see `.gitignore`)
-- SQL schema: `database/migrations/` and `database/seeds/`
+- SQL schema: `database/migrations/` (the `database/seeds/` directory was retired — all seed data is consolidated into migrations, see `030_consolidate_seed_permissions.sql`)
