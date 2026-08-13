@@ -94,10 +94,12 @@ func (l *saleCreatedListener) HandleEvent(ctx context.Context, event eventbus.Ev
 		return nil
 	}
 	l.repo.InvalidateDashboardCache(s.StoreID)
-	// Reporting is allowed to be eventually consistent: the handler only marks
-	// the store dirty and returns. The RefreshCoordinator worker owns the actual
-	// materialized view refresh (debounced, single-flight), so a refresh failure
-	// can never fail the SaleCreated event or trigger eventbus retries.
+	// Reporting is allowed to be eventually consistent: the handler returns
+	// without triggering a refresh. The RefreshCoordinator worker owns the
+	// materialized view refresh — once at startup and then at each Jakarta
+	// hour boundary — so a refresh failure can never fail the SaleCreated
+	// event or trigger eventbus retries. MarkDirty() is retained as a no-op
+	// for backward compatibility.
 	l.coord.MarkDirty()
 	return nil
 }
@@ -119,11 +121,12 @@ func (r *Repository) GetPeriodComparison(
 		}
 	}
 
-	// Aggregations read from mv_hourly_sales (refreshed on sale.created) instead
-	// of scanning the raw sales table, keeping period comparisons cheap on large
-	// datasets. Hour-granularity rows still preserve the exact instant boundaries
-	// used by realtime mode and collapse to identical results for whole-day
-	// periods (peak month groups hours by Jakarta calendar month).
+	// Aggregations read from mv_hourly_sales (refreshed by the coordinator at
+	// each Jakarta hour boundary) instead of scanning the raw sales table,
+	// keeping period comparisons cheap on large datasets. Hour-granularity rows
+	// still preserve the exact instant boundaries used by realtime mode and
+	// collapse to identical results for whole-day periods (peak month groups
+	// hours by Jakarta calendar month).
 	query := `
 		WITH base AS (
 			SELECT sale_hour, total_revenue, transaction_count

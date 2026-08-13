@@ -151,6 +151,10 @@ func TestRefreshCoordinator_MarkDirtyIsNoop(t *testing.T) {
 	coord.Start()
 	defer coord.Shutdown()
 
+	// Wait for the startup catch-up refresh so the following no-op check is
+	// not racing the goroutine that fires it.
+	require.Eventually(t, func() bool { return runs.Load() == 1 }, time.Second, 10*time.Millisecond)
+
 	// MarkDirty during operation must remain a no-op; only the boundary timer
 	// and startup catch-up drive refreshes.
 	coord.MarkDirty()

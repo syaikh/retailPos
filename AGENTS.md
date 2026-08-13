@@ -48,9 +48,9 @@ Analytical queries are served from materialized views pre-aggregated in Jakarta 
 - `mv_hourly_sales` — period comparisons (`GetPeriodComparison`) and the hourly chart (`GetHourlySales`)
 - `mv_daily_sales` — the daily chart (`GetDailySales`), the dual-period chart (`GetDualChartData`), and available years (`GetAvailableYears`)
 
-`refresh_sales_mv()` is owned by `report.RefreshCoordinator` (`internal/report/refresh_coordinator.go`), which coalesces `sale.created`-driven refreshes: the listener only calls `MarkDirty()`, and a single debounced worker (default 30s, `REPORT_REFRESH_DEBOUNCE`) runs at most one refresh at a time. Startup (`cmd/server/main.go`) and seed (`cmd/dummy/main.go`) still refresh directly. Refresh failures are retried by the coordinator (exponential backoff) and never fail the `SaleCreated` event or trigger eventbus retries.
+`refresh_sales_mv()` is owned by `report.RefreshCoordinator` (`internal/report/refresh_coordinator.go`), which refreshes once at startup and then at each Jakarta hour (`:00`) boundary; the `sale.created` listener does not trigger refreshes (`MarkDirty()` is a no-op kept for compatibility). A single worker goroutine runs at most one refresh at a time. Startup (`cmd/server/main.go`) and seed (`cmd/dummy/main.go`) still refresh directly. Refresh failures are retried by the coordinator with exponential backoff (`REPORT_REFRESH_DEBOUNCE` is the base retry delay, not a debounce window) and never fail the `SaleCreated` event or trigger eventbus retries.
 
-Remaining real-time `sales` reads are intentional: the live dashboard stats (`GetLiveDashboardStats`, `GetDashboardStats`) are today-only with a short cache TTL, and the weekly/monthly sales reports are date-bounded scans. Charts read the MVs and are eventually consistent within one refresh window (~30s).
+Remaining real-time `sales` reads are intentional: the live dashboard stats (`GetLiveDashboardStats`, `GetDashboardStats`) are today-only with a short cache TTL, and the weekly/monthly sales reports are date-bounded scans. Charts read the MVs and are eventually consistent: completed hours/days are always up to date, and the in-progress hour/day appears at the next `:00` boundary.
 
 ## Git Commit Policy
 Never auto-commit on each change. User will request commits explicitly when ready.

@@ -19,7 +19,11 @@ type Config struct {
 	StockCriticalThreshold int
 	StockMinimum           int
 	CartHoldTTLHours       int
-	ReportRefreshDebounce  int
+	// ReportRefreshDebounce is the base retry delay between consecutive
+	// refresh failures in seconds (REPORT_REFRESH_DEBOUNCE, default 30). It no
+	// longer debounces sale-triggered refreshes; the coordinator refreshes at
+	// each Jakarta hour boundary and uses this only as retry backoff base.
+	ReportRefreshDebounce int
 	LogLevel               string
 	Timezone               *time.Location
 }
