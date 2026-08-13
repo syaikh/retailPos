@@ -111,6 +111,93 @@ func (r *Repository) BulkUpsertProduct(ctx context.Context, p ImportPayload) (in
 	return true, nil
 }
 
+// bulkChunkSize bounds the number of rows per multi-row statement so the bind
+// parameter count stays well under PostgreSQL's 65,535 limit (13 params/row for
+// insert, 11 for update → ≤ 13,000 params per statement).
+const bulkChunkSize = 1000
+
+// buildInsertValues renders the VALUES tuples and args for a single multi-row
+// INSERT chunk. Argument indexes are relative to the chunk so every statement
+// starts at $1.
+func buildInsertValues(payloads []ImportPayload) ([]string, []interface{}) {
+	valueStrings := make([]string, 0, len(payloads))
+	valueArgs := make([]interface{}, 0, len(payloads)*13)
+	for _, p := range payloads {
+		offset := len(valueArgs)
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10, offset+11, offset+12, offset+13))
+
+		var barcode interface{}
+		if p.Barcode != nil {
+			barcode = *p.Barcode
+		}
+		var categoryID interface{}
+		if p.CategoryID != nil {
+			categoryID = *p.CategoryID
+		}
+		var brandID interface{}
+		if p.BrandID != nil {
+			brandID = *p.BrandID
+		}
+		var uomID interface{}
+		if p.UnitOfMeasureID != nil {
+			uomID = *p.UnitOfMeasureID
+		}
+		var weightGrams interface{}
+		if p.WeightGrams != nil {
+			weightGrams = *p.WeightGrams
+		}
+		var description interface{}
+		if p.Description != nil {
+			description = *p.Description
+		}
+		var storeID interface{}
+		if p.StoreID != nil {
+			storeID = *p.StoreID
+		}
+
+		valueArgs = append(valueArgs, p.SKU, p.Name, barcode, categoryID, p.Price, p.Cost, p.Stock, p.Status,
+			brandID, description, weightGrams, uomID, storeID)
+	}
+	return valueStrings, valueArgs
+}
+
+// insertProductChunks inserts newPayloads in ≤ bulkChunkSize row statements,
+// preserving order so returned IDs align 1:1 with newPayloads.
+func (r *Repository) insertProductChunks(ctx context.Context, newPayloads []ImportPayload) ([]int, error) {
+	var newIDs []int
+	for start := 0; start < len(newPayloads); start += bulkChunkSize {
+		end := start + bulkChunkSize
+		if end > len(newPayloads) {
+			end = len(newPayloads)
+		}
+		valueStrings, valueArgs := buildInsertValues(newPayloads[start:end])
+
+		query := fmt.Sprintf(`
+			INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, status,
+			                     brand_id, description, weight_grams, unit_of_measure_id, store_id)
+			VALUES %s
+			RETURNING id
+		`, strings.Join(valueStrings, ", "))
+
+		rows, err := r.db.Query(ctx, query, valueArgs...)
+		if err != nil {
+			return nil, fmt.Errorf("batch insert: %w", err)
+		}
+		for rows.Next() {
+			var id int
+			if err := rows.Scan(&id); err == nil {
+				newIDs = append(newIDs, id)
+			}
+		}
+		rows.Close()
+		if rows.Err() != nil {
+			return nil, fmt.Errorf("batch insert rows: %w", rows.Err())
+		}
+	}
+	return newIDs, nil
+}
+
 func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ImportPayload) (int, error) {
 	if len(payloads) == 0 {
 		return 0, nil
@@ -150,67 +237,9 @@ func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ImportPa
 		return 0, nil
 	}
 
-	valueStrings := make([]string, 0, len(newPayloads))
-	valueArgs := make([]interface{}, 0, len(newPayloads)*13)
-	for _, p := range newPayloads {
-		offset := len(valueArgs)
-		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
-			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10, offset+11, offset+12, offset+13))
-
-		var barcode interface{}
-		if p.Barcode != nil {
-			barcode = *p.Barcode
-		}
-		var categoryID interface{}
-		if p.CategoryID != nil {
-			categoryID = *p.CategoryID
-		}
-		var brandID interface{}
-		if p.BrandID != nil {
-			brandID = *p.BrandID
-		}
-		var uomID interface{}
-		if p.UnitOfMeasureID != nil {
-			uomID = *p.UnitOfMeasureID
-		}
-		var weightGrams interface{}
-		if p.WeightGrams != nil {
-			weightGrams = *p.WeightGrams
-		}
-		var description interface{}
-		if p.Description != nil {
-			description = *p.Description
-		}
-		var storeID interface{}
-		if p.StoreID != nil {
-			storeID = *p.StoreID
-		}
-
-		valueArgs = append(valueArgs, p.SKU, p.Name, barcode, categoryID, p.Price, p.Cost, p.Stock, p.Status,
-			brandID, description, weightGrams, uomID, storeID)
-	}
-
-	query := fmt.Sprintf(`
-		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, status,
-		                     brand_id, description, weight_grams, unit_of_measure_id, store_id)
-		VALUES %s
-		RETURNING id
-	`, strings.Join(valueStrings, ", "))
-
-	var newIDs []int
-	rows, err = r.db.Query(ctx, query, valueArgs...)
+	newIDs, err := r.insertProductChunks(ctx, newPayloads)
 	if err != nil {
-		return 0, fmt.Errorf("batch insert: %w", err)
-	}
-	for rows.Next() {
-		var id int
-		if err := rows.Scan(&id); err == nil {
-			newIDs = append(newIDs, id)
-		}
-	}
-	rows.Close()
-	if rows.Err() != nil {
-		return 0, fmt.Errorf("batch insert rows: %w", rows.Err())
+		return 0, err
 	}
 
 	if len(newIDs) > 0 {
@@ -226,49 +255,15 @@ func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ImportPa
 	return len(newIDs), nil
 }
 
-func (r *Repository) BulkUpdateProducts(ctx context.Context, payloads []ImportPayload) (int, error) {
-	if len(payloads) == 0 {
-		return 0, nil
-	}
+type updateItem struct {
+	id      int
+	payload ImportPayload
+}
 
-	skus := make([]string, len(payloads))
-	for i, p := range payloads {
-		skus[i] = p.SKU
-	}
-
-	existingMap := make(map[string]int, len(payloads))
-	rows, err := r.db.Query(ctx, "SELECT id, sku FROM products WHERE sku = ANY($1) AND deleted_at IS NULL", skus)
-	if err != nil {
-		return 0, fmt.Errorf("batch lookup: %w", err)
-	}
-	for rows.Next() {
-		var id int
-		var sku string
-		if err := rows.Scan(&id, &sku); err == nil {
-			existingMap[sku] = id
-		}
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return 0, fmt.Errorf("batch lookup rows iteration: %w", err)
-	}
-	rows.Close()
-
-	type updateItem struct {
-		id      int
-		payload ImportPayload
-	}
-	var updates []updateItem
-	for _, p := range payloads {
-		if id, ok := existingMap[p.SKU]; ok {
-			updates = append(updates, updateItem{id: id, payload: p})
-		}
-	}
-
-	if len(updates) == 0 {
-		return 0, nil
-	}
-
+// buildUpdateValues renders the VALUES tuples and args for a single multi-row
+// UPDATE chunk. Argument indexes are relative to the chunk so every statement
+// starts at $1.
+func buildUpdateValues(updates []updateItem) ([]string, []interface{}) {
 	valueStrings := make([]string, 0, len(updates))
 	valueArgs := make([]interface{}, 0, len(updates)*11)
 	for _, d := range updates {
@@ -305,29 +300,85 @@ func (r *Repository) BulkUpdateProducts(ctx context.Context, payloads []ImportPa
 		valueArgs = append(valueArgs, p.Name, barcode, categoryID, brandID, p.Price, p.Cost, p.Status,
 			uomID, weightGrams, description, d.id)
 	}
+	return valueStrings, valueArgs
+}
 
-	query := fmt.Sprintf(`
-		UPDATE products SET
-			name = data.name,
-			barcode = data.barcode,
-			category_id = data.category_id::int,
-			brand_id = data.brand_id::int,
-			price = data.price::int,
-			cost = data.cost::int,
-			status = data.status,
-			unit_of_measure_id = data.uom_id::int,
-			weight_grams = data.weight_grams::int,
-			description = data.description,
-			updated_at = NOW()
-		FROM (VALUES %s) AS data(name, barcode, category_id, brand_id,
-		                         price, cost, status, uom_id,
-		                         weight_grams, description, id)
-		WHERE products.id = data.id::int
-	`, strings.Join(valueStrings, ", "))
+// updateProductChunks applies updates in ≤ bulkChunkSize row statements.
+func (r *Repository) updateProductChunks(ctx context.Context, updates []updateItem) error {
+	for start := 0; start < len(updates); start += bulkChunkSize {
+		end := start + bulkChunkSize
+		if end > len(updates) {
+			end = len(updates)
+		}
+		valueStrings, valueArgs := buildUpdateValues(updates[start:end])
 
-	_, err = r.db.Exec(ctx, query, valueArgs...)
+		query := fmt.Sprintf(`
+			UPDATE products SET
+				name = data.name,
+				barcode = data.barcode,
+				category_id = data.category_id::int,
+				brand_id = data.brand_id::int,
+				price = data.price::int,
+				cost = data.cost::int,
+				status = data.status,
+				unit_of_measure_id = data.uom_id::int,
+				weight_grams = data.weight_grams::int,
+				description = data.description,
+				updated_at = NOW()
+			FROM (VALUES %s) AS data(name, barcode, category_id, brand_id,
+			                         price, cost, status, uom_id,
+			                         weight_grams, description, id)
+			WHERE products.id = data.id::int
+		`, strings.Join(valueStrings, ", "))
+
+		if _, err := r.db.Exec(ctx, query, valueArgs...); err != nil {
+			return fmt.Errorf("batch update: %w", err)
+		}
+	}
+	return nil
+}
+
+func (r *Repository) BulkUpdateProducts(ctx context.Context, payloads []ImportPayload) (int, error) {
+	if len(payloads) == 0 {
+		return 0, nil
+	}
+
+	skus := make([]string, len(payloads))
+	for i, p := range payloads {
+		skus[i] = p.SKU
+	}
+
+	existingMap := make(map[string]int, len(payloads))
+	rows, err := r.db.Query(ctx, "SELECT id, sku FROM products WHERE sku = ANY($1) AND deleted_at IS NULL", skus)
 	if err != nil {
-		return 0, fmt.Errorf("batch update: %w", err)
+		return 0, fmt.Errorf("batch lookup: %w", err)
+	}
+	for rows.Next() {
+		var id int
+		var sku string
+		if err := rows.Scan(&id, &sku); err == nil {
+			existingMap[sku] = id
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, fmt.Errorf("batch lookup rows iteration: %w", err)
+	}
+	rows.Close()
+
+	var updates []updateItem
+	for _, p := range payloads {
+		if id, ok := existingMap[p.SKU]; ok {
+			updates = append(updates, updateItem{id: id, payload: p})
+		}
+	}
+
+	if len(updates) == 0 {
+		return 0, nil
+	}
+
+	if err := r.updateProductChunks(ctx, updates); err != nil {
+		return 0, err
 	}
 
 	return len(updates), nil

@@ -2,10 +2,13 @@ package product
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/shared"
 )
 
 func TestBulkUpdateProductStatus(t *testing.T) {
@@ -215,4 +218,75 @@ func TestBulkUpdateProducts(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
+}
+
+func TestBuildInsertValues_ChunkBoundary(t *testing.T) {
+	payloads := make([]ImportPayload, bulkChunkSize)
+	for i := range payloads {
+		payloads[i] = ImportPayload{SKU: fmt.Sprintf("CHUNK-I-%d", i), Name: "C", Price: 1000, Cost: 500, Stock: 1, Status: "active"}
+	}
+	valueStrings, valueArgs := buildInsertValues(payloads)
+	assert.Len(t, valueStrings, bulkChunkSize)
+	assert.Len(t, valueArgs, bulkChunkSize*13)
+	assert.Less(t, len(valueArgs), 65535, "a single chunk must stay below the bind-param limit")
+}
+
+func TestBuildUpdateValues_ChunkBoundary(t *testing.T) {
+	updates := make([]updateItem, bulkChunkSize)
+	for i := range updates {
+		updates[i] = updateItem{id: i + 1, payload: ImportPayload{Name: "C", Price: 1000, Cost: 500, Status: "active"}}
+	}
+	valueStrings, valueArgs := buildUpdateValues(updates)
+	assert.Len(t, valueStrings, bulkChunkSize)
+	assert.Len(t, valueArgs, bulkChunkSize*11)
+	assert.Less(t, len(valueArgs), 65535, "a single chunk must stay below the bind-param limit")
+}
+
+func TestBulkInsertUpdate_LargeBatch(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
+	repo := testRepo()
+	ctx := context.Background()
+
+	// Remove the seeded rows so later tests that assume an empty table (e.g.
+	// pagination offset-beyond-total) are unaffected. product_stock cascades.
+	t.Cleanup(func() {
+		_, _ = dbPool.Exec(context.Background(), `DELETE FROM products WHERE sku LIKE 'BULK-LG-IO-%'`)
+	})
+
+	// > 5,050 rows forces the insert and update paths across multiple chunk
+	// boundaries (5 full chunks of 1000 + a partial chunk).
+	const total = 5050
+	insertPayloads := make([]ImportPayload, 0, total)
+	for i := 0; i < total; i++ {
+		sku := fmt.Sprintf("BULK-LG-IO-%05d", i)
+		insertPayloads = append(insertPayloads, ImportPayload{
+			SKU: sku, Name: "Before", Price: 1000, Cost: 500, Stock: 3, Status: "active",
+		})
+	}
+
+	inserted, err := repo.BulkInsertProducts(ctx, insertPayloads)
+	require.NoError(t, err)
+	assert.Equal(t, total, inserted)
+
+	var productCount int
+	require.NoError(t, dbPool.QueryRow(ctx, `SELECT COUNT(*) FROM products WHERE sku LIKE 'BULK-LG-IO-%'`).Scan(&productCount))
+	assert.Equal(t, total, productCount)
+
+	var stockCount int
+	require.NoError(t, dbPool.QueryRow(ctx, `SELECT COUNT(*) FROM product_stock WHERE quantity = 3`).Scan(&stockCount))
+	assert.Equal(t, total, stockCount)
+
+	updatePayloads := make([]ImportPayload, 0, total)
+	for _, p := range insertPayloads {
+		updatePayloads = append(updatePayloads, ImportPayload{
+			SKU: p.SKU, Name: "After", Price: 2000, Cost: 1000, Stock: 3, Status: "active",
+		})
+	}
+	updated, err := repo.BulkUpdateProducts(ctx, updatePayloads)
+	require.NoError(t, err)
+	assert.Equal(t, total, updated)
+
+	var matched int
+	require.NoError(t, dbPool.QueryRow(ctx, `SELECT COUNT(*) FROM products WHERE name = 'After' AND price = 2000`).Scan(&matched))
+	assert.Equal(t, total, matched)
 }
