@@ -164,13 +164,15 @@ export async function fetchSalesWithRange({
 
     if (activePeriodType === 'realtime') {
       const currentHour = getCurrentJakartaHour();
+      // Only completed hours are shown: exclude the in-progress hour, which
+      // may carry partial data after a mid-hour MV refresh.
       chartData = rawCurrent.filter((item: { date?: string; total: number }) => {
         const hour = parseInt(item.date || '');
-        return !isNaN(hour) && hour <= currentHour;
+        return !isNaN(hour) && hour < currentHour;
       });
       prevChartData = rawPrevious.filter((item: { date?: string; total: number }) => {
         const hour = parseInt(item.date || '');
-        return !isNaN(hour) && hour <= currentHour;
+        return !isNaN(hour) && hour < currentHour;
       });
     } else {
       chartData = rawCurrent;

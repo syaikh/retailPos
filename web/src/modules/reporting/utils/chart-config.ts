@@ -47,7 +47,7 @@ export function buildChartConfig({
     const currentHour = getCurrentJakartaHour();
     const hours = isCompletedPeriod
       ? Array.from({ length: 24 }, (_, i) => i)
-      : Array.from({ length: currentHour + 1 }, (_, i) => i);
+      : Array.from({ length: currentHour }, (_, i) => i);
     const dataByHour: Record<number, number> = {};
     chartData.forEach(d => { if (d.date) dataByHour[parseInt(d.date)] = d.total; });
     const prevByHour: Record<number, number> = {};

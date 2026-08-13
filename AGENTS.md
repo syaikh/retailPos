@@ -48,9 +48,17 @@ Analytical queries are served from materialized views pre-aggregated in Jakarta 
 - `mv_hourly_sales` — period comparisons (`GetPeriodComparison`) and the hourly chart (`GetHourlySales`)
 - `mv_daily_sales` — the daily chart (`GetDailySales`), the dual-period chart (`GetDualChartData`), and available years (`GetAvailableYears`)
 
-`refresh_sales_mv()` is owned by `report.RefreshCoordinator` (`internal/report/refresh_coordinator.go`), which refreshes once at startup and then at each Jakarta hour (`:00`) boundary; the `sale.created` listener does not trigger refreshes (`MarkDirty()` is a no-op kept for compatibility). A single worker goroutine runs at most one refresh at a time. Startup (`cmd/server/main.go`) and seed (`cmd/dummy/main.go`) still refresh directly. Refresh failures are retried by the coordinator with exponential backoff (`REPORT_REFRESH_DEBOUNCE` is the base retry delay, not a debounce window) and never fail the `SaleCreated` event or trigger eventbus retries.
+`refresh_sales_mv()` is owned by `report.RefreshCoordinator` (`internal/report/refresh_coordinator.go`), which refreshes once at startup and then at each Jakarta hour (`:00`) boundary; the `sale.created` listener (`report.Repository.NewSaleCreatedListener`) only invalidates dashboard caches and never triggers a refresh. A single worker goroutine runs at most one refresh at a time. Startup (`cmd/server/main.go`) and seed (`cmd/dummy/main.go`) still refresh directly. Refresh failures are retried by the coordinator with exponential backoff (`REPORT_REFRESH_DEBOUNCE` is the base retry delay, not a debounce window) and never fail the `SaleCreated` event or trigger eventbus retries.
 
-Remaining real-time `sales` reads are intentional: the live dashboard stats (`GetLiveDashboardStats`, `GetDashboardStats`) are today-only with a short cache TTL, and the weekly/monthly sales reports are date-bounded scans. Charts read the MVs and are eventually consistent: completed hours/days are always up to date, and the in-progress hour/day appears at the next `:00` boundary.
+**Only completed hours/days are displayed.** Realtime and single-day reports show data through the *last completed hour* — e.g., at 11:20 Jakarta the last bucket is 10:00 (10:00–<11:00). The in-progress hour is never surfaced, even if a mid-hour refresh (startup at :20, retry backoff, manual `refresh_sales_mv()`) already wrote a partial bucket for it. This invariant is enforced in three coordinated places that must stay in sync:
+
+- `report.getRealtimeRanges` (`internal/report/ranges.go`) — realtime period end is the start of the in-progress hour (exclusive), so `sale_hour < hourStart` excludes any partial bucket and both periods cover the same completed hours.
+- `Repository.GetHourlySales` (`internal/report/repository.go`) — a chart for *today* caps its upper bound at the start of the current hour; past days span the full 24 hours.
+- Frontend (`web/src/modules/reporting/utils/chart-config.ts` builds the axis with `length: currentHour`, and `data-fetching.ts` filters realtime points with `hour < currentHour`) — the chart never renders the in-progress hour slot.
+
+Charts read the MVs and are eventually consistent: completed hours/days are always up to date, and the in-progress hour/day appears at the next `:00` boundary.
+
+Remaining real-time `sales` reads are intentional: the live dashboard stats (`GetLiveDashboardStats`, `GetDashboardStats`) are today-only with a short cache TTL, and the weekly/monthly sales reports are date-bounded scans.
 
 ## Git Commit Policy
 Never auto-commit on each change. User will request commits explicitly when ready.

@@ -38,6 +38,13 @@ func wireReportAdapters(repo *Repository) {
 }
 
 func seedSale(ctx context.Context, t *testing.T) (saleID int, productID int, saleAmount int, saleQty int) {
+	return seedSaleAt(ctx, t, time.Now())
+}
+
+// seedSaleAt seeds a completed sale with an explicit created_at, letting tests
+// place the sale in a completed hour/day bucket rather than the in-progress one
+// (which report queries deliberately exclude).
+func seedSaleAt(ctx context.Context, t *testing.T, createdAt time.Time) (saleID int, productID int, saleAmount int, saleQty int) {
 	t.Helper()
 	userSKU := uniqueSKU("USR")
 	var cashierID int
@@ -78,9 +85,9 @@ func seedSale(ctx context.Context, t *testing.T) (saleID int, productID int, sal
 	// Insert sale
 	invSKU := uniqueSKU("INV")
 	err = dbPool.QueryRow(ctx,
-		`INSERT INTO sales (invoice_number, cashier_id, customer_id, subtotal, total_amount, payment_method, status)
-		 VALUES ($1, $2, $3, $4, $5, 'CASH', 'completed') RETURNING id`,
-		invSKU, cashierID, customerID, total, total,
+		`INSERT INTO sales (invoice_number, cashier_id, customer_id, subtotal, total_amount, payment_method, status, created_at)
+		 VALUES ($1, $2, $3, $4, $5, 'CASH', 'completed', $6) RETURNING id`,
+		invSKU, cashierID, customerID, total, total, createdAt,
 	).Scan(&saleID)
 	require.NoError(t, err)
 
@@ -263,9 +270,17 @@ func TestReportRepository_HourlySales_Seeded(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	_, _, amount, _ := seedSale(ctx, t)
+	// Seed one sale into the previous completed hour bucket (always complete at
+	// the time of the test, even across a Jakarta day boundary) and one into the
+	// in-progress hour; only the completed bucket may surface in a today chart.
+	nowJakarta := time.Now().In(shared.JakartaLocation())
+	hourStart := time.Date(nowJakarta.Year(), nowJakarta.Month(), nowJakarta.Day(), nowJakarta.Hour(), 0, 0, 0, shared.JakartaLocation())
+	completedAt := hourStart.Add(-time.Minute)
+	date := time.Date(completedAt.Year(), completedAt.Month(), completedAt.Day(), 0, 0, 0, 0, shared.JakartaLocation())
+
+	_, _, amount, _ := seedSaleAt(ctx, t, completedAt)
+	seedSale(ctx, t)
 	refreshMaterializedViews(ctx, t)
-	date := time.Now()
 
 	result, err := repo.GetHourlySales(ctx, date, nil)
 	require.NoError(t, err)
@@ -278,7 +293,14 @@ func TestReportRepository_HourlySales_Seeded(t *testing.T) {
 			break
 		}
 	}
-	assert.True(t, found, "seeded sale should appear in hourly sales data")
+	assert.True(t, found, "seeded sale in a completed hour should appear in hourly sales data")
+
+	if date.Year() == nowJakarta.Year() && date.YearDay() == nowJakarta.YearDay() {
+		for _, dp := range result {
+			assert.NotEqual(t, fmt.Sprintf("%02d", nowJakarta.Hour()), dp.Date,
+				"in-progress hour must not be surfaced in a today chart")
+		}
+	}
 }
 
 func TestReportRepository_DailySales_Seeded(t *testing.T) {

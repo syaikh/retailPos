@@ -154,14 +154,23 @@ func TestGetRealtimeRanges(t *testing.T) {
 	got := getRealtimeRanges(refDate)
 	want := PeriodRange{
 		CurrentStart:  time.Date(2026, 1, 15, 0, 0, 0, 0, wib),
-		CurrentEnd:    time.Date(2026, 1, 15, 11, 0, 0, 0, wib),
+		CurrentEnd:    time.Date(2026, 1, 15, 10, 0, 0, 0, wib),
 		PreviousStart: time.Date(2026, 1, 14, 0, 0, 0, 0, wib),
-		PreviousEnd:   time.Date(2026, 1, 14, 11, 0, 0, 0, wib),
+		PreviousEnd:   time.Date(2026, 1, 14, 10, 0, 0, 0, wib),
 	}
 	assert.Equal(t, want.CurrentStart, got.CurrentStart)
 	assert.Equal(t, want.CurrentEnd, got.CurrentEnd)
 	assert.Equal(t, want.PreviousStart, got.PreviousStart)
 	assert.Equal(t, want.PreviousEnd, got.PreviousEnd)
+}
+
+func TestGetRealtimeRanges_OnHourBoundary(t *testing.T) {
+	// At exactly 10:00 the 09:00 bucket is complete; the range end stays at
+	// 10:00 so the in-progress 10:00 bucket is never included.
+	refDate := time.Date(2026, 1, 15, 10, 0, 0, 0, wib)
+	got := getRealtimeRanges(refDate)
+	assert.Equal(t, time.Date(2026, 1, 15, 10, 0, 0, 0, wib), got.CurrentEnd)
+	assert.Equal(t, time.Date(2026, 1, 14, 10, 0, 0, 0, wib), got.PreviousEnd)
 }
 
 func TestGetMonthlyRanges(t *testing.T) {

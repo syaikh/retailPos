@@ -411,6 +411,17 @@ func (r *Repository) GetAvailableYears(ctx context.Context, storeID *int) ([]int
 
 func (r *Repository) GetHourlySales(ctx context.Context, date time.Time, storeID *int) ([]ChartDataPoint, error) {
 	end := date.Add(24 * time.Hour)
+	// A chart for today must never surface the in-progress hour: cap the upper
+	// bound at the start of the current hour so a partial bucket (e.g. created
+	// by a mid-hour refresh on startup/retry/manual) is excluded. Completed
+	// past days span the full 24 hours.
+	nowJakarta := time.Now().In(shared.JakartaLocation())
+	if date.Year() == nowJakarta.Year() && date.YearDay() == nowJakarta.YearDay() {
+		hourStart := time.Date(nowJakarta.Year(), nowJakarta.Month(), nowJakarta.Day(), nowJakarta.Hour(), 0, 0, 0, nowJakarta.Location())
+		if hourStart.Before(end) {
+			end = hourStart
+		}
+	}
 	query := `
 		SELECT EXTRACT(HOUR FROM sale_hour)::int AS hour,
 			   SUM(total_revenue) AS revenue

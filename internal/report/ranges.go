@@ -142,12 +142,17 @@ func getWeeklyRanges(refDate time.Time, completedMode bool) PeriodRange {
 	}
 }
 
+// getRealtimeRanges bounds both periods to the start of the in-progress hour
+// (exclusive), so only completed hour buckets are compared. Example: at 11:20
+// the current period is [00:00, 11:00) — hours 00..10 — matching yesterday's
+// [00:00, 11:00). Ending at currentHour+1 would include the partial 11:00
+// bucket that a mid-hour MV refresh (startup, retry, manual) may have created.
 func getRealtimeRanges(refDate time.Time) PeriodRange {
 	currentHour := refDate.Hour()
-	currentPeriodEnd := time.Date(refDate.Year(), refDate.Month(), refDate.Day(), currentHour+1, 0, 0, 0, refDate.Location())
+	currentPeriodEnd := time.Date(refDate.Year(), refDate.Month(), refDate.Day(), currentHour, 0, 0, 0, refDate.Location())
 
 	yesterdayStart := refDate.AddDate(0, 0, -1)
-	yesterdaySamePeriodEnd := time.Date(yesterdayStart.Year(), yesterdayStart.Month(), yesterdayStart.Day(), currentHour+1, 0, 0, 0, yesterdayStart.Location())
+	yesterdaySamePeriodEnd := time.Date(yesterdayStart.Year(), yesterdayStart.Month(), yesterdayStart.Day(), currentHour, 0, 0, 0, yesterdayStart.Location())
 
 	return PeriodRange{
 		CurrentStart:  time.Date(refDate.Year(), refDate.Month(), refDate.Day(), 0, 0, 0, 0, refDate.Location()),

@@ -42,10 +42,12 @@ describe('buildChartConfig – hourly', () => {
     expect(config.data.labels).toHaveLength(24);
   });
 
-  it('shows 0–currentHour for realtime period', () => {
+  it('shows 0 through last completed hour for realtime period', () => {
     vi.mocked(getCurrentJakartaHour).mockReturnValue(14);
     const config = buildChartConfig({ ...baseParams, chartType: 'hourly', chartData: makeHourlyData([0, 14]), activePeriodType: 'realtime' });
-    expect(config.data.labels).toHaveLength(15);
+    // Hour 14 is in-progress; only hours 0..13 (completed) are shown.
+    expect(config.data.labels).toHaveLength(14);
+    expect(config.data.labels[13]).toBe('13:00');
   });
 
   it('fills zero for missing hours', () => {
