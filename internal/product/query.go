@@ -194,10 +194,19 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 	return products, total, nil
 }
 
-func (r *Repository) GetAllProductsForExport(ctx context.Context) ([]Product, error) {
-	rows, err := r.db.Query(ctx, productSelectCols+`
+func (r *Repository) GetAllProductsForExport(ctx context.Context, storeID *int) ([]Product, error) {
+	query := productSelectCols + `
 		ORDER BY v.name
-	`)
+	`
+	args := []interface{}{}
+	if storeID != nil {
+		query = productSelectCols + `
+			WHERE v.store_id = $1
+			ORDER BY v.name
+		`
+		args = append(args, *storeID)
+	}
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

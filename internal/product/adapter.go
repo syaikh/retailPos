@@ -8,6 +8,9 @@ import (
 	"strings"
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
+	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/ownership"
+	"retail-pos-system/internal/permissions"
 )
 
 // CategoryRef is the consumer-side view of a category needed for import/export
@@ -274,26 +277,31 @@ func (r *productRepoAdapter) resolveReferences(row ImportRow, catMap, brandMap, 
 }
 
 func (r *productRepoAdapter) ExportData(ctx context.Context, _ importexportshared.ModuleSchema) ([]map[string]interface{}, error) {
-	products, err := r.repo.GetAllProductsForExport(ctx)
+	storeID := middleware.StoreIDFromContext(ctx)
+	products, err := r.repo.GetAllProductsForExport(ctx, storeID)
 	if err != nil {
 		return nil, err
 	}
+	viewCost := ownership.CanAccessAll(middleware.PermissionsFromContext(ctx), permissions.ProductCostView)
 	result := make([]map[string]interface{}, len(products))
 	for i, p := range products {
-		result[i] = map[string]interface{}{
+		row := map[string]interface{}{
 			"SKU":           p.SKU,
 			"Name":          p.Name,
 			"Barcode":       nilStr(p.Barcode),
 			"Category":      nilStr(p.CategoryName),
 			"Brand":         nilStr(p.BrandName),
 			"Price":         p.Price,
-			"Cost":          p.Cost,
 			"Stock":         p.Stock,
 			"Status":        p.Status,
 			"UnitOfMeasure": nilStr(p.UnitOfMeasure),
 			"WeightGrams":   nilInt(p.WeightGrams),
 			"Description":   nilStr(p.Description),
 		}
+		if viewCost {
+			row["Cost"] = p.Cost
+		}
+		result[i] = row
 	}
 	return result, nil
 }

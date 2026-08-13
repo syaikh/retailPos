@@ -782,7 +782,24 @@ func TestRepo_GetAllProductsForExport(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	products, err := repo.GetAllProductsForExport(context.Background())
+	products, err := repo.GetAllProductsForExport(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Len(t, products, 1)
+	assert.Equal(t, "SKU-001", products[0].SKU)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepo_GetAllProductsForExport_StoreScoped(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	storeID := 3
+	rows := productFullRowAllFields(1, "SKU-001", "Widget", 10000, 5000, 100, "active")
+	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(storeID).WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	products, err := repo.GetAllProductsForExport(context.Background(), &storeID)
 	require.NoError(t, err)
 	assert.Len(t, products, 1)
 	assert.Equal(t, "SKU-001", products[0].SKU)

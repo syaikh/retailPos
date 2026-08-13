@@ -130,6 +130,28 @@ func TestStoreIDFromContext_WrongType(t *testing.T) {
 	}
 }
 
+func TestPermissionsFromContext_Present(t *testing.T) {
+	perms := []string{"a.view", "b.create"}
+	ctx := context.WithValue(context.Background(), CtxKeyPermissions, perms)
+	got := PermissionsFromContext(ctx)
+	if len(got) != 2 || got[0] != "a.view" || got[1] != "b.create" {
+		t.Errorf("expected %v, got %v", perms, got)
+	}
+}
+
+func TestPermissionsFromContext_Missing(t *testing.T) {
+	if got := PermissionsFromContext(context.Background()); got != nil {
+		t.Errorf("expected nil, got %v", got)
+	}
+}
+
+func TestPermissionsFromContext_WrongType(t *testing.T) {
+	ctx := context.WithValue(context.Background(), CtxKeyPermissions, 42)
+	if got := PermissionsFromContext(ctx); got != nil {
+		t.Errorf("expected nil for wrong type, got %v", got)
+	}
+}
+
 func TestUserAgentFromContext_Present(t *testing.T) {
 	ctx := context.WithValue(context.Background(), shared.CtxKeyUserAgent, "Mozilla/5.0")
 	if got := UserAgentFromContext(ctx); got != "Mozilla/5.0" {

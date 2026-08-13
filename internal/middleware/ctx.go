@@ -13,6 +13,7 @@ const (
 	CtxKeyUsername    ctxKey = "username"
 	CtxKeyRole        ctxKey = "role"
 	CtxKeyStoreID     ctxKey = "storeID"
+	CtxKeyPermissions ctxKey = "permissions"
 	CtxKeyReportsToID ctxKey = "reportsToID"
 )
 
@@ -56,6 +57,15 @@ func StoreIDFromContext(ctx context.Context) *int {
 	if v := ctx.Value(CtxKeyStoreID); v != nil {
 		if id, ok := v.(*int); ok {
 			return id
+		}
+	}
+	return nil
+}
+
+func PermissionsFromContext(ctx context.Context) []string {
+	if v := ctx.Value(CtxKeyPermissions); v != nil {
+		if perms, ok := v.([]string); ok {
+			return perms
 		}
 	}
 	return nil

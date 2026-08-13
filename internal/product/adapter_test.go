@@ -9,6 +9,8 @@ import (
 
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
+	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/platform/importexport/schema"
 	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/uom"
@@ -390,19 +392,71 @@ func TestProductAdapter_ExportData_Success(t *testing.T) {
 	err := repo.CreateProduct(ctx, product)
 	require.NoError(t, err)
 
+	t.Run("omits cost without product.cost.view", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.CtxKeyPermissions, []string{string(permissions.ProductExport)})
+		data, err := ra.ExportData(ctx, importexportshared.ModuleSchema{})
+		require.NoError(t, err)
+		require.NotEmpty(t, data)
+
+		found := false
+		for _, row := range data {
+			if row["SKU"] == "TEST-SKU-EXPORT" {
+				found = true
+				assert.Equal(t, "Export Product", row["Name"])
+				assert.Equal(t, 20000, row["Price"])
+				_, hasCost := row["Cost"]
+				assert.False(t, hasCost, "cost must be omitted without product.cost.view")
+			}
+		}
+		assert.True(t, found, "exported product not found")
+	})
+
+	t.Run("includes cost with product.cost.view", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.CtxKeyPermissions, []string{string(permissions.ProductExport), string(permissions.ProductCostView)})
+		data, err := ra.ExportData(ctx, importexportshared.ModuleSchema{})
+		require.NoError(t, err)
+		require.NotEmpty(t, data)
+
+		found := false
+		for _, row := range data {
+			if row["SKU"] == "TEST-SKU-EXPORT" {
+				found = true
+				assert.Equal(t, 15000, row["Cost"])
+			}
+		}
+		assert.True(t, found, "exported product not found")
+	})
+}
+
+func TestProductAdapter_ExportData_StoreScoped(t *testing.T) {
+	ctx := context.Background()
+	seedProductReferences(ctx, t)
+	storeID := insertTestStore(ctx, t, "Export Scope Store")
+
+	repo := testRepo()
+	catRepo := category.NewRepository(dbPool)
+	brandRepo := brand.NewRepository(dbPool)
+	uomRepo := uom.NewRepository(dbPool)
+	catRef, brandRef, uomRef := newTestRefAdapters(catRepo, brandRepo, uomRepo)
+	adapter := NewAdapter(repo, catRef, brandRef, uomRef)
+	ra := adapter.Repository()
+
+	mine := &Product{
+		SKU: "TEST-SKU-SCOPE-MINE", Name: "Mine", Price: 10000, Cost: 5000, Stock: 1, Status: "active", StoreID: &storeID,
+	}
+	other := &Product{
+		SKU: "TEST-SKU-SCOPE-OTHER", Name: "Other", Price: 10000, Cost: 5000, Stock: 1, Status: "active",
+	}
+	require.NoError(t, repo.CreateProduct(ctx, mine))
+	require.NoError(t, repo.CreateProduct(ctx, other))
+
+	ctx = context.WithValue(ctx, middleware.CtxKeyStoreID, &storeID)
 	data, err := ra.ExportData(ctx, importexportshared.ModuleSchema{})
 	require.NoError(t, err)
-	require.NotEmpty(t, data)
 
-	found := false
 	for _, row := range data {
-		if row["SKU"] == "TEST-SKU-EXPORT" {
-			found = true
-			assert.Equal(t, "Export Product", row["Name"])
-			assert.Equal(t, 20000, row["Price"])
-		}
+		assert.NotEqual(t, "TEST-SKU-SCOPE-OTHER", row["SKU"], "store-scoped export must not leak other stores' products")
 	}
-	assert.True(t, found, "exported product not found")
 }
 
 type testCategoryRefAdapter struct {
