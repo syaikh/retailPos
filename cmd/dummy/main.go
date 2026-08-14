@@ -1661,18 +1661,24 @@ func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time)
 		storeIDArg = sid
 	}
 
-	// 1) Create one open shift per (cashier, Jakarta date) with completed sales.
+	// 1) Create one shift per (cashier, Jakarta date) with completed sales.
 	//    Opening time 07:00–08:59 WIB, opening balance 500k–2M.
+	//    uq_open_shift_per_user only allows a single 'open' shift per user, so
+	//    only the latest sale date per cashier is inserted as 'open'; older
+	//    dates are inserted as 'closed' and finalized below with the others.
 	rows, err := db.QueryContext(ctx, `
 		INSERT INTO shifts (user_id, store_id, status, opening_balance, opened_at, created_at, updated_at)
-		SELECT s.cashier_id, $1, 'open',
+		SELECT s.cashier_id, $1,
+		       CASE WHEN s.sale_date = s.last_date THEN 'open' ELSE 'closed' END,
 		       ((500 + floor(random() * 1501)) * 1000)::int,
 		       (s.sale_date + time '07:00:00'
 		           + (floor(random() * 2)) * interval '1 hour'
 		           + floor(random() * 60) * interval '1 minute') AT TIME ZONE 'Asia/Jakarta',
 		       NOW(), NOW()
 		FROM (
-		    SELECT cashier_id, (created_at AT TIME ZONE 'Asia/Jakarta')::date AS sale_date
+		    SELECT cashier_id,
+		           (created_at AT TIME ZONE 'Asia/Jakarta')::date AS sale_date,
+		           MAX((created_at AT TIME ZONE 'Asia/Jakarta')::date) OVER (PARTITION BY cashier_id) AS last_date
 		    FROM sales
 		    WHERE status = 'completed' AND cashier_id IS NOT NULL
 		      AND created_at >= $2 AND created_at < $3
@@ -1703,15 +1709,17 @@ func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time)
 		return nil
 	}
 
-	// 2) Link completed sales to the matching open shift for the same cashier + Jakarta date.
+	// 2) Link completed sales to the matching shift for the same cashier + Jakarta date.
 	//    updated_at = created_at restricts the join to shifts created in this run.
+	//    (status is not checked here: only the latest date per cashier is 'open'
+	//    and older dates are already 'closed', but all of them still need linking.)
 	if _, err := db.ExecContext(ctx, `
 		UPDATE sales s
 		SET shift_id = sh.id
 		FROM shifts sh
 		WHERE s.status = 'completed' AND s.shift_id IS NULL
 		  AND s.cashier_id = sh.user_id
-		  AND sh.status = 'open' AND sh.updated_at = sh.created_at
+		  AND sh.updated_at = sh.created_at
 		  AND (s.created_at AT TIME ZONE 'Asia/Jakarta')::date = (sh.opened_at AT TIME ZONE 'Asia/Jakarta')::date
 	`); err != nil {
 		return fmt.Errorf("link sales to shifts: %w", err)
