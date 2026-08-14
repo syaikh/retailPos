@@ -247,7 +247,7 @@
   });
 
   let tableRows = $derived.by(() => {
-    if (chartData.length === 0) return [];
+    if (chartData.length === 0 && chartType !== 'hourly') return [];
 
     function computeDayOffset() {
       const sortedCurrent = chartData.filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
@@ -258,9 +258,22 @@
     }
 
     if (chartType === 'hourly') {
-      return chartData.map(d => {
-        const prev = prevChartData.find(p => p.date === d.date);
-        const prevRev = prev ? prev.total : null;
+      const maxHour = activePeriodType === 'realtime' ? currentJakartaHour : 23;
+      const currentByHour = new Map(chartData.map(d => [d.date, d.total]));
+      const prevByHour = new Map(prevChartData.map(d => [d.date, d.total]));
+      const hasPrevData = prevChartData.length > 0;
+
+      const completeData = [];
+      for (let h = 0; h <= maxHour; h++) {
+        const hourStr = String(h).padStart(2, '0');
+        completeData.push({
+          date: hourStr,
+          total: currentByHour.get(hourStr) ?? 0,
+        });
+      }
+
+      return completeData.map(d => {
+        const prevRev = hasPrevData ? (prevByHour.get(d.date) ?? 0) : null;
         return {
           period: getPeriodLabel(d),
           dateStr: d.date,
@@ -451,6 +464,19 @@
       exportMode,
       exportDate,
       chartCanvas,
+      startDate,
+      endDate,
+      selectedPeriodType,
+      currentTimeHour,
+      chartType,
+      comparisonDateRange,
+      statCardLabels,
+      kpiData,
+      chartData,
+      bestPeriod,
+      worstPeriod,
+      bestWorstHeading,
+      sortedRows,
     });
   }
 

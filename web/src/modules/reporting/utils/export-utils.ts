@@ -8,6 +8,37 @@ interface ExportToExcelParams {
   exportMode?: string;
   exportDate?: string;
   chartCanvas?: HTMLCanvasElement;
+  startDate?: string;
+  endDate?: string;
+  selectedPeriodType: string;
+  currentTimeHour?: string;
+  chartType: string;
+  comparisonDateRange?: string;
+  statCardLabels: { comparisonLabel: string };
+  kpiData: {
+    totalRevenue: number;
+    previousRevenue: number;
+    totalOrders: number;
+    previousOrders: number;
+    avgOrderValue: number;
+    previousAvgOrderValue: number;
+    revenuePerDay: number;
+    previousRevenuePerDay: number;
+    peakRevenueHour: number;
+    previousPeakRevenue: number;
+    peakRevenueMonth: number;
+    previousPeakRevenueMonth: number;
+  };
+  chartData: Array<{ date?: string; total: number }>;
+  bestPeriod?: { total: number; [key: string]: unknown } | null;
+  worstPeriod?: { total: number; [key: string]: unknown } | null;
+  bestWorstHeading: string;
+  sortedRows: Array<{
+    period: string;
+    revenue: number;
+    prevRevenue: number | null;
+    orderCount: number | null;
+  }>;
 }
 
 interface ExportToPDFParams {
@@ -53,12 +84,38 @@ export async function exportToExcel({
   exportMode,
   exportDate,
   chartCanvas,
+  startDate,
+  endDate,
+  selectedPeriodType,
+  currentTimeHour,
+  chartType,
+  comparisonDateRange,
+  statCardLabels,
+  kpiData,
+  chartData,
+  bestPeriod,
+  worstPeriod,
+  bestWorstHeading,
+  sortedRows,
 }: ExportToExcelParams) {
   try {
     const formData = new FormData();
     if (exportPeriod) formData.set('period', exportPeriod);
     if (exportMode) formData.set('mode', exportMode);
     if (exportDate) formData.set('date', exportDate);
+    if (startDate) formData.set('startDate', startDate);
+    if (endDate) formData.set('endDate', endDate);
+    if (selectedPeriodType) formData.set('selectedPeriodType', selectedPeriodType);
+    if (currentTimeHour) formData.set('currentTimeHour', currentTimeHour);
+    if (chartType) formData.set('chartType', chartType);
+    if (comparisonDateRange) formData.set('comparisonDateRange', comparisonDateRange);
+    if (statCardLabels?.comparisonLabel) formData.set('comparisonLabel', statCardLabels.comparisonLabel);
+    if (kpiData) formData.set('kpiData', JSON.stringify(kpiData));
+    if (chartData?.length) formData.set('chartData', JSON.stringify(chartData));
+    if (bestPeriod) formData.set('bestPeriod', JSON.stringify(bestPeriod));
+    if (worstPeriod) formData.set('worstPeriod', JSON.stringify(worstPeriod));
+    if (bestWorstHeading) formData.set('bestWorstHeading', bestWorstHeading);
+    if (sortedRows?.length) formData.set('sortedRows', JSON.stringify(sortedRows));
     if (chartCanvas) {
       const temp = document.createElement('canvas');
       temp.width = chartCanvas.width;
@@ -69,7 +126,12 @@ export async function exportToExcel({
         tCtx.fillRect(0, 0, temp.width, temp.height);
         tCtx.drawImage(chartCanvas, 0, 0);
       }
-      formData.set('chartData', temp.toDataURL('image/png'));
+      const dataUrl = temp.toDataURL('image/png');
+      const base64 = dataUrl.split(',')[1];
+      if (base64.length > 3_000_000) {
+        throw new Error('Chart image too large for export');
+      }
+      formData.set('chartImage', base64);
     }
 
     const res = await apiFetch('/api/dashboard/export', {
@@ -82,7 +144,9 @@ export async function exportToExcel({
     }
 
     const blob = await res.blob();
-    const fileName = `dashboard-${getTodayInJakarta()}.xlsx`;
+    const contentDisposition = res.headers.get('Content-Disposition');
+    const fileNameMatch = contentDisposition?.match(/filename="?([^"]+)"?/);
+    const fileName = fileNameMatch?.[1] || `dashboard-${getTodayInJakarta()}.xlsx`;
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -284,7 +348,10 @@ export async function exportToPDF({
       });
     }
 
-    const fileName = `revenue-report-${selectedPeriodType}-${startDate || 'N/A'}-${endDate || 'N/A'}.pdf`;
+    const isSingleDay = ['realtime', 'yesterday', 'daily'].includes(selectedPeriodType);
+    const fileName = isSingleDay
+      ? `revenue-report-${selectedPeriodType}-${startDate || 'N/A'}.pdf`
+      : `revenue-report-${selectedPeriodType}-${startDate || 'N/A'}-to-${endDate || 'N/A'}.pdf`;
     doc.save(fileName);
 
     toast.success('PDF export completed');

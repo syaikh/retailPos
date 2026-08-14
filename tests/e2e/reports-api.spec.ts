@@ -100,6 +100,39 @@ test.describe('Reports API - Dashboard Export', () => {
     expect(res.ok(), `export failed: ${res.status()}: ${await res.text()}`).toBeTruthy();
   });
 
+  test('POST /api/dashboard/export uses realtime filename for realtime period', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const res = await request.post(`${API_BASE}/api/dashboard/export`, {
+      headers: authHeader(token),
+      multipart: {
+        format: 'xlsx',
+        selectedPeriodType: 'realtime',
+        chartType: 'hourly',
+        currentTimeHour: '12:00',
+      },
+    });
+    expect(res.ok(), `export failed: ${res.status()}: ${await res.text()}`).toBeTruthy();
+    const disposition = res.headers()['content-disposition'];
+    expect(disposition).toContain('revenue-report-realtime-');
+  });
+
+  test('POST /api/dashboard/export uses start-to-end filename for multi-day period', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const res = await request.post(`${API_BASE}/api/dashboard/export`, {
+      headers: authHeader(token),
+      multipart: {
+        format: 'xlsx',
+        selectedPeriodType: '7days',
+        chartType: 'daily',
+        startDate: '2026-08-07',
+        endDate: '2026-08-13',
+      },
+    });
+    expect(res.ok(), `export failed: ${res.status()}: ${await res.text()}`).toBeTruthy();
+    const disposition = res.headers()['content-disposition'];
+    expect(disposition).toContain('revenue-report-7days-2026-08-07-to-2026-08-13.xlsx');
+  });
+
   test('POST /api/dashboard/export without auth returns 401', async ({ request }) => {
     const res = await request.post(`${API_BASE}/api/dashboard/export`, {
       data: { format: 'xlsx' },
