@@ -2014,12 +2014,12 @@ const docTemplate = `{
         "pricing.PricingType": {
             "type": "string",
             "enum": [
-                "default",
+                "normal",
                 "special_price",
                 "promotion"
             ],
             "x-enum-comments": {
-                "PricingTypeDefault": "fallback only — not creatable"
+                "PricingTypeNormal": "fallback only — not creatable"
             },
             "x-enum-descriptions": [
                 "fallback only — not creatable",
@@ -2027,7 +2027,7 @@ const docTemplate = `{
                 ""
             ],
             "x-enum-varnames": [
-                "PricingTypeDefault",
+                "PricingTypeNormal",
                 "PricingTypeSpecialPrice",
                 "PricingTypePromotion"
             ]

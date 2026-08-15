@@ -117,7 +117,7 @@ func (reportAdapter) GetPricingBreakdown(ctx context.Context, db shared.DBPool, 
 		query += ` AND s.store_id = $3`
 		args = append(args, *storeID)
 	}
-	query += ` GROUP BY COALESCE(si.pricing_type, 'normal') ORDER BY revenue DESC`
+	query += ` GROUP BY COALESCE(NULLIF(si.pricing_type, 'default'), 'normal') ORDER BY revenue DESC`
 
 	rows, err := db.Query(ctx, query, args...)
 	if err != nil {

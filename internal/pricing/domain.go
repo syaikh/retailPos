@@ -43,7 +43,7 @@ func (e *productNotFoundError) ProductNotFound() {}
 type Type string
 
 const (
-	PricingTypeDefault      Type = "default" // fallback only — not creatable
+	PricingTypeNormal       Type = "normal" // fallback only — not creatable
 	PricingTypeSpecialPrice Type = "special_price"
 	PricingTypePromotion    Type = "promotion"
 )

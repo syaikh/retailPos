@@ -136,7 +136,7 @@ func TestResolver_Resolve_BasePriceOnly(t *testing.T) {
 	assert.Equal(t, 15000, result.UnitPrice)
 	assert.Equal(t, 15000, result.OriginalPrice)
 	assert.Equal(t, 0, result.Discount)
-	assert.Equal(t, PricingTypeDefault, result.Type)
+	assert.Equal(t, PricingTypeNormal, result.Type)
 	assert.Nil(t, result.Rule)
 }
 
@@ -232,7 +232,7 @@ func TestResolver_Resolve_QuantityBelowMinimum(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 2})
 	require.NoError(t, err)
 	assert.Equal(t, 15000, result.UnitPrice)
-	assert.Equal(t, PricingTypeDefault, result.Type)
+	assert.Equal(t, PricingTypeNormal, result.Type)
 	assert.Nil(t, result.Rule)
 }
 
@@ -330,7 +330,7 @@ func TestResolver_Resolve_ExpiredRuleFallsBack(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
 	assert.Equal(t, 15000, result.UnitPrice)
-	assert.Equal(t, PricingTypeDefault, result.Type)
+	assert.Equal(t, PricingTypeNormal, result.Type)
 	assert.Nil(t, result.Rule)
 }
 
@@ -346,7 +346,7 @@ func TestResolver_Resolve_InactiveRuleFallsBack(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
 	assert.Equal(t, 15000, result.UnitPrice)
-	assert.Equal(t, PricingTypeDefault, result.Type)
+	assert.Equal(t, PricingTypeNormal, result.Type)
 	assert.Nil(t, result.Rule)
 }
 
@@ -363,7 +363,7 @@ func TestResolver_Resolve_FutureRuleFallsBack(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
 	assert.Equal(t, 15000, result.UnitPrice)
-	assert.Equal(t, PricingTypeDefault, result.Type)
+	assert.Equal(t, PricingTypeNormal, result.Type)
 	assert.Nil(t, result.Rule)
 }
 
@@ -377,7 +377,7 @@ func TestResolver_Resolve_NoRulesForProduct(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
 	assert.Equal(t, 15000, result.UnitPrice)
-	assert.Equal(t, PricingTypeDefault, result.Type)
+	assert.Equal(t, PricingTypeNormal, result.Type)
 	assert.Nil(t, result.Rule)
 }
 
@@ -501,7 +501,7 @@ func TestResolver_ResolveBatch_MixedProducts(t *testing.T) {
 	assert.Equal(t, PricingTypeSpecialPrice, results[0].Type)
 
 	assert.Equal(t, 20000, results[1].UnitPrice)
-	assert.Equal(t, PricingTypeDefault, results[1].Type)
+	assert.Equal(t, PricingTypeNormal, results[1].Type)
 
 	assert.Equal(t, 4000, results[2].UnitPrice)
 	assert.Equal(t, PricingTypePromotion, results[2].Type)
@@ -552,7 +552,7 @@ func TestResolver_ResolveBatch_DuplicateProducts(t *testing.T) {
 	require.Len(t, results, 2)
 
 	assert.Equal(t, 15000, results[0].UnitPrice)
-	assert.Equal(t, PricingTypeDefault, results[0].Type)
+	assert.Equal(t, PricingTypeNormal, results[0].Type)
 
 	assert.Equal(t, 10000, results[1].UnitPrice)
 	assert.Equal(t, PricingTypeSpecialPrice, results[1].Type)
@@ -718,7 +718,7 @@ func TestResolver_Resolve_RecurrenceDayBlocked(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
 	assert.Equal(t, 100000, result.UnitPrice)
-	assert.Equal(t, PricingTypeDefault, result.Type)
+	assert.Equal(t, PricingTypeNormal, result.Type)
 }
 
 func TestResolver_Resolve_StoreFilterMatch(t *testing.T) {
@@ -978,7 +978,7 @@ func TestResolver_ResolveSnapshot_NoRule(t *testing.T) {
 	assert.Equal(t, 3500, snap.UnitPrice)
 	assert.Equal(t, 3500, snap.OriginalPrice)
 	assert.Equal(t, 0, snap.Discount)
-	assert.Equal(t, PricingTypeDefault, snap.Type)
+	assert.Equal(t, PricingTypeNormal, snap.Type)
 	assert.Nil(t, snap.Rule)
 	assert.Equal(t, 2500, snap.Cost)
 	require.NotNil(t, snap.TaxRate)
@@ -1018,7 +1018,7 @@ func TestResolver_ResolveSnapshot_QtyBelowMinimumUsesBase(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3500, snap.UnitPrice)
 	assert.Equal(t, 0, snap.Discount)
-	assert.Equal(t, PricingTypeDefault, snap.Type)
+	assert.Equal(t, PricingTypeNormal, snap.Type)
 
 	snap, err = resolver.ResolveSnapshot(context.Background(), ResolveContext{ProductID: 1, Quantity: 5})
 	require.NoError(t, err)

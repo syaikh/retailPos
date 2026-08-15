@@ -110,7 +110,7 @@ func (m *mockService) ResolveCheckoutPrices(ctx context.Context, items []Resolve
 			UnitPrice:     10000,
 			OriginalPrice: 10000,
 			Discount:      0,
-			Type:          Type("default"),
+			Type:          Type("normal"),
 			Cost:          5000,
 			SnapshotAt:    time.Now().In(shared.JakartaLocation()),
 		}

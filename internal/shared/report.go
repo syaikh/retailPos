@@ -49,7 +49,7 @@ const MonthlySalesQueryTemplate = `
 // PricingBreakdownQueryTemplate is the shared SQL for pricing breakdown aggregation.
 // The caller appends the optional store_id filter and GROUP BY/ORDER BY clauses.
 const PricingBreakdownQueryTemplate = `
-	SELECT COALESCE(si.pricing_type, 'normal') AS pricing_type,
+	SELECT COALESCE(NULLIF(si.pricing_type, 'default'), 'normal') AS pricing_type,
 	       SUM(si.unit_price * si.quantity) AS revenue,
 	       COUNT(DISTINCT si.sale_id) AS order_count,
 	       COUNT(*) AS item_count

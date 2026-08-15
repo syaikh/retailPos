@@ -380,7 +380,7 @@ test.describe('Price Consistency During Active Transactions', () => {
     expect(cart.items.length).toBe(2);
     const first = cart.items[0];
     expect(first.unit_price).toBe(BASE_PRICE);
-    expect(first.pricing_type).toBe('default');
+    expect(first.pricing_type).toBe('normal');
     const second = cart.items[1];
     expect(second.unit_price).toBe(9000);
     expect(second.original_price).toBe(BASE_PRICE);
@@ -403,7 +403,7 @@ test.describe('Price Consistency During Active Transactions', () => {
     expect(cart.items[0].unit_price).toBe(9000);
     expect(cart.items[0].pricing_type).toBe('promotion');
     expect(cart.items[1].unit_price).toBe(BASE_PRICE);
-    expect(cart.items[1].pricing_type).toBe('default');
+    expect(cart.items[1].pricing_type).toBe('normal');
   });
 
   // E2E-08 — repeated admin price changes only affect items added afterwards (Edge #7)

@@ -58,7 +58,7 @@ func TestValidateRule_InvalidPricingType(t *testing.T) {
 
 func TestValidateRule_DefaultTypeRejected(t *testing.T) {
 	r := validRule()
-	r.Type = PricingTypeDefault
+	r.Type = PricingTypeNormal
 	err := validateRule(r)
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, ErrInvalidRule))

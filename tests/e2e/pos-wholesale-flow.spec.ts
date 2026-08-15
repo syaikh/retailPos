@@ -58,7 +58,7 @@ test.describe('POS Wholesale Flow', () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     const resolved = body.data[0];
-    expect(resolved.pricing_type).toBe('default');
+    expect(resolved.pricing_type).toBe('normal');
     expect(resolved.unit_price).toBe(resolved.original_price);
   });
 
@@ -94,7 +94,7 @@ test.describe('POS Wholesale Flow', () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     expect(body.data.length).toBe(2);
-    expect(body.data[0].pricing_type).toBe('default');
+    expect(body.data[0].pricing_type).toBe('normal');
     expect(body.data[1].pricing_type).toBe('special_price');
   });
 });

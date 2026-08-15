@@ -193,7 +193,7 @@ func resolvePricing(basePrice int, eligible []Rule, productID int, categoryID, b
 			UnitPrice:     basePrice,
 			OriginalPrice: basePrice,
 			Discount:      0,
-			Type:          PricingTypeDefault,
+			Type:          PricingTypeNormal,
 			Method:        PricingMethodFixedPrice,
 			Rule:          nil,
 		}
@@ -241,7 +241,7 @@ func resolvePricing(basePrice int, eligible []Rule, productID int, categoryID, b
 			UnitPrice:     basePrice,
 			OriginalPrice: basePrice,
 			Discount:      0,
-			Type:          PricingTypeDefault,
+			Type:          PricingTypeNormal,
 			Method:        PricingMethodFixedPrice,
 			Rule:          nil,
 		}

@@ -1037,7 +1037,7 @@ func (m *mockPriceResolver) ResolveSnapshotsBatch(ctx context.Context, items []R
 			UnitPrice:     10000,
 			OriginalPrice: 10000,
 			Discount:      0,
-			Type:          Type("default"),
+			Type:          Type("normal"),
 			Cost:          5000,
 		}
 	}
