@@ -92,7 +92,7 @@
 
     const getWeeklyDayRangeLabel = () => {
       if (!metaStart || !metaEnd) return labels.vsSameWeekLastYear;
-      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dayNames = [labels.daySunShort, labels.dayMonShort, labels.dayTueShort, labels.dayWedShort, labels.dayThuShort, labels.dayFriShort, labels.daySatShort];
       const currentStartDate = parseJakartaDate(metaStart);
       const currentEndDate = parseJakartaDate(metaEnd);
       if (!currentStartDate || !currentEndDate) return labels.vsSameWeekLastYear;
@@ -112,7 +112,7 @@
       const lastDayOfPrevMonth = new Date(prevStartDate.getUTCFullYear(), prevStartDate.getUTCMonth() + 1, 0).getUTCDate();
       const actualPrevEndDay = Math.min(prevEndDate.getUTCDate(), lastDayOfPrevMonth);
       prevEndDate.setUTCDate(actualPrevEndDay);
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthNames = [labels.monthJan, labels.monthFeb, labels.monthMar, labels.monthApr, labels.monthMay, labels.monthJun, labels.monthJul, labels.monthAug, labels.monthSep, labels.monthOct, labels.monthNov, labels.monthDec];
       const startDay = prevStartDate.getUTCDate();
       const endDay = prevEndDate.getUTCDate();
       if (startDay === endDay) {
@@ -162,7 +162,7 @@
       const currentYear = metaStart.split('-')[0];
       if (currentYear) {
         const prevYear = parseInt(currentYear) - 1;
-        return `1 Jan ${prevYear} - 31 Dec ${prevYear}`;
+        return `1 ${labels.monthJan} ${prevYear} - 31 ${labels.monthDec} ${prevYear}`;
       }
     }
     if (activePeriodType === 'realtime') {
@@ -292,7 +292,7 @@
         const dateStr = d.date || '';
         const date = dateStr ? new Date(dateStr + 'T00:00:00Z') : null;
         return {
-          period: date ? date.toLocaleString('en-US', { month: 'short', day: 'numeric' }) : d.label || `Day ${i + 1}`,
+          period: date ? date.toLocaleString('id-ID', { month: 'short', day: 'numeric' }) : d.label || `${labels.day} ${i + 1}`,
           dateStr,
           revenue: d.total || 0,
           prevRevenue: prevRev,
@@ -315,7 +315,7 @@
         const prevTotal = prevByDate[expectedPrevStr];
         const hasPrev = prevTotal !== undefined;
         return {
-          period: currentDate.toLocaleString('en-US', { month: 'short', day: 'numeric' }),
+          period: currentDate.toLocaleString('id-ID', { month: 'short', day: 'numeric' }),
           dateStr: d.date,
           revenue: d.total || 0,
           prevRevenue: hasPrev ? prevTotal : null,
@@ -331,7 +331,7 @@
       const dateStr = d.month_start || d.date || '';
       const date = dateStr ? new Date(dateStr + 'T00:00:00Z') : null;
       return {
-        period: date ? date.toLocaleString('en-US', { month: 'short', year: 'numeric' }) : d.label || '',
+          period: date ? date.toLocaleString('id-ID', { month: 'short', year: 'numeric' }) : d.label || '',
         dateStr,
         revenue: d.total || 0,
         prevRevenue: prevRev,

@@ -33,11 +33,15 @@ export function getPeriodLabel(item: { hour?: number; date?: string; month_start
       return `${item.date.padStart(2, '0')}:00`;
     }
     const d = new Date(item.date + 'T00:00:00Z');
-    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const day = d.getUTCDate();
+    const month = d.toLocaleString('id-ID', { month: 'short', timeZone: 'UTC' });
+    return `${day} ${month}`;
   }
   if (item.month_start) {
     const d = new Date(item.month_start + 'T00:00:00Z');
-    return d.toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+    const month = d.toLocaleString('id-ID', { month: 'short', timeZone: 'UTC' });
+    const year = d.getUTCFullYear();
+    return `${month} ${year}`;
   }
   return item.label || '';
 }
@@ -45,10 +49,10 @@ export function getPeriodLabel(item: { hour?: number; date?: string; month_start
 export function formatDayDate(dateString?: string): string {
   if (!dateString) return '';
   const date = new Date(dateString + 'T00:00:00Z');
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayName = date.toLocaleString('id-ID', { weekday: 'short', timeZone: 'UTC' });
   const day = date.getUTCDate();
-  const month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
-  return `${dayNames[date.getUTCDay()]}, ${day} ${month}`;
+  const month = date.toLocaleString('id-ID', { month: 'short', timeZone: 'UTC' });
+  return `${dayName}, ${day} ${month}`;
 }
 
 export function getFirstOfMonthNAgoInJakarta(n: number): string {

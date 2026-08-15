@@ -196,7 +196,7 @@ describe('reporting-utils', () => {
     it('renders correct date regardless of browser timezone', async () => {
       const { getPeriodLabel } = await import('../reporting-utils');
       const result = getPeriodLabel({ date: '2026-01-01' });
-      expect(result).toBe('Jan 1');
+      expect(result).toBe('1 Jan');
     });
   });
 
@@ -211,32 +211,32 @@ describe('reporting-utils', () => {
     it('formats date as "Day, DD Mon"', async () => {
       const { formatDayDate } = await import('../reporting-utils');
       const result = formatDayDate('2026-07-14');
-      expect(result).toBe('Tue, 14 Jul');
+      expect(result).toBe('Sel, 14 Jul');
     });
 
     it('formats a Sunday correctly', async () => {
       const { formatDayDate } = await import('../reporting-utils');
       const result = formatDayDate('2026-07-13');
-      expect(result).toBe('Mon, 13 Jul');
+      expect(result).toBe('Sen, 13 Jul');
     });
 
     it('formats year boundaries', async () => {
       const { formatDayDate } = await import('../reporting-utils');
       const result = formatDayDate('2026-01-01');
-      expect(result).toBe('Thu, 1 Jan');
+      expect(result).toBe('Kam, 1 Jan');
     });
 
     it('formats month boundaries', async () => {
       const { formatDayDate } = await import('../reporting-utils');
       const result = formatDayDate('2026-06-01');
-      expect(result).toBe('Mon, 1 Jun');
+      expect(result).toBe('Sen, 1 Jun');
     });
 
     it('does not include year', async () => {
       const { formatDayDate } = await import('../reporting-utils');
       const result = formatDayDate('2026-12-25');
       expect(result).not.toContain('2026');
-      expect(result).toBe('Fri, 25 Dec');
+      expect(result).toBe('Jum, 25 Des');
     });
   });
 });

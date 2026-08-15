@@ -158,7 +158,7 @@ describe('ReportsPage.svelte source-structure guards', () => {
     const yearlyIdx = src.indexOf("'yearly'", rangeIdx);
     expect(yearlyIdx).toBeGreaterThan(rangeIdx);
     const yearBlock = src.substring(yearlyIdx, yearlyIdx + 300);
-    expect(yearBlock).toContain('1 Jan');
-    expect(yearBlock).toContain('31 Dec');
+    expect(yearBlock).toContain('labels.monthJan');
+    expect(yearBlock).toContain('labels.monthDec');
   });
 });

@@ -27,16 +27,16 @@ describe('BestWorstBadges.svelte source-structure guards', () => {
   });
 
   it('has Best badge section', () => {
-    expect(src).toContain("Best {bestWorstHeading}:");
+    expect(src).toContain('labels.best');
   });
 
   it('has Worst badge section', () => {
-    expect(src).toContain("Worst {bestWorstHeading}:");
+    expect(src).toContain('labels.worst');
   });
 
   it('has data table toggle button', () => {
     expect(src).toContain("showDataTable");
-    expect(src).toContain("Show");
-    expect(src).toContain("Hide");
+    expect(src).toContain("labels.show");
+    expect(src).toContain("labels.hide");
   });
 });

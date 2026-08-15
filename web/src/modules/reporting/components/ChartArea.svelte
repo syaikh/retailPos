@@ -1,5 +1,6 @@
 <script>
   import { chart } from '$shared/actions/chart';
+  import { labels } from '$shared/i18n';
 
   let {
     loading = true,
@@ -16,7 +17,7 @@
     </div>
   {:else if chartData.length === 0}
     <div class="absolute inset-0 flex items-center justify-center text-text-muted">
-      No data available for this period
+      {labels.noDataAvailable}
     </div>
   {:else}
     <canvas bind:this={chartCanvas} use:chart={chartConfig} aria-label="Sales chart"></canvas>

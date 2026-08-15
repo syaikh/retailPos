@@ -10,6 +10,15 @@ vi.mock('$shared/utils/jakartaTime', () => ({
   }),
 }));
 
+vi.mock('$shared/i18n', () => ({
+  labels: {
+    day: 'Day',
+    noData: 'No Data',
+    currentPeriod: 'Current Period',
+    prevPeriod: 'Prev Period (Rp)'
+  }
+}));
+
 import { buildChartConfig } from '../chart-config';
 import { getCurrentJakartaHour, getTodayInJakarta, getDateNDaysAgoInJakarta } from '$shared/utils/jakartaTime';
 

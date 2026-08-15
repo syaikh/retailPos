@@ -25,7 +25,7 @@ describe('ChartArea.svelte source-structure guards', () => {
   });
 
   it('has empty state message', () => {
-    expect(src).toContain('No data available for this period');
+    expect(src).toContain('labels.noDataAvailable');
   });
 
   it('has canvas with bind:this and use:chart', () => {

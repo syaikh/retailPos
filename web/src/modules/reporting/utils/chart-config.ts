@@ -1,4 +1,5 @@
 import { getCurrentJakartaHour, getTodayInJakarta, getDateNDaysAgoInJakarta } from '$shared/utils/jakartaTime';
+import { labels } from '$shared/i18n';
 
 interface ChartDataPoint {
   date?: string;
@@ -34,7 +35,7 @@ export function buildChartConfig({
   selectedYearlyRange,
   chartYear,
 }: ChartConfigParams) {
-  let labels = [];
+  let chartLabels = [];
   let values = [];
   let prevValues = [];
   let dateStrings = [];
@@ -52,7 +53,7 @@ export function buildChartConfig({
     chartData.forEach(d => { if (d.date) dataByHour[parseInt(d.date)] = d.total; });
     const prevByHour: Record<number, number> = {};
     prevChartData.forEach(d => { if (d.date) prevByHour[parseInt(d.date)] = d.total; });
-    labels = hours.map(h => `${String(h).padStart(2, '0')}:00`);
+    chartLabels = hours.map(h => `${String(h).padStart(2, '0')}:00`);
     values = hours.map(h => dataByHour[h] || 0);
     prevValues = hours.map(h => prevByHour[h] !== undefined ? prevByHour[h] : 0);
   } else if (chartType === 'daily') {
@@ -80,14 +81,14 @@ export function buildChartConfig({
           .sort((a, b) => a.date!.localeCompare(b.date!));
         const prevValuesList = prevSorted.map(d => d.total || 0);
         let prevIdx = 0;
-        labels = [];
+        chartLabels = [];
         values = [];
         prevValues = [];
         dateStrings = [];
         prevDateStrings = [];
         for (let day = 1; day <= dim; day++) {
           const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          labels.push(`Day ${day}`);
+          chartLabels.push(`${labels.day} ${day}`);
           dateStrings.push(dateStr);
           if (dateStr <= yesterday) {
             const prevItem = prevSorted[prevIdx];
@@ -126,30 +127,30 @@ export function buildChartConfig({
       const sundayDate = new Date(mondayDate);
       sundayDate.setDate(mondayDate.getDate() + 6);
       const dayMs = 86400000;
-      labels = [];
+      chartLabels = [];
       values = [];
       prevValues = [];
       dateStrings = [];
       prevDateStrings = [];
       for (let d = new Date(mondayDate); d <= sundayDate; d = new Date(d.getTime() + dayMs)) {
         const dateStr = d.toISOString().split('T')[0];
-        const currentLabel = d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+        const currentLabel = d.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
         if (dateStr <= (endDate ?? '')) {
           const total = dataMap[dateStr];
-          const expectedPrev = new Date(d.getTime() - dayOffset * 86400000);
+          const expectedPrev = new Date(d.getTime() - dayOffset * dayMs);
           const expectedPrevStr = expectedPrev.toISOString().split('T')[0];
           const prevTotal = prevByDate[expectedPrevStr];
           const hasPrev = prevTotal !== undefined;
           const prevLabel = hasPrev
-            ? expectedPrev.toLocaleString('en-US', { month: 'short', day: 'numeric' })
-            : 'No Data';
-          labels.push(`${currentLabel}\n${prevLabel}`);
+            ? expectedPrev.toLocaleString('id-ID', { month: 'short', day: 'numeric' })
+            : labels.noData;
+          chartLabels.push(`${currentLabel}\n${prevLabel}`);
           dateStrings.push(dateStr);
           prevDateStrings.push(hasPrev ? expectedPrevStr : '');
           values.push(total !== undefined ? total : 0);
           prevValues.push(hasPrev ? prevTotal : null);
         } else {
-          labels.push(`${currentLabel}\nNo Data`);
+          chartLabels.push(`${currentLabel}\n${labels.noData}`);
           dateStrings.push(dateStr);
           prevDateStrings.push('');
           values.push(null);
@@ -169,14 +170,14 @@ export function buildChartConfig({
         dayOffset = Math.round(diffMs / 86400000);
         if (isNaN(dayOffset)) dayOffset = 0;
       }
-      labels = [];
+      chartLabels = [];
       values = [];
       prevValues = [];
       dateStrings = [];
       prevDateStrings = [];
       chartData.forEach((d, i) => {
         if (!d.date) {
-          labels.push(String(i + 1));
+          chartLabels.push(String(i + 1));
           dateStrings.push('');
           prevDateStrings.push('');
           values.push(d.total);
@@ -185,22 +186,22 @@ export function buildChartConfig({
         }
         const currentDate = new Date(d.date);
         if (isNaN(currentDate.getTime())) {
-          labels.push(String(i + 1));
+          chartLabels.push(String(i + 1));
           dateStrings.push('');
           prevDateStrings.push('');
           values.push(d.total);
           prevValues.push(null);
           return;
         }
-        const currentLabel = currentDate.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+        const currentLabel = currentDate.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
         const expectedPrev = new Date(currentDate.getTime() - dayOffset * 86400000);
         const expectedPrevStr = expectedPrev.toISOString().split('T')[0];
         const prevTotal = prevByDate[expectedPrevStr];
         const hasPrev = prevTotal !== undefined;
         const prevLabel = hasPrev
-          ? expectedPrev.toLocaleString('en-US', { month: 'short', day: 'numeric' })
-          : 'No Data';
-        labels.push(`${currentLabel}\n${prevLabel}`);
+          ? expectedPrev.toLocaleString('id-ID', { month: 'short', day: 'numeric' })
+          : labels.noData;
+        chartLabels.push(`${currentLabel}\n${prevLabel}`);
         dateStrings.push(d.date);
         prevDateStrings.push(hasPrev ? expectedPrevStr : '');
         values.push(d.total);
@@ -228,20 +229,20 @@ export function buildChartConfig({
       const isCurrentYear = chartYear === todayJakarta[0];
       const totalMonths = isCurrentYear ? Math.max(0, todayJakarta[1] - 1) : 12;
       const prevYear = chartYear - 1;
-      labels = [];
+      chartLabels = [];
       values = [];
       prevValues = [];
       dateStrings = [];
       prevDateStrings = [];
       for (let m = 1; m <= totalMonths; m++) {
         const currentDate = new Date(chartYear, m - 1, 1);
-        const currentLabel = currentDate.toLocaleString('en-US', { month: 'short' }) + ' ' + chartYear;
+        const currentLabel = currentDate.toLocaleString('id-ID', { month: 'short' }) + ' ' + chartYear;
         const prevDate = new Date(prevYear, m - 1, 1);
         const hasPrevData = prevByMonth[m] !== undefined;
         const prevLabel = hasPrevData
-          ? prevDate.toLocaleString('en-US', { month: 'short' }) + ' ' + prevYear
-          : 'No Data';
-        labels.push(`${currentLabel}\n${prevLabel}`);
+          ? prevDate.toLocaleString('id-ID', { month: 'short' }) + ' ' + prevYear
+          : labels.noData;
+        chartLabels.push(`${currentLabel}\n${prevLabel}`);
         dateStrings.push(currentDate.toISOString().split('T')[0]);
         prevDateStrings.push(hasPrevData ? prevDate.toISOString().split('T')[0] : '');
         values.push(currentByMonth[m] || 0);
@@ -251,13 +252,13 @@ export function buildChartConfig({
       const prevSorted = [...prevChartData]
         .filter(d => d.month_start)
         .sort((a, b) => a.month_start!.localeCompare(b.month_start!));
-      labels = chartData.map((d, i) => {
+      chartLabels = chartData.map((d, i) => {
         if (d.month_start) {
           const currentDate = new Date(d.month_start);
-          const currentLabel = currentDate.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+          const currentLabel = currentDate.toLocaleString('id-ID', { month: 'short', year: '2-digit' });
           const prevItem = prevSorted[i];
           const prevLabel = prevItem
-            ? new Date(prevItem.month_start!).toLocaleString('en-US', { month: 'short' })
+            ? new Date(prevItem.month_start!).toLocaleString('id-ID', { month: 'short' })
             : '';
           return `${currentLabel}\n${prevLabel}`;
         }
@@ -271,17 +272,17 @@ export function buildChartConfig({
     const prevSorted = [...prevChartData]
       .filter(d => d.week_start)
       .sort((a, b) => a.week_start!.localeCompare(b.week_start!));
-    labels = chartData.map((d, i) => {
+    chartLabels = chartData.map((d, i) => {
       if (d.week_start && d.week_end) {
         const start = new Date(d.week_start);
         const end = new Date(d.week_end);
-        const startStr = start.toLocaleString('en-US', { month: 'short', day: 'numeric' });
-        const endStr = end.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+        const startStr = start.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
+        const endStr = end.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
         const currentLabel = `${startStr} - ${endStr}`;
         const prevItem = prevSorted[i];
         const prevLabel = prevItem
-          ? new Date(prevItem.week_start!).toLocaleString('en-US', { month: 'short', day: 'numeric' }) + ' - ' +
-            new Date(prevItem.week_end!).toLocaleString('en-US', { month: 'short', day: 'numeric' })
+          ? new Date(prevItem.week_start!).toLocaleString('id-ID', { month: 'short', day: 'numeric' }) + ' - ' +
+            new Date(prevItem.week_end!).toLocaleString('id-ID', { month: 'short', day: 'numeric' })
           : '';
         return `${currentLabel}\n${prevLabel}`;
       }
@@ -296,10 +297,10 @@ export function buildChartConfig({
   return {
     type: currentChartType,
     data: {
-      labels,
+      labels: chartLabels,
       datasets: [
         {
-          label: 'Current Period',
+          label: labels.currentPeriod,
           data: values,
           borderColor: '#0ea5e9',
           backgroundColor: currentChartType === 'bar' ? '#0ea5e9' : 'rgba(14, 165, 233, 0.15)',
@@ -313,7 +314,7 @@ export function buildChartConfig({
           spanGaps: true
         },
         ...(hasPrevData ? [{
-          label: 'Previous Period',
+          label: labels.prevPeriod,
           data: prevValues,
           borderColor: '#94a3b8',
           backgroundColor: currentChartType === 'bar' ? 'rgba(148, 163, 184, 0.5)' : 'rgba(148, 163, 184, 0.05)',
@@ -350,7 +351,7 @@ export function buildChartConfig({
               if (!items.length) return '';
               if (activePeriodType === 'monthly' && chartType === 'daily') {
                 const idx = items[0].dataIndex;
-                return `Day ${idx + 1}`;
+                return `${labels.day} ${idx + 1}`;
               }
               return items[0].label;
             },
@@ -365,9 +366,9 @@ export function buildChartConfig({
                 const date = dsIdx === 0 ? dateStrings[idx] : prevDateStrings[idx];
                 if (date) {
                   const d = new Date(date + 'T00:00:00Z');
-                  label += ` (${d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })})`;
-                } else if (dsIdx === 1) {
-                  label += ': No Data';
+                  label += ` (${d.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' })})`;
+                 } else if (dsIdx === 1) {
+                   label += `: ${labels.noData}`;
                   return label;
                 }
               } else {
