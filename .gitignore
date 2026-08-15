@@ -16,6 +16,7 @@ retail-pos-server
 /dummy
 /generate-examples
 backfill-audit-description
+/main
 /bin/
 
 # Local development certificates
@@ -115,5 +116,6 @@ session-*.md
 !AGENTS.md
 !deploy/PRODUCTION-DEPLOYMENT.md
 !docs/**/*.md
+docs/exported-sample/
 .opencode/
 watch_*
