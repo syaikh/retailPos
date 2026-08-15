@@ -2,7 +2,7 @@
 
 ## Goal
 
-Phase 2 of Storage Locations (see `docs/upcoming-features.md` §7): track how much stock physically sits in each storage location (rack/shelf) and allow Stock Opname sessions to count a single rack. Rack stock is a **sub-account of the global stock** (Model A).
+Phase 2 of Storage Locations (see `docs/roadmap/upcoming-features.md` §7): track how much stock physically sits in each storage location (rack/shelf) and allow Stock Opname sessions to count a single rack. Rack stock is a **sub-account of the global stock** (Model A).
 
 ### Model A invariants
 
@@ -133,7 +133,7 @@ Run: `go build ./...`, then the full `-p 1` test suite (AGENTS.md command), plus
 
 ## 6. Documentation
 
-- `docs/user-manual.md`: extend Stock Opname §13 with a "Count per Storage Location" note + scope picker mention; add a "Per-Location Stock" note in §12 Storage Locations and §7 Inventory.
-- `docs/upcoming-features.md`: mark Storage Locations §7 as "fase 2 selesai" once shipped.
+- `docs/guides/user-manual.md`: extend Stock Opname §13 with a "Count per Storage Location" note + scope picker mention; add a "Per-Location Stock" note in §12 Storage Locations and §7 Inventory.
+- `docs/roadmap/upcoming-features.md`: mark Storage Locations §7 as "fase 2 selesai" once shipped.
 - `AGENTS.md`: add migration-ordering entry for `020_per_rack_stock.sql`.
 - Copy this plan to `docs/archived-plans/` on completion.

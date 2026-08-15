@@ -1,6 +1,6 @@
 # Konsinyasi Supplier (Consignment) — Implementation Plan
 
-Source of truth: `docs/PRD/PRD-Konsinyasi-Supplier-v7-Consolidated-Full.md` (v7, amended v7.1 2026-08-14: BR-05b / AC-C37 / EC-12 / EC-BR-11 / ownership definition / §15.9 consequence).
+Source of truth: `docs/prd/PRD-Konsinyasi-Supplier-v7-Consolidated-Full.md` (v7, amended v7.1 2026-08-14: BR-05b / AC-C37 / EC-12 / EC-BR-11 / ownership definition / §15.9 consequence).
 Status: Approved for implementation — design decisions locked 2026-08-14.
 
 ## Goal
@@ -206,8 +206,8 @@ Run: `go build ./...` then `TEST_DB_PORT=5433 DB_PORT=5433 TEST_DB_USER=pos TEST
 ## Documentation
 
 - `AGENTS.md`: add migration-ordering entry for `001_consignment.sql` (tables/sequences + `consignment.*` permission codes).
-- `docs/user-manual.md`: new "Konsinyasi Supplier" section.
-- `docs/upcoming-features.md`: mark consignment done when shipped.
+- `docs/guides/user-manual.md`: new "Konsinyasi Supplier" section.
+- `docs/roadmap/upcoming-features.md`: mark consignment done when shipped.
 - Copy this plan to `docs/archived-plans/` on completion.
 
 ## Out of scope (deferred — PRD §15)

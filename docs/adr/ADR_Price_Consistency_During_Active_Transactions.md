@@ -5,7 +5,7 @@
 | Status        | **Accepted** |
 | Tanggal       | 2026-07-31 |
 | Deciders      | Tim Produk, Tim Engineering |
-| Referensi     | `docs/BDR_Price_Consistency_During_Active_Transactions.txt`, `docs/Business_Process_Product_Price_Changes_During_Active_Transactions.txt` |
+| Referensi     | `docs/adr/BDR_Price_Consistency_During_Active_Transactions.txt`, `docs/adr/Business_Process_Product_Price_Changes_During_Active_Transactions.txt` |
 | Scope         | Product Price, Product Cost, Pricing Rules, Discount Rules, Hold Transaction |
 | Di luar scope | Refund, Return, Stock Opname, Inventory Valuation, Purchase Order |
 
@@ -194,7 +194,7 @@ Implementasi: kolom `expired_at` pada `cart_sessions`; verifikasi ekspirasi dila
 
 ## 5. Dampak Implementasi (ringkas)
 
-Perubahan besar diuraikan detail pada `docs/TDD_Price_Consistency_During_Active_Transactions.md`. Ringkasannya:
+Perubahan besar diuraikan detail pada `docs/design/TDD_Price_Consistency_During_Active_Transactions.md`. Ringkasannya:
 
 1. **Database**: migrasi `010_sale_price_snapshot.sql`
    - tabel baru `cart_sessions`, `cart_items`;

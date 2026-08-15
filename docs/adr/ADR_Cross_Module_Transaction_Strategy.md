@@ -5,7 +5,7 @@
 | Status        | **Accepted** |
 | Tanggal       | 2026-08-05 |
 | Deciders      | Tim Produk, Tim Engineering |
-| Referensi     | `docs/ADR_Modular_Monolith_Module_Boundaries.md` (batas modul dan kontrak komunikasi) |
+| Referensi     | `docs/adr/ADR_Modular_Monolith_Module_Boundaries.md` (batas modul dan kontrak komunikasi) |
 | Scope         | Strategi atomicity antar modul, Unit of Work, domain event + outbox, keputusan per use case |
 | Di luar scope | Implementasi outbox/relay spesifik, pilihan broker, migrasi microservice |
 

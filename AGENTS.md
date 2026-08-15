@@ -154,9 +154,20 @@ Key migrations with deployment ordering constraints:
 
 Non-code files follow this organization:
 
-- `docs/` — All documentation and planning documents (.md)
+- `docs/` — All documentation and planning documents (.md), organized by content:
+  - `docs/adr/` — Architecture/Business decision records (ADR, BDR, business process)
+  - `docs/design/` — Technical design docs, specs, test specs, feature references
+  - `docs/prd/` — Product requirement documents (PRD)
+  - `docs/guides/` — End-user documentation and manuals
+  - `docs/reviews/` — Design/product reviews and feasibility analyses
+  - `docs/reports/` — Implementation/status/progress summaries
+  - `docs/roadmap/` — Upcoming features roadmap
+  - `docs/audits/` — Security, architecture, UI/UX, RBAC audits and improvement plans
   - `docs/archive/` — Outdated/archived implementation plans
   - `docs/archived-plans/` — AI agent planning documents (copied from `.kilo/plans/`)
+  - `docs/examples/` — Pre-filled import/export example templates
+  - `docs/exported-sample/` — Exported dashboard/report samples
+  - `docs/docs.go`, `docs/swagger.go`, `docs/swagger.json`, `docs/swagger.yaml` — swag-generated OpenAPI artifacts (the `docs` Go package, imported by `cmd/server/main.go`; do not move)
 - Root-level kept: `README.md`, `CONTRIBUTING.md`, `AGENTS.md`, `LICENSE`
 - Build artifacts and auto-generated files are gitignored (see `.gitignore`)
 - SQL schema: `database/migrations/` (the `database/seeds/` directory was retired — all seed data is consolidated into migrations, see `030_consolidate_seed_permissions.sql`)

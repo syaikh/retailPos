@@ -5,7 +5,7 @@
 | Status        | **Accepted** |
 | Tanggal       | 2026-08-05 |
 | Deciders      | Tim Produk, Tim Engineering |
-| Referensi     | `docs/ADR_Cross_Module_Transaction_Strategy.md` (strategi transaksi lintas modul) |
+| Referensi     | `docs/adr/ADR_Cross_Module_Transaction_Strategy.md` (strategi transaksi lintas modul) |
 | Scope         | Batas antar modul, mekanisme komunikasi, kontrak publik per modul, kontrak event, kepemilikan tabel |
 | Di luar scope | Pilihan transport jaringan (gRPC/HTTP/message broker), migrasi ke microservice, strategi transaksi lintas modul (lihat ADR terpisah) |
 

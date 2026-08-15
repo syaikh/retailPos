@@ -4,8 +4,8 @@
 |-------------|-------|
 | Status      | Draft |
 | Tanggal     | 2026-07-31 |
-| Basis desain | `docs/ADR_Price_Consistency_During_Active_Transactions.md`, `docs/TDD_Price_Consistency_During_Active_Transactions.md` |
-| Sumber bisnis | `docs/BDR_Price_Consistency_During_Active_Transactions.txt`, `docs/Business_Process_Product_Price_Changes_During_Active_Transactions.txt` |
+| Basis desain | `docs/adr/ADR_Price_Consistency_During_Active_Transactions.md`, `docs/design/TDD_Price_Consistency_During_Active_Transactions.md` |
+| Sumber bisnis | `docs/adr/BDR_Price_Consistency_During_Active_Transactions.txt`, `docs/adr/Business_Process_Product_Price_Changes_During_Active_Transactions.txt` |
 
 ---
 
