@@ -8,6 +8,7 @@ import (
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
 	"retail-pos-system/internal/config"
+	"retail-pos-system/internal/consignment"
 	"retail-pos-system/internal/customer"
 	"retail-pos-system/internal/customergroup"
 	"retail-pos-system/internal/eventbus"
@@ -286,6 +287,30 @@ func (a *scopeNameResolverAdapter) ScopeNames(ctx context.Context, db shared.DBP
 	return names, nil
 }
 
+type paymentMethodAdapter struct {
+	repo *sale.Repository
+}
+
+func (a *paymentMethodAdapter) ActivePaymentMethods(ctx context.Context) ([]consignment.PaymentMethod, error) {
+	methods, err := a.repo.GetAllActive(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]consignment.PaymentMethod, len(methods))
+	for i, m := range methods {
+		result[i] = consignment.PaymentMethod{ID: m.ID, Code: m.Code, Name: m.Name}
+	}
+	return result, nil
+}
+
+func (a *paymentMethodAdapter) PaymentMethodByID(ctx context.Context, id int) (*consignment.PaymentMethod, error) {
+	m, err := a.repo.GetPaymentMethodByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &consignment.PaymentMethod{ID: m.ID, Code: m.Code, Name: m.Name}, nil
+}
+
 type Dependencies struct {
 	UserRepo            *user.Repository
 	ProductRepo         *product.Repository
@@ -306,6 +331,7 @@ type Dependencies struct {
 	ShiftRepo           *shift.Repository
 	StockOpnameRepo     *stockopname.Repository
 	StorageLocationRepo *storagelocation.Repository
+	ConsignmentRepo     *consignment.Repository
 
 	UserSvc            user.Service
 	AuthSvc            *user.AuthService
@@ -326,6 +352,7 @@ type Dependencies struct {
 	ShiftSvc           shift.Service
 	StockOpnameSvc     *stockopname.Service
 	StorageLocationSvc *storagelocation.Service
+	ConsignmentSvc     *consignment.Service
 
 	UserH            *user.Handler
 	AuthH            *user.AuthHandler
@@ -346,6 +373,7 @@ type Dependencies struct {
 	ShiftH           *shift.Handler
 	StockOpnameH     *stockopname.Handler
 	StorageLocationH *storagelocation.Handler
+	ConsignmentH     *consignment.Handler
 
 	IEH *ieh.Handler
 
@@ -436,6 +464,12 @@ func Initialize(p Providers) *Dependencies {
 	d.StockOpnameRepo.SetStockSnapshotProvider(inventory.StockSnapshotProvider{})
 	d.StorageLocationRepo = storagelocation.NewRepository(p.DB)
 	d.StorageLocationRepo.SetStoreExistenceProvider(store.StoreExistenceProvider{})
+	d.ConsignmentRepo = consignment.NewRepository(p.DB)
+	d.ConsignmentRepo.SetStockAdjuster(inventory.ConsignmentAdjuster{})
+	d.ConsignmentRepo.SetSupplierStore(supplier.ConsignmentSupplierProvider{})
+	d.ConsignmentRepo.SetProductMetaProvider(product.ProductMetaLookup{})
+	d.ConsignmentRepo.SetUsernameProvider(user.UsernamesProvider{})
+	d.ConsignmentRepo.SetPaymentMethods(&paymentMethodAdapter{repo: d.SaleRepo})
 
 	d.AuditSvc = audit.NewService(d.AuditRepo)
 	d.UserSvc = user.NewService(d.UserRepo)
@@ -453,6 +487,7 @@ func Initialize(p Providers) *Dependencies {
 	d.SaleSvc.SetPriceResolver(&priceResolverAdapter{resolver: d.PricingResolver})
 	d.SaleSvc.SetStockDeducer(inventory.StockDeducer{})
 	d.SaleSvc.SetShiftTotalUpdater(shift.TotalUpdater{})
+	d.SaleSvc.SetConsignmentCheckout(consignment.NewCheckoutProvider(d.ConsignmentRepo))
 
 	d.InventorySvc = inventory.NewService(d.InventoryRepo, d.Bus)
 	d.CustomerSvc = customer.NewService(d.CustomerRepo)
@@ -468,6 +503,7 @@ func Initialize(p Providers) *Dependencies {
 	d.StockOpnameSvc = stockopname.NewService(d.StockOpnameRepo, d.Bus)
 	d.StockOpnameSvc.SetStockApplier(inventory.StockApplier{})
 	d.StorageLocationSvc = storagelocation.NewService(d.StorageLocationRepo)
+	d.ConsignmentSvc = consignment.NewService(d.ConsignmentRepo)
 
 	d.UserH = user.NewHandler(d.UserSvc, d.AuditSvc)
 	d.AuthH = user.NewAuthHandler(d.AuthSvc, d.AuditSvc)
@@ -489,6 +525,7 @@ func Initialize(p Providers) *Dependencies {
 	d.ShiftH = shift.NewHandler(d.ShiftSvc, d.AuditSvc)
 	d.StockOpnameH = stockopname.NewHandler(d.StockOpnameSvc, d.AuditSvc)
 	d.StorageLocationH = storagelocation.NewHandler(d.StorageLocationSvc, d.AuditSvc)
+	d.ConsignmentH = consignment.NewHandler(d.ConsignmentSvc, d.AuditSvc)
 
 	schemaReg := schema.NewRegistry()
 	_ = schemaReg.Register(category.Schema)

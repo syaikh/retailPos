@@ -16,6 +16,7 @@ Dokumen ini menjelaskan fitur-fitur baru yang akan ditambahkan ke Retail POS Sys
 8. [Time-based Pricing Update](#8-time-based-pricing-update)
 9. [Admin Change Freeze During Active Shifts](#9-admin-change-freeze-during-active-shifts)
 10. [Price Consistency During Active Transactions](#10-price-consistency-during-active-transactions)
+11. [Konsinyasi Supplier](#11-konsinyasi-supplier)
 
 ---
 
@@ -512,6 +513,45 @@ Kasir checkout → POST /api/pos/cart/:id/checkout
 
 ---
 
+## 11. Konsinyasi Supplier ✅
+
+**Status:** SUDAH DIIMPLEMENTASI — `internal/consignment/`, `web/src/modules/consignment/`
+
+Barang titipan supplier: barang milik supplier yang dijual di toko, dengan terms harga & hak toko yang disepakati, dan supplier dibayar setelah barang terjual dan di-settlement.
+
+### Alur Utama
+
+1. Tandai supplier sebagai **konsinyasi** (Supplier → Edit → centang).
+2. Buat **arrangement** per supplier.
+3. Set **terms** per produk: harga jual + hak toko (persentase atau nominal tetap per unit).
+4. Catat **penerimaan** (dibawa − ditolak = diterima) → stok konsinyasi bertambah.
+5. Barang dijual lewat POS biasa; kepemilikan konsinyasi otomatis ter-record per transaksi.
+6. Barang rusak/kadaluarsa: **retur tertunda** (ditarik dari display), lalu **retur formal** (diserahkan kembali ke supplier, menutup pending return).
+7. **Settlement** mencakup semua penjualan belum diselesaikan; **payout** (bisa parsial) memakai payment method yang ada.
+
+### Prinsip Kunci
+
+- Setiap item dimiliki oleh tepat satu supplier. Available + pending return = masih milik supplier.
+- Terms hanya berlaku untuk stok belum terjual; tidak mengubah penjualan yang sudah terjadi.
+- SKU bersifat store-owned ATAU konsinyasi (mutually exclusive) — kepemilikan = available + pending return.
+- Settlement tidak parsial; item yang sudah di-settle tidak pernah di-settle ulang.
+- Hak toko dihitung berbasis qty (`computeStoreShare`); total terhutang = total penjualan − hak toko.
+
+### Komponen yang Telah Dibangun
+
+- Backend: `internal/consignment/` (domain, repository, service, handler, routes di `cmd/server/main.go`), penyesuaian checkout (`internal/sale/`) agar mencatat kepemilikan konsinyasi, `is_consignment` pada supplier.
+- DB: `001_consignment.sql`, `002_settlement_items_product_id.sql`, `003_settlement_updated_at.sql`.
+- Frontend: `web/src/modules/consignment/` — halaman arrangement (daftar + detail 6 tab), terms, penerimaan, retur tertunda, retur, stok, settlement & payout; toggle konsinyasi di modul supplier.
+- Permission: `consignment.view/create/update/settle/pay` (Superadmin/Admin semua; Manager tanpa `pay`).
+
+### Test Coverage
+
+- `internal/consignment/` — arrangement, receipt, pending return, return, settlement, payout, checkout-insufficient-stock, store scope, PRD §9 scenario matrix.
+- `internal/supplier/` — passthrough `is_consignment`.
+- Frontend: `web/src/modules/consignment/` + build.
+
+---
+
 ## Prioritas Implementasi
 
 | Urutan | Fitur | Alasan |
@@ -526,6 +566,7 @@ Kasir checkout → POST /api/pos/cart/:id/checkout
 | ~~8~~ | ~~Admin Change Freeze During Active Shifts~~ | ~~Ditolak di BDR~~ — digantikan snapshot |
 | ~~9~~ | ~~Time-based Pricing Update~~ | ~~Ditolak di BDR~~ — hanya scheduled changes yang relevan |
 | 10 | Storage Locations | ✅ Selesai (master data; per-rack stock = fase berikutnya) |
+| 11 | Konsinyasi Supplier | ✅ Selesai |
 
 ---
 
@@ -536,4 +577,5 @@ Kasir checkout → POST /api/pos/cart/:id/checkout
 - **Product Image Upload:** Dibatalkan untuk saat ini (tidak diprioritaskan).
 - **Admin Change Freeze & Time-based Pricing Update:** Ditolak di BDR — memblokir perubahan master data saat shift aktif menghambat operasional. Digantikan oleh *Price Consistency During Active Transactions* (snapshot dibuat saat add item; master data tetap mutable).
 - **Storage Locations:** Master data sudah dibangun. Fase berikutnya: per-rack stock tracking dan stock opname per lokasi.
+- **Konsinyasi — deferred (PRD §15):** format dokumen cetak penerimaan/retur, dashboard analitik konsinyasi, aturan expiry-by-shelf-life, refund/void di luar eligible customer return, settlement policy saat supplier lama absen (termasuk forced-return release, Opsi A), rekonsiliasi fisik, alur pembayaran di luar payout record.
 - Semua fitur baru harus mengikuti pattern Clean Architecture yang sudah ada (domain → repository → service → handler).

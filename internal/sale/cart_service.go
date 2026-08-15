@@ -494,6 +494,10 @@ func (s *service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 		return nil, err
 	}
 
+	if err := s.persistConsignmentRecords(ctx, tx, sale); err != nil {
+		return nil, err
+	}
+
 	if err := s.repo.CreateSalePayments(ctx, tx, sale.ID, validatedPayments); err != nil {
 		return nil, err
 	}
@@ -531,6 +535,32 @@ func (s *service) finalizeSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, 
 	if s.stockStore == nil {
 		return errors.New("sale service: stock store not wired; call SetStockDeducer")
 	}
+	if s.consignmentStore == nil {
+		return errors.New("sale service: consignment checkout not wired; call SetConsignmentCheckout")
+	}
+
+	// Resolve consignment ownership first. Consignment-owned lines are deducted
+	// from consignment_stock by the resolver (the ownership ledger); their
+	// records are stashed on the sale and persisted after the sale row is
+	// created. product_stock is the SELLABLE total (Model A: store-owned plus
+	// consignment available — receipts/pending-returns/returns already mirror
+	// consignment movement into it), so EVERY sold line — consignment-owned
+	// included — must be deducted here; otherwise product_stock drifts upward
+	// and never reflects the goods that left the shelf.
+	checkoutItems := make([]shared.ConsignmentCheckoutItem, len(items))
+	for i, item := range items {
+		checkoutItems[i] = shared.ConsignmentCheckoutItem{
+			ProductID: item.ProductID,
+			Quantity:  item.Quantity,
+			UnitPrice: item.UnitPrice,
+		}
+	}
+	records, err := s.consignmentStore.ResolveAndDeductConsignment(ctx, tx, checkoutItems)
+	if err != nil {
+		return err
+	}
+	sale.consignmentRecords = records
+
 	if err := s.stockStore.DeductStock(ctx, tx, toStockDeductItems(items)); err != nil {
 		return err
 	}
@@ -541,6 +571,25 @@ func (s *service) finalizeSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, 
 	}
 
 	return nil
+}
+
+// persistConsignmentRecords writes the stashed checkout-time records to
+// consignment_sale_items once the sale row exists (sale.ID known), still inside
+// the same Unit of Work. It is a no-op when the checkout had no consignment
+// lines (the common case for stores without consignment).
+func (s *service) persistConsignmentRecords(ctx context.Context, tx pgx.Tx, sale *Sale) error {
+	if len(sale.consignmentRecords) == 0 {
+		return nil
+	}
+	if s.consignmentStore == nil {
+		return errors.New("sale service: consignment checkout not wired; call SetConsignmentCheckout")
+	}
+	records := sale.consignmentRecords
+	for i := range records {
+		records[i].SaleID = sale.ID
+		records[i].InvoiceNumber = sale.InvoiceNumber
+	}
+	return s.consignmentStore.RecordConsignmentSaleItems(ctx, tx, sale.ID, records)
 }
 
 // ==================== INTERNAL HELPERS ====================

@@ -46,12 +46,12 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*Supplier, error) {
 	var createdAt, updatedAt time.Time
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, created_at, updated_at
+		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_at, updated_at
 		FROM suppliers WHERE id = $1 AND deleted_at IS NULL
 	`, id).Scan(
 		&s.ID, &s.Name, &s.Code, &s.ContactName,
 		&s.Email, &s.Phone, &s.Address, &s.Notes,
-		&s.IsActive, &createdAt, &updatedAt,
+		&s.IsActive, &s.IsConsignment, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -78,7 +78,7 @@ func (r *Repository) GetByIDs(ctx context.Context, ids []int) ([]Supplier, error
 	}
 
 	query := fmt.Sprintf(`
-		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, created_at, updated_at
+		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_at, updated_at
 		FROM suppliers WHERE id IN (%s) AND deleted_at IS NULL`, strings.Join(placeholders, ","))
 
 	rows, err := r.db.Query(ctx, query, args...)
@@ -116,12 +116,12 @@ func (r *Repository) GetByCode(ctx context.Context, code string) (*Supplier, err
 	var createdAt, updatedAt time.Time
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, created_at, updated_at
+		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_at, updated_at
 		FROM suppliers WHERE code = $1 AND deleted_at IS NULL
 	`, code).Scan(
 		&s.ID, &s.Name, &s.Code, &s.ContactName,
 		&s.Email, &s.Phone, &s.Address, &s.Notes,
-		&s.IsActive, &createdAt, &updatedAt,
+		&s.IsActive, &s.IsConsignment, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -138,11 +138,11 @@ func (r *Repository) GetByCode(ctx context.Context, code string) (*Supplier, err
 func (r *Repository) Create(ctx context.Context, supplier *Supplier) error {
 	var createdAt, updatedAt time.Time
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO suppliers (name, code, contact_name, email, phone, address, notes, is_active)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO suppliers (name, code, contact_name, email, phone, address, notes, is_active, is_consignment)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at, updated_at
 	`, supplier.Name, supplier.Code, supplier.ContactName,
-		supplier.Email, supplier.Phone, supplier.Address, supplier.Notes, supplier.IsActive,
+		supplier.Email, supplier.Phone, supplier.Address, supplier.Notes, supplier.IsActive, supplier.IsConsignment,
 	).Scan(&supplier.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return fmt.Errorf("insert supplier: %w", err)
@@ -156,11 +156,11 @@ func (r *Repository) Update(ctx context.Context, supplier *Supplier) error {
 	_, err := r.db.Exec(ctx, `
 		UPDATE suppliers
 		SET name = $1, code = $2, contact_name = $3, email = $4, phone = $5,
-		    address = $6, notes = $7, is_active = $8, updated_at = NOW()
-		WHERE id = $9 AND deleted_at IS NULL
+		    address = $6, notes = $7, is_active = $8, is_consignment = $9, updated_at = NOW()
+		WHERE id = $10 AND deleted_at IS NULL
 	`, supplier.Name, supplier.Code, supplier.ContactName,
 		supplier.Email, supplier.Phone, supplier.Address,
-		supplier.Notes, supplier.IsActive, supplier.ID)
+		supplier.Notes, supplier.IsActive, supplier.IsConsignment, supplier.ID)
 	if err != nil {
 		return fmt.Errorf("update supplier: %w", err)
 	}
@@ -181,7 +181,7 @@ func (r *Repository) Delete(ctx context.Context, id int) error {
 func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error) {
 	countQuery := `SELECT COUNT(*) FROM suppliers WHERE deleted_at IS NULL`
 	dataQuery := `
-		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, created_at, updated_at
+		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_at, updated_at
 		FROM suppliers WHERE deleted_at IS NULL`
 
 	var args []interface{}
@@ -316,7 +316,7 @@ func scanSuppliers(rows pgx.Rows) ([]Supplier, error) {
 		err := rows.Scan(
 			&s.ID, &s.Name, &s.Code, &s.ContactName,
 			&s.Email, &s.Phone, &s.Address, &s.Notes,
-			&s.IsActive, &createdAt, &updatedAt,
+			&s.IsActive, &s.IsConsignment, &createdAt, &updatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -434,7 +434,7 @@ func (r *Repository) BulkUpdateSuppliers(ctx context.Context, payloads []ImportP
 
 func (r *Repository) GetAllForExport(ctx context.Context) ([]Supplier, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, created_at, updated_at
+		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_at, updated_at
 		FROM suppliers WHERE deleted_at IS NULL ORDER BY id ASC
 	`)
 	if err != nil {

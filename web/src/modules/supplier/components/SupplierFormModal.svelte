@@ -28,7 +28,8 @@
     email: '',
     address: '',
     notes: '',
-    is_active: true
+    is_active: true,
+    is_consignment: false
   });
 
   $effect(() => {
@@ -42,10 +43,11 @@
           email: supplier.email || '',
           address: supplier.address || '',
           notes: supplier.notes || '',
-          is_active: supplier.is_active
+          is_active: supplier.is_active,
+          is_consignment: supplier.is_consignment || false
         };
       } else {
-        form = { name: '', code: '', contact_name: '', phone: '', email: '', address: '', notes: '', is_active: true };
+        form = { name: '', code: '', contact_name: '', phone: '', email: '', address: '', notes: '', is_active: true, is_consignment: false };
       }
     }
   });
@@ -97,6 +99,10 @@
         <label for="is_active" class="text-sm text-text-secondary">{labels.active}</label>
       </div>
     {/if}
+    <div class="flex items-center gap-2 border-t border-border/50 pt-3">
+      <input type="checkbox" bind:checked={form.is_consignment} id="is_consignment" class="rounded" />
+      <label for="is_consignment" class="text-sm text-text-secondary">Supplier Konsinyasi</label>
+    </div>
   </form>
   {#snippet footer()}
     <Button variant="secondary" onclick={oncancel} disabled={saving}>{labels.cancel}</Button>

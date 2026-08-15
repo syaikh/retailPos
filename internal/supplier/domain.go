@@ -24,19 +24,20 @@ var ErrProductSupplierNotFound = shared.ErrProductSupplierNotFound
 
 // Supplier represents a supplier entity. See ADR-003.
 type Supplier struct {
-	ID          int        `json:"id"           db:"id"`
-	Name        string     `json:"name"         db:"name"         validate:"required"`
-	Code        string     `json:"code"         db:"code"         validate:"required"`
-	ContactName *string    `json:"contact_name,omitempty" db:"contact_name"`
-	Phone       *string    `json:"phone,omitempty"        db:"phone"`
-	Email       *string    `json:"email,omitempty"        db:"email"        validate:"omitempty,email"`
-	Address     *string    `json:"address,omitempty"      db:"address"`
-	Notes       *string    `json:"notes,omitempty"        db:"notes"`
-	IsActive    bool       `json:"is_active"              db:"is_active"`
-	StoreID     *int       `json:"store_id,omitempty"     db:"store_id"`
-	CreatedAt   string     `json:"created_at,omitempty"   db:"created_at"`
-	UpdatedAt   string     `json:"updated_at,omitempty"   db:"updated_at"`
-	DeletedAt   *time.Time `json:"deleted_at,omitempty"   db:"deleted_at"`
+	ID            int        `json:"id"           db:"id"`
+	Name          string     `json:"name"         db:"name"         validate:"required"`
+	Code          string     `json:"code"         db:"code"         validate:"required"`
+	ContactName   *string    `json:"contact_name,omitempty" db:"contact_name"`
+	Phone         *string    `json:"phone,omitempty"        db:"phone"`
+	Email         *string    `json:"email,omitempty"        db:"email"        validate:"omitempty,email"`
+	Address       *string    `json:"address,omitempty"      db:"address"`
+	Notes         *string    `json:"notes,omitempty"        db:"notes"`
+	IsActive      bool       `json:"is_active"              db:"is_active"`
+	IsConsignment bool       `json:"is_consignment"         db:"is_consignment"`
+	StoreID       *int       `json:"store_id,omitempty"     db:"store_id"`
+	CreatedAt     string     `json:"created_at,omitempty"   db:"created_at"`
+	UpdatedAt     string     `json:"updated_at,omitempty"   db:"updated_at"`
+	DeletedAt     *time.Time `json:"deleted_at,omitempty"   db:"deleted_at"`
 }
 
 // ProductSupplier represents the many-to-many relationship between

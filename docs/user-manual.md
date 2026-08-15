@@ -54,15 +54,24 @@ All prices are shown in Indonesian Rupiah (Rp) and all date/time values are disp
     - [Posting Adjustments](#posting-adjustments)
     - [Closing & Cancelling](#closing--cancelling)
     - [Adjustments Report](#adjustments-report)
-14. [Reports](#14-reports)
-15. [Store Management](#15-store-management)
-16. [Administration](#16-administration)
+14. [Konsinyasi Supplier](#14-konsinyasi-supplier)
+    - [Marking a Supplier as Konsinyasi](#marking-a-supplier-as-konsinyasi)
+    - [Arrangements](#arrangements)
+    - [Terms (Price & Store Share)](#terms-price--store-share)
+    - [Receiving Goods](#receiving-goods)
+    - [Retur Tertunda (Pending Return)](#retur-tertunda-pending-return)
+    - [Retur (Formal Return)](#retur-formal-return)
+    - [Stock](#stock)
+    - [Settlement & Payout](#settlement--payout)
+15. [Reports](#15-reports)
+16. [Store Management](#16-store-management)
+17. [Administration](#17-administration)
     - [Users](#users)
     - [Roles & Permissions](#roles--permissions)
     - [Audit Logs](#audit-logs)
-17. [Import & Export](#17-import--export)
-18. [Appendix A: Role / Permission Matrix](#appendix-a-role--permission-matrix)
-19. [Appendix B: Status Reference](#appendix-b-status-reference)
+18. [Import & Export](#18-import--export)
+19. [Appendix A: Role / Permission Matrix](#appendix-a-role--permission-matrix)
+20. [Appendix B: Status Reference](#appendix-b-status-reference)
 
 ---
 
@@ -628,7 +637,61 @@ Posting is deliberately separate from verification (separation of duties) — th
 
 ---
 
-## 14. Reports
+## 14. Konsinyasi Supplier
+
+The **Konsinyasi Supplier** module (`/consignment`) manages consignment stock: goods owned by a supplier that sit on your shelves, sold at terms you agree, with the supplier paid only after the goods are sold and settled.
+
+**Core concept — ownership.** Every consignment item is owned by exactly one supplier. Available stock + pending return = still owned by that supplier. Selling a consignment item moves it from available stock into an "unsettled sale"; the money owed to the supplier is cleared through a settlement, then paid out.
+
+### Marking a Supplier as Konsinyasi
+
+**Supplier → Add/Edit** — toggle **Supplier Konsinyasi** on. Only suppliers marked konsinyasi can be used in a consignment arrangement.
+
+### Arrangements
+
+**Konsinyasi Supplier** (`/consignment`) lists arrangement per supplier. An arrangement is an open partnership between your store and a consignment supplier. Only **Aktif** arrangements can receive stock; ended arrangements are read-only.
+
+**Create:** **Arrangement Baru** → pick the konsinyasi supplier (store defaults to your current store). Filter the list by **Semua / Aktif / Berakhir**.
+
+### Terms (Price & Store Share)
+
+Open an arrangement → **Terms** tab. Each product sold on consignment needs a term:
+- **Price** — the agreed retail/sale price per unit.
+- **Hak Toko (Store Share)** — the store's cut of each unit sold. Either a **percentage** (e.g. 20%) or a **fixed nominal** (Rp per unit).
+
+> Terms apply to stock not yet sold. They never change sales that already happened.
+
+### Receiving Goods
+
+Open an arrangement → **Penerimaan** tab → **Catat Penerimaan**.
+- Enter the products delivered, the **Dibawa** (brought) quantity and any **Ditolak** (rejected) quantity. Accepted = Dibawa − Ditolak.
+- The system shows the agreed price per unit for each line; products without a term are flagged — add the term first.
+- The receipt records the audit trail (CR-… number) and increases the supplier's available stock.
+
+### Retur Tertunda (Pending Return)
+
+Goods pulled off the display (damaged, expired, customer return) before they are formally handed back are recorded as **Retur Tertunda** (PR-…). They are removed from available stock but still count as supplier ownership. When you hand them back later, link the formal return to the pending record to close it.
+
+### Retur (Formal Return)
+
+**Retur** tab → **Catat Retur**. Enter product, qty, and **Alasan** (Rusak / Kadaluarsa / Retur Pelanggan / Lainnya). Optionally link each line to a matching **retur tertunda**. The formal return (RT-… number) records the hand-back and releases the supplier's ownership of those units.
+
+### Stock
+
+**Stok** tab shows, per product: available stock and pending return quantity for the supplier.
+
+### Settlement & Payout
+
+**Settlement** tab shows the **belum diselesaikan** (unsettled) sales preview for the supplier, with per-product qty, unit price, subtotal, store share, and the running totals (Total Penjualan, Hak Toko, **Terhutang ke Supplier**).
+- **Buat Settlement** creates the settlement document (SL-…). Settlement covers *all* unsettled sales — there is no partial settlement.
+- **Riwayat Settlement** lists past settlements and their status (**Menunggu Pembayaran** / **Dibayar**).
+- A settlement awaiting payment can be **Bayar** (pay): choose the payment method (from the shared payment methods), enter the amount (partial payments allowed until fully paid), optional reference number and notes. Payment is recorded as a payout (PO-…).
+
+> Only completed sales are settled — a sale is available for settlement once it is completed at the POS.
+
+---
+
+## 15. Reports
 
 The **Reports** page is the revenue analytics dashboard.
 
@@ -648,7 +711,7 @@ The **Reports** page is the revenue analytics dashboard.
 
 ---
 
-## 15. Store Management
+## 16. Store Management
 
 The **Stores** page (`/stores`, Indonesian UI) manages store branches.
 
@@ -660,7 +723,7 @@ Active stores are used elsewhere in the system (e.g. as a scope for storage loca
 
 ---
 
-## 16. Administration
+## 17. Administration
 
 The Administration group is shown only to **admin** and **superadmin** (Audit Logs is superadmin-only).
 
@@ -686,7 +749,7 @@ A read-only log of important actions (who did what and when), with filters for a
 
 ---
 
-## 17. Import & Export
+## 18. Import & Export
 
 Bulk import/export works across several modules (products, categories, brands, units, customers, stores, and more where supported). The entry point is the **Bulk Actions** dropdown on each supported page.
 
@@ -735,6 +798,10 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 | Stock opname — create/assign/verify/post/close | ✓ | ✓ | ✓ | — | — |
 | Stock opname — count/submit | ✓ | ✓ | — | ✓ | ✓ |
 | Stock opname — export/report | ✓ | ✓ | ✓ | — | — |
+| Konsinyasi — view | ✓ | ✓ | ✓ | — | — |
+| Konsinyasi — create/update terms | ✓ | ✓ | ✓ | — | — |
+| Konsinyasi — settle | ✓ | ✓ | ✓ | — | — |
+| Konsinyasi — pay supplier | ✓ | ✓ | — | — | — |
 | Stores — manage | ✓ | ✓ | — | — | — |
 | Users — create/edit | ✓ | ✓ | — | — | — |
 | Users — delete | ✓ | — | — | — | — |
@@ -743,7 +810,7 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 | Audit logs | ✓ | — | — | — | — |
 | Import/Export | ✓ | ✓ | — | — | — |
 
-> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions)). Exact permission codes per action: `dashboard.view`, `sale.create/view`, `product.view/create/update/delete`, `category.view/create/update/delete`, `customer.view/create/update/delete`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel`, `shift.view/create`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view`, `product.export/import`, `product.history.view`, `product.cost.view`, `category.export/import`, `customer.export/import`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, admin, and manager can use it.
+> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions)). Exact permission codes per action: `dashboard.view`, `sale.create/view`, `product.view/create/update/delete`, `category.view/create/update/delete`, `customer.view/create/update/delete`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel`, `shift.view/create`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `consignment.view/create/update/settle/pay`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view`, `product.export/import`, `product.history.view`, `product.cost.view`, `category.export/import`, `customer.export/import`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, admin, and manager can use it.
 
 ---
 
@@ -766,3 +833,13 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 **Customers & Customer Groups:** `active` · `inactive`
 
 **Stores, Storage Locations, Suppliers, Units of Measure:** `active` · `inactive`
+
+**Konsinyasi Arrangements:** `active` · `ended`
+
+**Konsinyasi Pending Returns:** `open` · `returned`
+
+**Konsinyasi Settlements:** `pending_payment` · `paid`
+
+**Konsinyasi Return Reasons:** `damaged` · `expired` · `customer_return` · `other`
+
+**Konsinyasi Share Types:** `percentage` · `fixed_amount`

@@ -315,6 +315,7 @@ func TestCartService_HoldCart_DefaultTTL(t *testing.T) {
 	t.Cleanup(bus.Shutdown)
 	svc := NewService(newTestRepo(t), bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 
 	cashierID := insertTestCashier(ctx, t)

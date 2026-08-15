@@ -66,3 +66,54 @@ type InventoryMovement struct {
 	UserID         int
 	Notes          string
 }
+
+// ConsignmentStockDelta is a signed adjustment to a product's global
+// product_stock row plus a matching inventory_movements ledger entry. It is the
+// cross-module contract between internal/consignment (consumer) and
+// internal/inventory (single-writer of product_stock and the movement ledger,
+// ADR Modular_Monolith_Module_Boundaries §2.8 transaksional): consignment
+// receipts/pending returns/returns write through this port inside the caller's
+// Unit of Work (ADR_Cross_Module_Transaction_Strategy), so each write runs on
+// the caller's tx. The consignment ownership ledger (consignment_stock) is
+// separate and owned by internal/consignment.
+type ConsignmentStockDelta struct {
+	ProductID      int
+	Delta          int
+	MovementType   string
+	ReferenceID    int
+	ReferenceTable string
+	UserID         int
+	Notes          string
+}
+
+// ConsignmentCheckoutItem is one sale line fed to the checkout-time consignment
+// resolver. It is the cross-module contract between internal/sale (consumer of
+// the ConsignmentCheckout port) and internal/consignment (owner of the
+// consignment_stock ledger). The unit price is the ACTUAL sale unit price from
+// the pricing engine (BR-15/AC-C11: sales follow existing pricing; settlement
+// uses the price when the sale happened), so the resolver can snapshot the
+// store share without trusting client prices.
+type ConsignmentCheckoutItem struct {
+	ProductID int
+	Quantity  int
+	UnitPrice int
+}
+
+// ConsignmentSaleRecord is the checkout-time snapshot of one consignment sale
+// line, produced by the resolver and persisted to consignment_sale_items after
+// the sale row is created. StoreShareType/StoreShareValue are snapshotted from
+// the term in effect at sale time (BR-19/AC-C11); the store share amount is
+// derived from the ACTUAL sale unit price (PRD §10.2/§10.3), not the term price.
+type ConsignmentSaleRecord struct {
+	SaleID          int
+	InvoiceNumber   string
+	ProductID       int
+	SupplierID      int
+	ArrangementID   int
+	StoreID         int
+	Quantity        int
+	UnitPrice       int
+	Subtotal        int
+	StoreShareType  string
+	StoreShareValue float64
+}

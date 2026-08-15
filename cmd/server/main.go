@@ -164,6 +164,7 @@ func main() {
 		deps.ShiftH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.StockOpnameH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.StorageLocationH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		deps.ConsignmentH.RegisterRoutes(protected, noopAuth, permMiddleware)
 	}
 
 	router.GET("/health", func(c *gin.Context) {

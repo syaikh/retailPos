@@ -2,6 +2,15 @@ package shared
 
 import "errors"
 
+// SupplierRef is the id/name identity of a supplier, used by consumers that
+// render supplier pickers/labels without importing internal/supplier. The
+// IsConsignment flag lets the consignment module render only flagged suppliers.
+type SupplierRef struct {
+	ID            int    `json:"id"`
+	Name          string `json:"name"`
+	IsConsignment bool   `json:"is_consignment"`
+}
+
 // ErrProductSupplierNotFound is returned when a product-supplier link row does
 // not exist. It lives in shared so that internal/supplier (consumer) and
 // internal/product (single-writer of product_suppliers) can reference the same

@@ -8,6 +8,7 @@ export interface Supplier {
   address?: string;
   notes?: string;
   is_active: boolean;
+  is_consignment?: boolean;
   store_id?: number;
   created_at?: string;
   updated_at?: string;
@@ -22,6 +23,7 @@ export interface CreateSupplierPayload {
   address?: string;
   notes?: string;
   is_active: boolean;
+  is_consignment?: boolean;
 }
 
 export interface UpdateSupplierPayload {
@@ -33,6 +35,7 @@ export interface UpdateSupplierPayload {
   address?: string;
   notes?: string;
   is_active?: boolean;
+  is_consignment?: boolean;
 }
 
 export interface ProductSupplier {

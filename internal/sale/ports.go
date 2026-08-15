@@ -41,6 +41,32 @@ type ShiftTotalUpdater interface {
 	UpdateShiftTotals(ctx context.Context, tx pgx.Tx, contribution shared.ShiftSaleContribution) error
 }
 
+// ConsignmentCheckout is the consumer-side port for the consignment subsystem's
+// checkout-time ownership resolution. The resolver runs inside the checkout
+// Unit of Work, locks the consignment_stock ledger rows, deducts the
+// consignment-owned quantity from the ownership ledger (consignment_stock),
+// and returns the per-line records to be persisted to consignment_sale_items
+// once the sale row exists. product_stock is the SELLABLE total (Model A:
+// store-owned plus consignment available), so the caller MUST still deduct
+// every sold line — consignment-owned included — from product_stock too;
+// consignment_stock tracks ownership for settlement while product_stock tracks
+// what is on the shelf. internal/consignment provides the production
+// implementation; the composition root MUST wire it via SetConsignmentCheckout
+// before any checkout path runs — an unwired service fails fast at runtime
+// (like SetStockDeducer), so a deployment that applies the consignment tables
+// but forgets the wiring can never silently double-deduct.
+type ConsignmentCheckout interface {
+	// ResolveAndDeductConsignment resolves which lines are consignment-owned,
+	// deducts their quantity from consignment_stock (available), and returns the
+	// checkout-time records. Lines NOT consignment-owned are skipped and MUST be
+	// handled by the caller's product_stock deduction. Runs on the caller's tx.
+	ResolveAndDeductConsignment(ctx context.Context, tx pgx.Tx, items []shared.ConsignmentCheckoutItem) ([]shared.ConsignmentSaleRecord, error)
+	// RecordConsignmentSaleItems persists the checkout-time records to
+	// consignment_sale_items, linked to the just-created sale. Runs on the
+	// caller's tx so the sale and its consignment lines commit atomically.
+	RecordConsignmentSaleItems(ctx context.Context, tx pgx.Tx, saleID int, records []shared.ConsignmentSaleRecord) error
+}
+
 // ProductNameProvider resolves product names and product-ID search matches for
 // sale listings, details, and exports. The products table is owned by the
 // katalog bounded context (internal/product); sale no longer JOINs products

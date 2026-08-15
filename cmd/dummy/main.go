@@ -238,10 +238,7 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 		return fmt.Errorf("days count must not be negative, got %d", numDays)
 	}
 
-	// Randomize counts if not specified (0 means random)
-	if numProducts == 0 {
-		numProducts = rand.Intn(1001) + 4500 // 4500-5500
-	}
+	// Randomize categories if not specified (0 means random)
 	if numCategories == 0 {
 		numCategories = rand.Intn(36) + 65 // 65-100
 	}
@@ -259,6 +256,19 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 
 	if err := db.Ping(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	// Randomize the product count if not specified (0 means random). When
+	// re-seeding (-truncate=false) a dataset that already has products, reuse
+	// them instead of injecting a fresh 4500+ set whose index-based SKUs would
+	// collide with the unique products.sku key and abort the whole run.
+	if numProducts == 0 {
+		var existingProducts int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM products`).Scan(&existingProducts); err == nil && existingProducts > 0 {
+			fmt.Printf("   Found %d existing products, reusing them for this re-seed\n", existingProducts)
+		} else {
+			numProducts = rand.Intn(1001) + 4500 // 4500-5500
+		}
 	}
 
 	fmt.Println("Connected to database. Starting comprehensive dummy data injection...")
@@ -399,6 +409,15 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	if err := syncInvoiceSequence(ctx, db); err != nil {
 		return fmt.Errorf("failed to sync invoice sequence: %w", err)
 	}
+
+	// 9c. Inject consignment (Konsinyasi Supplier) data — after sales/shifts so
+	// consignment sale items can be backfilled, before stock opnames so
+	// consignment-owned SKUs are excluded from the opname snapshot.
+	fmt.Printf("🤝 Injecting consignment (Konsinyasi) data...\n")
+	if err := injectConsignment(ctx, db, startDate, endDate); err != nil {
+		return fmt.Errorf("failed to inject consignment: %w", err)
+	}
+	fmt.Println("   ✅ Consignment data injected")
 
 	// 9b. Inject stock opname sessions (realistic, mostly approved history + one active session)
 	fmt.Printf("📦 Injecting stock opname sessions...\n")
@@ -1120,7 +1139,8 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 
 	stmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO products (sku, name, barcode, price, cost, category_id, status, tax_class_id, brand_id, unit_of_measure_id, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, 'active', 1, $7, $8, $9) RETURNING id`)
+		 VALUES ($1, $2, $3, $4, $5, $6, 'active', 1, $7, $8, $9)
+		 ON CONFLICT (sku) DO NOTHING RETURNING id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
@@ -1165,6 +1185,10 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		uomID := rand.Intn(8) + 1
 		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, catID, brandID, uomID, createdAt).Scan(&id)
 		if err != nil {
+			if err == sql.ErrNoRows {
+				// SKU already exists (re-seed without truncate); skip this product.
+				continue
+			}
 			fmt.Printf("Warning: worker %d failed to insert product %d: %v\n", job.workerID, i, err)
 			continue
 		}
@@ -1320,6 +1344,42 @@ func syncInvoiceSequence(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
+// syncPOSequences updates po_seq and gr_seq to match the highest existing
+// PO/GR numbers (app format "PO-<year>-<seq>" / "GR-<year>-<seq>") so
+// nextval() never returns a duplicate, matching GetNextPONumber/GetNextGRNumber.
+func syncPOSequences(ctx context.Context, db *sql.DB) error {
+	type seqSync struct {
+		seq    string
+		table  string
+		column string
+		prefix string
+	}
+	for _, s := range []seqSync{
+		{"po_seq", "purchase_orders", "po_number", "PO-"},
+		{"gr_seq", "goods_receipts", "gr_number", "GR-"},
+	} {
+		var maxSeq int
+		err := db.QueryRowContext(ctx, fmt.Sprintf(`
+			SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(%s, '^%s\d+-0*', '') AS bigint)), 0)
+			FROM %s
+			WHERE %s ~ '^%s\d+-\d+$'`, s.column, s.prefix, s.table, s.column, s.prefix)).Scan(&maxSeq)
+		if err != nil {
+			return fmt.Errorf("read max %s: %w", s.seq, err)
+		}
+		if maxSeq == 0 {
+			// setval(..., false) marks the value as unused, so the next
+			// nextval() returns 1 (matching a truncated DB).
+			if _, err := db.ExecContext(ctx, fmt.Sprintf(`SELECT setval('%s', 1, false)`, s.seq)); err != nil {
+				return fmt.Errorf("sync %s: %w", s.seq, err)
+			}
+		} else if _, err := db.ExecContext(ctx, fmt.Sprintf(`SELECT setval('%s', $1)`, s.seq), maxSeq); err != nil {
+			return fmt.Errorf("sync %s: %w", s.seq, err)
+		}
+	}
+	fmt.Println("   🔄 Synced po_seq and gr_seq")
+	return nil
+}
+
 // injectDailySales generates transactions ensuring every day has at least 10 transactions using concurrent workers
 func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, customerIDs []int, walkInCustomerID int, startDate, endDate time.Time) error {
 	numWorkers := runtime.NumCPU()
@@ -1362,6 +1422,15 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 
 	currentDay := 0
 	currentInvoice := 1
+	// Continue the invoice counter from existing data so a re-seed
+	// (-truncate=false) never collides with invoices from a previous run.
+	if err := db.QueryRowContext(ctx, `
+		SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(invoice_number, '^INV-\d+-0*', '') AS bigint)), 0) + 1
+		FROM sales
+		WHERE invoice_number ~ '^INV-\d+-\d+$'
+	`).Scan(&currentInvoice); err != nil {
+		return fmt.Errorf("compute starting invoice number: %w", err)
+	}
 	for i := 0; i < numWorkers; i++ {
 		job := workerJob{
 			workerID:         i,
@@ -1684,6 +1753,11 @@ func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time)
 		      AND created_at >= $2 AND created_at < $3
 		    GROUP BY cashier_id, sale_date
 		) s
+		WHERE NOT EXISTS (
+		    SELECT 1 FROM shifts existing
+		    WHERE existing.user_id = s.cashier_id
+		      AND (existing.opened_at AT TIME ZONE 'Asia/Jakarta')::date = s.sale_date
+		)
 		RETURNING id
 	`, storeIDArg, start, end)
 	if err != nil {
@@ -1704,13 +1778,14 @@ func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time)
 	}
 	_ = rows.Close()
 
-	if shiftCount == 0 {
-		fmt.Printf("   🎲 Created 0 shifts across %d days\n", int(endDate.Sub(startDate).Hours()/24)+1)
-		return nil
-	}
+	// NOTE: when re-seeding, step 1 may create 0 new shifts (every (cashier,
+	// date) already has one). The sales-linking step below must still run so
+	// newly injected overlapping sales attach to the existing shifts.
 
 	// 2) Link completed sales to the matching shift for the same cashier + Jakarta date.
-	//    updated_at = created_at restricts the join to shifts created in this run.
+	//    The join picks the earliest shift per (cashier, date) so a re-seed
+	//    (-truncate=false) links new overlapping sales to the existing shifts
+	//    from the previous run instead of leaving them unlinked.
 	//    (status is not checked here: only the latest date per cashier is 'open'
 	//    and older dates are already 'closed', but all of them still need linking.)
 	if _, err := db.ExecContext(ctx, `
@@ -1719,8 +1794,13 @@ func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time)
 		FROM shifts sh
 		WHERE s.status = 'completed' AND s.shift_id IS NULL
 		  AND s.cashier_id = sh.user_id
-		  AND sh.updated_at = sh.created_at
 		  AND (s.created_at AT TIME ZONE 'Asia/Jakarta')::date = (sh.opened_at AT TIME ZONE 'Asia/Jakarta')::date
+		  AND NOT EXISTS (
+		      SELECT 1 FROM shifts sh2
+		      WHERE sh2.user_id = sh.user_id
+		        AND (sh2.opened_at AT TIME ZONE 'Asia/Jakarta')::date = (sh.opened_at AT TIME ZONE 'Asia/Jakarta')::date
+		        AND sh2.id < sh.id
+		  )
 	`); err != nil {
 		return fmt.Errorf("link sales to shifts: %w", err)
 	}
@@ -2292,6 +2372,12 @@ type poItemInput struct {
 }
 
 func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endDate time.Time) error {
+	// Sync document sequences so re-seeds (-truncate=false) never collide with
+	// existing PO/GR numbers (matching the app's GetNextPONumber/GetNextGRNumber).
+	if err := syncPOSequences(ctx, db); err != nil {
+		return err
+	}
+
 	supplierIDs := getIDs(ctx, db, "suppliers")
 	if len(supplierIDs) == 0 {
 		return fmt.Errorf("no suppliers found")
@@ -2490,7 +2576,11 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 						}
 					}()
 
-					poNum := fmt.Sprintf("PO-%s-%05d", createdAt.Format("2006-01"), job.seq)
+					var poSeq int
+					if err := tx.QueryRowContext(ctx, `SELECT nextval('po_seq')`).Scan(&poSeq); err != nil {
+						return poResult{}, fmt.Errorf("nextval po_seq: %w", err)
+					}
+					poNum := fmt.Sprintf("PO-%d-%06d", createdAt.In(jakartaTZ).Year(), poSeq)
 					var poID int
 					err = tx.QueryRowContext(ctx, `
 						INSERT INTO purchase_orders
@@ -2658,7 +2748,11 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 		receivedAt := po.createdAt.Add(time.Duration(rand.Intn(72)) * time.Hour)
 
 		grInserted++
-		grNum := fmt.Sprintf("GR-%s-%05d", receivedAt.Format("2006-01"), grInserted)
+		var grSeq int
+		if err := tx.QueryRowContext(ctx, `SELECT nextval('gr_seq')`).Scan(&grSeq); err != nil {
+			return fmt.Errorf("nextval gr_seq: %w", err)
+		}
+		grNum := fmt.Sprintf("GR-%d-%06d", receivedAt.In(jakartaTZ).Year(), grSeq)
 
 		// Optional GR fields — ~50% chance
 		var doNumber, grNotes *string
@@ -2832,11 +2926,17 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	err = tx.QueryRowContext(ctx,
 		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, customer_group_id, created_at)
 		 VALUES ('Walk-in / General', '', '', NULL, NULL, true, true, $1, $2)
+		 ON CONFLICT (phone) DO NOTHING
 		 RETURNING id`,
 		nullableInt(groupIDs["walk-in"]),
 		ref,
 	).Scan(&walkInID)
-	if err != nil {
+	if err == sql.ErrNoRows {
+		// Already present from a previous run (re-seed); reuse the existing row.
+		if err := tx.QueryRowContext(ctx, `SELECT id FROM customers WHERE is_walk_in = true ORDER BY id LIMIT 1`).Scan(&walkInID); err != nil {
+			return fmt.Errorf("find existing walk-in customer: %w", err)
+		}
+	} else if err != nil {
 		return fmt.Errorf("insert walk-in customer: %w", err)
 	}
 

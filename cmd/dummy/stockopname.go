@@ -48,9 +48,8 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 	}
 
 	// Sync so_seq so session numbers never collide with existing data.
-	// setval(..., false) marks the value as unused, so the next nextval() returns max+1.
-	// When empty, set it back to 1 so a truncate produces SO-000001 again (so_seq has
-	// a minimum value of 1, so setval(..., 0) is invalid).
+	// On an empty DB (maxSeq == 0) the value is marked unused so the next
+	// nextval() returns 1; otherwise nextval() continues from maxSeq+1.
 	var maxSeq int
 	if err := db.QueryRowContext(ctx, `
 		SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(session_number, '^SO-[0-9]+-0*', '') AS bigint)), 0)
@@ -60,9 +59,10 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 		return fmt.Errorf("read max stock opname seq: %w", err)
 	}
 	if maxSeq == 0 {
-		maxSeq = 1
-	}
-	if _, err := db.ExecContext(ctx, `SELECT setval('so_seq', $1, false)`, maxSeq); err != nil {
+		if _, err := db.ExecContext(ctx, `SELECT setval('so_seq', 1, false)`); err != nil {
+			return fmt.Errorf("sync so_seq: %w", err)
+		}
+	} else if _, err := db.ExecContext(ctx, `SELECT setval('so_seq', $1)`, maxSeq); err != nil {
 		return fmt.Errorf("sync so_seq: %w", err)
 	}
 
@@ -500,6 +500,9 @@ func loadStockOpnameSnapshot(ctx context.Context, db *sql.DB) ([]stockOpnameSnap
 		LEFT JOIN units_of_measure u ON u.id = p.unit_of_measure_id
 		WHERE ps.warehouse_id IS NULL AND ps.store_id IS NULL
 		  AND p.status = 'active' AND p.deleted_at IS NULL
+		  AND NOT EXISTS (
+		      SELECT 1 FROM consignment_stock cs WHERE cs.product_id = ps.product_id
+		  )
 		ORDER BY p.name ASC
 	`)
 	if err != nil {

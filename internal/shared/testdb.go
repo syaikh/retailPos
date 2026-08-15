@@ -125,6 +125,18 @@ func TruncateTestData(pool *pgxpool.Pool) error {
 		"stock_opnames",
 		"storage_locations",
 		"audit_logs",
+		"consignment_payouts",
+		"consignment_settlement_items",
+		"consignment_settlements",
+		"consignment_sale_items",
+		"consignment_return_items",
+		"consignment_returns",
+		"consignment_pending_returns",
+		"consignment_stock",
+		"consignment_receipt_items",
+		"consignment_receipts",
+		"consignment_terms",
+		"consignment_arrangements",
 	}
 	return TruncateAll(pool, tables...)
 }

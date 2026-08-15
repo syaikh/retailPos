@@ -36,4 +36,5 @@ export const routePermissions: Record<string, string[]> = {
 	'/stock-opnames': [Permissions.stockOpname.view],
 	'/stock-opnames/adjustments': [Permissions.stockOpname.report],
 	'/storage-locations': [Permissions.storageLocation.view],
+	'/consignment': [Permissions.consignment.view],
 };

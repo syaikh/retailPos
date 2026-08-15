@@ -42,6 +42,7 @@
 		'/pricing-rules':      'Pricing Rules',
 		'/customer-groups':    'Customer Groups',
 		'/suppliers':          'Suppliers',
+		'/consignment':        'Consignment',
 		'/shifts':             'Shifts',
 		'/purchase-orders':    'Purchase Orders',
 		'/stock-opnames':      'Stock Opname',

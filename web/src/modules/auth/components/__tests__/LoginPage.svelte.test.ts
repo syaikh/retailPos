@@ -11,8 +11,8 @@ function getSource(): string {
 describe('LoginPage.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports Button and Input from shared/ui', () => {
-    expect(src).toContain("import { Button, Input } from '$shared/ui'");
+  it('imports Button, Input, and LanguageSwitch from shared/ui', () => {
+    expect(src).toContain("import { Button, Input, LanguageSwitch } from '$shared/ui'");
   });
 
   it('imports labels from shared/i18n', () => {

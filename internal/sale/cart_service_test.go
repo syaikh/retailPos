@@ -31,6 +31,7 @@ func newCartTestService(ctx context.Context, t *testing.T) (Service, *eventbus.B
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	svc.SetCartConfig(CartConfig{HoldTTLHours: 24})
 	svc.SetPriceResolver(newPricingTestResolver())

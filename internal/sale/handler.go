@@ -53,6 +53,7 @@ type Service interface {
 	SetPriceStore(ps ProductPriceGetter)
 	SetPriceResolver(r PriceResolver)
 	SetStockDeducer(sd StockDeducer)
+	SetConsignmentCheckout(cc ConsignmentCheckout)
 	SetShiftTotalUpdater(st ShiftTotalUpdater)
 }
 

@@ -1,0 +1,1 @@
+export { default as ArrangementsPage } from './components/ArrangementsPage.svelte';

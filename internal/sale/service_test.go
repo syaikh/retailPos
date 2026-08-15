@@ -26,6 +26,7 @@ func TestSaleService_CreateSalePublishesEvent(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -95,6 +96,7 @@ func TestSaleService_CreateSalePublishesEventOnce(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -139,6 +141,7 @@ func TestSaleService_CreateSaleInsufficientStock(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -175,6 +178,7 @@ func TestSaleService_CreateSaleDuplicateInvoice(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -230,6 +234,7 @@ func TestSaleService_CreateSaleDeductsStock(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -279,6 +284,7 @@ func TestSaleService_CreateSaleDuplicateLineItemsAggregate(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -341,6 +347,7 @@ func TestSaleService_CreateSaleWithShift(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -387,6 +394,7 @@ func TestSaleService_CreateSaleWithDiscount(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -431,6 +439,7 @@ func TestSaleService_ReadOperations(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -513,6 +522,7 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -603,6 +613,7 @@ func TestSaleService_ParkSale(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
@@ -702,6 +713,7 @@ func TestSaleService_RecallSale(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
@@ -738,6 +750,7 @@ func TestSaleService_CancelParkedSale(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
@@ -765,6 +778,7 @@ func TestSaleService_ValidatePayments(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
@@ -911,6 +925,7 @@ func TestSaleService_ListParkedSales(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
@@ -938,6 +953,7 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
@@ -1047,6 +1063,7 @@ func TestSaleService_CreateSaleWithPriceResolver(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	svc.SetPriceResolver(&mockPriceResolver{})
 	ctx := context.Background()
@@ -1085,6 +1102,7 @@ func TestSaleService_CreateSaleWithNonBatchPriceStore(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -1123,6 +1141,7 @@ func TestSaleService_CreateSaleStockRecordNotFound(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -1162,6 +1181,7 @@ func TestSaleService_CreateSaleTotalAmountClamp(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -1193,6 +1213,7 @@ func TestSaleService_GetAllPaymentMethods(t *testing.T) {
 	repo := newTestRepo(t)
 	svc := NewService(repo, nil)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -1205,6 +1226,7 @@ func TestSaleService_GetParkedSaleByID(t *testing.T) {
 	repo := newTestRepo(t)
 	svc := NewService(repo, nil)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
@@ -1225,6 +1247,7 @@ func TestSaleService_GetParkedSaleByID_NotFound(t *testing.T) {
 	repo := newTestRepo(t)
 	svc := NewService(repo, nil)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
@@ -1240,6 +1263,7 @@ func TestSaleService_CreateSaleNegativeUnitPrice(t *testing.T) {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 

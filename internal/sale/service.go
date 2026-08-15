@@ -68,13 +68,14 @@ type Repo interface {
 }
 
 type service struct {
-	repo       Repo
-	eventBus   shared.EventBus
-	priceStore ProductPriceGetter
-	resolver   PriceResolver
-	stockStore StockDeducer
-	shiftStore ShiftTotalUpdater
-	cartConfig CartConfig
+	repo             Repo
+	eventBus         shared.EventBus
+	priceStore       ProductPriceGetter
+	resolver         PriceResolver
+	stockStore       StockDeducer
+	consignmentStore ConsignmentCheckout
+	shiftStore       ShiftTotalUpdater
+	cartConfig       CartConfig
 }
 
 func NewService(repo Repo, eventBus shared.EventBus) Service {
@@ -114,6 +115,10 @@ func (s *service) ResolveCheckoutPrices(ctx context.Context, items []ResolveItem
 
 func (s *service) SetStockDeducer(sd StockDeducer) {
 	s.stockStore = sd
+}
+
+func (s *service) SetConsignmentCheckout(cc ConsignmentCheckout) {
+	s.consignmentStore = cc
 }
 
 func (s *service) SetShiftTotalUpdater(st ShiftTotalUpdater) {
@@ -260,6 +265,10 @@ func (s *service) CreateSale(ctx context.Context, sale *Sale, items []Item, paym
 	sale.Payments = validatedPayments
 
 	if err := s.repo.CreateSale(ctx, tx, sale, items); err != nil {
+		return err
+	}
+
+	if err := s.persistConsignmentRecords(ctx, tx, sale); err != nil {
 		return err
 	}
 
@@ -431,6 +440,10 @@ func (s *service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 		if err := s.repo.ConsumeParkedSale(ctx, tx, *parkedSaleID, caller.ownerScope(), caller.storeScope()); err != nil {
 			return err
 		}
+	}
+
+	if err := s.persistConsignmentRecords(ctx, tx, sale); err != nil {
+		return err
 	}
 
 	if err := s.finalizeSaleCreation(ctx, tx, sale, items, validatedPayments); err != nil {

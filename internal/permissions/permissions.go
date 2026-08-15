@@ -114,6 +114,12 @@ const (
 	StorageLocationCreate Code = "storage_location.create"
 	StorageLocationUpdate Code = "storage_location.update"
 	StorageLocationDelete Code = "storage_location.delete"
+
+	ConsignmentView    Code = "consignment.view"
+	ConsignmentCreate  Code = "consignment.create"
+	ConsignmentUpdate  Code = "consignment.update"
+	ConsignmentSettle  Code = "consignment.settle"
+	ConsignmentPay     Code = "consignment.pay"
 )
 
 // All returns every registered permission code.
@@ -136,6 +142,7 @@ func All() []Code {
 		PurchaseOrderView, PurchaseOrderCreate, PurchaseOrderUpdate, PurchaseOrderDelete, PurchaseOrderConfirm, PurchaseOrderReceive, PurchaseOrderCancel,
 		StockOpnameView, StockOpnameCreate, StockOpnameAssign, StockOpnameCount, StockOpnameSubmit, StockOpnameRecount, StockOpnameCancel, StockOpnameExport, StockOpnameVerify, StockOpnamePost, StockOpnameClose, StockOpnameReport,
 		StorageLocationView, StorageLocationCreate, StorageLocationUpdate, StorageLocationDelete,
+		ConsignmentView, ConsignmentCreate, ConsignmentUpdate, ConsignmentSettle, ConsignmentPay,
 	}
 }
 

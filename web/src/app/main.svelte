@@ -50,6 +50,7 @@
     '/pricing-rules':      () => labels.pricingRules,
     '/customer-groups':    () => labels.customerGroups,
     '/suppliers':          () => labels.supplierManagement,
+    '/consignment':        () => labels.consignmentManagement,
     '/admin/brands':       () => labels.brandManagement,
     '/admin/units-of-measure': () => labels.unitOfMeasureManagement,
     '/shifts':             () => labels.shiftManagement,
@@ -92,6 +93,7 @@
     '/stock-opnames':       () => import('$modules/stock-opname/components/StockOpnamesPage.svelte'),
     '/stock-opnames/adjustments': () => import('$modules/stock-opname/components/AdjustmentsReportPage.svelte'),
     '/storage-locations':   () => import('$modules/storage-location/components/StorageLocationsPage.svelte'),
+    '/consignment':         () => import('$modules/consignment/components/ArrangementsPage.svelte'),
   };
 
   let loadId = 0;

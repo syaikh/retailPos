@@ -50,6 +50,7 @@ func setupSaleRouterWithPerms(t *testing.T, perms []string) *gin.Engine {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	svc.SetCartConfig(CartConfig{HoldTTLHours: 24})
 	svc.SetPriceResolver(newPricingTestResolver())

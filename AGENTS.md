@@ -116,10 +116,12 @@ Never auto-commit. Changes must be committed manually.
 ```
 
 Flags:
-- `-products=N` - Number of products (4500-5000, random if 0)
+- `-products=N` - Number of products (4500-5000, random if 0; if 0 and the DB already has products, reuses the existing ones — safe for re-seeding with `-truncate=false`)
 - `-days=N` - Days to generate (0 = interactive prompt)
 - `-categories=N` - Number of categories (65-80, random if 0)
 - `-truncate=false` - Skip truncating existing data
+
+Re-seeding (`-truncate=false`) is supported: the seeder continues document sequences (`invoice_seq`, `po_seq`, `gr_seq`, `so_seq`) and reuses existing products/suppliers/pricing rules, so it adds new transactions without colliding on unique keys (SKUs, invoice numbers, PO/GR numbers, stock opname sessions, shift-per-cashier-date, customer phones).
 
 ## Deployment
 
@@ -144,6 +146,9 @@ Key migrations with deployment ordering constraints:
 - `024_add_product_history_cost_permissions.sql` — adds `product.history.view` (Superadmin/Admin) and `product.cost.view` (Superadmin/Admin/Manager); must be applied before the binary that omits `cost` from `GET /products` / `GET /products/:id` for non-holders, otherwise nobody holds `product.cost.view` and cost is hidden for everyone (degraded, non-breaking)
 - `025_add_supplier_to_products_full_view.sql` — recreates `v_products_full` to add `supplier_id`/`supplier_name` (preferred supplier) columns; must be applied before the binary whose `productSelectCols` reads those columns from the view (otherwise `GET /products` and `GET /products/:id` fail with a missing `supplier_id` column)
 - `028_mv_dashboard_totals.sql` — creates `mv_dashboard_totals` (per-store all-time totals) and extends `refresh_sales_mv()` to refresh it; must be applied before the binary whose `GetAllCompletedSalesStats` reads the view instead of `sales` (otherwise the dashboard all-time total card fails with a missing `mv_dashboard_totals` relation)
+- `001_consignment.sql` — creates the `consignment_*` tables/sequences (`cr_seq`, `pr_seq`, `rt_seq`, `sl_seq`, `po_seq`) and seeds `consignment.*` permissions/role grants; must be applied before the binary that added the Konsinyasi Supplier module, otherwise `POST /api/consignment/*` fails with missing relations and permission checks fail for `consignment.*` codes
+- `002_settlement_items_product_id.sql` — adds `consignment_settlement_items.product_id` (FK to `products`, NULL-able for empty previews); must be applied before the binary whose settlement reads scan that column (otherwise `GET /api/consignment/settlements` and settlement previews fail)
+- `003_settlement_updated_at.sql` — adds `consignment_settlements.updated_at`; must be applied before the binary whose settlement queries scan that column (otherwise settlement reads fail)
 
 ## Filesystem Convention
 

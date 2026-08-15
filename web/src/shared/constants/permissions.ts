@@ -121,6 +121,13 @@ export const Permissions = {
     update: 'storage_location.update',
     delete: 'storage_location.delete',
   },
+  consignment: {
+    view: 'consignment.view',
+    create: 'consignment.create',
+    update: 'consignment.update',
+    settle: 'consignment.settle',
+    pay: 'consignment.pay',
+  },
 } as const;
 
 export type PermissionCode = (typeof Permissions)[keyof typeof Permissions][keyof (typeof Permissions)[keyof typeof Permissions]];

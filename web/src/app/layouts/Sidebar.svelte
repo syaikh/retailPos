@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler, Truck, Percent, Clock, ClipboardList, Warehouse } from 'lucide-svelte';
+  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler, Truck, Percent, Clock, ClipboardList, Warehouse, Handshake } from 'lucide-svelte';
   import { fly } from 'svelte/transition';
   import { goto, getPath } from '$app/router';
   import { logout, useAuthStore } from '$modules/auth';
@@ -75,6 +75,7 @@
     { label: () => labels.shiftManagement,        href: '/shifts',             icon: Clock },
     { label: () => labels.purchaseOrders, href: '/purchase-orders',  icon: Truck },
     { label: () => labels.stockOpname,  href: '/stock-opnames',      icon: ClipboardList },
+    { label: () => 'Konsinyasi Supplier', href: '/consignment',      icon: Handshake },
   ];
 
   const masterDataSubItems = [
@@ -96,6 +97,7 @@
     { label: () => labels.shiftManagement,        href: '/shifts',             icon: Clock },
     { label: () => labels.purchaseOrders, href: '/purchase-orders',  icon: Truck },
     { label: () => labels.stockOpname,  href: '/stock-opnames',      icon: ClipboardList },
+    { label: () => 'Konsinyasi Supplier', href: '/consignment',      icon: Handshake },
   ];
 
   const managerMasterDataSubItems = [

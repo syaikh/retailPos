@@ -1,6 +1,10 @@
 package sale
 
-import "errors"
+import (
+	"errors"
+
+	"retail-pos-system/internal/shared"
+)
 
 // ==================== DOMAIN ERRORS ====================
 
@@ -38,6 +42,12 @@ type Sale struct {
 	Payments      []Payment `json:"payments,omitempty"`
 	CreatedAt     string    `json:"created_at,omitempty"`
 	UpdatedAt     string    `json:"updated_at,omitempty"`
+
+	// consignmentRecords is the checkout-time consignment snapshot stashed by
+	// finalizeSaleItems and persisted to consignment_sale_items right after the
+	// sale row is created. It is deliberately unexported: it is an internal
+	// sale-flow payload, not part of the API/DTO shape.
+	consignmentRecords []shared.ConsignmentSaleRecord
 }
 
 type Item struct {

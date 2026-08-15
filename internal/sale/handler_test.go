@@ -56,6 +56,7 @@ func setupSaleRouter(t *testing.T) *gin.Engine {
 
 	svc := NewService(repo, bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	svc.SetPriceResolver(newPricingTestResolver())
 	h := NewHandler(svc, nil)
