@@ -101,6 +101,21 @@ describe('supplier-service', () => {
       expect(body.code).toBe('SUP-NEW');
       expect(body.is_active).toBe(true);
     });
+
+    it('omits code when not provided (server auto-generates)', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: true });
+
+      const { createSupplier } = await import('../supplier-service');
+      const result = await createSupplier({
+        name: 'PT Tanpa Kode',
+        is_active: true,
+      });
+
+      expect(result).toBe(true);
+      const body = JSON.parse(mockApiFetch.mock.calls[0][1].body);
+      expect(body.name).toBe('PT Tanpa Kode');
+      expect(body.code).toBeUndefined();
+    });
   });
 
   describe('updateSupplier', () => {

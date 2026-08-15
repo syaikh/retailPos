@@ -15,6 +15,7 @@ type Repo interface {
 	GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error)
 	GetByID(ctx context.Context, id int) (*Supplier, error)
 	GetByCode(ctx context.Context, code string) (*Supplier, error)
+	GetNextSupplierCode(ctx context.Context) (string, error)
 	Create(ctx context.Context, supplier *Supplier) error
 	Update(ctx context.Context, supplier *Supplier) error
 	Delete(ctx context.Context, id int) error
@@ -51,6 +52,13 @@ func (s *service) GetAll(ctx context.Context, limit, offset int, search string, 
 }
 
 func (s *service) Create(ctx context.Context, supplier *Supplier) error {
+	if supplier.Code == "" {
+		code, err := s.repo.GetNextSupplierCode(ctx)
+		if err != nil {
+			return err
+		}
+		supplier.Code = code
+	}
 	if err := validateSupplier(supplier); err != nil {
 		return err
 	}

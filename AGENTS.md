@@ -149,6 +149,7 @@ Key migrations with deployment ordering constraints:
 - `001_consignment.sql` — creates the `consignment_*` tables/sequences (`cr_seq`, `pr_seq`, `rt_seq`, `sl_seq`, `po_seq`) and seeds `consignment.*` permissions/role grants; must be applied before the binary that added the Konsinyasi Supplier module, otherwise `POST /api/consignment/*` fails with missing relations and permission checks fail for `consignment.*` codes
 - `002_settlement_items_product_id.sql` — adds `consignment_settlement_items.product_id` (FK to `products`, NULL-able for empty previews); must be applied before the binary whose settlement reads scan that column (otherwise `GET /api/consignment/settlements` and settlement previews fail)
 - `003_settlement_updated_at.sql` — adds `consignment_settlements.updated_at`; must be applied before the binary whose settlement queries scan that column (otherwise settlement reads fail)
+- `004_supplier_code_sequence.sql` — creates the `supplier_seq` sequence used to auto-generate supplier codes (`SUP-%06d`) when a create payload omits `code`; must be applied before the binary whose supplier `Create` auto-generates codes, otherwise `POST /api/suppliers` with a blank code fails with a missing `supplier_seq` relation
 
 ## Filesystem Convention
 

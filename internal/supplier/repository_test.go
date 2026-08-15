@@ -15,6 +15,20 @@ import (
 
 var dbPool *pgxpool.Pool
 
+func TestRepository_GetNextSupplierCode(t *testing.T) {
+	ctx := context.Background()
+	repo := newTestRepo(t)
+
+	code1, err := repo.GetNextSupplierCode(ctx)
+	require.NoError(t, err)
+	assert.Regexp(t, `^SUP-\d+$`, code1)
+
+	code2, err := repo.GetNextSupplierCode(ctx)
+	require.NoError(t, err)
+	assert.Regexp(t, `^SUP-\d+$`, code2)
+	assert.NotEqual(t, code1, code2, "supplier codes should be sequential and unique")
+}
+
 func TestMain(m *testing.M) {
 	pool, err := shared.NewTestDB()
 	if err != nil {

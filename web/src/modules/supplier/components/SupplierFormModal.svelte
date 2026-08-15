@@ -54,22 +54,24 @@
 
   function handleSubmit(e: Event) {
     e.preventDefault();
-    if (!form.name || !form.code) return;
+    if (!form.name) return;
     onsave(form);
   }
 </script>
 
 <Modal bind:open title={mode === 'add' ? labels.addSupplier : labels.editSupplier} size="md">
   <form onsubmit={handleSubmit} class="space-y-3">
-    <div class="grid grid-cols-2 gap-3">
+    <div class={mode === 'add' ? 'grid grid-cols-1' : 'grid grid-cols-2 gap-3'}>
       <div>
         <label for="sup_name" class="block text-xs font-medium text-text-secondary mb-1">{labels.supplierName} <span class="text-danger">*</span></label>
         <Input id="sup_name" bind:value={form.name} required placeholder={labels.contohNamaSupplier} class="h-9 text-sm" />
       </div>
-      <div>
-        <label for="sup_code" class="block text-xs font-medium text-text-secondary mb-1">{labels.supplierCode} <span class="text-danger">*</span></label>
-        <Input id="sup_code" bind:value={form.code} required placeholder="SUP-001" class="h-9 text-sm" />
-      </div>
+      {#if mode === 'edit'}
+        <div>
+          <label for="sup_code" class="block text-xs font-medium text-text-secondary mb-1">{labels.supplierCode}</label>
+          <Input id="sup_code" bind:value={form.code} placeholder="SUP-001" class="h-9 text-sm" />
+        </div>
+      {/if}
     </div>
     <div class="grid grid-cols-3 gap-3">
       <div>

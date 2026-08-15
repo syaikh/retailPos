@@ -16,7 +16,7 @@ export interface Supplier {
 
 export interface CreateSupplierPayload {
   name: string;
-  code: string;
+  code?: string;
   contact_name?: string;
   phone?: string;
   email?: string;

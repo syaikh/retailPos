@@ -25,6 +25,17 @@ func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
 
+// GetNextSupplierCode returns the next auto-generated supplier code (SUP-%06d)
+// from supplier_seq. Used by Create when the payload omits a code.
+func (r *Repository) GetNextSupplierCode(ctx context.Context) (string, error) {
+	var seq int
+	err := r.db.QueryRow(ctx, `SELECT nextval('supplier_seq')`).Scan(&seq)
+	if err != nil {
+		return "", fmt.Errorf("failed to get next supplier code: %w", err)
+	}
+	return fmt.Sprintf("SUP-%06d", seq), nil
+}
+
 // SetProductSupplierStore wires the product-owned port that backs all
 // product_suppliers reads and writes. Calls to the linked-product methods
 // fail fast until it is set.

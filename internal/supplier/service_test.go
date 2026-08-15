@@ -312,6 +312,36 @@ func TestService_Create_ValidationFails(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestService_Create_AutoGeneratesCode(t *testing.T) {
+	skipIfNoDB(t)
+	repo := newTestRepo(t)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	s := &Supplier{Name: "SVC Auto Code", IsActive: true}
+	err := svc.Create(ctx, s)
+	require.NoError(t, err)
+	assert.Greater(t, s.ID, 0)
+	assert.Regexp(t, `^SUP-\d+$`, s.Code, "blank code should be auto-generated as SUP-%06d")
+
+	got, err := svc.GetByID(ctx, s.ID)
+	require.NoError(t, err)
+	assert.Equal(t, s.Code, got.Code)
+}
+
+func TestService_Create_KeepsProvidedCode(t *testing.T) {
+	skipIfNoDB(t)
+	repo := newTestRepo(t)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	code := "SVC-KEEP-" + time.Now().Format("0102150405")
+	s := &Supplier{Name: "SVC Keep Code", Code: code, IsActive: true}
+	err := svc.Create(ctx, s)
+	require.NoError(t, err)
+	assert.Equal(t, code, s.Code, "provided code must be preserved, not overwritten")
+}
+
 func TestService_Update(t *testing.T) {
 	skipIfNoDB(t)
 	repo := newTestRepo(t)
