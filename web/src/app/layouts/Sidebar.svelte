@@ -75,7 +75,7 @@
     { label: () => labels.shiftManagement,        href: '/shifts',             icon: Clock },
     { label: () => labels.purchaseOrders, href: '/purchase-orders',  icon: Truck },
     { label: () => labels.stockOpname,  href: '/stock-opnames',      icon: ClipboardList },
-    { label: () => 'Konsinyasi Supplier', href: '/consignment',      icon: Handshake },
+    { label: () => labels.consignmentManagement, href: '/consignment', icon: Handshake },
   ];
 
   const masterDataSubItems = [
@@ -97,7 +97,7 @@
     { label: () => labels.shiftManagement,        href: '/shifts',             icon: Clock },
     { label: () => labels.purchaseOrders, href: '/purchase-orders',  icon: Truck },
     { label: () => labels.stockOpname,  href: '/stock-opnames',      icon: ClipboardList },
-    { label: () => 'Konsinyasi Supplier', href: '/consignment',      icon: Handshake },
+    { label: () => labels.consignmentManagement, href: '/consignment', icon: Handshake },
   ];
 
   const managerMasterDataSubItems = [

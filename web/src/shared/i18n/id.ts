@@ -1622,7 +1622,7 @@ export const id = {
   statusReport: 'Laporan',
 
   // ===== Consignment =====
-  consignmentManagement: 'Konsinyasi Supplier',
+  consignmentManagement: 'Konsinyasi',
   consignmentSubtitle: 'Arrangement, penerimaan, retur, dan settlement konsinyasi',
   consignmentNewArrangement: 'Arrangement Baru',
   consignmentLoadError: 'Gagal memuat data konsinyasi',
