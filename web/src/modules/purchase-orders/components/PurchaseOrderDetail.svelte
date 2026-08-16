@@ -2,7 +2,7 @@
   import { Drawer, Badge, Button, Skeleton } from '$shared/ui';
   import { getPurchaseOrderById, getReceipts } from '../services/po-service';
   import type { PurchaseOrder, GoodsReceipt } from '../types';
-  import { labels, t } from '$shared/i18n';
+  import { labels, t, formatLocaleDate } from '$shared/i18n';
   import { Package, Printer, Pencil, Check, XCircle, Copy, Truck } from 'lucide-svelte';
 
   let {
@@ -76,7 +76,7 @@
 
   function formatDate(dateStr: string | undefined): string {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    return formatLocaleDate(new Date(dateStr), { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   function formatCurrency(value: number): string {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Drawer, Button, Badge } from '$shared/ui';
   import { Pencil, Trash2, DollarSign, Target, Hash, Clock, Settings, CalendarDays } from 'lucide-svelte';
-  import { labels, t } from '$shared/i18n';
+  import { labels, t, formatLocaleDate } from '$shared/i18n';
   import type { PricingRule } from '../types';
 
   let {
@@ -51,7 +51,7 @@
   function formatDateTime(dateStr: string | undefined): string {
     if (!dateStr) return '-';
     try {
-      return new Date(dateStr).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return formatLocaleDate(new Date(dateStr), { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     } catch { return dateStr; }
   }
 

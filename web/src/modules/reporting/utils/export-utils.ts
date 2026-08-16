@@ -1,6 +1,7 @@
 import { apiFetch } from '$shared/api/http-client';
 import { toast } from '$shared/stores/toast.svelte';
 import { getTodayInJakarta } from '$shared/utils/jakartaTime';
+import { formatLocaleDate } from '$shared/i18n';
 import { getPeriodLabel } from '$modules/reporting/lib/reporting-utils';
 
 interface ExportToExcelParams {
@@ -192,7 +193,7 @@ export async function exportToPDF({
     const rangeDateFormat = (ds: string | undefined) => {
       if (!ds) return '';
       const d = new Date(ds + 'T00:00:00Z');
-      return `${String(d.getUTCDate()).padStart(2, '0')} ${d.toLocaleString('id-ID', { month: 'short', timeZone: 'UTC' })} ${d.getUTCFullYear()}`;
+      return `${String(d.getUTCDate()).padStart(2, '0')} ${formatLocaleDate(d, { month: 'short', timeZone: 'UTC' })} ${d.getUTCFullYear()}`;
     };
     const pDesc = (() => {
       const s = rangeDateFormat(startDate);

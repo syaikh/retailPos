@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, Skeleton, SortableHeader, Badge, Tooltip, Dropdown } from '$shared/ui';
-  import { labels, t } from '$shared/i18n';
+  import { labels, t, formatLocaleDate } from '$shared/i18n';
   import { Pencil, Trash2, Truck, Copy, Package, MoreVertical } from 'lucide-svelte';
   import type { Supplier } from '../types';
 
@@ -24,7 +24,7 @@
 
   function formatDateTime(dateStr: string | undefined): string {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleString('id-ID', {
+    return formatLocaleDate(new Date(dateStr), {
       day: 'numeric', month: 'short', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     });

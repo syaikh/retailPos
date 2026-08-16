@@ -2,7 +2,7 @@
   import { Badge, Button, Skeleton, SortableHeader, Tooltip, Dropdown } from '$shared/ui';
   import { Search, MoreVertical, Users, Pencil, Trash2, Copy, Power, PowerOff } from 'lucide-svelte';
   import type { CustomerGroup } from '../types';
-  import { labels, t } from '$shared/i18n';
+  import { labels, t, formatLocaleDate } from '$shared/i18n';
 
   let {
     groups = [],
@@ -86,7 +86,7 @@
   function formatDateTime(dateStr: string | undefined): string {
     if (!dateStr) return '';
     try {
-      return new Date(dateStr).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return formatLocaleDate(new Date(dateStr), { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     } catch { return dateStr; }
   }
 </script>

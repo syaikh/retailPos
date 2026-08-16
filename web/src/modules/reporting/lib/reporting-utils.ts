@@ -1,4 +1,5 @@
 import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour, getJakartaDayOfWeek } from '$shared/utils/jakartaTime';
+import { formatLocaleDate } from '$shared/i18n';
 
 export function formatCurrencyShort(value: number | null | undefined): string {
   if (value == null) return 'Rp 0';
@@ -20,7 +21,7 @@ export function formatDate(dateString?: string): string {
   if (!dateString) return '';
   const date = new Date(dateString + 'T00:00:00Z');
   const day = date.getUTCDate().toString().padStart(2, '0');
-  const month = date.toLocaleString('id-ID', { month: 'short', timeZone: 'UTC' });
+  const month = formatLocaleDate(date, { month: 'short', timeZone: 'UTC' });
   const year = date.getUTCFullYear();
   return `${day} ${month} ${year}`;
 }
@@ -34,12 +35,12 @@ export function getPeriodLabel(item: { hour?: number; date?: string; month_start
     }
     const d = new Date(item.date + 'T00:00:00Z');
     const day = d.getUTCDate();
-    const month = d.toLocaleString('id-ID', { month: 'short', timeZone: 'UTC' });
+    const month = formatLocaleDate(d, { month: 'short', timeZone: 'UTC' });
     return `${day} ${month}`;
   }
   if (item.month_start) {
     const d = new Date(item.month_start + 'T00:00:00Z');
-    const month = d.toLocaleString('id-ID', { month: 'short', timeZone: 'UTC' });
+    const month = formatLocaleDate(d, { month: 'short', timeZone: 'UTC' });
     const year = d.getUTCFullYear();
     return `${month} ${year}`;
   }
@@ -49,9 +50,9 @@ export function getPeriodLabel(item: { hour?: number; date?: string; month_start
 export function formatDayDate(dateString?: string): string {
   if (!dateString) return '';
   const date = new Date(dateString + 'T00:00:00Z');
-  const dayName = date.toLocaleString('id-ID', { weekday: 'short', timeZone: 'UTC' });
+  const dayName = formatLocaleDate(date, { weekday: 'short', timeZone: 'UTC' });
   const day = date.getUTCDate();
-  const month = date.toLocaleString('id-ID', { month: 'short', timeZone: 'UTC' });
+  const month = formatLocaleDate(date, { month: 'short', timeZone: 'UTC' });
   return `${dayName}, ${day} ${month}`;
 }
 

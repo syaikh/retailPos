@@ -4,7 +4,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour } from '$shared/utils/jakartaTime';
   import { formatDate, formatDayDate, getPeriodLabel } from '$modules/reporting/lib/reporting-utils';
-  import { labels } from '$shared/i18n';
+  import { labels, formatLocaleDate } from '$shared/i18n';
   import { buildChartConfig } from '$modules/reporting/utils/chart-config';
   import { fetchSalesWithRange as fetchSales } from '$modules/reporting/utils/data-fetching';
   import { exportToExcel as doExportToExcel, exportToPDF as doExportToPDF } from '$modules/reporting/utils/export-utils';
@@ -292,7 +292,7 @@
         const dateStr = d.date || '';
         const date = dateStr ? new Date(dateStr + 'T00:00:00Z') : null;
         return {
-          period: date ? date.toLocaleString('id-ID', { month: 'short', day: 'numeric' }) : d.label || `${labels.day} ${i + 1}`,
+          period: date ? formatLocaleDate(date, { month: 'short', day: 'numeric' }) : d.label || `${labels.day} ${i + 1}`,
           dateStr,
           revenue: d.total || 0,
           prevRevenue: prevRev,
@@ -315,7 +315,7 @@
         const prevTotal = prevByDate[expectedPrevStr];
         const hasPrev = prevTotal !== undefined;
         return {
-          period: currentDate.toLocaleString('id-ID', { month: 'short', day: 'numeric' }),
+          period: formatLocaleDate(currentDate, { month: 'short', day: 'numeric' }),
           dateStr: d.date,
           revenue: d.total || 0,
           prevRevenue: hasPrev ? prevTotal : null,
@@ -331,7 +331,7 @@
       const dateStr = d.month_start || d.date || '';
       const date = dateStr ? new Date(dateStr + 'T00:00:00Z') : null;
       return {
-          period: date ? date.toLocaleString('id-ID', { month: 'short', year: 'numeric' }) : d.label || '',
+          period: date ? formatLocaleDate(date, { month: 'short', year: 'numeric' }) : d.label || '',
         dateStr,
         revenue: d.total || 0,
         prevRevenue: prevRev,

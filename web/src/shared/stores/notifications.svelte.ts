@@ -1,5 +1,6 @@
 import { writable, derived } from 'svelte/store';
 import { JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
+import { labels, t, formatLocaleDate } from '$shared/i18n';
 
 export type NotificationType = 'low_stock' | 'sale_created' | 'stock_update' | 'product_updated' | 'po_received' | 'so_created' | 'so_submitted' | 'so_approved' | 'so_rejected' | 'so_needs_recount' | 'so_cancelled';
 
@@ -56,16 +57,15 @@ export function formatRelativeTime(date: Date): string {
   const diffMs = now - date.getTime();
   const diffSec = Math.floor(diffMs / 1000);
 
-  if (diffSec < 60) return 'baru saja';
+  if (diffSec < 60) return labels.justNow;
   const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m lalu`;
+  if (diffMin < 60) return t('minutesAgoShort', { n: diffMin });
   const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour}j lalu`;
+  if (diffHour < 24) return t('hoursAgoShort', { n: diffHour });
   const diffDay = Math.floor(diffHour / 24);
-  if (diffDay < 7) return `${diffDay}h lalu`;
+  if (diffDay < 7) return t('daysAgoShort', { n: diffDay });
   const jakartaDate = new Date(date.getTime() + JAKARTA_OFFSET_MS);
-  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-  return `${jakartaDate.getUTCDate()} ${months[jakartaDate.getUTCMonth()]}`;
+  return `${jakartaDate.getUTCDate()} ${formatLocaleDate(jakartaDate, { month: 'short', timeZone: 'UTC' })}`;
 }
 
 export function getNotificationIcon(type: NotificationType): string {

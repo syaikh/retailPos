@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Badge, Button, Skeleton, SortableHeader, Tooltip, Dropdown } from '$shared/ui';
   import { Search, MoreVertical, Pencil, Trash2, Power, PowerOff, Warehouse as WarehouseIcon, Store as StoreIcon } from 'lucide-svelte';
-  import { labels } from '$shared/i18n';
+  import { labels, formatLocaleDate } from '$shared/i18n';
   import type { StorageLocation } from '../types';
 
   let {
@@ -94,7 +94,7 @@
   function formatDateTime(dateStr: string | undefined): string {
     if (!dateStr) return '';
     try {
-      return new Date(dateStr).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return formatLocaleDate(new Date(dateStr), { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     } catch { return dateStr; }
   }
 </script>

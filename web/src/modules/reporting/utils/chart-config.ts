@@ -1,5 +1,5 @@
 import { getCurrentJakartaHour, getTodayInJakarta, getDateNDaysAgoInJakarta } from '$shared/utils/jakartaTime';
-import { labels } from '$shared/i18n';
+import { labels, formatLocaleDate } from '$shared/i18n';
 
 interface ChartDataPoint {
   date?: string;
@@ -134,7 +134,7 @@ export function buildChartConfig({
       prevDateStrings = [];
       for (let d = new Date(mondayDate); d <= sundayDate; d = new Date(d.getTime() + dayMs)) {
         const dateStr = d.toISOString().split('T')[0];
-        const currentLabel = d.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
+        const currentLabel = formatLocaleDate(d, { month: 'short', day: 'numeric' });
         if (dateStr <= (endDate ?? '')) {
           const total = dataMap[dateStr];
           const expectedPrev = new Date(d.getTime() - dayOffset * dayMs);
@@ -142,7 +142,7 @@ export function buildChartConfig({
           const prevTotal = prevByDate[expectedPrevStr];
           const hasPrev = prevTotal !== undefined;
           const prevLabel = hasPrev
-            ? expectedPrev.toLocaleString('id-ID', { month: 'short', day: 'numeric' })
+            ? formatLocaleDate(expectedPrev, { month: 'short', day: 'numeric' })
             : labels.noData;
           chartLabels.push(`${currentLabel}\n${prevLabel}`);
           dateStrings.push(dateStr);
@@ -193,13 +193,13 @@ export function buildChartConfig({
           prevValues.push(null);
           return;
         }
-        const currentLabel = currentDate.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
+        const currentLabel = formatLocaleDate(currentDate, { month: 'short', day: 'numeric' });
         const expectedPrev = new Date(currentDate.getTime() - dayOffset * 86400000);
         const expectedPrevStr = expectedPrev.toISOString().split('T')[0];
         const prevTotal = prevByDate[expectedPrevStr];
         const hasPrev = prevTotal !== undefined;
         const prevLabel = hasPrev
-          ? expectedPrev.toLocaleString('id-ID', { month: 'short', day: 'numeric' })
+          ? formatLocaleDate(expectedPrev, { month: 'short', day: 'numeric' })
           : labels.noData;
         chartLabels.push(`${currentLabel}\n${prevLabel}`);
         dateStrings.push(d.date);
@@ -236,11 +236,11 @@ export function buildChartConfig({
       prevDateStrings = [];
       for (let m = 1; m <= totalMonths; m++) {
         const currentDate = new Date(chartYear, m - 1, 1);
-        const currentLabel = currentDate.toLocaleString('id-ID', { month: 'short' }) + ' ' + chartYear;
+        const currentLabel = formatLocaleDate(currentDate, { month: 'short' }) + ' ' + chartYear;
         const prevDate = new Date(prevYear, m - 1, 1);
         const hasPrevData = prevByMonth[m] !== undefined;
         const prevLabel = hasPrevData
-          ? prevDate.toLocaleString('id-ID', { month: 'short' }) + ' ' + prevYear
+          ? formatLocaleDate(prevDate, { month: 'short' }) + ' ' + prevYear
           : labels.noData;
         chartLabels.push(`${currentLabel}\n${prevLabel}`);
         dateStrings.push(currentDate.toISOString().split('T')[0]);
@@ -255,10 +255,10 @@ export function buildChartConfig({
       chartLabels = chartData.map((d, i) => {
         if (d.month_start) {
           const currentDate = new Date(d.month_start);
-          const currentLabel = currentDate.toLocaleString('id-ID', { month: 'short', year: '2-digit' });
+          const currentLabel = formatLocaleDate(currentDate, { month: 'short', year: '2-digit' });
           const prevItem = prevSorted[i];
           const prevLabel = prevItem
-            ? new Date(prevItem.month_start!).toLocaleString('id-ID', { month: 'short' })
+            ? formatLocaleDate(new Date(prevItem.month_start!), { month: 'short' })
             : '';
           return `${currentLabel}\n${prevLabel}`;
         }
@@ -276,13 +276,13 @@ export function buildChartConfig({
       if (d.week_start && d.week_end) {
         const start = new Date(d.week_start);
         const end = new Date(d.week_end);
-        const startStr = start.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
-        const endStr = end.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
+        const startStr = formatLocaleDate(start, { month: 'short', day: 'numeric' });
+        const endStr = formatLocaleDate(end, { month: 'short', day: 'numeric' });
         const currentLabel = `${startStr} - ${endStr}`;
         const prevItem = prevSorted[i];
         const prevLabel = prevItem
-          ? new Date(prevItem.week_start!).toLocaleString('id-ID', { month: 'short', day: 'numeric' }) + ' - ' +
-            new Date(prevItem.week_end!).toLocaleString('id-ID', { month: 'short', day: 'numeric' })
+          ? formatLocaleDate(new Date(prevItem.week_start!), { month: 'short', day: 'numeric' }) + ' - ' +
+            formatLocaleDate(new Date(prevItem.week_end!), { month: 'short', day: 'numeric' })
           : '';
         return `${currentLabel}\n${prevLabel}`;
       }
@@ -366,7 +366,7 @@ export function buildChartConfig({
                 const date = dsIdx === 0 ? dateStrings[idx] : prevDateStrings[idx];
                 if (date) {
                   const d = new Date(date + 'T00:00:00Z');
-                  label += ` (${d.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' })})`;
+                  label += ` (${formatLocaleDate(d, { month: 'short', year: 'numeric' })})`;
                  } else if (dsIdx === 1) {
                    label += `: ${labels.noData}`;
                   return label;

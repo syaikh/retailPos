@@ -95,6 +95,8 @@
   let jakartaDate = $state(getCurrentJakartaDateDisplay());
 
   $effect(() => {
+    // Re-render date display immediately when the UI language changes.
+    jakartaDate = getCurrentJakartaDateDisplay();
     const timer = setInterval(() => {
       jakartaClock = getCurrentJakartaClock();
       jakartaDate = getCurrentJakartaDateDisplay();

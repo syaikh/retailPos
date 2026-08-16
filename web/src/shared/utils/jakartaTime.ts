@@ -11,6 +11,8 @@
  * Mapping:  midnight Jakarta  = 07:00 UTC  (because 00:00 + 07:00 = 07:00 UTC)
  */
 
+import { formatLocaleDate } from '$shared/i18n';
+
 /** 7 hours expressed in milliseconds */
 export const JAKARTA_OFFSET_MS = 7 * 60 * 60 * 1000;
 
@@ -194,8 +196,7 @@ export function formatDateInJakarta(isoString: string): string {
   if (isNaN(date.getTime())) return '—';
   const jakartaDate = new Date(date.getTime() + JAKARTA_OFFSET_MS);
   const day = jakartaDate.getUTCDate().toString().padStart(2, '0');
-  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-  const month = months[jakartaDate.getUTCMonth()];
+  const month = formatLocaleDate(jakartaDate, { month: 'short', timeZone: 'UTC' });
   return `${day} ${month} ${jakartaDate.getUTCFullYear()}`;
 }
 
@@ -221,8 +222,7 @@ export function formatDateTimeInJakarta(isoString: string): string {
   if (isNaN(date.getTime())) return '—';
   const jakartaDate = new Date(date.getTime() + JAKARTA_OFFSET_MS);
   const day = jakartaDate.getUTCDate().toString().padStart(2, '0');
-  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-  const month = months[jakartaDate.getUTCMonth()];
+  const month = formatLocaleDate(jakartaDate, { month: 'short', timeZone: 'UTC' });
   const hours = jakartaDate.getUTCHours().toString().padStart(2, '0');
   const minutes = jakartaDate.getUTCMinutes().toString().padStart(2, '0');
   const seconds = jakartaDate.getUTCSeconds().toString().padStart(2, '0');
@@ -246,13 +246,11 @@ export function getCurrentJakartaClock(): { hours: string; minutes: string; seco
  */
 export function getCurrentJakartaDateDisplay(): { day: number; month: string; year: number; weekday: string } {
   const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
-  const weekdays = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
-  const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
   return {
     day: shifted.getUTCDate(),
-    month: months[shifted.getUTCMonth()],
+    month: formatLocaleDate(shifted, { month: 'long', timeZone: 'UTC' }),
     year: shifted.getUTCFullYear(),
-    weekday: weekdays[shifted.getUTCDay()],
+    weekday: formatLocaleDate(shifted, { weekday: 'long', timeZone: 'UTC' }),
   };
 }
 
@@ -268,8 +266,8 @@ export function formatJakartaDateStr(dateStr: string): string {
   const m = Number(parts[1]);
   const d = Number(parts[2]);
   if (!y || !m || !d || m < 1 || m > 12) return dateStr;
-  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-  return `${d} ${months[m - 1]} ${y}`;
+  const month = formatLocaleDate(new Date(Date.UTC(y, m - 1, 1)), { month: 'short', timeZone: 'UTC' });
+  return `${d} ${month} ${y}`;
 }
 
 export function getCompletedDaysInCurrentWeek(): number {

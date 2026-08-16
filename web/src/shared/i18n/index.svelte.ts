@@ -60,6 +60,22 @@ export const setLocale = (locale: Locale) => i18n.setLocale(locale);
 export const toggleLocale = () => i18n.toggleLocale();
 
 /**
+ * Intl locale string for date formatting, following the selected UI language.
+ * 'en' → 'en-US' (English month/day names); otherwise 'id-ID' (Indonesian).
+ */
+export function getDateLocale(): 'en-US' | 'id-ID' {
+  return i18n.locale === 'en' ? 'en-US' : 'id-ID';
+}
+
+/**
+ * Locale-aware date formatting. Use this instead of `date.toLocaleString('id-ID', ...)`
+ * whenever the output should follow the UI language (e.g. month/day abbreviations).
+ */
+export function formatLocaleDate(date: Date, options?: Intl.DateTimeFormatOptions): string {
+  return date.toLocaleString(getDateLocale(), options);
+}
+
+/**
  * Translate a label key with `{placeholder}` interpolation.
  * Example: t('importRows', { count: 5 }) -> "Impor 5 Baris".
  */

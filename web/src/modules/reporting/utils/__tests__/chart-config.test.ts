@@ -16,7 +16,8 @@ vi.mock('$shared/i18n', () => ({
     noData: 'No Data',
     currentPeriod: 'Current Period',
     prevPeriod: 'Prev Period (Rp)'
-  }
+  },
+  formatLocaleDate: (date: Date, options?: Intl.DateTimeFormatOptions) => date.toLocaleString('en-US', options)
 }));
 
 import { buildChartConfig } from '../chart-config';

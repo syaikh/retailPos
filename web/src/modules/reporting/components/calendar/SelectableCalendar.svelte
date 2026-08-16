@@ -2,6 +2,7 @@
   import { type DateValue, CalendarDate } from "@internationalized/date";
   import { cn, getThemeStyle, type Theme } from "./utils";
   import { getTodayJakartaDate } from '$shared/utils/jakartaTime';
+  import { formatLocaleDate } from '$shared/i18n';
 
   type SelectionMode = "day" | "week";
 
@@ -238,7 +239,7 @@ onclick={(e) => { e.stopPropagation(); const prev = displayMonth.subtract({ mont
         <span class="text-xs">‹</span>
       </button>
       <span class="text-sm font-medium text-[var(--calendar-text)]">
-        {displayMonth.year} {new Date(Date.UTC(displayMonth.year, displayMonth.month - 1, 1)).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}
+        {displayMonth.year} {formatLocaleDate(new Date(Date.UTC(displayMonth.year, displayMonth.month - 1, 1)), { month: 'short', timeZone: 'UTC' })}
       </span>
       <button
         class="inline-flex items-center justify-center rounded-md p-1 text-[var(--calendar-text)] hover:bg-[var(--calendar-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

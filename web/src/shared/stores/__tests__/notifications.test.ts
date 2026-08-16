@@ -74,16 +74,16 @@ describe('notifications store', () => {
     expect(toasts).toHaveLength(0);
   });
 
-  it('formatRelativeTime returns baru saja for seconds', async () => {
+  it('formatRelativeTime returns just now for seconds', async () => {
     const { formatRelativeTime } = await import('../notifications.svelte');
     const result = formatRelativeTime(new Date(Date.now() - 30000));
-    expect(result).toBe('baru saja');
+    expect(result).toBe('Baru saja');
   });
 
   it('formatRelativeTime returns minutes for under an hour', async () => {
     const { formatRelativeTime } = await import('../notifications.svelte');
     const result = formatRelativeTime(new Date(Date.now() - 5 * 60 * 1000));
-    expect(result).toContain('m lalu');
+    expect(result).toBe('5m lalu');
   });
 
   it('getNotificationIcon returns correct icons', async () => {
