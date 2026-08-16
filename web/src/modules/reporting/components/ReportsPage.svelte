@@ -403,10 +403,24 @@
     return () => clearInterval(interval);
   });
 
+  let chartDisplayData = $derived.by(() => {
+    if (activePeriodType === 'realtime' && chartData.length === 0 && prevChartData.length > 0) {
+      return prevChartData;
+    }
+    return chartData;
+  });
+
+  let chartDisplayPrevData = $derived.by(() => {
+    if (activePeriodType === 'realtime' && chartData.length === 0 && prevChartData.length > 0) {
+      return [];
+    }
+    return prevChartData;
+  });
+
   let chartConfig = $derived(buildChartConfig({
     chartType,
-    chartData,
-    prevChartData,
+    chartData: chartDisplayData,
+    prevChartData: chartDisplayPrevData,
     activePeriodType,
     endDate,
     selectedMonthlyRange,
@@ -599,7 +613,7 @@
       isHourly={chartType === 'hourly'}
     />
 
-    <ChartArea bind:chartCanvas {chartConfig} {loading} {chartData} />
+    <ChartArea bind:chartCanvas {chartConfig} {loading} chartData={chartDisplayData} />
 
     <RevenueDataTable
       {showDataTable}
