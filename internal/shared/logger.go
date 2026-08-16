@@ -3,6 +3,7 @@ package shared
 import (
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -35,12 +36,21 @@ func InitLogger(env, levelStr string) {
 		var handler slog.Handler
 		level := parseLogLevel(levelStr)
 		opts := &slog.HandlerOptions{
-			Level:     level,
-			AddSource: true,
+			Level: level,
+			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+				if a.Key == slog.SourceKey {
+					if src, ok := a.Value.Any().(*slog.Source); ok {
+						src.File = filepath.Base(src.File)
+					}
+				}
+				return a
+			},
 		}
 		if env == "production" {
+			opts.AddSource = false
 			handler = slog.NewJSONHandler(os.Stdout, opts)
 		} else {
+			opts.AddSource = true
 			handler = slog.NewTextHandler(os.Stdout, opts)
 		}
 		globalLogger = slog.New(handler)
