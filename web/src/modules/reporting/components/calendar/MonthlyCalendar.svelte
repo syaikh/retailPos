@@ -2,6 +2,7 @@
   import { type DateValue, CalendarDate } from "@internationalized/date";
   import { cn, getThemeStyle, type Theme } from "./utils";
   import { getTodayJakartaDate } from "$shared/utils/jakartaTime";
+  import { formatLocaleDate } from "$shared/i18n";
 
   interface Props {
     value?: { start: DateValue; end: DateValue } | null;
@@ -35,10 +36,11 @@
     }
   });
 
-  const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-  ];
+  const months = $derived(
+    Array.from({ length: 12 }, (_, i) =>
+      formatLocaleDate(new Date(Date.UTC(2000, i, 1)), { month: 'short', timeZone: 'UTC' })
+    )
+  );
 
   const getMonthRange = (year: number, month: number): { start: DateValue; end: DateValue } => {
     const monthStart = new CalendarDate(year, month, 1);
