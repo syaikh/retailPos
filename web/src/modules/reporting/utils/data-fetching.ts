@@ -156,6 +156,7 @@ export async function fetchSalesWithRange({
 
   let chartData = [];
   let prevChartData = [];
+  let todayChartTotal = 0;
 
   if (dualRes.ok) {
     const dualData = await dualRes.json();
@@ -164,8 +165,6 @@ export async function fetchSalesWithRange({
 
     if (activePeriodType === 'realtime') {
       const currentHour = getCurrentJakartaHour();
-      // Only completed hours are shown: exclude the in-progress hour, which
-      // may carry partial data after a mid-hour MV refresh.
       chartData = rawCurrent.filter((item: { date?: string; total: number }) => {
         const hour = parseInt(item.date || '');
         return !isNaN(hour) && hour < currentHour;
@@ -177,6 +176,16 @@ export async function fetchSalesWithRange({
     } else {
       chartData = rawCurrent;
       prevChartData = rawPrevious;
+    }
+
+    todayChartTotal = chartData.reduce((sum: number, item: { date?: string; total: number }) => {
+      const val = item.total || 0;
+      return sum + (val > 0 ? val : 0);
+    }, 0);
+
+    if (activePeriodType === 'realtime' && chartData.length === 0 && prevChartData.length > 0) {
+      chartData = prevChartData;
+      prevChartData = [];
     }
   }
 
@@ -190,13 +199,8 @@ export async function fetchSalesWithRange({
     let percentChange = 0;
     let comparisonType = 'zero';
 
-    const chartTotal = chartData.reduce((sum: number, item: { date?: string; total: number }) => {
-      const val = item.total || 0;
-      return sum + (val > 0 ? val : 0);
-    }, 0);
-
     const totalRevenue = (chartType === 'hourly' || (chartType === 'daily' && activePeriodType !== '7days' && activePeriodType !== '30days'))
-      ? chartTotal
+      ? todayChartTotal
       : comparison.current_revenue;
 
     const previousRevenue = comparison.previous_revenue;
@@ -218,7 +222,7 @@ export async function fetchSalesWithRange({
 
     kpiData = {
       totalRevenue: (chartType === 'hourly' || (chartType === 'daily' && (activePeriodType === 'monthly' || activePeriodType === 'weekly' || activePeriodType === 'daily')) && chartData.length > 0)
-        ? chartTotal
+        ? todayChartTotal
         : comparison.current_revenue,
       previousRevenue,
       totalOrders: comparison.current_orders,
