@@ -376,6 +376,8 @@
     }, nonZero[0]);
   });
 
+  let noCurrentData = $derived(activePeriodType === 'realtime' && chartData.length === 0);
+
   let bestWorstHeading = $derived(
     chartType === 'hourly' ? labels.hour :
     chartType === 'daily' ? labels.date :
@@ -597,6 +599,7 @@
       {tableRows}
       bind:showDataTable
       isHourly={chartType === 'hourly'}
+      {noCurrentData}
     />
 
     <ChartArea bind:chartCanvas {chartConfig} {loading} {chartData} {prevChartData} />

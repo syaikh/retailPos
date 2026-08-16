@@ -10,10 +10,11 @@
     tableRows = [],
     showDataTable = $bindable(false),
     isHourly = false,
+    noCurrentData = false,
   } = $props();
 </script>
 
-{#if bestPeriod || worstPeriod}
+{#if tableRows.length > 0}
   <div class="flex flex-wrap items-center gap-3 mb-4 px-1">
     {#if bestPeriod}
       <div class="flex items-center gap-1.5 text-xs bg-success/10 text-success-light px-2.5 py-1.5 rounded-full border border-success/20">
@@ -21,6 +22,13 @@
         <span class="font-medium">{labels.best} {bestWorstHeading}:</span>
         <span>{getPeriodLabel(bestPeriod)}</span>
         <span class="font-semibold">{formatCurrencyShort(bestPeriod.total || 0)}</span>
+      </div>
+    {:else if noCurrentData}
+      <div class="flex items-center gap-1.5 text-xs bg-surface text-text-muted px-2.5 py-1.5 rounded-full border border-border">
+        <TrendingUp size={12} />
+        <span class="font-medium">{labels.best} {bestWorstHeading}:</span>
+        <span>-</span>
+        <span class="font-semibold">-</span>
       </div>
     {/if}
     {#if worstPeriod && worstPeriod.total !== bestPeriod?.total}
@@ -32,6 +40,13 @@
         {#if isHourly}
           <span class="text-text-muted/60 italic ml-1">{labels.exclZeroRevenueHours}</span>
         {/if}
+      </div>
+    {:else if noCurrentData && !bestPeriod}
+      <div class="flex items-center gap-1.5 text-xs bg-surface text-text-muted px-2.5 py-1.5 rounded-full border border-border">
+        <TrendingDown size={12} />
+        <span class="font-medium">{labels.worst} {bestWorstHeading}:</span>
+        <span>-</span>
+        <span class="font-semibold">-</span>
       </div>
     {/if}
     {#if tableRows.length > 0}
