@@ -283,6 +283,16 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 		fmt.Println("✅ Data truncated successfully")
 	}
 
+	// Re-check product count after truncation — the pre-truncation count may
+	// have been non-zero but the table was wiped. Generate new products so the
+	// seeder doesn't silently produce an empty dataset.
+	if numProducts == 0 {
+		var postTruncCount int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM products`).Scan(&postTruncCount); err == nil && postTruncCount == 0 {
+			numProducts = rand.Intn(1001) + 4500 // 4500-5500
+		}
+	}
+
 	// 2. Ensure categories exist (skip if 0)
 	var categoryIDs []int
 	if numCategories > 0 {
@@ -318,6 +328,16 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	ensureStores(ctx, db)
 	fmt.Println("   ✅ Stores ready")
 
+	// 3e1. Ensure warehouses exist
+	fmt.Printf("🏭 Ensuring warehouses...\n")
+	ensureWarehouses(ctx, db)
+	fmt.Println("   ✅ Warehouses ready")
+
+	// 3e2. Ensure storage locations (racks) exist
+	fmt.Printf("📍 Ensuring storage locations...\n")
+	ensureStorageLocations(ctx, db)
+	fmt.Println("   ✅ Storage locations ready")
+
 	// 3f. Ensure customer groups exist
 	fmt.Printf("👥 Ensuring customer groups...\n")
 	ensureCustomerGroups(ctx, db)
@@ -342,6 +362,11 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 		productData = getExistingProducts(ctx, db)
 		fmt.Printf("   Found %d existing products\n", len(productData))
 	}
+
+	// 4a. Backfill rack-level stock for storage locations
+	fmt.Printf("📍 Backfilling rack-level stock...\n")
+	backfillRackStock(ctx, db)
+	fmt.Println("   ✅ Rack stock backfilled")
 
 	// 4b. Ensure suppliers exist and link to products
 	fmt.Printf("🏭 Injecting suppliers and product links...\n")
@@ -511,6 +536,7 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		"stock_opnames",
 		"sale_items",
 		"product_stock",
+		"storage_locations",
 		"inventory_movements",
 		"sales",
 		"shifts",
@@ -704,6 +730,199 @@ func ensureStores(ctx context.Context, db *sql.DB) {
 	}
 }
 
+func ensureWarehouses(ctx context.Context, db *sql.DB) {
+	// Get store IDs so warehouses are linked to existing stores
+	rows, err := db.QueryContext(ctx, `SELECT id FROM stores ORDER BY id`)
+	if err != nil {
+		fmt.Printf("Warning: failed to query stores for warehouses: %v\n", err)
+		return
+	}
+	defer func() { _ = rows.Close() }()
+
+	var storeIDs []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err == nil {
+			storeIDs = append(storeIDs, id)
+		}
+	}
+	if len(storeIDs) == 0 {
+		fmt.Println("Warning: no stores found, skipping warehouse creation")
+		return
+	}
+
+	warehouseNames := []struct {
+		Name string
+		Code string
+		Addr string
+	}{
+		{"Gudang Pusat", "WH-001", "Jl. Raya Industri No. 10, Jakarta Utara"},
+		{"Gudang Cabang", "WH-002", "Jl. Raya Cabang No. 25, Jakarta Selatan"},
+		{"Gudang Konsinyasi", "WH-003", "Jl. Konsinyasi No. 5, Tangerang"},
+	}
+
+	stmt, err := db.PrepareContext(ctx, `
+		INSERT INTO warehouses (name, code, address, store_id, is_active, created_at)
+		VALUES ($1, $2, $3, $4, true, NOW())
+		ON CONFLICT (code) DO NOTHING`)
+	if err != nil {
+		fmt.Printf("Warning: failed to prepare warehouse stmt: %v\n", err)
+		return
+	}
+	defer func() { _ = stmt.Close() }()
+
+	created := 0
+	for i, w := range warehouseNames {
+		storeID := storeIDs[i%len(storeIDs)]
+		if _, err := stmt.ExecContext(ctx, w.Name, w.Code, w.Addr, storeID); err != nil {
+			fmt.Printf("Warning: failed to insert warehouse %s: %v\n", w.Name, err)
+			continue
+		}
+		created++
+	}
+	fmt.Printf("   🎲 Created %d warehouses\n", created)
+}
+
+func ensureStorageLocations(ctx context.Context, db *sql.DB) {
+	// Get warehouse IDs
+	warehouseIDs := getIDs(ctx, db, "warehouses")
+	if len(warehouseIDs) == 0 {
+		fmt.Println("   ⚠️  No warehouses found, skipping storage location creation")
+		return
+	}
+
+	// Rack zone prefixes per warehouse
+	zones := []string{"A", "B", "C", "D"}
+
+	stmt, err := db.PrepareContext(ctx, `
+		INSERT INTO storage_locations (code, name, warehouse_id, notes, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, true, NOW(), NOW())
+		ON CONFLICT (code) DO NOTHING`)
+	if err != nil {
+		fmt.Printf("Warning: failed to prepare storage location stmt: %v\n", err)
+		return
+	}
+	defer func() { _ = stmt.Close() }()
+
+	totalCreated := 0
+	for _, whID := range warehouseIDs {
+		created := 0
+		for _, zone := range zones {
+			for rack := 1; rack <= 5; rack++ { // 5 racks per zone = 20 per warehouse
+				code := fmt.Sprintf("WH%d-%s%02d", whID, zone, rack)
+				name := fmt.Sprintf("Rak %s-%02d", zone, rack)
+				notes := fmt.Sprintf("Zone %s, Rack %d", zone, rack)
+				if _, err := stmt.ExecContext(ctx, code, name, whID, notes); err != nil {
+					fmt.Printf("Warning: failed to insert storage location %s: %v\n", code, err)
+					continue
+				}
+				created++
+			}
+		}
+		totalCreated += created
+	}
+	fmt.Printf("   🎲 Created %d storage locations across %d warehouses\n", totalCreated, len(warehouseIDs))
+}
+
+func backfillRackStock(ctx context.Context, db *sql.DB) {
+	// Get warehouse IDs
+	warehouseIDs := getIDs(ctx, db, "warehouses")
+	if len(warehouseIDs) == 0 {
+		fmt.Println("   ⚠️  No warehouses found, skipping rack stock backfill")
+		return
+	}
+
+	// Get location IDs per warehouse
+	type whLocations struct {
+		id       int
+		locationIDs []int
+	}
+	var whList []whLocations
+	for _, whID := range warehouseIDs {
+		rows, err := db.QueryContext(ctx, `
+			SELECT id FROM storage_locations WHERE warehouse_id = $1 AND is_active = true ORDER BY id`, whID)
+		if err != nil {
+			continue
+		}
+		var ids []int
+		for rows.Next() {
+			var id int
+			if err := rows.Scan(&id); err == nil {
+				ids = append(ids, id)
+			}
+		}
+		_ = rows.Close()
+		if len(ids) > 0 {
+			whList = append(whList, whLocations{id: whID, locationIDs: ids})
+		}
+	}
+	if len(whList) == 0 {
+		fmt.Println("   ⚠️  No warehouses with locations found, skipping rack stock backfill")
+		return
+	}
+
+	// Get active product IDs (sample a subset for rack stock)
+	prodRows, err := db.QueryContext(ctx, `
+		SELECT id FROM products WHERE status = 'active' ORDER BY id`)
+	if err != nil {
+		fmt.Printf("Warning: failed to query products for rack stock: %v\n", err)
+		return
+	}
+	defer func() { _ = prodRows.Close() }()
+
+	var productIDs []int
+	for prodRows.Next() {
+		var id int
+		if err := prodRows.Scan(&id); err == nil {
+			productIDs = append(productIDs, id)
+		}
+	}
+	if len(productIDs) == 0 {
+		fmt.Println("   ⚠️  No active products found, skipping rack stock backfill")
+		return
+	}
+
+	// Shuffle products and assign ~30% to rack stock
+	rand.Shuffle(len(productIDs), func(i, j int) { productIDs[i], productIDs[j] = productIDs[j], productIDs[i] })
+	rackProductCount := len(productIDs) * 30 / 100
+	if rackProductCount == 0 {
+		rackProductCount = 1
+	}
+
+	stmt, err := db.PrepareContext(ctx, `
+		INSERT INTO product_stock (product_id, warehouse_id, store_id, location_id, quantity, reorder_point, reorder_quantity, created_at, updated_at)
+		VALUES ($1, $2, NULL, $3, $4, $5, $6, NOW(), NOW())
+		ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET
+			quantity = product_stock.quantity + EXCLUDED.quantity,
+			updated_at = NOW()`)
+	if err != nil {
+		fmt.Printf("Warning: failed to prepare rack stock stmt: %v\n", err)
+		return
+	}
+	defer func() { _ = stmt.Close() }()
+
+	totalRows := 0
+	for i := 0; i < rackProductCount; i++ {
+		prodID := productIDs[i]
+		// Pick a random warehouse and random location within it
+		wh := whList[rand.Intn(len(whList))]
+		if len(wh.locationIDs) == 0 {
+			continue
+		}
+		locID := wh.locationIDs[rand.Intn(len(wh.locationIDs))]
+		qty := 5 + rand.Intn(46) // 5-50 units per rack
+		reorderPoint := 5 + rand.Intn(10)
+		reorderQty := 10 + rand.Intn(41) // 10-50
+
+		if _, err := stmt.ExecContext(ctx, prodID, wh.id, locID, qty, reorderPoint, reorderQty); err != nil {
+			// Skip silently (constraint violations, etc.)
+			continue
+		}
+		totalRows++
+	}
+	fmt.Printf("   🎲 Backfilled %d rack-level stock rows across %d warehouses\n", totalRows, len(whList))
+}
+
 func ensureCustomerGroups(ctx context.Context, db *sql.DB) {
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO customer_groups (name, description, is_active, color, created_at, updated_at)
@@ -774,10 +993,6 @@ var (
 )
 
 func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo) error {
-	if len(products) == 0 {
-		return nil
-	}
-
 	// Check if suppliers already exist
 	var count int
 	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM suppliers").Scan(&count); err == nil && count > 0 {
@@ -830,41 +1045,43 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo) er
 		supplierIDs = append(supplierIDs, id)
 	}
 
-	// Link suppliers to products (each product gets 1-3 suppliers)
-	linkStmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO product_suppliers (product_id, supplier_id, supplier_sku, unit_cost, lead_time_days, is_preferred, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 ON CONFLICT (product_id, supplier_id) DO NOTHING`)
-	if err != nil {
-		return fmt.Errorf("prepare link stmt: %w", err)
-	}
-	defer func() { _ = linkStmt.Close() }()
-
 	linkCount := 0
-	for _, p := range products {
-		numLinks := 1 + rand.Intn(3) // 1-3 suppliers per product
-		if numLinks > len(supplierIDs) {
-			numLinks = len(supplierIDs)
+	if len(products) > 0 {
+		// Link suppliers to products (each product gets 1-3 suppliers)
+		linkStmt, err := tx.PrepareContext(ctx,
+			`INSERT INTO product_suppliers (product_id, supplier_id, supplier_sku, unit_cost, lead_time_days, is_preferred, created_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)
+			 ON CONFLICT (product_id, supplier_id) DO NOTHING`)
+		if err != nil {
+			return fmt.Errorf("prepare link stmt: %w", err)
 		}
+		defer func() { _ = linkStmt.Close() }()
 
-		// Shuffle supplier IDs for this product
-		shuffled := make([]int, len(supplierIDs))
-		copy(shuffled, supplierIDs)
-		rand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
-
-		for j := 0; j < numLinks; j++ {
-			supID := shuffled[j]
-			sku := fmt.Sprintf("SKU-P%d-S%d", p.ID, supID)
-			unitCost := int(float64(p.Price) * (0.5 + rand.Float64()*0.3)) // 50-80% of product price
-			leadTime := 1 + rand.Intn(14)                                  // 1-14 days
-			isPreferred := j == 0                                          // first supplier is preferred
-			createdAt := ref.AddDate(0, 0, -rand.Intn(60))
-
-			if _, err := linkStmt.ExecContext(ctx, p.ID, supID, sku, unitCost, leadTime, isPreferred, createdAt); err != nil {
-				// Silently skip constraint violations (e.g. preferred index)
-				continue
+		for _, p := range products {
+			numLinks := 1 + rand.Intn(3) // 1-3 suppliers per product
+			if numLinks > len(supplierIDs) {
+				numLinks = len(supplierIDs)
 			}
-			linkCount++
+
+			// Shuffle supplier IDs for this product
+			shuffled := make([]int, len(supplierIDs))
+			copy(shuffled, supplierIDs)
+			rand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
+
+			for j := 0; j < numLinks; j++ {
+				supID := shuffled[j]
+				sku := fmt.Sprintf("SKU-P%d-S%d", p.ID, supID)
+				unitCost := int(float64(p.Price) * (0.5 + rand.Float64()*0.3)) // 50-80% of product price
+				leadTime := 1 + rand.Intn(14)                                  // 1-14 days
+				isPreferred := j == 0                                          // first supplier is preferred
+				createdAt := ref.AddDate(0, 0, -rand.Intn(60))
+
+				if _, err := linkStmt.ExecContext(ctx, p.ID, supID, sku, unitCost, leadTime, isPreferred, createdAt); err != nil {
+					// Silently skip constraint violations (e.g. preferred index)
+					continue
+				}
+				linkCount++
+			}
 		}
 	}
 
@@ -1148,7 +1365,9 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 
 	// Prepare product_stock INSERT (view v_products_full reads stock from product_stock)
 	stockStmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO product_stock (product_id, quantity) VALUES ($1, $2)`)
+		`INSERT INTO product_stock (product_id, quantity, updated_at) VALUES ($1, $2, NOW())
+		 ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET
+			quantity = EXCLUDED.quantity, updated_at = NOW()`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare stock statement: %w", err)
 	}
@@ -1186,16 +1405,33 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, catID, brandID, uomID, createdAt).Scan(&id)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				// SKU already exists (re-seed without truncate); skip this product.
+				if i == job.startProduct {
+					fmt.Printf("DEBUG worker %d: first SKU=%s got ErrNoRows\n", job.workerID, sku)
+				}
 				continue
+			}
+			// Detect transaction poisoning: a prior failure (e.g. product_stock FK) aborts
+			// the PostgreSQL transaction, causing every subsequent statement to fail with
+			// "current transaction is aborted". The only fix is to roll back and start over.
+			errStr := err.Error()
+			if strings.Contains(errStr, "current transaction is aborted") || strings.Contains(errStr, "abort the current transaction") {
+				fmt.Printf("DEBUG worker %d: transaction poisoned at product %d, rolling back\n", job.workerID, i)
+				_ = tx.Rollback()
+				return nil, fmt.Errorf("transaction poisoned at product %d: %w", i, err)
 			}
 			fmt.Printf("Warning: worker %d failed to insert product %d: %v\n", job.workerID, i, err)
 			continue
+		}
+		if i == job.startProduct {
+			fmt.Printf("DEBUG worker %d: first SKU=%s inserted id=%d\n", job.workerID, sku, id)
 		}
 
 		// Insert into product_stock so v_products_full view returns correct stock
 		if _, err := stockStmt.ExecContext(ctx, id, stock); err != nil {
 			fmt.Printf("Warning: worker %d failed to insert product_stock for product %d: %v\n", job.workerID, i, err)
+			if i == job.startProduct {
+				fmt.Printf("DEBUG worker %d: product_stock failed on FIRST product, transaction may be poisoned\n", job.workerID)
+			}
 		}
 
 		taxClassID := 1
@@ -1219,6 +1455,8 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	if len(batch) > 0 {
 		products = append(products, batch...)
 	}
+
+	fmt.Printf("DEBUG worker %d: loop done, products=%d, batch=%d\n", job.workerID, len(products), len(batch))
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {

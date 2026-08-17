@@ -208,56 +208,26 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			}
 		}
 
-		itemStmt, err := tx.PrepareContext(ctx, `
-			INSERT INTO stock_opname_items
-				(stock_opname_id, product_id, opening_qty, expected_qty, physical_qty,
-				 difference_qty, adjustment_qty, status, product_name, sku, barcode, uom_name, created_at, updated_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13)
-			RETURNING id
-		`)
-		if err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("prepare stock opname item stmt: %w", err)
-		}
-		defer func() { _ = itemStmt.Close() }()
-
-		countStmt, err := tx.PrepareContext(ctx, `
-			INSERT INTO stock_opname_counts
-				(stock_opname_item_id, count_sequence, physical_qty, counted_by, counted_at, remarks)
-			VALUES ($1, 1, $2, $3, $4, $5)
-		`)
-		if err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("prepare stock opname count stmt: %w", err)
-		}
-		defer func() { _ = countStmt.Close() }()
-
-		stockStmt, err := tx.PrepareContext(ctx, `
-			INSERT INTO product_stock (product_id, quantity, updated_at)
-			VALUES ($1, $2, NOW())
-			ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW()
-		`)
-		if err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("prepare stock update stmt: %w", err)
-		}
-		defer func() { _ = stockStmt.Close() }()
-
-		movementStmt, err := tx.PrepareContext(ctx, `
-			INSERT INTO inventory_movements
-				(product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
-			VALUES ($1, $2, 'stock_opname', $3, 'stock_opnames', $4, $5, $6)
-		`)
-		if err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("prepare inventory movement stmt: %w", err)
-		}
-		defer func() { _ = movementStmt.Close() }()
-
 		var counterIdx int
 		var approverID = managerUserIDs[rand.Intn(len(managerUserIDs))]
 		var totalDiff, totalAdj float64
-		adjustmentItems := make([]adjustmentSeedLine, 0)
+
+		// Collect item data first, then batch-insert to minimize round-trips.
+		type itemSeed struct {
+			productID  int
+			name       string
+			sku        string
+			barcode    string
+			uom        string
+			qty        float64
+			physical   float64
+			diff       float64
+			itemStatus string
+			countedBy  int
+			countedAt  time.Time
+			remarks    string
+		}
+		var itemSeeds []itemSeed
 
 		for _, p := range products {
 			var physical float64
@@ -266,19 +236,17 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 
 			switch status {
 			case "posted", "closed":
-				// All items counted; ~85% match expected, 10% small discrepancy,
-				// 5% larger discrepancy (shrinkage / damage / overcount).
 				physical = p.qty
 				r := rand.Intn(100)
-				if r >= 85 {
-					delta := float64(1 + rand.Intn(3))
+				if r >= 95 { // 5% large discrepancy
+					delta := float64(4 + rand.Intn(8))
 					if rand.Intn(2) == 0 {
 						delta = -delta
 					}
 					physical = p.qty + delta
 					diff = delta
-				} else if r >= 95 {
-					delta := float64(4 + rand.Intn(8))
+				} else if r >= 85 { // 10% small discrepancy
+					delta := float64(1 + rand.Intn(3))
 					if rand.Intn(2) == 0 {
 						delta = -delta
 					}
@@ -292,7 +260,6 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 				itemStatus = "counted"
 
 			case "counting":
-				// Active session: 45-75% of items counted so far.
 				ratio := 0.45 + rand.Float64()*0.30
 				if rand.Float64() < ratio {
 					delta := float64(rand.Intn(3) - 1)
@@ -307,156 +274,379 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 				physical = 0
 			}
 
-			var itemID int
-			if err := itemStmt.QueryRowContext(ctx, sessionID, p.productID, p.qty,
-				0, physical, 0, 0, itemStatus, p.name, p.sku, p.barcode, p.uom, createdAt,
-			).Scan(&itemID); err != nil {
-				_ = tx.Rollback()
-				return fmt.Errorf("insert stock opname item: %w", err)
-			}
-			itemsCreated++
-
-			if itemStatus != "counted" {
-				continue
-			}
-
-			// Count record (single pass). approved sessions get expected/diff set below.
-			countedBy := shuffledCounters[counterIdx%numCounters]
-			counterIdx++
 			remarks := ""
-			if diff != 0 {
-				remarks = stockOpnameRemarks()
-			}
-			countedAt := createdAt.Add(time.Duration(rand.Intn(6*3600)+3600) * time.Second)
-			if _, err := countStmt.ExecContext(ctx, itemID, physical, countedBy, countedAt, remarks); err != nil {
-				_ = tx.Rollback()
-				return fmt.Errorf("insert stock opname count: %w", err)
-			}
-			countsCreated++
-
-			if status != "posted" && status != "closed" {
-				continue
+			countedBy := 0
+			var countedAt time.Time
+			if itemStatus == "counted" {
+				countedBy = shuffledCounters[counterIdx%numCounters]
+				counterIdx++
+				if diff != 0 {
+					remarks = stockOpnameRemarks()
+				}
+				countedAt = createdAt.Add(time.Duration(rand.Intn(6*3600)+3600) * time.Second)
 			}
 
-			// Posted/closed: set expected/diff/adjustment on every counted item (mirrors
-			// Service.VerifySession). Expected qty is the snapshot stock at session time.
-			expected := p.qty
-			if _, err := tx.ExecContext(ctx, `
-				UPDATE stock_opname_items
-				SET expected_qty = $2, difference_qty = $3, adjustment_qty = $3, updated_at = NOW()
-				WHERE id = $1
-			`, itemID, expected, diff); err != nil {
-				_ = tx.Rollback()
-				return fmt.Errorf("update stock opname item adjustment: %w", err)
-			}
-
-			totalDiff += diff
-			totalAdj += diff
-
-			notes := fmt.Sprintf("Stock opname %s: physical %.2f vs expected %.2f", sessionNumber, physical, expected)
-			if diff != 0 {
-				adjustmentItems = append(adjustmentItems, adjustmentSeedLine{
-					productID: p.productID,
-					expected:  expected,
-					physical:  physical,
-					diff:      diff,
-					reason:    notes,
-				})
-			}
-
-			if diff == 0 {
-				continue
-			}
-
-			// Correct stock to physical and record a movement.
-			newQty := int(physical)
-			if _, err := stockStmt.ExecContext(ctx, p.productID, newQty); err != nil {
-				_ = tx.Rollback()
-				return fmt.Errorf("update product stock: %w", err)
-			}
-
-			movementAt := createdAt.Add(time.Duration(rand.Intn(12*3600)+8*3600) * time.Second)
-			if _, err := movementStmt.ExecContext(ctx, p.productID, int(diff), sessionID, approverID, notes, movementAt); err != nil {
-				_ = tx.Rollback()
-				return fmt.Errorf("insert inventory movement: %w", err)
-			}
-			movementsCreated++
+			itemSeeds = append(itemSeeds, itemSeed{
+				productID: p.productID, name: p.name, sku: p.sku, barcode: p.barcode,
+				uom: p.uom, qty: p.qty, physical: physical, diff: diff,
+				itemStatus: itemStatus, countedBy: countedBy, countedAt: countedAt, remarks: remarks,
+			})
 		}
 
-		// Terminal state fields. Posted/closed sessions mirror the verify -> post ->
-		// close path: a manager verifies, posts (creating an IA- document) and closes.
-		switch status {
-		case "posted", "closed":
-			postedAt := createdAt.Add(time.Duration(rand.Intn(24*3600)+24*3600) * time.Second)
-			verifiedAt := postedAt.Add(-time.Duration(1800+rand.Intn(3600)) * time.Second)
-			openedAt := createdAt.Add(time.Duration(rand.Intn(3600)+600) * time.Second)
-			if _, err := tx.ExecContext(ctx, `
-				UPDATE stock_opnames
-				SET opened_by = $1, opened_at = $2,
-				    verified_by = $1, verified_at = $3,
-				    posted_by = $1, posted_at = $4,
-				    total_difference = $5, total_adjustment = $6,
-				    updated_at = $4
-				WHERE id = $7
-			`, approverID, openedAt, verifiedAt, postedAt, totalDiff, totalAdj, sessionID); err != nil {
+		// --- Batch 1: Insert items (chunks of 500) ---
+		const itemChunk = 500
+		type itemRow struct {
+			id         int
+			productID  int
+			physical   float64
+			diff       float64
+			itemStatus string
+			countedBy  int
+			countedAt  time.Time
+			remarks    string
+		}
+		var allItems []itemRow
+
+		for start := 0; start < len(itemSeeds); start += itemChunk {
+			end := start + itemChunk
+			if end > len(itemSeeds) {
+				end = len(itemSeeds)
+			}
+			chunk := itemSeeds[start:end]
+
+			var sb strings.Builder
+			sb.WriteString(`INSERT INTO stock_opname_items
+				(stock_opname_id, product_id, opening_qty, expected_qty, physical_qty,
+				 difference_qty, adjustment_qty, status, product_name, sku, barcode, uom_name, created_at, updated_at)
+			VALUES `)
+			args := make([]interface{}, 0, len(chunk)*14)
+			for j, is := range chunk {
+				if j > 0 {
+					sb.WriteString(", ")
+				}
+				p := len(args)
+				args = append(args, sessionID, is.productID, is.qty,
+					0.0, is.physical, 0.0, 0.0, is.itemStatus, is.name, is.sku, is.barcode, is.uom, createdAt, createdAt)
+				sb.WriteString(fmt.Sprintf("($%d::int,$%d::int,$%d::numeric,$%d::numeric,$%d::numeric,$%d::numeric,$%d::numeric,$%d::varchar,$%d::varchar,$%d::varchar,$%d::varchar,$%d::varchar,$%d::timestamptz,$%d::timestamptz)",
+					p+1, p+2, p+3, p+4, p+5, p+6, p+7, p+8, p+9, p+10, p+11, p+12, p+13, p+14))
+			}
+			sb.WriteString(` RETURNING id, product_id`)
+
+			rows, err := tx.QueryContext(ctx, sb.String(), args...)
+			if err != nil {
 				_ = tx.Rollback()
-				return fmt.Errorf("set posted session: %w", err)
+				return fmt.Errorf("batch insert stock opname items: %w", err)
 			}
-			if len(adjustmentItems) > 0 {
-				var iaSeq int
-				if err := tx.QueryRowContext(ctx, `SELECT nextval('ia_seq')`).Scan(&iaSeq); err != nil {
+			idx := 0
+			for rows.Next() {
+				var ir itemRow
+				if err := rows.Scan(&ir.id, &ir.productID); err != nil {
+					_ = rows.Close()
 					_ = tx.Rollback()
-					return fmt.Errorf("nextval ia_seq: %w", err)
+					return fmt.Errorf("scan stock opname item id: %w", err)
 				}
-				adjNumber := fmt.Sprintf("IA-%d-%06d", createdAt.Year(), iaSeq)
-				adjNotes := fmt.Sprintf("Posted from stock opname %s", sessionNumber)
-				var adjustmentID int
-				if err := tx.QueryRowContext(ctx, `
-					INSERT INTO inventory_adjustments (adjustment_number, session_id, status, notes, created_by, created_at)
-					VALUES ($1,$2,'posted',$3,$4,$5)
-					RETURNING id
-				`, adjNumber, sessionID, adjNotes, approverID, postedAt).Scan(&adjustmentID); err != nil {
-					_ = tx.Rollback()
-					return fmt.Errorf("insert inventory adjustment: %w", err)
-				}
-				adjustmentsCreated++
-				for _, line := range adjustmentItems {
-					if _, err := tx.ExecContext(ctx, `
-						INSERT INTO inventory_adjustment_items
-							(adjustment_id, product_id, warehouse_id, store_id, expected_qty, physical_qty,
-							 difference_qty, adjustment_qty, unit_cost, line_total, reason, created_at)
-						VALUES ($1,$2,NULL,NULL,$3,$4,$5,$5,0,0,$6,$7)
-					`, adjustmentID, line.productID, line.expected, line.physical, line.diff, line.reason, postedAt); err != nil {
-						_ = tx.Rollback()
-						return fmt.Errorf("insert inventory adjustment item: %w", err)
-					}
-				}
+				ir.physical = chunk[idx].physical
+				ir.diff = chunk[idx].diff
+				ir.itemStatus = chunk[idx].itemStatus
+				ir.countedBy = chunk[idx].countedBy
+				ir.countedAt = chunk[idx].countedAt
+				ir.remarks = chunk[idx].remarks
+				allItems = append(allItems, ir)
+				idx++
 			}
-			if status == "closed" {
-				closedAt := postedAt.Add(time.Duration(rand.Intn(3600)+300) * time.Second)
+			_ = rows.Close()
+			if err := rows.Err(); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("rows err stock opname items: %w", err)
+			}
+			itemsCreated += len(chunk)
+		}
+
+		// --- Batch 2: Insert counts (chunks of 500) ---
+		type countSeed struct {
+			itemID    int
+			physical  float64
+			countedBy int
+			countedAt time.Time
+			remarks   string
+		}
+		var countSeeds []countSeed
+		for _, ir := range allItems {
+			if ir.itemStatus != "counted" {
+				continue
+			}
+			countSeeds = append(countSeeds, countSeed{
+				itemID: ir.id, physical: ir.physical, countedBy: ir.countedBy,
+				countedAt: ir.countedAt, remarks: ir.remarks,
+			})
+		}
+
+		const countChunk = 500
+		for start := 0; start < len(countSeeds); start += countChunk {
+			end := start + countChunk
+			if end > len(countSeeds) {
+				end = len(countSeeds)
+			}
+			chunk := countSeeds[start:end]
+
+			var sb strings.Builder
+			sb.WriteString(`INSERT INTO stock_opname_counts
+				(stock_opname_item_id, count_sequence, physical_qty, counted_by, counted_at, remarks)
+			VALUES `)
+			args := make([]interface{}, 0, len(chunk)*6)
+			for j, cs := range chunk {
+				if j > 0 {
+					sb.WriteString(", ")
+				}
+				p := len(args)
+				args = append(args, cs.itemID, cs.physical, cs.countedBy, cs.countedAt, cs.remarks)
+				sb.WriteString(fmt.Sprintf("($%d, 1, $%d, $%d, $%d, $%d)", p+1, p+2, p+3, p+4, p+5))
+			}
+			if _, err := tx.ExecContext(ctx, sb.String(), args...); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("batch insert stock opname counts: %w", err)
+			}
+			countsCreated += len(chunk)
+		}
+
+		if status != "posted" && status != "closed" {
+			// Counting/cancelled: set terminal state and commit.
+			switch status {
+			case "counting":
+				openedAt := createdAt.Add(time.Duration(rand.Intn(3600)+600) * time.Second)
 				if _, err := tx.ExecContext(ctx, `
-					UPDATE stock_opnames SET closed_by = $1, closed_at = $2, updated_at = $2 WHERE id = $3
-				`, approverID, closedAt, sessionID); err != nil {
+					UPDATE stock_opnames SET opened_by = $1, opened_at = $2, updated_at = $2 WHERE id = $3
+				`, approverID, openedAt, sessionID); err != nil {
 					_ = tx.Rollback()
-					return fmt.Errorf("set closed session: %w", err)
+					return fmt.Errorf("set opened session: %w", err)
+				}
+			case "cancelled":
+				cancelledAt := createdAt.Add(time.Duration(rand.Intn(6*3600)+1800) * time.Second)
+				if _, err := tx.ExecContext(ctx, `
+					UPDATE stock_opnames SET cancelled_at = $1, updated_at = $1 WHERE id = $2
+				`, cancelledAt, sessionID); err != nil {
+					_ = tx.Rollback()
+					return fmt.Errorf("set cancelled session: %w", err)
 				}
 			}
-		case "counting":
-			// Active session: mark it as opened for a realistic draft -> open -> counting path.
-			openedAt := createdAt.Add(time.Duration(rand.Intn(3600)+600) * time.Second)
-			if _, err := tx.ExecContext(ctx, `
-				UPDATE stock_opnames SET opened_by = $1, opened_at = $2, updated_at = $2 WHERE id = $3
-			`, approverID, openedAt, sessionID); err != nil {
-				_ = tx.Rollback()
-				return fmt.Errorf("set opened session: %w", err)
+			if err := tx.Commit(); err != nil {
+				return fmt.Errorf("commit stock opname tx: %w", err)
 			}
-		case "cancelled":
-			cancelledAt := createdAt.Add(time.Duration(rand.Intn(6*3600)+1800) * time.Second)
-			if _, err := tx.ExecContext(ctx, `
-				UPDATE stock_opnames SET cancelled_at = $1, updated_at = $1 WHERE id = $2
-			`, cancelledAt, sessionID); err != nil {
+			sessionsCreated++
+			continue
+		}
+
+		// --- Batch 3: Update items with expected/diff (posted/closed) ---
+		type updateSeed struct {
+			itemID   int
+			expected float64
+			diff     float64
+		}
+		var updateSeeds []updateSeed
+		for _, ir := range allItems {
+			if ir.itemStatus != "counted" {
+				continue
+			}
+			updateSeeds = append(updateSeeds, updateSeed{itemID: ir.id, expected: ir.physical - ir.diff, diff: ir.diff})
+			totalDiff += ir.diff
+			totalAdj += ir.diff
+		}
+
+		const updateChunk = 500
+		for start := 0; start < len(updateSeeds); start += updateChunk {
+			end := start + updateChunk
+			if end > len(updateSeeds) {
+				end = len(updateSeeds)
+			}
+			chunk := updateSeeds[start:end]
+
+			var sb strings.Builder
+			sb.WriteString(`UPDATE stock_opname_items SET
+				expected_qty = v.expected_qty, difference_qty = v.difference_qty,
+				adjustment_qty = v.difference_qty, updated_at = NOW()
+				FROM (VALUES `)
+			args := make([]interface{}, 0, len(chunk)*3)
+			for j, us := range chunk {
+				if j > 0 {
+					sb.WriteString(", ")
+				}
+				p := len(args)
+				args = append(args, us.itemID, us.expected, us.diff)
+				sb.WriteString(fmt.Sprintf("($%d::int, $%d::numeric, $%d::numeric)", p+1, p+2, p+3))
+			}
+			sb.WriteString(`) AS v(id, expected_qty, difference_qty)
+			WHERE stock_opname_items.id = v.id`)
+			if _, err := tx.ExecContext(ctx, sb.String(), args...); err != nil {
 				_ = tx.Rollback()
-				return fmt.Errorf("set cancelled session: %w", err)
+				return fmt.Errorf("batch update stock opname items: %w", err)
+			}
+		}
+
+		// --- Batch 4: Update product_stock + insert movements ---
+		type stockDelta struct {
+			productID int
+			newQty    int
+			diff      int
+			notes     string
+		}
+		var stockDeltas []stockDelta
+		for _, ir := range allItems {
+			if ir.itemStatus != "counted" || ir.diff == 0 {
+				continue
+			}
+			notes := fmt.Sprintf("Stock opname %s: physical %.2f vs expected %.2f", sessionNumber, ir.physical, ir.physical-ir.diff)
+			stockDeltas = append(stockDeltas, stockDelta{
+				productID: ir.productID, newQty: int(ir.physical), diff: int(ir.diff), notes: notes,
+			})
+		}
+
+		if len(stockDeltas) > 0 {
+			// Batch product_stock updates
+			const stockChunk = 500
+			for start := 0; start < len(stockDeltas); start += stockChunk {
+				end := start + stockChunk
+				if end > len(stockDeltas) {
+					end = len(stockDeltas)
+				}
+				chunk := stockDeltas[start:end]
+
+				var sb strings.Builder
+				sb.WriteString(`INSERT INTO product_stock (product_id, quantity, updated_at) VALUES `)
+				args := make([]interface{}, 0, len(chunk)*2)
+				for j, sd := range chunk {
+					if j > 0 {
+						sb.WriteString(", ")
+					}
+					p := len(args)
+					args = append(args, sd.productID, sd.newQty)
+					sb.WriteString(fmt.Sprintf("($%d, $%d, NOW())", p+1, p+2))
+				}
+				sb.WriteString(` ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET
+					quantity = EXCLUDED.quantity, updated_at = NOW()`)
+				if _, err := tx.ExecContext(ctx, sb.String(), args...); err != nil {
+					_ = tx.Rollback()
+					return fmt.Errorf("batch update product_stock: %w", err)
+				}
+			}
+
+			// Batch inventory_movements inserts
+			const movChunk = 500
+			for start := 0; start < len(stockDeltas); start += movChunk {
+				end := start + movChunk
+				if end > len(stockDeltas) {
+					end = len(stockDeltas)
+				}
+				chunk := stockDeltas[start:end]
+
+				var sb strings.Builder
+				sb.WriteString(`INSERT INTO inventory_movements
+					(product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
+				VALUES `)
+				args := make([]interface{}, 0, len(chunk)*6)
+				for j, sd := range chunk {
+					movementAt := createdAt.Add(time.Duration(rand.Intn(12*3600)+8*3600) * time.Second)
+					if j > 0 {
+						sb.WriteString(", ")
+					}
+					p := len(args)
+					args = append(args, sd.productID, sd.diff, sessionID, approverID, sd.notes, movementAt)
+					sb.WriteString(fmt.Sprintf("($%d, $%d, 'stock_opname', $%d, 'stock_opnames', $%d, $%d, $%d)", p+1, p+2, p+3, p+4, p+5, p+6))
+				}
+				if _, err := tx.ExecContext(ctx, sb.String(), args...); err != nil {
+					_ = tx.Rollback()
+					return fmt.Errorf("batch insert inventory_movements: %w", err)
+				}
+				movementsCreated += len(chunk)
+			}
+		}
+
+		// Terminal state fields (same as before).
+		postedAt := createdAt.Add(time.Duration(rand.Intn(24*3600)+24*3600) * time.Second)
+		verifiedAt := postedAt.Add(-time.Duration(1800+rand.Intn(3600)) * time.Second)
+		openedAt := createdAt.Add(time.Duration(rand.Intn(3600)+600) * time.Second)
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE stock_opnames
+			SET opened_by = $1, opened_at = $2,
+			    verified_by = $1, verified_at = $3,
+			    posted_by = $1, posted_at = $4,
+			    total_difference = $5, total_adjustment = $6,
+			    updated_at = $4
+			WHERE id = $7
+		`, approverID, openedAt, verifiedAt, postedAt, totalDiff, totalAdj, sessionID); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("set posted session: %w", err)
+		}
+
+		// Collect adjustment items from the batch data.
+		var adjustmentItems []adjustmentSeedLine
+		for _, ir := range allItems {
+			if ir.itemStatus == "counted" && ir.diff != 0 {
+				adjustmentItems = append(adjustmentItems, adjustmentSeedLine{
+					productID: ir.productID,
+					expected:  ir.physical - ir.diff,
+					physical:  ir.physical,
+					diff:      ir.diff,
+					reason:    fmt.Sprintf("Stock opname %s: physical %.2f vs expected %.2f", sessionNumber, ir.physical, ir.physical-ir.diff),
+				})
+			}
+		}
+
+		if len(adjustmentItems) > 0 {
+			var iaSeq int
+			if err := tx.QueryRowContext(ctx, `SELECT nextval('ia_seq')`).Scan(&iaSeq); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("nextval ia_seq: %w", err)
+			}
+			adjNumber := fmt.Sprintf("IA-%d-%06d", createdAt.Year(), iaSeq)
+			adjNotes := fmt.Sprintf("Posted from stock opname %s", sessionNumber)
+			var adjustmentID int
+			if err := tx.QueryRowContext(ctx, `
+				INSERT INTO inventory_adjustments (adjustment_number, session_id, status, notes, created_by, created_at)
+				VALUES ($1,$2,'posted',$3,$4,$5)
+				RETURNING id
+			`, adjNumber, sessionID, adjNotes, approverID, postedAt).Scan(&adjustmentID); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("insert inventory adjustment: %w", err)
+			}
+			adjustmentsCreated++
+
+			// Batch adjustment items
+			const adjChunk = 500
+			for start := 0; start < len(adjustmentItems); start += adjChunk {
+				end := start + adjChunk
+				if end > len(adjustmentItems) {
+					end = len(adjustmentItems)
+				}
+				chunk := adjustmentItems[start:end]
+
+				var sb strings.Builder
+				sb.WriteString(`INSERT INTO inventory_adjustment_items
+					(adjustment_id, product_id, warehouse_id, store_id, expected_qty, physical_qty,
+					 difference_qty, adjustment_qty, unit_cost, line_total, reason, created_at)
+				VALUES `)
+				args := make([]interface{}, 0, len(chunk)*7)
+				for j, line := range chunk {
+					if j > 0 {
+						sb.WriteString(", ")
+					}
+					p := len(args)
+					args = append(args, adjustmentID, line.productID, line.expected, line.physical, line.diff, line.reason, postedAt)
+					sb.WriteString(fmt.Sprintf("($%d,$%d,NULL,NULL,$%d,$%d,$%d,$%d,0,0,$%d,$%d)", p+1, p+2, p+3, p+4, p+5, p+5, p+6, p+7))
+				}
+				if _, err := tx.ExecContext(ctx, sb.String(), args...); err != nil {
+					_ = tx.Rollback()
+					return fmt.Errorf("batch insert inventory adjustment items: %w", err)
+				}
+			}
+		}
+
+		if status == "closed" {
+			closedAt := postedAt.Add(time.Duration(rand.Intn(3600)+300) * time.Second)
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE stock_opnames SET closed_by = $1, closed_at = $2, updated_at = $2 WHERE id = $3
+			`, approverID, closedAt, sessionID); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("set closed session: %w", err)
 			}
 		}
 
