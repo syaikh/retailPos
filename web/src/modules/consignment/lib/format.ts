@@ -1,8 +1,7 @@
 import { formatLocaleDate } from '$shared/i18n';
+import { formatCurrency } from '$shared/utils/currency';
 
-export function formatCurrency(value?: number): string {
-  return 'Rp ' + (value ?? 0).toLocaleString('id-ID');
-}
+export { formatCurrency };
 
 export function formatDateTime(value?: string): string {
   if (!value) return '-';

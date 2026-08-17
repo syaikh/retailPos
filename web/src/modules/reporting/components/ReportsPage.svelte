@@ -85,8 +85,8 @@
   let statCardLabels = $derived.by(() => {
     const metaStart = kpiData.periodInfo?.current_start;
     const metaEnd = kpiData.periodInfo?.current_end;
-    const shiftDays = activePeriodType === 'realtime' ? 1
-      : ['yesterday', 'daily', 'weekly', '7days'].includes(activePeriodType) ? 7
+    const shiftDays = activePeriodType === 'realtime' || activePeriodType === 'yesterday' || activePeriodType === 'daily' ? 1
+      : ['weekly', '7days'].includes(activePeriodType) ? 7
       : activePeriodType === '30days' ? 30 : 0;
     const prevStartStr = metaStart && shiftDays > 0 ? shiftDate(metaStart, shiftDays) : undefined;
 
@@ -154,8 +154,8 @@
     const metaStart = kpiData.periodInfo?.current_start;
     const metaEnd = kpiData.periodInfo?.current_end;
     if (!metaStart) return '';
-    const shiftDays = activePeriodType === 'realtime' ? 1
-      : ['yesterday', 'daily', 'weekly', '7days'].includes(activePeriodType) ? 7
+    const shiftDays = activePeriodType === 'realtime' || activePeriodType === 'yesterday' || activePeriodType === 'daily' ? 1
+      : ['weekly', '7days'].includes(activePeriodType) ? 7
       : activePeriodType === '30days' ? 30 : 0;
     const prevStartStr = shiftDays > 0 ? shiftDate(metaStart, shiftDays) : undefined;
     if (activePeriodType === 'yearly') {

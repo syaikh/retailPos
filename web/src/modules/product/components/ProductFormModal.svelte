@@ -6,6 +6,7 @@
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Permissions } from '$shared/constants/permissions';
   import { labels, t } from '$shared/i18n';
+  import { formatCurrency } from '$shared/utils/currency';
 
   let {
     open = $bindable(false),
@@ -101,10 +102,6 @@
     } finally {
       loadingPricing = false;
     }
-  }
-
-  function formatCurrency(value: number): string {
-    return labels.currencySymbol + ' ' + value.toLocaleString('id-ID');
   }
 
   function selectModalCategory(category: string) {

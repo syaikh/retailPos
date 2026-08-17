@@ -11,8 +11,6 @@ export { default as Drawer } from './Drawer.svelte';
 export { default as DropZone } from './DropZone.svelte';
 export { default as Dropdown } from './Dropdown.svelte';
 export { default as EmptyState } from './EmptyState.svelte';
-export { default as ExpandableRow } from './ExpandableRow.svelte';
-export { default as FilterChip } from './FilterChip.svelte';
 export { default as FilterChipBar } from './FilterChipBar.svelte';
 export { default as ImportSummary } from './ImportSummary.svelte';
 export { default as LanguageSwitch } from './LanguageSwitch.svelte';

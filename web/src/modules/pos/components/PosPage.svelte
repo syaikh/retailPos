@@ -6,7 +6,7 @@
    import { printReceipt as printReceiptStore } from '$shared/stores/printReceipt.svelte';
    import { debounce } from '$shared/utils/debounce';
    import { useWebSocket } from '$shared/api/websocket';
-   import { getTodayInJakarta } from '$shared/utils/jakartaTime';
+   import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$shared/utils/jakartaTime';
    import {
      createCart, getOpenCart, getHeldCarts,
      addCartItem, updateCartItemQuantity, removeCartItem,
@@ -361,10 +361,11 @@ let selectedProductIndex = $state(-1);
     const cartId = activeCartId;
     cartLoading = true;
     try {
-      const removals = cartItems.map(item => removeCartItem(cartId, item.id));
-      const sessions = await Promise.all(removals);
-      const last = sessions[sessions.length - 1];
-      if (last) applyCartSession(last);
+      let lastSession: CartSession | null = null;
+      for (const item of cartItems) {
+        lastSession = await removeCartItem(cartId, item.id);
+      }
+      if (lastSession) applyCartSession(lastSession);
     } catch (err: any) {
       const errMsg = err.response?.data?.error || err.message || labels.toastFailedToClearCart;
       toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || labels.toastFailedToClearCart);
@@ -647,7 +648,7 @@ let selectedProductIndex = $state(-1);
       } catch (_) { /* no open cart yet */ }
       try {
         const endDate = getTodayInJakarta();
-        const startDate = '2025-01-01';
+        const startDate = getDateNDaysAgoInJakarta(7);
         const r = await apiClient.get(`/sales?limit=1&offset=0&startDate=${startDate}&endDate=${endDate}`);
         const body = r.data;
         let data = body?.data || body;

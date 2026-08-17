@@ -1,6 +1,6 @@
 import apiClient from '$shared/api/http-client';
 import type { PosProduct, PaymentAllocation, CartSession, CartItem } from '../types';
-import { getTodayInJakarta } from '$shared/utils/jakartaTime';
+import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$shared/utils/jakartaTime';
 
 export interface ProductsResponse {
   data: PosProduct[];
@@ -32,7 +32,7 @@ export async function getSaleById(id: number): Promise<unknown> {
 
 export async function getLastSale(): Promise<unknown> {
   const endDate = getTodayInJakarta();
-  const startDate = '2025-01-01';
+  const startDate = getDateNDaysAgoInJakarta(7);
   const r = await apiClient.get(`/sales?limit=1&offset=0&startDate=${startDate}&endDate=${endDate}`);
   const body = r.data;
   const data = body?.data || body;

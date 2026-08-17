@@ -9,6 +9,7 @@
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Permissions } from '$shared/constants/permissions';
   import { labels, t } from '$shared/i18n';
+  import { formatCurrency as _formatCurrency } from '$shared/utils/currency';
 
   const rbac = useRBAC();
 
@@ -130,8 +131,7 @@
   }
 
   function formatCurrency(value?: number): string {
-    if (value == null || isNaN(value)) return '-';
-    return labels.currencySymbol + ' ' + value.toLocaleString('id-ID');
+    return _formatCurrency(value, '-');
   }
 
   function formatDate(value?: string): string {

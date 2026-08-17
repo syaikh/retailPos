@@ -1,3 +1,4 @@
+import { formatCurrency as _formatCurrency } from '$shared/utils/currency';
 import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
 
 export type StatusVariant = 'success' | 'muted' | 'danger' | 'warning';
@@ -29,8 +30,7 @@ export function statusInfo(status?: string): StatusInfo {
 }
 
 export function formatCurrency(value?: number): string {
-  if (value == null || isNaN(value)) return '-';
-  return 'Rp ' + value.toLocaleString('id-ID');
+  return _formatCurrency(value, '-');
 }
 
 export function formatDate(value?: string): string {

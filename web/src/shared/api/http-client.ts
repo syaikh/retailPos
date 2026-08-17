@@ -1,7 +1,7 @@
 // Web API Client (Axios)
 import axios from 'axios';
-import { getAuthToken, refreshAccessToken, setupAxiosInterceptors } from '$modules/auth';
-import { getCached, setCache, invalidateCache } from './cache';
+import { getAuthToken, refreshAccessToken, setupAxiosInterceptors, logout } from '$modules/auth';
+import { setCache, invalidateCache } from './cache';
 
 // 1. Buat instance Axios untuk aplikasi
 const apiClient = axios.create({
@@ -48,16 +48,6 @@ apiClient.interceptors.response.use(
 
 export default apiClient;
 
-// 5. GET helper with cache-first strategy
-export const cachedGet = async <T>(url: string): Promise<T> => {
-  const cached = getCached<T>(url);
-  if (cached !== null) {
-    return cached;
-  }
-  const response = await apiClient.get<T>(url);
-  return response.data;
-};
-
 // 6. (Opsional) Helper khusus untuk GET biasa jika tidak mau pakai async/await di store
 export const apiFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
 
@@ -76,7 +66,7 @@ export const apiFetch = async (url: string, options: RequestInit = {}): Promise<
     headers,
   });
 
-  // Handle 401 - try refresh and retry once
+  // Handle 401 - try refresh and retry once; logout on failure (matches apiClient behavior)
   if (response.status === 401) {
     const newToken = await refreshAccessToken();
     if (newToken) {
@@ -86,6 +76,7 @@ export const apiFetch = async (url: string, options: RequestInit = {}): Promise<
         headers,
       });
     }
+    logout();
     throw new Error('Session expired');
   }
 

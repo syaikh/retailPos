@@ -1,9 +1,7 @@
 import type { CartItem } from '../types';
+import { formatCurrency } from '$shared/utils/currency';
 
-export function formatCurrency(value?: number): string {
-  if (value == null || isNaN(value)) return 'Rp 0';
-  return value.toLocaleString('id-ID');
-}
+export { formatCurrency };
 
 export function calculateTax(items: CartItem[]): number {
   return items.reduce((sum, item) => {
