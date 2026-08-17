@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, authHeader, loginUI, logoutUI, getToken } from './fixtures';
 
 test.describe('Purchase Orders - Kebab Menu Dropdown', () => {
@@ -18,7 +18,8 @@ test.describe('Purchase Orders - Kebab Menu Dropdown', () => {
 
     const storeRes = await request.get(`${API_BASE}/api/stores/active`, { headers });
     expect(storeRes.ok()).toBeTruthy();
-    const store = (await storeRes.json()).data || (await storeRes.json());
+    const storeRaw = (await storeRes.json()).data;
+    const store = Array.isArray(storeRaw) ? storeRaw[0] : storeRaw;
 
     const expDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
 
@@ -50,7 +51,7 @@ test.describe('Purchase Orders - Kebab Menu Dropdown', () => {
     await page.goto('/purchase-orders');
     await page.waitForTimeout(1500);
 
-    const table = page.locator('[role="grid"][aria-label="Purchase orders"]');
+    const table = page.locator('[role="grid"][aria-label="Purchase Orders"]');
     await expect(table).toBeVisible({ timeout: 5000 });
 
     const rows = table.locator('tbody tr');
@@ -98,7 +99,7 @@ test.describe('Purchase Orders - Kebab Menu Dropdown', () => {
     await page.goto('/purchase-orders');
     await page.waitForTimeout(1500);
 
-    const table = page.locator('[role="grid"][aria-label="Purchase orders"]');
+    const table = page.locator('[role="grid"][aria-label="Purchase Orders"]');
     await expect(table).toBeVisible({ timeout: 5000 });
 
     const firstRow = table.locator('tbody tr').first();

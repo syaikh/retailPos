@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './fixtures';
+import type { Page } from '@playwright/test';
 import { TEST_USERS, API_BASE, authHeader, waitForAPI, loginUI, logoutUI, getToken as cachedGetToken } from './fixtures';
 
 const getToken = cachedGetToken;
@@ -58,8 +59,8 @@ test.describe('Audit Logs Search', () => {
   test('should show search input and filter controls', async ({ page }) => {
     await expect(page.locator('input[placeholder="Search by actor, role, action, entity, or IP..."]')).toBeVisible();
     await expect(page.locator('.date-picker-container')).toBeVisible();
-    await expect(page.locator('button:has-text("All Resources")')).toBeVisible();
-    await expect(page.locator('button:has-text("All Actions")')).toBeVisible();
+    await expect(page.locator('button:has-text("All Resource")')).toBeVisible();
+    await expect(page.locator('button:has-text("All Action")')).toBeVisible();
   });
 
   // --- Search correctness via direct API verification ---
@@ -224,7 +225,7 @@ test.describe('Audit Logs Search', () => {
   // --- Resource filter dropdown ---
 
   test('filtering by resource "auth" shows only auth rows in UI', async ({ page }) => {
-    await page.getByRole('button', { name: 'All Resources' }).first().click();
+    await page.getByRole('button', { name: 'All Resource' }).first().click();
     await page.waitForTimeout(300);
     await page.locator('[role="menu"] button:has-text("Auth")').click();
     await page.waitForTimeout(1500);
@@ -239,9 +240,9 @@ test.describe('Audit Logs Search', () => {
   // --- Action filter dropdown ---
 
   test('filtering by action "login" shows only login rows in UI', async ({ page }) => {
-    await page.getByRole('button', { name: 'All Actions' }).first().click();
+    await page.getByRole('button', { name: 'All Action' }).first().click();
     await page.waitForTimeout(300);
-    await page.locator('[role="menu"] button:has-text("Login")').click();
+    await page.locator('[role="menu"] button:has-text("Sign In")').click();
     await page.waitForTimeout(1500);
 
     const actionCells = await page.locator('td:nth-child(4)').allTextContents();

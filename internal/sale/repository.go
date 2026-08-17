@@ -334,8 +334,9 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 		return nil, 0, err
 	}
 
-	query := `SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at
+	query := `SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.customer_id, COALESCE(c.name, ''), s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at
 		FROM sales s
+		LEFT JOIN customers c ON c.id = s.customer_id
 		WHERE ` + qb.Where()
 	allowedSortBy := map[string]bool{"created_at": true, "total_amount": true, "invoice_number": true, "payment_method": true, "status": true}
 	allowedSortDir := map[string]bool{"ASC": true, "DESC": true}
@@ -362,8 +363,10 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	for rows.Next() {
 		var s Sale
 		var storeIDVal sql.NullInt64
+		var customerIDVal sql.NullInt64
+		var customerNameVal string
 		var createdAt, updatedAt time.Time
-		err = rows.Scan(&s.ID, &s.InvoiceNumber, &s.CashierID, &storeIDVal, &s.Subtotal, &s.Discount, &s.Tax,
+		err = rows.Scan(&s.ID, &s.InvoiceNumber, &s.CashierID, &storeIDVal, &customerIDVal, &customerNameVal, &s.Subtotal, &s.Discount, &s.Tax,
 			&s.TotalAmount, &s.PaymentMethod, &s.Status, &createdAt, &updatedAt)
 		if err != nil {
 			continue
@@ -372,6 +375,11 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 			v := int(storeIDVal.Int64)
 			s.StoreID = &v
 		}
+		if customerIDVal.Valid {
+			v := int(customerIDVal.Int64)
+			s.CustomerID = &v
+		}
+		s.CustomerName = customerNameVal
 		s.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		s.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 

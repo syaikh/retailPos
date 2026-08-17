@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken, authHeader } from './fixtures';
 
 test.describe('Hold & Recall UI Flow', () => {
@@ -22,7 +22,7 @@ test.describe('Hold & Recall UI Flow', () => {
     await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
 
     await page.keyboard.press('F6');
-    await page.waitForResponse(res => res.url().includes('/api/sales/parked') && res.status() === 201, { timeout: 10000 });
+    await page.waitForResponse(res => res.url().includes('/api/pos/cart/') && res.url().includes('/hold') && res.status() === 200, { timeout: 10000 });
     await expect(page.locator('text=Your cart is empty')).toBeVisible({ timeout: 5000 });
 
     await page.keyboard.press('F5');
@@ -41,7 +41,7 @@ test.describe('Hold & Recall UI Flow', () => {
     await page.keyboard.press('F7');
     await page.waitForTimeout(500);
 
-    const selesaiBtn = page.locator('button').filter({ hasText: 'Selesai' });
+    const selesaiBtn = page.locator('button').filter({ hasText: /Selesai|Done/ });
     await selesaiBtn.waitFor({ state: 'visible', timeout: 5000 });
     await expect(selesaiBtn).toBeEnabled({ timeout: 3000 });
     await selesaiBtn.click();
@@ -68,12 +68,21 @@ test.describe('Hold & Recall API Flow', () => {
     }
     productA = { id: prodBody.data[0].id, price: prodBody.data[0].price };
     productB = { id: prodBody.data[1].id, price: prodBody.data[1].price };
+
+    await request.post(`${API_BASE}/api/inventory/adjust`, {
+      headers,
+      data: { product_id: productA.id, quantity_change: 500, notes: 'E2E stock boost for hold-recall tests' },
+    });
+    await request.post(`${API_BASE}/api/inventory/adjust`, {
+      headers,
+      data: { product_id: productB.id, quantity_change: 500, notes: 'E2E stock boost for hold-recall tests' },
+    });
   });
 
   async function park(request: any, headers: any, product: { id: number; price: number } = productA, qty = 1) {
     const res = await request.post(`${API_BASE}/api/sales/parked`, {
       headers,
-      data: { items: [{ product_id: product.id, quantity: qty, subtotal: product.price * qty }], payment_method: 'CASH' },
+      data: { items: [{ product_id: product.id, quantity: qty }], payment_method: 'CASH' },
     });
     return res;
   }
@@ -81,11 +90,10 @@ test.describe('Hold & Recall API Flow', () => {
   test('should park → recall → complete with parked_sale_id, verify consumption', async ({ request }) => {
     const { headers } = auth;
     const qty = 1;
-    const subtotal = productA.price * qty;
 
     const parkRes = await request.post(`${API_BASE}/api/sales/parked`, {
       headers,
-      data: { items: [{ product_id: productA.id, quantity: qty, subtotal }], payment_method: 'CASH' },
+      data: { items: [{ product_id: productA.id, quantity: qty }], payment_method: 'CASH' },
     });
     expect(parkRes.ok()).toBeTruthy();
     const parkBody = await parkRes.json();
@@ -131,7 +139,7 @@ test.describe('Hold & Recall API Flow', () => {
 
     const parkResA = await request.post(`${API_BASE}/api/sales/parked`, {
       headers,
-      data: { items: [{ product_id: productA.id, quantity: 1, subtotal: productA.price }], payment_method: 'CASH' },
+      data: { items: [{ product_id: productA.id, quantity: 1 }], payment_method: 'CASH' },
     });
     expect(parkResA.ok()).toBeTruthy();
     const saleA = (await parkResA.json()).data;
@@ -141,7 +149,7 @@ test.describe('Hold & Recall API Flow', () => {
     const parkResB = await request.post(`${API_BASE}/api/sales/parked`, {
       headers,
       data: {
-        items: [{ product_id: productB.id, quantity: 1, subtotal: productB.price }],
+        items: [{ product_id: productB.id, quantity: 1 }],
         payment_method: 'CASH',
         recalled_sale_id: saleA.id,
       },
@@ -190,7 +198,7 @@ test.describe('Hold & Recall API Flow', () => {
     expect(completeRes.ok()).toBeFalsy();
     expect(completeRes.status()).toBe(409);
     const body = await completeRes.json();
-    expect(body.error).toContain('checked out or cancelled');
+    expect(body.error?.message || body.error).toContain('checked out or cancelled');
   });
 
   test('should fail to recall a cancelled sale (404)', async ({ request }) => {

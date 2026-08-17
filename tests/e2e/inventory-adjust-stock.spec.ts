@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './fixtures';
+import type { Page } from '@playwright/test';
 import { TEST_USERS, API_BASE, authHeader, loginUI, logoutUI, getToken } from './fixtures';
 
 async function navigateToInventory(page: Page) {
@@ -186,7 +187,7 @@ test.describe('Inventory Stock Adjustment', () => {
     await adjustBtn.click();
 
     // Should show error toast, modal stays open
-    await expect(page.locator('text=Quantity change must be non-zero')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=quantity change must not be zero')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Adjust Stock').first()).toBeVisible();
   });
 

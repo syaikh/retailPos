@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, FRONTEND_BASE, authHeader, getToken as cachedGetToken, loginUI, logoutUI, waitForAPI } from './fixtures';
 
 const getToken = cachedGetToken;
@@ -79,10 +79,10 @@ test.describe('Suppliers UI - Superadmin', () => {
     expect(count).toBeGreaterThanOrEqual(1);
   });
 
-  test('kebab menu shows Lihat Produk option', async ({ page }) => {
+  test('kebab menu shows View Products option', async ({ page }) => {
     const kebab = page.locator('table tbody tr').first().locator('button[aria-label*="Actions"]').first();
     await kebab.click();
-    await expect(page.locator('button[role="menuitem"]').filter({ hasText: 'Lihat Produk' })).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('button[role="menuitem"]').filter({ hasText: 'View Products' })).toBeVisible({ timeout: 3000 });
   });
 
   test('kebab menu shows Edit option', async ({ page }) => {
@@ -91,16 +91,16 @@ test.describe('Suppliers UI - Superadmin', () => {
     await expect(page.locator('button[role="menuitem"]').filter({ hasText: 'Edit' })).toBeVisible({ timeout: 3000 });
   });
 
-  test('kebab menu shows Duplikasi option', async ({ page }) => {
+  test('kebab menu shows Duplicate option', async ({ page }) => {
     const kebab = page.locator('table tbody tr').first().locator('button[aria-label*="Actions"]').first();
     await kebab.click();
-    await expect(page.locator('button[role="menuitem"]').filter({ hasText: 'Duplikasi' })).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('button[role="menuitem"]').filter({ hasText: 'Duplicate' })).toBeVisible({ timeout: 3000 });
   });
 
-  test('kebab menu shows Hapus option', async ({ page }) => {
+  test('kebab menu shows Delete option', async ({ page }) => {
     const kebab = page.locator('table tbody tr').first().locator('button[aria-label*="Actions"]').first();
     await kebab.click();
-    await expect(page.locator('button[role="menuitem"]').filter({ hasText: 'Hapus' })).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('button[role="menuitem"]').filter({ hasText: 'Delete' })).toBeVisible({ timeout: 3000 });
   });
 
   test('create supplier via Add Supplier button', async ({ page }) => {
@@ -144,7 +144,7 @@ test.describe('Suppliers UI - Superadmin', () => {
   test('Lihat Produk navigates to products page with supplier filter', async ({ page }) => {
     const kebab = page.locator('table tbody tr').first().locator('button[aria-label*="Actions"]').first();
     await kebab.click();
-    await page.locator('button[role="menuitem"]').filter({ hasText: 'Lihat Produk' }).click();
+    await page.locator('button[role="menuitem"]').filter({ hasText: 'View Products' }).click();
     await page.waitForTimeout(2000);
     const url = page.url();
     expect(url).toContain('supplier_id=');

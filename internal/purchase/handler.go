@@ -432,6 +432,9 @@ func (h *Handler) CreateGoodsReceipt(c *gin.Context) {
 	}
 	storeID := shared.GetStoreID(c)
 	if storeID == nil {
+		storeID = req.StoreID
+	}
+	if storeID == nil {
 		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "store_id is required")
 		return
 	}

@@ -3,6 +3,7 @@
   import { usePurchaseOrderStore } from '../stores/po-store.svelte';
   import { getSuppliers } from '$modules/supplier/services/supplier-service';
   import { getProductsBySupplier } from '$modules/supplier/services/supplier-service';
+  import { getActiveStores } from '$modules/stores/services/stores-service';
   import { Button, Input, Modal, SelectSearch } from '$shared/ui';
   import CurrencyInput from '$shared/ui/CurrencyInput.svelte';
   import { toast } from '$shared/stores/toast.svelte';
@@ -34,6 +35,8 @@
     items: [],
   });
   let suppliers = $state<any[]>([]);
+  let stores = $state<any[]>([]);
+  let selectedStoreId = $state<number | null>(null);
   let customPaymentTerm = $state('');
 
   const PAYMENT_TERMS = [
@@ -52,8 +55,12 @@
   $effect(() => {
     if (store.selectedPO) {
       po = { ...store.selectedPO, items: store.selectedPO.items?.map((item: any) => ({ ...item })) || [] };
+      selectedStoreId = store.selectedPO.store_id ?? useAuthStore().user?.store_id ?? null;
       open = true;
       currentStep = 1;
+      if (!selectedStoreId) {
+        loadStores();
+      }
     }
   });
 
@@ -70,6 +77,11 @@
         items: [],
       };
       supplierProducts = [];
+      const userStoreId = useAuthStore().user?.store_id ?? null;
+      selectedStoreId = userStoreId;
+      if (!userStoreId) {
+        loadStores();
+      }
     }
   });
 
@@ -113,6 +125,15 @@
       supplierProducts = [];
     } finally {
       loadingProducts = false;
+    }
+  }
+
+  async function loadStores() {
+    try {
+      const data = await getActiveStores();
+      stores = data || [];
+    } catch {
+      stores = [];
     }
   }
 
@@ -168,7 +189,7 @@
       }
       const payload = {
         supplier_id: Number(po.supplier_id),
-        store_id: useAuthStore().user?.store_id ?? null,
+        store_id: selectedStoreId,
         expected_date: po.expected_date,
         payment_term: po.payment_term,
         delivery_address: po.delivery_address,
@@ -220,6 +241,18 @@
           />
         </label>
       </div>
+      {#if !useAuthStore().user?.store_id}
+        <div>
+          <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+            <span>{labels.store} <span class="text-danger">*</span></span>
+            <SelectSearch
+              bind:value={selectedStoreId}
+              options={stores.map((s: any) => ({ value: s.id, label: s.name }))}
+              placeholder={labels.pilihToko}
+            />
+          </label>
+        </div>
+      {/if}
       <div>
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
           <span>{labels.expectedDate} <span class="text-danger">*</span></span>
@@ -343,7 +376,7 @@
         <div></div>
         <div class="flex items-center gap-2">
           <Button variant="secondary" onclick={handleClose}>{labels.cancel}</Button>
-          <Button variant="primary" onclick={nextStep} disabled={po.supplier_id === 0 || !po.expected_date || !po.payment_term || (selectedPaymentTerm === 'Other' && !customPaymentTerm)}>
+          <Button variant="primary" onclick={nextStep} disabled={po.supplier_id === 0 || !po.expected_date || !po.payment_term || (selectedPaymentTerm === 'Other' && !customPaymentTerm) || (!useAuthStore().user?.store_id && !selectedStoreId)}>
             {labels.next}
             <ChevronRight size={16} />
           </Button>

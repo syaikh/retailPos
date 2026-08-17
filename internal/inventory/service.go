@@ -56,7 +56,7 @@ func (s *service) AdjustStock(ctx context.Context, productID int, quantityChange
 		return fmt.Errorf("adjust stock: %w", err)
 	}
 
-	if err := s.eventBus.Publish(ctx, events.TopicStockAdjusted, &events.StockAdjusted{
+	if err := s.eventBus.Publish(context.Background(), events.TopicStockAdjusted, &events.StockAdjusted{
 		ProductID:      productID,
 		QuantityChange: quantityChange,
 		UserID:         userID,
@@ -81,7 +81,7 @@ func (s *service) AdjustStockBatch(ctx context.Context, adjustments []StockAdjus
 	}
 
 	for _, adj := range adjustments {
-		if err := s.eventBus.Publish(ctx, events.TopicStockAdjusted, &events.StockAdjusted{
+		if err := s.eventBus.Publish(context.Background(), events.TopicStockAdjusted, &events.StockAdjusted{
 			ProductID:      adj.ProductID,
 			QuantityChange: adj.QuantityChange,
 			UserID:         userID,

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, loginUI, logoutUI } from './fixtures';
 
 const BASE = 'http://localhost:5173';
@@ -35,17 +35,17 @@ test.describe('Store Management', () => {
   test('should create a new store', async ({ page }) => {
     const storeName = `E2E Store ${Date.now()}`;
 
-    await page.getByRole('button', { name: 'Tambah Toko' }).first().click();
-    await expect(page.getByRole('dialog', { name: 'Tambah Toko' })).toBeVisible();
+    await page.getByRole('button', { name: 'Add Store' }).first().click();
+    await expect(page.getByRole('dialog', { name: 'Add Store' })).toBeVisible();
 
     await page.fill('#store-name', storeName);
     await page.fill('#store-address', 'Jl. E2E No. 1');
     await page.fill('#store-phone', '022-987654');
 
     const responsePromise = page.waitForResponse(resp => resp.url().includes('/api/stores') && resp.request().method() === 'POST');
-    await page.getByRole('dialog', { name: 'Tambah Toko' }).getByRole('button', { name: 'Tambah Toko' }).click();
+    await page.getByRole('dialog', { name: 'Add Store' }).getByRole('button', { name: 'Add Store' }).click();
     await responsePromise;
-    await expect(page.getByRole('dialog', { name: 'Tambah Toko' })).toBeHidden({ timeout: 15000 });
+    await expect(page.getByRole('dialog', { name: 'Add Store' })).toBeHidden({ timeout: 15000 });
 
     await page.getByPlaceholder('Search by name, address, or phone...').fill(storeName);
     await page.waitForTimeout(2000);
@@ -55,10 +55,10 @@ test.describe('Store Management', () => {
   test('should edit a store name', async ({ page }) => {
     const storeName = `Edit Store ${Date.now()}`;
 
-    await page.getByRole('button', { name: 'Tambah Toko' }).first().click();
+    await page.getByRole('button', { name: 'Add Store' }).first().click();
     await page.fill('#store-name', storeName);
-    await page.getByRole('dialog', { name: 'Tambah Toko' }).getByRole('button', { name: 'Tambah Toko' }).click();
-    await expect(page.getByRole('dialog', { name: 'Tambah Toko' })).toBeHidden({ timeout: 15000 });
+    await page.getByRole('dialog', { name: 'Add Store' }).getByRole('button', { name: 'Add Store' }).click();
+    await expect(page.getByRole('dialog', { name: 'Add Store' })).toBeHidden({ timeout: 15000 });
 
     await page.getByPlaceholder('Search by name, address, or phone...').fill(storeName);
     await page.waitForTimeout(1000);
@@ -66,11 +66,11 @@ test.describe('Store Management', () => {
 
     const editButton = page.locator('tr').filter({ hasText: storeName }).locator('button[aria-label="Edit"]');
     await editButton.click();
-    await expect(page.getByRole('dialog', { name: 'Edit Toko' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Edit Store' })).toBeVisible();
 
     await page.fill('#store-name', `${storeName} Updated`);
-    await page.getByRole('dialog', { name: 'Edit Toko' }).getByRole('button', { name: 'Simpan Perubahan' }).click();
-    await expect(page.getByRole('dialog', { name: 'Edit Toko' })).toBeHidden({ timeout: 10000 });
+    await page.getByRole('dialog', { name: 'Edit Store' }).getByRole('button', { name: 'Save Changes' }).click();
+    await expect(page.getByRole('dialog', { name: 'Edit Store' })).toBeHidden({ timeout: 10000 });
 
     await expect(page.locator(`text=${storeName} Updated`).first()).toBeVisible({ timeout: 10000 });
   });
@@ -78,46 +78,46 @@ test.describe('Store Management', () => {
   test('should deactivate a store via edit toggle', async ({ page }) => {
     const storeName = `Inactive Store ${Date.now()}`;
 
-    await page.getByRole('button', { name: 'Tambah Toko' }).first().click();
+    await page.getByRole('button', { name: 'Add Store' }).first().click();
     await page.fill('#store-name', storeName);
-    await page.getByRole('dialog', { name: 'Tambah Toko' }).getByRole('button', { name: 'Tambah Toko' }).click();
-    await expect(page.getByRole('dialog', { name: 'Tambah Toko' })).toBeHidden({ timeout: 15000 });
+    await page.getByRole('dialog', { name: 'Add Store' }).getByRole('button', { name: 'Add Store' }).click();
+    await expect(page.getByRole('dialog', { name: 'Add Store' })).toBeHidden({ timeout: 15000 });
 
     await page.getByPlaceholder('Search by name, address, or phone...').fill(storeName);
     await page.waitForTimeout(1000);
     const row = page.locator('tr').filter({ hasText: storeName });
     await expect(row.first()).toBeVisible({ timeout: 10000 });
-    await expect(row.first().getByText('Aktif', { exact: true })).toBeVisible();
+    await expect(row.first().getByText('Active', { exact: true })).toBeVisible();
 
     await row.first().locator('button[aria-label="Edit"]').click();
-    await expect(page.getByRole('dialog', { name: 'Edit Toko' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Edit Store' })).toBeVisible();
 
-    const toggleSwitch = page.getByRole('dialog', { name: 'Edit Toko' }).locator('input[type="checkbox"]');
+    const toggleSwitch = page.getByRole('dialog', { name: 'Edit Store' }).locator('input[type="checkbox"]');
     await toggleSwitch.click({ force: true });
-    await page.getByRole('dialog', { name: 'Edit Toko' }).getByRole('button', { name: 'Simpan Perubahan' }).click();
-    await expect(page.getByRole('dialog', { name: 'Edit Toko' })).toBeHidden({ timeout: 10000 });
+    await page.getByRole('dialog', { name: 'Edit Store' }).getByRole('button', { name: 'Save Changes' }).click();
+    await expect(page.getByRole('dialog', { name: 'Edit Store' })).toBeHidden({ timeout: 10000 });
 
-    await expect(row.first().getByText('Nonaktif', { exact: true })).toBeVisible({ timeout: 10000 });
+    await expect(row.first().getByText('Inactive', { exact: true })).toBeVisible({ timeout: 10000 });
   });
 
   test('should delete a store', async ({ page }) => {
     const storeName = `Delete Store ${Date.now()}`;
 
-    await page.getByRole('button', { name: 'Tambah Toko' }).first().click();
+    await page.getByRole('button', { name: 'Add Store' }).first().click();
     await page.fill('#store-name', storeName);
-    await page.getByRole('dialog', { name: 'Tambah Toko' }).getByRole('button', { name: 'Tambah Toko' }).click();
-    await expect(page.getByRole('dialog', { name: 'Tambah Toko' })).toBeHidden({ timeout: 15000 });
+    await page.getByRole('dialog', { name: 'Add Store' }).getByRole('button', { name: 'Add Store' }).click();
+    await expect(page.getByRole('dialog', { name: 'Add Store' })).toBeHidden({ timeout: 15000 });
 
     await page.getByPlaceholder('Search by name, address, or phone...').fill(storeName);
     await page.waitForTimeout(1000);
     await expect(page.locator(`text=${storeName}`).first()).toBeVisible({ timeout: 10000 });
 
-    const deleteButton = page.locator('tr').filter({ hasText: storeName }).locator('button[aria-label="Hapus"]');
+    const deleteButton = page.locator('tr').filter({ hasText: storeName }).locator('button[aria-label="Delete"]');
     await deleteButton.click();
-    await expect(page.getByRole('dialog', { name: 'Hapus Toko' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Delete Store' })).toBeVisible();
 
-    await page.getByRole('dialog', { name: 'Hapus Toko' }).getByRole('button', { name: 'Hapus' }).click();
-    await expect(page.getByRole('dialog', { name: 'Hapus Toko' })).toBeHidden({ timeout: 10000 });
+    await page.getByRole('dialog', { name: 'Delete Store' }).getByRole('button', { name: 'Delete' }).click();
+    await expect(page.getByRole('dialog', { name: 'Delete Store' })).toBeHidden({ timeout: 10000 });
 
     await page.getByPlaceholder('Search by name, address, or phone...').fill('');
     await page.waitForTimeout(1000);
@@ -131,15 +131,15 @@ test.describe('Store Management', () => {
   });
 
   test('should filter by status chips', async ({ page }) => {
-    await page.getByRole('button', { name: 'Aktif', exact: true }).click();
+    await page.getByRole('button', { name: 'Active', exact: true }).click();
     await page.waitForTimeout(1000);
     const visibleRows = page.locator('tbody tr').filter({ visible: true });
     await expect(visibleRows.first()).toBeVisible({ timeout: 5000 });
 
-    await page.getByRole('button', { name: 'Nonaktif', exact: true }).click();
+    await page.getByRole('button', { name: 'Inactive', exact: true }).click();
     await page.waitForTimeout(1000);
 
-    await page.getByRole('button', { name: 'Semua', exact: true }).click();
+    await page.getByRole('button', { name: 'All', exact: true }).click();
     await page.waitForTimeout(1000);
     await expect(page.locator('tbody tr').first()).toBeVisible({ timeout: 5000 });
   });
@@ -159,13 +159,13 @@ test.describe('Store Management', () => {
   });
 
   test('should validate required fields', async ({ page }) => {
-    await page.getByRole('button', { name: 'Tambah Toko' }).first().click();
-    await expect(page.getByRole('dialog', { name: 'Tambah Toko' })).toBeVisible();
+    await page.getByRole('button', { name: 'Add Store' }).first().click();
+    await expect(page.getByRole('dialog', { name: 'Add Store' })).toBeVisible();
 
     await page.fill('#store-name', '');
-    await page.getByRole('dialog', { name: 'Tambah Toko' }).getByRole('button', { name: 'Tambah Toko' }).click();
+    await page.getByRole('dialog', { name: 'Add Store' }).getByRole('button', { name: 'Add Store' }).click();
 
-    await expect(page.getByRole('dialog', { name: 'Tambah Toko' })).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText('Nama toko wajib diisi')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('dialog', { name: 'Add Store' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Store name is required')).toBeVisible({ timeout: 10000 });
   });
 });

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, FRONTEND_BASE, authHeader, getToken as cachedGetToken, loginUI, logoutUI, waitForAPI } from './fixtures';
 
 const getToken = cachedGetToken;
@@ -129,10 +129,10 @@ test.describe('Customer Groups API - RBAC', () => {
     expect(res.ok()).toBeTruthy();
   });
 
-  test('cashier can list groups', async ({ request }) => {
+  test('cashier CANNOT list groups (403)', async ({ request }) => {
     const t = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
     const res = await request.get(`${API_BASE}/api/customer-groups`, { headers: authHeader(t) });
-    expect(res.ok()).toBeTruthy();
+    expect(res.status()).toBe(403);
   });
 
   test('cashier CANNOT create group (403)', async ({ request }) => {
@@ -246,22 +246,26 @@ test.describe('Customer Groups UI - Superadmin', () => {
 
   test('displays customer groups page with table', async ({ page }) => {
     await expect(page.locator('table')).toBeVisible();
-    await expect(page.locator('button').filter({ hasText: /Tambah Group/ })).toBeVisible();
+    await expect(page.locator('button').filter({ hasText: /Add Group/ })).toBeVisible();
   });
 
   test('create group via modal', async ({ page }) => {
     const name = `UI Group ${Date.now()}`;
-    await page.locator('button').filter({ hasText: /Tambah Group/ }).first().click();
+    await page.locator('button').filter({ hasText: /Add Group/ }).first().click();
     const modal = page.getByRole('dialog', { name: 'Add Customer Group' });
     await expect(modal).toBeVisible();
     await modal.locator('#cg-name').fill(name);
     await modal.locator('#cg-description').fill('UI test description');
     await modal.locator('button').filter({ hasText: /Create Group/ }).click();
+    await expect(modal).not.toBeVisible({ timeout: 10000 });
+    const searchInput = page.locator('#customer-group-search');
+    await searchInput.fill(name);
+    await page.waitForTimeout(500);
     await expect(page.locator('table td').filter({ hasText: name }).first()).toBeVisible({ timeout: 10000 });
   });
 
   test('create modal validation: empty name shows error', async ({ page }) => {
-    await page.locator('button').filter({ hasText: /Tambah Group/ }).first().click();
+    await page.locator('button').filter({ hasText: /Add Group/ }).first().click();
     const modal = page.getByRole('dialog', { name: 'Add Customer Group' });
     await expect(modal).toBeVisible();
     await modal.locator('button').filter({ hasText: /Create Group/ }).click();
@@ -270,7 +274,7 @@ test.describe('Customer Groups UI - Superadmin', () => {
 
   test('create modal cancel closes without creating', async ({ page }) => {
     const name = `Cancel Group ${Date.now()}`;
-    await page.locator('button').filter({ hasText: /Tambah Group/ }).first().click();
+    await page.locator('button').filter({ hasText: /Add Group/ }).first().click();
     const modal = page.getByRole('dialog', { name: 'Add Customer Group' });
     await modal.locator('#cg-name').fill(name);
     await modal.locator('button').filter({ hasText: 'Cancel' }).click();
@@ -278,18 +282,18 @@ test.describe('Customer Groups UI - Superadmin', () => {
     await expect(page.locator('table td').filter({ hasText: name })).toHaveCount(0);
   });
 
-  test('status filter: Aktif shows active groups', async ({ page }) => {
-    await page.locator('button').filter({ hasText: /^Aktif$/ }).first().click();
+  test('status filter: Active shows active groups', async ({ page }) => {
+    await page.locator('button').filter({ hasText: /^Active$/ }).first().click();
     await page.waitForTimeout(2000);
-    const badges = page.locator('table tbody tr').locator('text=Aktif');
+    const badges = page.locator('table tbody tr').locator('text=Active');
     const count = await badges.count();
     if (count > 0) {
       await expect(badges.first()).toBeVisible();
     }
   });
 
-  test('status filter: Nonaktif shows inactive groups', async ({ page }) => {
-    await page.locator('button').filter({ hasText: /^Nonaktif$/ }).first().click();
+  test('status filter: Inactive shows inactive groups', async ({ page }) => {
+    await page.locator('button').filter({ hasText: /^Inactive$/ }).first().click();
     await page.waitForTimeout(2000);
     await expect(page.locator('table')).toBeVisible();
   });
@@ -298,7 +302,7 @@ test.describe('Customer Groups UI - Superadmin', () => {
     const firstRow = page.locator('table tbody tr[role="button"]').first();
     if (await firstRow.count() > 0) {
       await firstRow.click();
-      await expect(page.locator('[aria-label="Detail Customer Group"]')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('[aria-label="Customer Group Details"]')).toBeVisible({ timeout: 5000 });
     }
   });
 
@@ -306,8 +310,8 @@ test.describe('Customer Groups UI - Superadmin', () => {
     const firstRow = page.locator('table tbody tr[role="button"]').first();
     if (await firstRow.count() > 0) {
       await firstRow.click();
-      await expect(page.locator('[aria-label="Detail Customer Group"]')).toBeVisible({ timeout: 5000 });
-      await expect(page.locator('text=Riwayat Aktivitas')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('[aria-label="Customer Group Details"]')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('text=Activity History')).toBeVisible({ timeout: 5000 });
     }
   });
 
@@ -315,14 +319,14 @@ test.describe('Customer Groups UI - Superadmin', () => {
     const searchInput = page.locator('#customer-group-search');
     await searchInput.fill('NonexistentXYZ123');
     await page.waitForTimeout(1000);
-    await expect(page.locator('text=Tidak ada group ditemukan').or(page.locator('text=Belum ada customer group'))).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=No groups found')).toBeVisible({ timeout: 5000 });
   });
 
   test('bulk action bar appears when checkbox selected', async ({ page }) => {
-    const firstCheckbox = page.locator('table tbody tr').first().locator('button[aria-label*="Pilih"]').first();
+    const firstCheckbox = page.locator('table tbody tr').first().locator('button[aria-label^="Select"]').first();
     if (await firstCheckbox.count() > 0) {
       await firstCheckbox.click();
-      await expect(page.locator('text=/group dipilih/')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('text=/groups selected/')).toBeVisible({ timeout: 5000 });
     }
   });
 });

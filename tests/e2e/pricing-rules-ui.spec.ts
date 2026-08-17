@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, FRONTEND_BASE, authHeader, getToken as cachedGetToken, loginUI, logoutUI, waitForAPI } from './fixtures';
 
 const getToken = cachedGetToken;
@@ -28,12 +28,12 @@ test.describe('Pricing Rules UI - Superadmin', () => {
   });
 
   test('displays pricing rules page with table', async ({ page }) => {
-    await expect(page.locator('table[aria-label="Pricing rules"]')).toBeVisible();
-    await expect(page.locator('th').filter({ hasText: 'NAMA' })).toBeVisible();
+    await expect(page.locator('table[aria-label="Pricing Rules"]')).toBeVisible();
+    await expect(page.locator('th').filter({ hasText: 'Name' })).toBeVisible();
   });
 
-  test('has Tambah Rule button for superadmin', async ({ page }) => {
-    await expect(page.locator('button').filter({ hasText: /Tambah Rule/ })).toBeVisible();
+  test('has Create Rule button for superadmin', async ({ page }) => {
+    await expect(page.locator('button').filter({ hasText: /Create Rule/ })).toBeVisible();
   });
 
   test('table rows are clickable (role=button)', async ({ page }) => {
@@ -83,9 +83,9 @@ test.describe('Pricing Rules UI - Superadmin', () => {
     }
   });
 
-  test('create rule modal opens from Tambah Rule button', async ({ page }) => {
-    await page.locator('button').filter({ hasText: /Tambah Rule/ }).first().click();
-    const modal = page.getByRole('dialog', { name: /Tambah Pricing Rule/ });
+  test('create rule modal opens from Create Rule button', async ({ page }) => {
+    await page.locator('button').filter({ hasText: /Create Rule/ }).first().click();
+    const modal = page.getByRole('dialog', { name: /Add Pricing Rule/ });
     await expect(modal).toBeVisible({ timeout: 5000 });
     await expect(modal.locator('#rule-name')).toBeVisible();
     await expect(modal.locator('#pricing-type')).toBeVisible();
@@ -94,33 +94,33 @@ test.describe('Pricing Rules UI - Superadmin', () => {
   });
 
   test('create modal shows validation error for empty name', async ({ page }) => {
-    await page.locator('button').filter({ hasText: /Tambah Rule/ }).first().click();
-    const modal = page.getByRole('dialog', { name: /Tambah Pricing Rule/ });
+    await page.locator('button').filter({ hasText: /Create Rule/ }).first().click();
+    const modal = page.getByRole('dialog', { name: /Add Pricing Rule/ });
     await expect(modal).toBeVisible({ timeout: 5000 });
-    await modal.locator('button').filter({ hasText: /Buat Rule/ }).click();
-    await expect(modal.locator('text=/Nama rule wajib/i')).toBeVisible({ timeout: 3000 });
+    await modal.locator('button').filter({ hasText: /Create Rule/ }).click();
+    await expect(modal.locator('text=/Name is required/i')).toBeVisible({ timeout: 3000 });
   });
 
   test('create modal shows validation error for no target', async ({ page }) => {
-    await page.locator('button').filter({ hasText: /Tambah Rule/ }).first().click();
-    const modal = page.getByRole('dialog', { name: /Tambah Pricing Rule/ });
+    await page.locator('button').filter({ hasText: /Create Rule/ }).first().click();
+    const modal = page.getByRole('dialog', { name: /Add Pricing Rule/ });
     await expect(modal).toBeVisible({ timeout: 5000 });
     await modal.locator('#rule-name').fill('Test Rule');
-    await modal.locator('button').filter({ hasText: /Buat Rule/ }).click();
-    await expect(modal.locator('text=/minimal satu target/i')).toBeVisible({ timeout: 3000 });
+    await modal.locator('button').filter({ hasText: /Create Rule/ }).click();
+    await expect(modal.locator('text=/Select at least one target/i')).toBeVisible({ timeout: 3000 });
   });
 
   test('create modal cancel closes without creating', async ({ page }) => {
-    await page.locator('button').filter({ hasText: /Tambah Rule/ }).first().click();
-    const modal = page.getByRole('dialog', { name: /Tambah Pricing Rule/ });
+    await page.locator('button').filter({ hasText: /Create Rule/ }).first().click();
+    const modal = page.getByRole('dialog', { name: /Add Pricing Rule/ });
     await expect(modal).toBeVisible({ timeout: 5000 });
     await modal.locator('#rule-name').fill('Should Not Exist');
-    await modal.locator('button').filter({ hasText: /Batal/ }).first().click();
-    await expect(page.getByRole('dialog', { name: /Tambah Pricing Rule/ })).toHaveCount(0);
+    await modal.locator('button').filter({ hasText: /Cancel/ }).first().click();
+    await expect(page.getByRole('dialog', { name: /Add Pricing Rule/ })).toHaveCount(0);
   });
 
   test('status filter buttons work', async ({ page }) => {
-    await page.locator('button').filter({ hasText: /Semua/ }).first().click();
+    await page.locator('button').filter({ hasText: /All/ }).first().click();
     await page.waitForTimeout(1000);
     await expect(page.locator('table')).toBeVisible();
   });

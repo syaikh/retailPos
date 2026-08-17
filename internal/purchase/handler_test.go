@@ -458,6 +458,69 @@ func TestHandler_CreateGoodsReceipt(t *testing.T) {
 	assert.NotEmpty(t, data["gr_number"])
 }
 
+func TestHandler_CreateGoodsReceipt_StoreFromBody(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := newWiredService(repo, bus)
+	auditRepo := audit.NewRepository(dbPool)
+	auditSvc := audit.NewService(auditRepo)
+	handler := NewHandler(svc, auditSvc)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	auth := func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "testuser")
+		c.Set("role", "admin")
+		c.Next()
+	}
+	perm := func(code permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	}
+	api := r.Group("/api")
+	handler.RegisterRoutes(api, auth, perm)
+
+	ctx := context.Background()
+	supplierID := insertTestSupplier(ctx, t, "Handler GR BodyStore Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-GRBS", "Handler GR BodyStore", 10000, 200)
+
+	po := &Order{SupplierID: supplierID, StoreID: 2, Status: StatusDraft, CreatedBy: 1, UpdatedBy: 1}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Handler GR BodyStore", SKU: "HANDLER-GRBS"}}
+	tx, _ := repo.BeginTx(ctx)
+	po.PONumber, _ = repo.GetNextPONumber(ctx)
+	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
+	_ = tx.Commit(ctx)
+
+	fetchedPO, _ := repo.GetPurchaseOrderByID(ctx, po.ID, nil)
+
+	tx, _ = repo.BeginTx(ctx)
+	_ = repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
+	_ = repo.ConfirmPurchaseOrder(ctx, tx, po.ID, 1, "2026-07-27T10:00:00+07:00")
+	_ = tx.Commit(ctx)
+
+	req := map[string]interface{}{
+		"purchase_order_id": po.ID,
+		"store_id":          2,
+		"items": []map[string]interface{}{
+			{"purchase_order_item_id": fetchedPO.Items[0].ID, "qty_good": 5, "qty_damaged": 0},
+		},
+	}
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	reqHTTP, _ := http.NewRequest("POST", "/api/goods-receipts", bytes.NewReader(body))
+	reqHTTP.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, reqHTTP)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	data := resp["data"].(map[string]interface{})
+	assert.Equal(t, float64(2), data["store_id"])
+}
+
 func TestHandler_CreateGoodsReceipt_InvalidJSON(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 

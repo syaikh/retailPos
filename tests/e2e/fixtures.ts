@@ -27,9 +27,17 @@ export const API_URLS = {
  * Authenticate and return authenticated page context
  * Usage: const { page, token } = await authAs('superadmin', 'admin123');
  */
+export { expect };
+
 export const test = base.extend({
   // Add authenticated page fixture
   page: async ({ page }, use) => {
+    // The E2E suite asserts English UI labels, so force the English locale
+    // before any page script runs (app default is Indonesian).
+    await page.addInitScript(() => {
+      localStorage.setItem('pos.locale', 'en');
+    });
+
     // Add helper methods to page
     page.authAs = async (username: string, password: string) => {
       await page.goto('/');

@@ -1,8 +1,12 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken } from './fixtures';
 
 test.describe('Shifts Page', () => {
   test.beforeEach(async ({ page }) => {
+    const token = await getToken(page.request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
+    await page.request.post(`${API_BASE}/api/shifts/close-all`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     await loginUI(page, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
   });
 
@@ -28,7 +32,7 @@ test.describe('Shifts Page', () => {
     await expect(page.locator('text=CASH SALES (Rp)')).toBeVisible();
     await expect(page.locator('text=TOTAL SALES (Rp)')).toBeVisible();
     await expect(page.locator('text=TXN')).toBeVisible();
-    await expect(page.locator('text=DISCREPANCY (Rp)')).toBeVisible();
+    await expect(page.locator('text=DISCREPANCY')).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'STATUS' })).toBeVisible();
     await expect(page.locator('text=CLOSED AT')).toBeVisible();
 
@@ -128,9 +132,12 @@ test.describe('Shifts API - cashier_id filter', () => {
 test.describe('Shifts API - needs_review filter', () => {
   test('should filter shifts by needs_review=true', async ({ request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const headers = { Authorization: `Bearer ${token}` };
+
+    await request.post(`${API_BASE}/api/shifts/close-all`, { headers });
 
     const openRes = await request.post(`${API_BASE}/api/shifts/open`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
       data: { opening_balance: 100000, store_id: null },
     });
     expect(openRes.ok()).toBeTruthy();
@@ -176,9 +183,12 @@ test.describe('Shifts API - needs_review filter', () => {
 test.describe('Shifts API - discrepancy filter', () => {
   test('should filter shifts by discrepancy=balanced', async ({ request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const headers = { Authorization: `Bearer ${token}` };
+
+    await request.post(`${API_BASE}/api/shifts/close-all`, { headers });
 
     const openRes = await request.post(`${API_BASE}/api/shifts/open`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
       data: { opening_balance: 100000, store_id: null },
     });
     expect(openRes.ok()).toBeTruthy();
@@ -208,9 +218,12 @@ test.describe('Shifts API - discrepancy filter', () => {
 
   test('should filter shifts by discrepancy=surplus', async ({ request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const headers = { Authorization: `Bearer ${token}` };
+
+    await request.post(`${API_BASE}/api/shifts/close-all`, { headers });
 
     const openRes = await request.post(`${API_BASE}/api/shifts/open`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
       data: { opening_balance: 100000, store_id: null },
     });
     expect(openRes.ok()).toBeTruthy();
@@ -238,9 +251,12 @@ test.describe('Shifts API - discrepancy filter', () => {
 
   test('should filter shifts by discrepancy=shortage', async ({ request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const headers = { Authorization: `Bearer ${token}` };
+
+    await request.post(`${API_BASE}/api/shifts/close-all`, { headers });
 
     const openRes = await request.post(`${API_BASE}/api/shifts/open`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
       data: { opening_balance: 100000, store_id: null },
     });
     expect(openRes.ok()).toBeTruthy();

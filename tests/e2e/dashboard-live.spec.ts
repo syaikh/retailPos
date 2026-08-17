@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_URLS, API_BASE, authHeader, decodeJWT, loginUI, logoutUI, getToken } from './fixtures';
 
 async function createTestSale(request: any, token: string, productId = 1) {

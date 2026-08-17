@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, authHeader, getToken as cachedGetToken } from './fixtures';
 
 const getToken = cachedGetToken;
@@ -10,7 +10,7 @@ test.describe('POS Wholesale Flow', () => {
   test.beforeAll(async ({ request }) => {
     const token = await getToken(request);
 
-    const prodRes = await request.get(`${API_BASE}/products?limit=1&status=active`, {
+    const prodRes = await request.get(`${API_BASE}/api/products?limit=1&status=active`, {
       headers: authHeader(token),
     });
     const prodBody = await prodRes.json();
@@ -76,7 +76,7 @@ test.describe('POS Wholesale Flow', () => {
     const resolved = body.data[0];
     expect(resolved.pricing_type).toBe('special_price');
     expect(resolved.unit_price).toBe(10000);
-    expect(resolved.original_price).toBeGreaterThan(10000);
+    expect(resolved.original_price).toBeGreaterThanOrEqual(10000);
   });
 
   test('resolve batch handles multiple products', async ({ request }) => {

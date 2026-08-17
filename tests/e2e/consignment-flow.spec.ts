@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { API_BASE, authHeader, loginUI, logoutUI, getToken } from './fixtures';
 
 // Konsinyasi (Consignment) Supplier module — E2E happy path.
@@ -127,14 +127,14 @@ test.describe('Consignment Supplier - Full Flow', () => {
     const row = page.locator('tbody tr').filter({ hasText: supplier.name }).first();
     await expect(row).toBeVisible({ timeout: 10000 });
 
-    await row.locator('button').filter({ hasText: 'Buka' }).click();
+    await row.locator('button').filter({ hasText: 'Open' }).click();
     await page.waitForTimeout(800);
 
     // Detail header shows supplier name
     await expect(page.locator('h1').filter({ hasText: supplier.name })).toBeVisible({ timeout: 5000 });
 
     // Tabs are present
-    for (const tab of ['Penerimaan', 'Terms', 'Retur Tertunda', 'Retur', 'Settlement', 'Stok']) {
+    for (const tab of ['Receipts', 'Terms', 'Pending Returns', 'Returns', 'Settlement', 'Stock']) {
       await expect(page.locator('button').filter({ hasText: tab }).first()).toBeVisible({ timeout: 3000 });
     }
 
@@ -154,20 +154,20 @@ test.describe('Consignment Supplier - Full Flow', () => {
     await expect(row).toBeVisible({ timeout: 8000 });
 
     // Add the product to the cart once (qty 1)
-    await row.locator('button').filter({ hasText: 'Tambah' }).click();
+    await row.locator('button').filter({ hasText: 'Add' }).click();
     await page.waitForTimeout(800);
 
     // Open checkout with F4
     await page.keyboard.press('F4');
-    const checkoutDialog = page.getByRole('dialog', { name: 'Pembayaran' });
+    const checkoutDialog = page.getByRole('dialog', { name: 'Payment' });
     await expect(checkoutDialog).toBeVisible({ timeout: 5000 });
 
     // CASH allocation is auto-created with amount 0; set exact amount via shortcut
-    await checkoutDialog.locator('button').filter({ hasText: 'Tepat [F7]' }).click();
+    await checkoutDialog.locator('button').filter({ hasText: 'Exact [F7]' }).click();
     await page.waitForTimeout(300);
 
     // Finalize
-    const doneBtn = checkoutDialog.locator('button').filter({ hasText: 'Selesai [Enter]' });
+    const doneBtn = checkoutDialog.locator('button').filter({ hasText: 'Done [Enter]' });
     await expect(doneBtn).toBeEnabled({ timeout: 3000 });
 
     const checkoutResponsePromise = page.waitForResponse(
@@ -177,7 +177,7 @@ test.describe('Consignment Supplier - Full Flow', () => {
     const checkoutResponse = await checkoutResponsePromise;
     expect(checkoutResponse.status(), `checkout failed: ${checkoutResponse.status()} ${await checkoutResponse.text()}`).toBe(201);
 
-    await expect(page.locator('text=Transaksi berhasil')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=Sale completed')).toBeVisible({ timeout: 5000 });
 
     // Verify stock decreased via API (10 - 1 = 9)
     const prodRes = await page.request.get(`${API_BASE}/api/products/${product.id}`, { headers });
@@ -192,19 +192,19 @@ test.describe('Consignment Supplier - Full Flow', () => {
 
     const row = page.locator('tbody tr').filter({ hasText: supplier.name }).first();
     await expect(row).toBeVisible({ timeout: 10000 });
-    await row.locator('button').filter({ hasText: 'Buka' }).click();
+    await row.locator('button').filter({ hasText: 'Open' }).click();
     await page.waitForTimeout(800);
 
     // Pending Returns tab
-    await page.locator('button').filter({ hasText: 'Retur Tertunda' }).first().click();
+    await page.locator('button').filter({ hasText: 'Pending Returns' }).first().click();
     await page.waitForTimeout(800);
 
-    await page.locator('button').filter({ hasText: 'Catat Retur Tertunda' }).click();
-    const modal = page.getByRole('dialog', { name: 'Catat Retur Tertunda' });
+    await page.locator('button').filter({ hasText: 'Record Pending Return' }).click();
+    const modal = page.getByRole('dialog', { name: 'Record Pending Return' });
     await expect(modal).toBeVisible({ timeout: 5000 });
 
     // Select product from consignment stock
-    const productSelect = modal.locator('label:has-text("Produk (dari stok konsinyasi)")').locator('[aria-haspopup="listbox"]');
+    const productSelect = modal.locator('label:has-text("Product (from consignment stock)")').locator('[aria-haspopup="listbox"]');
     await productSelect.click();
     await page.waitForTimeout(300);
     const listbox = page.locator('[role="listbox"]');
@@ -224,11 +224,11 @@ test.describe('Consignment Supplier - Full Flow', () => {
     const createResponsePromise = page.waitForResponse(
       (resp) => resp.url().includes('/api/consignment/pending-returns') && resp.request().method() === 'POST'
     );
-    await modal.locator('button').filter({ hasText: 'Simpan' }).click();
+    await modal.locator('button').filter({ hasText: 'Save' }).click();
     const createResponse = await createResponsePromise;
     expect(createResponse.status(), `pending return failed: ${createResponse.status()} ${await createResponse.text()}`).toBe(201);
 
-    await expect(page.locator('text=Retur tertunda tercatat')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=Pending return recorded')).toBeVisible({ timeout: 5000 });
     await expect(modal).not.toBeVisible({ timeout: 5000 });
 
     // The pending return row appears in the table
@@ -241,20 +241,20 @@ test.describe('Consignment Supplier - Full Flow', () => {
 
     const row = page.locator('tbody tr').filter({ hasText: supplier.name }).first();
     await expect(row).toBeVisible({ timeout: 10000 });
-    await row.locator('button').filter({ hasText: 'Buka' }).click();
+    await row.locator('button').filter({ hasText: 'Open' }).click();
     await page.waitForTimeout(800);
 
-    // Returns tab (exact name — 'Retur' would also match 'Retur Tertunda')
-    await page.getByRole('button', { name: 'Retur', exact: true }).click();
+    // Returns tab (exact name — 'Returns' would also match 'Pending Returns')
+    await page.getByRole('button', { name: 'Returns', exact: true }).click();
     await page.waitForTimeout(800);
 
-    // 'Catat Retur' (exact — must not match 'Catat Retur Tertunda')
-    await page.getByRole('button', { name: 'Catat Retur', exact: true }).click();
-    const modal = page.getByRole('dialog', { name: 'Catat Retur', exact: true });
+    // 'Record Return' (exact — must not match 'Record Pending Return')
+    await page.getByRole('button', { name: 'Record Return', exact: true }).click();
+    const modal = page.getByRole('dialog', { name: 'Record Return', exact: true });
     await expect(modal).toBeVisible({ timeout: 5000 });
 
     // Select product
-    const productSelect = modal.locator('label:has-text("Produk")').first().locator('[aria-haspopup="listbox"]');
+    const productSelect = modal.locator('label:has-text("Product")').first().locator('[aria-haspopup="listbox"]');
     await productSelect.click();
     await page.waitForTimeout(300);
     const listbox = page.locator('[role="listbox"]');
@@ -279,7 +279,7 @@ test.describe('Consignment Supplier - Full Flow', () => {
     const createResponsePromise = page.waitForResponse(
       (resp) => resp.url().includes('/api/consignment/returns') && resp.request().method() === 'POST'
     );
-    await modal.locator('button').filter({ hasText: 'Simpan' }).click();
+    await modal.locator('button').filter({ hasText: 'Save' }).click();
     const createResponse = await createResponsePromise;
     expect(
       createResponse.status(),
@@ -289,7 +289,7 @@ test.describe('Consignment Supplier - Full Flow', () => {
     const returnNumber = (returnBody.data || returnBody).return_number;
     expect(returnNumber).toBeTruthy();
 
-    await expect(page.locator('text=tercatat').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=recorded').first()).toBeVisible({ timeout: 5000 });
     await expect(modal).not.toBeVisible({ timeout: 5000 });
 
     // Return row appears (table shows return number / date / item count / qty)
@@ -302,7 +302,7 @@ test.describe('Consignment Supplier - Full Flow', () => {
 
     const row = page.locator('tbody tr').filter({ hasText: supplier.name }).first();
     await expect(row).toBeVisible({ timeout: 10000 });
-    await row.locator('button').filter({ hasText: 'Buka' }).click();
+    await row.locator('button').filter({ hasText: 'Open' }).click();
     await page.waitForTimeout(800);
 
     // Settlement tab
@@ -310,41 +310,41 @@ test.describe('Consignment Supplier - Full Flow', () => {
     await page.waitForTimeout(1200);
 
     // Preview totals present
-    await expect(page.locator('text=Total Penjualan').first()).toBeVisible({ timeout: 8000 });
-    await expect(page.locator('text=Hak Toko').first()).toBeVisible({ timeout: 3000 });
-    await expect(page.locator('text=Terhutang ke Supplier').first()).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('text=Total Sales').first()).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('text=Store Share').first()).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('text=Payable to Supplier').first()).toBeVisible({ timeout: 3000 });
 
     // Create settlement
-    const createBtn = page.locator('button').filter({ hasText: 'Buat Settlement' }).first();
+    const createBtn = page.locator('button').filter({ hasText: 'Create Settlement' }).first();
     await expect(createBtn).toBeEnabled({ timeout: 5000 });
     await createBtn.click();
 
-    const confirmModal = page.getByRole('dialog', { name: 'Konfirmasi Settlement' });
+    const confirmModal = page.getByRole('dialog', { name: 'Confirm Settlement' });
     await expect(confirmModal).toBeVisible({ timeout: 5000 });
 
     const createResponsePromise = page.waitForResponse(
       (resp) => resp.url().includes('/api/consignment/settlements') && !resp.url().includes('preview') && resp.request().method() === 'POST'
     );
-    await confirmModal.locator('button').filter({ hasText: 'Buat Settlement' }).click();
+    await confirmModal.locator('button').filter({ hasText: 'Create Settlement' }).click();
     const createResponse = await createResponsePromise;
     expect(createResponse.status(), `settlement failed: ${createResponse.status()} ${await createResponse.text()}`).toBe(201);
     const settlementBody = await createResponse.json();
     const settlementId = (settlementBody.data || settlementBody).id;
     expect(settlementId).toBeGreaterThan(0);
 
-    await expect(page.locator('text=Menunggu Pembayaran').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=Awaiting Payment').first()).toBeVisible({ timeout: 5000 });
 
     // Pay the settlement
-    const payBtn = page.locator('tbody tr').filter({ hasText: 'Menunggu Pembayaran' }).first()
-      .locator('button').filter({ hasText: 'Bayar' });
+    const payBtn = page.locator('tbody tr').filter({ hasText: 'Awaiting Payment' }).first()
+      .locator('button').filter({ hasText: 'Pay' });
     await expect(payBtn).toBeVisible({ timeout: 5000 });
     await payBtn.click();
 
-    const payoutModal = page.getByRole('dialog', { name: 'Catat Pembayaran' });
+    const payoutModal = page.getByRole('dialog', { name: 'Record Payment' });
     await expect(payoutModal).toBeVisible({ timeout: 5000 });
 
     // Payment method SelectSearch: 'Cash (CASH)'
-    const methodSelect = payoutModal.locator('label:has-text("Metode Pembayaran")').locator('[aria-haspopup="listbox"]');
+    const methodSelect = payoutModal.locator('label:has-text("Payment Method")').locator('[aria-haspopup="listbox"]');
     await methodSelect.click();
     await page.waitForTimeout(300);
     const methodListbox = page.locator('[role="listbox"]');
@@ -356,10 +356,10 @@ test.describe('Consignment Supplier - Full Flow', () => {
     const payoutResponsePromise = page.waitForResponse(
       (resp) => resp.url().includes(`/api/consignment/settlements/${settlementId}/payouts`) && resp.request().method() === 'POST'
     );
-    await payoutModal.locator('button').filter({ hasText: 'Bayar' }).click();
+    await payoutModal.locator('button').filter({ hasText: 'Pay' }).click();
     const payoutResponse = await payoutResponsePromise;
     expect(payoutResponse.status(), `payout failed: ${payoutResponse.status()} ${await payoutResponse.text()}`).toBe(201);
 
-    await expect(page.locator('text=Dibayar').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=Paid').first()).toBeVisible({ timeout: 5000 });
   });
 });

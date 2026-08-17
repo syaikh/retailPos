@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test.describe('Authentication Flow (SPA)', () => {
   test.beforeEach(async ({ page }) => {
@@ -6,6 +6,7 @@ test.describe('Authentication Flow (SPA)', () => {
     await page.addInitScript(() => {
       sessionStorage.clear();
       localStorage.clear();
+      localStorage.setItem('pos.locale', 'en');
     });
     // Clear cookies to ensure clean session
     await page.context().clearCookies();

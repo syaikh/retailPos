@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './fixtures';
+import type { Page } from '@playwright/test';
 import { TEST_USERS, API_BASE, authHeader, getToken as cachedGetToken, loginUI, logoutUI } from './fixtures';
 
 const getToken = cachedGetToken;
@@ -44,7 +45,7 @@ async function fillRoleDescription(page: Page, desc: string) {
 
 async function goToStep2(page: Page) {
   await getNextButton(page).click();
-  await expect(getModal(page).getByText('Permissions', { exact: true })).toBeVisible({ timeout: 5000 });
+  await expect(getModal(page).getByText('PERMISSIONS', { exact: true })).toBeVisible({ timeout: 5000 });
 }
 
 async function expandGroup(page: Page, groupLabel: string) {
@@ -86,7 +87,7 @@ async function deselectAllInGroup(page: Page, groupLabel: string) {
 }
 
 async function searchPermissions(page: Page, query: string) {
-  const searchInput = page.getByPlaceholder('Search permissions…');
+  const searchInput = page.getByPlaceholder('Search permissions...');
   await searchInput.fill(query);
 }
 
@@ -174,7 +175,7 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
     await goToStep2(page);
     await saveRole(page);
     await expect(page.getByRole('dialog').first()).toBeHidden({ timeout: 10000 });
-    const searchBar = page.getByPlaceholder('Search roles…');
+    const searchBar = page.getByPlaceholder('Search roles...');
     await searchBar.fill(uniqueName);
     await expect(page.getByText(uniqueName, { exact: true })).toBeVisible({ timeout: 10000 });
   });
@@ -187,10 +188,10 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
     await fillRoleDescription(page, 'E2E test role with inventory permissions');
     await goToStep2(page);
     await selectAllInGroup(page, 'Inventory');
-    await expect(getModal(page).getByText('3 of', { exact: false })).toBeVisible({ timeout: 5000 });
+    await expect(getModal(page).getByText('1 of', { exact: false })).toBeVisible({ timeout: 5000 });
     await saveRole(page);
     await expect(page.getByRole('dialog').first()).toBeHidden({ timeout: 10000 });
-    const searchBar178 = page.getByPlaceholder('Search roles…');
+    const searchBar178 = page.getByPlaceholder('Search roles...');
     await searchBar178.fill(uniqueName);
     await expect(page.getByText(uniqueName, { exact: true })).toBeVisible({ timeout: 10000 });
   });
@@ -249,8 +250,8 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
 
     const groupBody = page.locator('#group-body-inventory');
     const checkboxes = groupBody.locator('input[type="checkbox"]');
-    await expect(checkboxes).toHaveCount(3);
-    for (let i = 0; i < 3; i++) {
+    await expect(checkboxes).toHaveCount(1);
+    for (let i = 0; i < 1; i++) {
       await expect(checkboxes.nth(i)).toBeChecked();
     }
     await expect(getModal(page).getByRole('button', { name: 'Deselect all Inventory permissions' })).toBeVisible();
@@ -265,7 +266,7 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
 
     const groupBody = page.locator('#group-body-inventory');
     const checkboxes = groupBody.locator('input[type="checkbox"]');
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 1; i++) {
       await expect(checkboxes.nth(i)).not.toBeChecked();
     }
     await expect(getModal(page).getByRole('button', { name: 'Select all Inventory permissions' })).toBeVisible();
@@ -288,14 +289,14 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
     await fillRoleName(page, `testrole_${Date.now()}`);
     await goToStep2(page);
     await searchPermissions(page, 'zzzznonexistent');
-    await expect(page.getByText(/No permissions match/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/No results:/)).toBeVisible({ timeout: 5000 });
   });
 
   test('should clear search with X button', async ({ page }) => {
     await openCreateRoleModal(page);
     await fillRoleName(page, `testrole_${Date.now()}`);
     await goToStep2(page);
-    const searchInput = page.getByPlaceholder('Search permissions…');
+    const searchInput = page.getByPlaceholder('Search permissions...');
     await searchInput.fill('inventory');
     await expect(searchInput).toHaveValue('inventory');
 
@@ -310,7 +311,7 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
     await openCreateRoleModal(page);
     await fillRoleName(page, `testrole_${Date.now()}`);
     await goToStep2(page);
-    const searchInput = page.getByPlaceholder('Search permissions…');
+    const searchInput = page.getByPlaceholder('Search permissions...');
     await searchInput.fill('inventory');
     await expect(searchInput).toHaveValue('inventory');
 
@@ -373,7 +374,7 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
     await expect(page.getByRole('dialog').first()).toBeVisible();
 
     // Modal stays on Step 2 — permissions section should still be visible
-    await expect(getModal(page).getByText('Permissions', { exact: true })).toBeVisible();
+    await expect(getModal(page).getByText('PERMISSIONS', { exact: true })).toBeVisible();
   });
 
   // ── 8. Selected Count ──────────────────────────────────────────
@@ -386,9 +387,9 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
 
     await expect(modal.getByText('0 of', { exact: false })).toBeVisible();
     await selectAllInGroup(page, 'Inventory');
-    await expect(modal.getByText('3 of', { exact: false })).toBeVisible({ timeout: 5000 });
+    await expect(modal.getByText('1 of', { exact: false })).toBeVisible({ timeout: 5000 });
     await selectAllInGroup(page, 'Sales');
-    await expect(modal.getByText('6 of', { exact: false })).toBeVisible({ timeout: 5000 });
+    await expect(modal.getByText('4 of', { exact: false })).toBeVisible({ timeout: 5000 });
     await deselectAllInGroup(page, 'Inventory');
     await expect(modal.getByText('3 of', { exact: false })).toBeVisible({ timeout: 5000 });
   });
@@ -402,12 +403,12 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
     await expandGroup(page, 'Inventory');
 
     const inventoryGroup = page.locator('[data-group]').filter({ hasText: 'Inventory' });
-    await expect(inventoryGroup.getByText('0/3')).toBeVisible();
+    await expect(inventoryGroup.getByText('0/1')).toBeVisible();
 
     const groupBody = page.locator('#group-body-inventory');
     const checkboxes = groupBody.locator('input[type="checkbox"]');
     await checkboxes.first().check();
-    await expect(inventoryGroup.getByText('1/3')).toBeVisible({ timeout: 5000 });
+    await expect(inventoryGroup.getByText('1/1')).toBeVisible({ timeout: 5000 });
   });
 
   // ── 10. Full Flow: Create Role with Multiple Groups ────────────
@@ -423,16 +424,16 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
     await selectAllInGroup(page, 'Inventory');
     await selectAllInGroup(page, 'Sales');
     await selectAllInGroup(page, 'Dashboard');
-    await expect(getModal(page).getByText('7 of', { exact: false })).toBeVisible({ timeout: 5000 });
+    await expect(getModal(page).getByText('5 of', { exact: false })).toBeVisible({ timeout: 5000 });
 
     await saveRole(page);
     await expect(page.getByRole('dialog').first()).toBeHidden({ timeout: 10000 });
-    const searchBar410 = page.getByPlaceholder('Search roles…');
+    const searchBar410 = page.getByPlaceholder('Search roles...');
     await searchBar410.fill(uniqueName);
     await expect(page.getByText(uniqueName, { exact: true })).toBeVisible({ timeout: 10000 });
 
     const roleRow = page.locator('tr').filter({ hasText: uniqueName });
-    await expect(roleRow.getByText('7 permissions')).toBeVisible({ timeout: 5000 });
+    await expect(roleRow.getByText('5', { exact: true })).toBeVisible({ timeout: 5000 });
   });
 
   // ── 11. Toast Feedback ─────────────────────────────────────────

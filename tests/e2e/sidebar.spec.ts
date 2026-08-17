@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, loginUI, logoutUI } from './fixtures';
 
 test.describe('Sidebar RBAC Visibility', () => {
@@ -14,7 +14,7 @@ test.describe('Sidebar RBAC Visibility', () => {
 
     await expect(sidebar.getByRole('button', { name: 'Dashboard' })).toBeVisible();
     await expect(sidebar.getByRole('button', { name: 'Point of Sale' })).toBeVisible();
-    await expect(sidebar.getByRole('button', { name: 'Transactions' })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Transaction History' })).toBeVisible();
     await expect(sidebar.getByRole('button', { name: 'Reports' })).toBeVisible();
     await expect(sidebar.getByRole('button', { name: 'Master Data' })).toBeVisible();
     await expect(sidebar.getByRole('button', { name: 'Administration' })).toBeVisible();
@@ -27,7 +27,7 @@ test.describe('Sidebar RBAC Visibility', () => {
     await expect(sidebar).toBeVisible();
 
     await expect(sidebar.getByRole('button', { name: 'Dashboard' })).toBeVisible();
-    await expect(sidebar.getByRole('button', { name: 'Transactions' })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Transaction History' })).toBeVisible();
     await expect(sidebar.getByRole('button', { name: 'Reports' })).toBeVisible();
     await expect(sidebar.getByRole('button', { name: 'Administration' })).toBeVisible();
   });
@@ -39,7 +39,7 @@ test.describe('Sidebar RBAC Visibility', () => {
     await expect(sidebar).toBeVisible();
 
     await expect(sidebar.getByRole('button', { name: 'Dashboard' })).toBeVisible();
-    await expect(sidebar.getByRole('button', { name: 'Transactions' })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Transaction History' })).toBeVisible();
     await expect(sidebar.getByRole('button', { name: 'Reports' })).toBeVisible();
   });
 
@@ -51,8 +51,8 @@ test.describe('Sidebar RBAC Visibility', () => {
 
     await expect(sidebar.getByRole('button', { name: 'Dashboard' })).toHaveCount(0);
     await expect(sidebar.getByRole('button', { name: 'Point of Sale' })).toBeVisible();
-    await expect(sidebar.getByRole('button', { name: 'Transactions' })).toBeVisible();
-    await expect(sidebar.getByRole('button', { name: 'Shifts' })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Transaction History' })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Shift Management' })).toBeVisible();
   });
 
   test('superadmin sees Stores under Administration', async ({ page }) => {
@@ -63,10 +63,10 @@ test.describe('Sidebar RBAC Visibility', () => {
 
     await sidebar.getByRole('button', { name: 'Administration' }).click();
     await page.waitForTimeout(500);
-    await expect(sidebar.getByRole('button', { name: 'Stores' })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Store Management' })).toBeVisible();
   });
 
-  test('admin sees Stores under Administration', async ({ page }) => {
+  test('admin sees Store Management under Administration', async ({ page }) => {
     await loginUI(page, TEST_USERS.admin.username, TEST_USERS.admin.password);
     await page.goto('http://localhost:5173/');
     const sidebar = page.locator('aside');
@@ -74,27 +74,27 @@ test.describe('Sidebar RBAC Visibility', () => {
 
     await sidebar.getByRole('button', { name: 'Administration' }).click();
     await page.waitForTimeout(500);
-    await expect(sidebar.getByRole('button', { name: 'Stores' })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Store Management' })).toBeVisible();
   });
 
-  test('manager does not see Stores navigation item', async ({ page }) => {
+  test('manager does not see Store Management navigation item', async ({ page }) => {
     await loginUI(page, 'manager', 'admin123');
     await page.goto('http://localhost:5173/');
     const sidebar = page.locator('aside');
     await expect(sidebar).toBeVisible();
 
     await expect(sidebar.getByRole('button', { name: 'Administration' })).toHaveCount(0);
-    await expect(sidebar.getByRole('button', { name: 'Stores' })).toHaveCount(0);
+    await expect(sidebar.getByRole('button', { name: 'Store Management' })).toHaveCount(0);
   });
 
-  test('cashier does not see Stores navigation item', async ({ page }) => {
+  test('cashier does not see Store Management navigation item', async ({ page }) => {
     await loginUI(page, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
     await page.goto('http://localhost:5173/');
     const sidebar = page.locator('aside');
     await expect(sidebar).toBeVisible();
 
     await expect(sidebar.getByRole('button', { name: 'Administration' })).toHaveCount(0);
-    await expect(sidebar.getByRole('button', { name: 'Stores' })).toHaveCount(0);
+    await expect(sidebar.getByRole('button', { name: 'Store Management' })).toHaveCount(0);
   });
 
   test('sidebar navigates to correct pages', async ({ page }) => {

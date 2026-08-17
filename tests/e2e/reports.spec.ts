@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken } from './fixtures';
 
 test.describe('Reports & Analytics', () => {
@@ -23,7 +23,7 @@ test.describe('Reports & Analytics', () => {
   });
 
   test('should display period selector and change period', async ({ page }) => {
-    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    const periodButton = page.locator('button[aria-controls="period-dropdown-menu"]');
     await expect(periodButton).toBeVisible({ timeout: 10000 });
 
     await periodButton.click();
@@ -51,7 +51,7 @@ test.describe('Reports & Analytics', () => {
   });
 
   test('should change period to 7 Days without errors', async ({ page }) => {
-    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    const periodButton = page.locator('button[aria-controls="period-dropdown-menu"]');
     await expect(periodButton).toBeVisible({ timeout: 10000 });
 
     await periodButton.click();
@@ -65,7 +65,7 @@ test.describe('Reports & Analytics', () => {
   });
 
   test('should change period to 30 Days without errors', async ({ page }) => {
-    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    const periodButton = page.locator('button[aria-controls="period-dropdown-menu"]');
     await expect(periodButton).toBeVisible({ timeout: 10000 });
 
     await periodButton.click();
@@ -79,7 +79,7 @@ test.describe('Reports & Analytics', () => {
   });
 
   test('should change period to Monthly without errors', async ({ page }) => {
-    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    const periodButton = page.locator('button[aria-controls="period-dropdown-menu"]');
     await expect(periodButton).toBeVisible({ timeout: 10000 });
 
     await periodButton.click();
@@ -93,7 +93,7 @@ test.describe('Reports & Analytics', () => {
   });
 
   test('should display chart canvas after period change', async ({ page }) => {
-    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    const periodButton = page.locator('button[aria-controls="period-dropdown-menu"]');
     await expect(periodButton).toBeVisible({ timeout: 10000 });
 
     await periodButton.click();
@@ -130,7 +130,7 @@ test.describe('Reports & Analytics', () => {
       }
     });
 
-    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    const periodButton = page.locator('button[aria-controls="period-dropdown-menu"]');
     await expect(periodButton).toBeVisible({ timeout: 10000 });
 
     await periodButton.click();
@@ -143,7 +143,7 @@ test.describe('Reports & Analytics', () => {
   });
 
   test('Best/Worst badges display period labels from API data', async ({ page }) => {
-    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    const periodButton = page.locator('button[aria-controls="period-dropdown-menu"]');
     await expect(periodButton).toBeVisible({ timeout: 10000 });
 
     await periodButton.click();

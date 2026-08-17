@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, authHeader, getToken } from './fixtures';
 
 test.describe('Payment Methods', () => {

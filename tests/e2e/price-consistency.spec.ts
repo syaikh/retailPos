@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { API_BASE, FRONTEND_BASE, getToken, authHeader } from './fixtures';
 
 const API_URLS = {
@@ -39,9 +39,27 @@ async function ensureFreshCart(token: string, request: any): Promise<number> {
       });
     }
   }
+  let shiftRes = await request.get(`${API_BASE}/api/shifts/active`, {
+    headers: authHeader(token),
+  });
+  if (!shiftRes.ok()) {
+    await request.post(`${API_BASE}/api/shifts/close-all`, {
+      headers: authHeader(token),
+    });
+    const openShiftRes = await request.post(`${API_BASE}/api/shifts/open`, {
+      headers: authHeader(token),
+      data: { opening_balance: 100000, store_id: 1 },
+    });
+    expect(openShiftRes.ok()).toBeTruthy();
+    shiftRes = await request.get(`${API_BASE}/api/shifts/active`, {
+      headers: authHeader(token),
+    });
+  }
+  expect(shiftRes.ok()).toBeTruthy();
+  const shiftId = (await shiftRes.json()).data.id;
   const createRes = await request.post(`${API_URLS.CART}`, {
     headers: authHeader(token),
-    data: { store_id: 1, shift_id: 1, customer_id: 1 },
+    data: { store_id: 1, shift_id: shiftId, customer_id: 1 },
   });
   expect(createRes.ok()).toBeTruthy();
   return (await createRes.json()).data.id;
@@ -462,7 +480,7 @@ test.describe('Price Consistency During Active Transactions', () => {
     await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
 
     await page.keyboard.press('F4');
-    const selesaiBtn = page.getByRole('button', { name: /Selesai/ });
+    const selesaiBtn = page.getByRole('button', { name: /Done/ });
     await expect(selesaiBtn).toBeVisible({ timeout: 5000 });
 
     await page.keyboard.press('F7');

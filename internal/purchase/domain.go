@@ -152,6 +152,7 @@ type UpdatePOItemRequest struct {
 
 type CreateGoodsReceiptRequest struct {
 	PurchaseOrderID    int                   `json:"purchase_order_id" binding:"required"`
+	StoreID            *int                  `json:"store_id,omitempty"`
 	ShippingMethod     string                `json:"shipping_method,omitempty"`
 	DriverName         string                `json:"driver_name,omitempty"`
 	VehiclePlateNumber string                `json:"vehicle_plate_number,omitempty"`

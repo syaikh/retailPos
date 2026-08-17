@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './fixtures';
+import type { Page } from '@playwright/test';
 import { TEST_USERS, API_BASE, FRONTEND_BASE, loginUI, logoutUI, getToken } from './fixtures';
 
 async function ensureSectionExpanded(page: Page, name: string) {
@@ -41,28 +42,28 @@ test.describe('Products Management', () => {
 
   test('should filter by single category', async ({ page }) => {
     await navigateToProducts(page);
-    await page.locator('button').filter({ hasText: 'Kategori' }).first().click();
-    await expect(page.getByText('Filter Produk')).toBeVisible({ timeout: 5000 });
+    await page.locator('button').filter({ hasText: 'Category' }).first().click();
+    await expect(page.getByText('Filter Products')).toBeVisible({ timeout: 5000 });
     await page.waitForTimeout(1000);
-    const bevLabel = page.locator('div[role="dialog"][aria-label="Filter Kategori"] label').filter({ hasText: 'Personal Care' }).first();
+    const bevLabel = page.locator('div[role="dialog"][aria-label="Filter Category"] label').filter({ hasText: 'Personal Care' }).first();
     await bevLabel.evaluate((el: HTMLElement) => el.click());
-    const applyBtn = page.locator('div[role="dialog"][aria-label="Filter Kategori"] button', { hasText: 'Terapkan Filter' });
+    const applyBtn = page.locator('div[role="dialog"][aria-label="Filter Category"] button', { hasText: 'Apply Filter' });
     await applyBtn.evaluate((el: HTMLElement) => el.click());
-    await expect(page.getByText('Filter Produk')).toBeHidden({ timeout: 5000 });
+    await expect(page.getByText('Filter Products')).toBeHidden({ timeout: 5000 });
   });
 
   test('should filter by multiple categories', async ({ page }) => {
     await navigateToProducts(page);
-    await page.locator('button').filter({ hasText: 'Kategori' }).first().click();
-    await expect(page.getByText('Filter Produk')).toBeVisible({ timeout: 5000 });
+    await page.locator('button').filter({ hasText: 'Category' }).first().click();
+    await expect(page.getByText('Filter Products')).toBeVisible({ timeout: 5000 });
     await page.waitForTimeout(1000);
-    const gamingLabel = page.locator('div[role="dialog"][aria-label="Filter Kategori"] label').filter({ hasText: 'Gaming' }).first();
+    const gamingLabel = page.locator('div[role="dialog"][aria-label="Filter Category"] label').filter({ hasText: 'Gaming' }).first();
     await gamingLabel.evaluate((el: HTMLElement) => el.click());
-    const condLabel = page.locator('div[role="dialog"][aria-label="Filter Kategori"] label').filter({ hasText: 'Condiments' }).first();
+    const condLabel = page.locator('div[role="dialog"][aria-label="Filter Category"] label').filter({ hasText: 'Condiments' }).first();
     await condLabel.evaluate((el: HTMLElement) => el.click());
-    const applyBtn = page.locator('div[role="dialog"][aria-label="Filter Kategori"] button', { hasText: 'Terapkan Filter' });
+    const applyBtn = page.locator('div[role="dialog"][aria-label="Filter Category"] button', { hasText: 'Apply Filter' });
     await applyBtn.evaluate((el: HTMLElement) => el.click());
-    await expect(page.getByText('Filter Produk')).toBeHidden({ timeout: 5000 });
+    await expect(page.getByText('Filter Products')).toBeHidden({ timeout: 5000 });
   });
 
   test('should add a new product', async ({ page, request }) => {
@@ -90,7 +91,7 @@ test.describe('Products Management', () => {
     const viewOption = page.locator('text=View Details').first();
     if (await viewOption.isVisible()) {
       await viewOption.click();
-      await expect(page.locator('text=Detail Produk')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('text=Product Details')).toBeVisible({ timeout: 5000 });
     }
   });
 
@@ -110,8 +111,8 @@ test.describe('Products Management', () => {
 
   test('should have STOCK and STATUS columns in products table', async ({ page }) => {
     await navigateToProducts(page);
-    await expect(page.getByText('STOCK', { exact: true })).toBeVisible();
-    await expect(page.getByText('STATUS', { exact: true })).toBeVisible();
+    await expect(page.getByText('Stock', { exact: true })).toBeVisible();
+    await expect(page.getByText('Status', { exact: true })).toBeVisible();
   });
 
   test('should toggle low stock filter', async ({ page }) => {
@@ -285,9 +286,9 @@ test.describe('Products - Supplier Features', () => {
     // Click the product row to open detail drawer
     const row = page.locator('table tbody tr').first();
     await row.click();
-    await expect(page.locator('text=Detail Produk')).toBeVisible({ timeout: 5000 });
-    // Supplier Utama label should be visible
-    await expect(page.locator('text=Supplier Utama')).toBeVisible();
+    await expect(page.locator('text=Product Details')).toBeVisible({ timeout: 5000 });
+    // Preferred supplier label should be visible
+    await expect(page.locator('text=Primary Supplier')).toBeVisible();
     // Supplier name should be visible
     await expect(page.locator(`text=${supplierName}`)).toBeVisible();
     await logoutUI(page);
@@ -298,7 +299,7 @@ test.describe('Products - Supplier Features', () => {
     await page.goto(`${FRONTEND_BASE}/inventory/products?supplier_id=${supplierId}&supplier_name=${encodeURIComponent(supplierName)}`);
     await page.waitForTimeout(3000);
     // Back button should be visible
-    await expect(page.locator('text=Kembali ke Suppliers')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=Back to Suppliers')).toBeVisible({ timeout: 5000 });
     // Supplier filter chip should be visible
     await expect(page.locator(`text=Supplier: ${supplierName}`)).toBeVisible({ timeout: 5000 });
     await logoutUI(page);
@@ -308,8 +309,8 @@ test.describe('Products - Supplier Features', () => {
     await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     await page.goto(`${FRONTEND_BASE}/inventory/products?supplier_id=${supplierId}&supplier_name=${encodeURIComponent(supplierName)}`);
     await page.waitForTimeout(3000);
-    await expect(page.locator('text=Kembali ke Suppliers')).toBeVisible({ timeout: 5000 });
-    await page.locator('text=Kembali ke Suppliers').click();
+    await expect(page.locator('text=Back to Suppliers')).toBeVisible({ timeout: 5000 });
+    await page.locator('text=Back to Suppliers').click();
     await page.waitForTimeout(2000);
     // Should be on suppliers page
     await expect(page.locator('h1:text("Suppliers")')).toBeVisible({ timeout: 5000 });
@@ -327,7 +328,7 @@ test.describe('Products - Supplier Features', () => {
     await page.waitForTimeout(1500);
     // Chip and back button should disappear
     await expect(page.locator(`text=Supplier: ${supplierName}`)).toBeHidden();
-    await expect(page.locator('text=Kembali ke Suppliers')).toBeHidden();
+    await expect(page.locator('text=Back to Suppliers')).toBeHidden();
     await logoutUI(page);
   });
 

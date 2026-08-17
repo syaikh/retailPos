@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, authHeader, getToken as cachedGetToken } from './fixtures';
 
 const getToken = cachedGetToken;
@@ -117,6 +117,7 @@ test.describe('Purchase Orders & Goods Receipts - Happy Path', () => {
       headers,
       data: {
         purchase_order_id: poId,
+        store_id: store.id,
         items: [
           {
             purchase_order_item_id: poItemId,
@@ -277,6 +278,7 @@ test.describe('Goods Receipts - Auth & Validation', () => {
       headers,
       data: {
         purchase_order_id: draftPO.id,
+        store_id: store.id,
         items: [{ purchase_order_item_id: detailPO.items[0].id, qty_good: 5 }],
       },
     });

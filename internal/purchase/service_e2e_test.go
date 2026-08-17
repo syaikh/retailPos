@@ -67,11 +67,11 @@ func TestE2E_MultiItemGoodsReceiptAdjustsStockViaEvent(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, gr.ID, 0)
 
-	stockA, err := waitForStoreStock(t, prodA, 1, 110)
+	stockA, err := waitForStoreStock(t, prodA, 0, 110)
 	require.NoError(t, err)
 	assert.Equal(t, 110, stockA.Quantity)
 
-	stockB, err := waitForStoreStock(t, prodB, 1, 205)
+	stockB, err := waitForStoreStock(t, prodB, 0, 205)
 	require.NoError(t, err)
 	assert.Equal(t, 205, stockB.Quantity)
 
@@ -118,7 +118,7 @@ func TestE2E_PartialReceiptAcrossItemsAdjustsStockViaEvent(t *testing.T) {
 	_, err = svc.CreateGoodsReceipt(ctx, po.ID, userID, 1, grItems1)
 	require.NoError(t, err)
 
-	stockA, err := waitForStoreStock(t, prodA, 1, 54)
+	stockA, err := waitForStoreStock(t, prodA, 0, 54)
 	require.NoError(t, err)
 	assert.Equal(t, 54, stockA.Quantity)
 
@@ -128,11 +128,11 @@ func TestE2E_PartialReceiptAcrossItemsAdjustsStockViaEvent(t *testing.T) {
 	_, err = svc.CreateGoodsReceipt(ctx, po.ID, userID, 1, grItems2)
 	require.NoError(t, err)
 
-	stockB, err := waitForStoreStock(t, prodB, 1, 65)
+	stockB, err := waitForStoreStock(t, prodB, 0, 65)
 	require.NoError(t, err)
 	assert.Equal(t, 65, stockB.Quantity)
 
-	stockA, err = storeStockByProductID(ctx, prodA, 1)
+	stockA, err = storeStockByProductID(ctx, prodA, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 54, stockA.Quantity, "first receipt must not be re-applied")
 }
@@ -160,14 +160,22 @@ func waitForStoreStock(t *testing.T, productID, storeID, want int) (*inventory.P
 	return nil, fmt.Errorf("timed out waiting for stock row for product %d", productID)
 }
 
-// storeStockByProductID reads the store-scoped product_stock bucket, which is
-// where store-scoped goods receipts route their adjustments.
+// storeStockByProductID reads a product_stock bucket; storeID 0 selects the
+// global bucket, where store-scoped goods receipts route their adjustments.
 func storeStockByProductID(ctx context.Context, productID, storeID int) (*inventory.ProductStock, error) {
 	var quantity int
-	err := dbPool.QueryRow(ctx, `
-		SELECT quantity FROM product_stock
-		WHERE product_id = $1 AND store_id = $2 AND warehouse_id IS NULL AND location_id IS NULL
-	`, productID, storeID).Scan(&quantity)
+	var err error
+	if storeID == 0 {
+		err = dbPool.QueryRow(ctx, `
+			SELECT quantity FROM product_stock
+			WHERE product_id = $1 AND store_id IS NULL AND warehouse_id IS NULL AND location_id IS NULL
+		`, productID).Scan(&quantity)
+	} else {
+		err = dbPool.QueryRow(ctx, `
+			SELECT quantity FROM product_stock
+			WHERE product_id = $1 AND store_id = $2 AND warehouse_id IS NULL AND location_id IS NULL
+		`, productID, storeID).Scan(&quantity)
+	}
 	if err != nil {
 		return nil, err
 	}

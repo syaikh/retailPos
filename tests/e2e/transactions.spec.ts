@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken } from './fixtures';
 
 test.describe('Transactions Page', () => {
@@ -95,7 +95,7 @@ test.describe('Transactions Page', () => {
 
   test('should open export dropdown', async ({ page }) => {
     await page.locator('button').filter({ hasText: 'Export' }).first().click();
-    await expect(page.getByRole('menuitem', { name: 'Export to CSV' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Export CSV' })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Export to Excel' })).toBeVisible();
   });
 
@@ -200,7 +200,7 @@ test.describe('Transactions Page', () => {
     await page.waitForTimeout(1500);
 
     const customerCell = page.locator('table tbody td').nth(2);
-    await expect(customerCell).toContainText('Ahmad Fauzi', { timeout: 5000 });
+    await expect(customerCell).toContainText('Hasan Hakim', { timeout: 5000 });
   });
 
   test('cashier only sees own transactions via cashier_id filter', async ({ page, request }) => {

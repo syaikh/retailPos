@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, authHeader, loginUI, logoutUI, getToken } from './fixtures';
 
 test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
@@ -36,8 +36,8 @@ test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
 
   test('partial GR -> bell notification -> click -> product page; then full GR -> second notification', async ({ page, request }) => {
     // ---- Create and confirm PO ----
-    const store = ((await (await request.get(`${API_BASE}/api/stores/active`, { headers })).json()).data ||
-      (await (await request.get(`${API_BASE}/api/stores/active`, { headers })).json()));
+    const storeRaw = (await (await request.get(`${API_BASE}/api/stores/active`, { headers })).json()).data;
+    const store = Array.isArray(storeRaw) ? storeRaw[0] : storeRaw;
 
     const expDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
 
@@ -51,14 +51,15 @@ test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
       },
     });
     expect(createRes.ok()).toBeTruthy();
-    const poId = ((await createRes.json()).data || (await createRes.json())).id;
+    const poBody = await createRes.json();
+    const poId = (poBody.data || poBody).id;
 
     const confirmRes = await request.post(`${API_BASE}/api/purchase-orders/${poId}/confirm`, { headers });
     expect(confirmRes.ok()).toBeTruthy();
 
     // Get PO item ID for GR
-    const poDetail = ((await (await request.get(`${API_BASE}/api/purchase-orders/${poId}`, { headers })).json()).data ||
-      (await (await request.get(`${API_BASE}/api/purchase-orders/${poId}`, { headers })).json()));
+    const poDetailRes = await request.get(`${API_BASE}/api/purchase-orders/${poId}`, { headers });
+    const poDetail = (await poDetailRes.json()).data;
     const itemId = poDetail.items[0].id;
     expect(itemId).toBeGreaterThan(0);
 
@@ -67,15 +68,22 @@ test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
       headers,
       data: {
         purchase_order_id: poId,
+        store_id: store.id,
         items: [{ purchase_order_item_id: itemId, qty_good: GR_QTY, qty_damaged: 0 }],
       },
     });
     expect(gr1Res.ok()).toBeTruthy();
     const partialStock = initialStock + GR_QTY;
 
-    // Verify stock via API
-    const stock1 = ((await (await request.get(`${API_BASE}/api/products/${product.id}`, { headers })).json()).data ||
-      (await (await request.get(`${API_BASE}/api/products/${product.id}`, { headers })).json())).stock;
+    // Verify stock via API (poll because stock update is event-driven)
+    let stock1 = 0;
+    for (let i = 0; i < 10; i++) {
+      const r = await request.get(`${API_BASE}/api/products/${product.id}`, { headers });
+      const rBody = await r.json();
+      stock1 = (rBody.data || rBody).stock;
+      if (stock1 === partialStock) break;
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
     expect(stock1).toBe(partialStock);
 
     // ---- Check bell notification (WS was just received, still in memory) ----
@@ -92,11 +100,11 @@ test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
 
     const stockNotif = menu.locator('[role="menuitem"]').filter({ hasText: product.sku }).first();
     await expect(stockNotif).toBeVisible({ timeout: 5000 });
-    await expect(stockNotif).toContainText('Stok Diubah');
+    await expect(stockNotif).toContainText('Stock Updated');
 
     // Click notification -> should navigate to product page
     await stockNotif.click();
-    await page.waitForURL('**/products/**', { timeout: 10000 });
+    await page.waitForURL('**/products*', { timeout: 10000 });
     await expect(page.locator('h2, h3, [role="heading"]').filter({ hasText: product.name })).toBeVisible({ timeout: 5000 });
 
     // ---- FULL GR ----
@@ -107,14 +115,22 @@ test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
       headers,
       data: {
         purchase_order_id: poId,
+        store_id: store.id,
         items: [{ purchase_order_item_id: itemId, qty_good: GR_QTY, qty_damaged: 0 }],
       },
     });
     expect(gr2Res.ok()).toBeTruthy();
     const finalStock = partialStock + GR_QTY;
 
-    const stock2 = ((await (await request.get(`${API_BASE}/api/products/${product.id}`, { headers })).json()).data ||
-      (await (await request.get(`${API_BASE}/api/products/${product.id}`, { headers })).json())).stock;
+    // Poll for stock (event-driven)
+    let stock2 = 0;
+    for (let i = 0; i < 10; i++) {
+      const r = await request.get(`${API_BASE}/api/products/${product.id}`, { headers });
+      const rBody = await r.json();
+      stock2 = (rBody.data || rBody).stock;
+      if (stock2 === finalStock) break;
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
     expect(stock2).toBe(finalStock);
 
     // Check second bell notification (WS was just received on current page)
@@ -124,16 +140,16 @@ test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
 
     const notif2 = page.locator('[role="menu"]').locator('[role="menuitem"]').filter({ hasText: product.sku }).first();
     await expect(notif2).toBeVisible({ timeout: 5000 });
-    await expect(notif2).toContainText('Stok Diubah');
+    await expect(notif2).toContainText('Stock Updated');
 
     await notif2.click();
-    await page.waitForURL('**/products/**', { timeout: 10000 });
+    await page.waitForURL('**/products*', { timeout: 10000 });
     await expect(page.locator('h2, h3, [role="heading"]').filter({ hasText: product.name })).toBeVisible({ timeout: 5000 });
 
     // Verify table shows Fully Received
     await page.goto('/purchase-orders');
     await page.waitForTimeout(1500);
-    const table = page.locator('[role="grid"][aria-label="Purchase orders"]');
+    const table = page.locator('[role="grid"][aria-label="Purchase Orders"]');
     const finalRow = table.locator('tbody tr').filter({ hasText: poDetail.po_number }).first();
     await expect(finalRow).toBeVisible({ timeout: 5000 });
     await expect(finalRow.locator('span').filter({ hasText: 'Fully Received' })).toBeVisible({ timeout: 5000 });

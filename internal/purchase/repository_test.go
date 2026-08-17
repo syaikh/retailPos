@@ -74,10 +74,13 @@ func insertStoreTestProduct(ctx context.Context, t *testing.T, sku, name string,
 		RETURNING id
 	`, sku, name, price, price/2, storeID).Scan(&id)
 	require.NoError(t, err)
+	// The initial stock lives in the global bucket — goods receipts adjust the
+	// global sellable bucket (product_stock is the SELLABLE total), so the
+	// "initial + received" math below holds against it.
 	_, err = dbPool.Exec(ctx, `
-		INSERT INTO product_stock (product_id, store_id, quantity)
-		VALUES ($1, $2, $3)
-	`, id, storeID, stock)
+		INSERT INTO product_stock (product_id, quantity)
+		VALUES ($1, $2)
+	`, id, stock)
 	require.NoError(t, err)
 	return id
 }

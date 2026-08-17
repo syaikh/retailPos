@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, authHeader, loginUI } from './fixtures';
 
 test.describe('WebSocket Real-time Events', () => {
@@ -129,10 +129,9 @@ test.describe('WebSocket Real-time Events', () => {
     });
     expect(adjRes.ok()).toBeTruthy();
 
-    await page.waitForTimeout(2000);
-
-    const stockUpdateMsg = messages.find(m => m.includes('stock_update'));
-    expect(stockUpdateMsg).toBeTruthy();
+    await expect.poll(async () => {
+      return messages.some(m => m.includes('stock_update'));
+    }, { timeout: 10000, interval: 500 }).toBeTruthy();
   });
 
   test('WebSocket receives product_updated after product update', async ({ page }) => {

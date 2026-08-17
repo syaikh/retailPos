@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { API_BASE } from './fixtures';
 
 test.describe('Public API - Tax Classes', () => {

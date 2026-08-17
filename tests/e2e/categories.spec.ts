@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, loginUI, logoutUI } from './fixtures';
 
 test.describe('Categories Management', () => {
@@ -24,14 +24,14 @@ test.describe('Categories Management', () => {
   test('should create a new category', async ({ page }) => {
     const categoryName = `E2E Category ${Date.now()}`;
 
-    await page.getByRole('button', { name: 'Tambah Kategori' }).first().click();
-    await expect(page.getByRole('dialog', { name: 'Tambah Kategori' })).toBeVisible();
+    await page.getByRole('button', { name: 'Add Category' }).first().click();
+    await expect(page.getByRole('dialog', { name: 'Add Category' })).toBeVisible();
 
     await page.fill('#cat-name', categoryName);
     await page.fill('#cat-desc', 'E2E test category description');
-    await page.getByRole('button', { name: 'Tambah Kategori' }).last().click();
+    await page.getByRole('button', { name: 'Add Category' }).last().click();
 
-    await expect(page.getByRole('dialog', { name: 'Tambah Kategori' })).toBeHidden({ timeout: 15000 });
+    await expect(page.getByRole('dialog', { name: 'Add Category' })).toBeHidden({ timeout: 15000 });
 
     await page.getByPlaceholder('Search by name or slug...').fill(categoryName);
     await page.waitForTimeout(2000);
@@ -41,11 +41,11 @@ test.describe('Categories Management', () => {
   test('should edit a category', async ({ page }) => {
     const categoryName = `Edit Category ${Date.now()}`;
 
-    await page.getByRole('button', { name: 'Tambah Kategori' }).first().click();
+    await page.getByRole('button', { name: 'Add Category' }).first().click();
     await page.fill('#cat-name', categoryName);
     await page.fill('#cat-desc', 'Original description');
-    await page.getByRole('button', { name: 'Tambah Kategori' }).last().click();
-    await expect(page.getByRole('dialog', { name: 'Tambah Kategori' })).toBeHidden({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Add Category' }).last().click();
+    await expect(page.getByRole('dialog', { name: 'Add Category' })).toBeHidden({ timeout: 15000 });
 
     await page.getByPlaceholder('Search by name or slug...').fill(categoryName);
     await page.waitForTimeout(1000);
@@ -53,11 +53,11 @@ test.describe('Categories Management', () => {
 
     const editButton = page.locator('tr').filter({ hasText: categoryName }).locator('button[aria-label="Edit"]');
     await editButton.click();
-    await expect(page.getByRole('dialog', { name: 'Edit Kategori' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Edit Category' })).toBeVisible();
 
     await page.fill('#cat-name', `${categoryName} Updated`);
-    await page.getByRole('button', { name: 'Simpan Perubahan' }).click();
-    await expect(page.getByRole('dialog', { name: 'Edit Kategori' })).toBeHidden({ timeout: 10000 });
+    await page.getByRole('button', { name: 'Save Changes' }).click();
+    await expect(page.getByRole('dialog', { name: 'Edit Category' })).toBeHidden({ timeout: 10000 });
 
     await expect(page.locator(`text=${categoryName} Updated`).first()).toBeVisible({ timeout: 10000 });
   });
@@ -65,21 +65,21 @@ test.describe('Categories Management', () => {
   test('should delete a category', async ({ page }) => {
     const categoryName = `Delete Category ${Date.now()}`;
 
-    await page.getByRole('button', { name: 'Tambah Kategori' }).first().click();
+    await page.getByRole('button', { name: 'Add Category' }).first().click();
     await page.fill('#cat-name', categoryName);
-    await page.getByRole('button', { name: 'Tambah Kategori' }).last().click();
-    await expect(page.getByRole('dialog', { name: 'Tambah Kategori' })).toBeHidden({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Add Category' }).last().click();
+    await expect(page.getByRole('dialog', { name: 'Add Category' })).toBeHidden({ timeout: 15000 });
 
     await page.getByPlaceholder('Search by name or slug...').fill(categoryName);
     await page.waitForTimeout(1000);
     await expect(page.locator(`text=${categoryName}`).first()).toBeVisible({ timeout: 10000 });
 
-    const deleteButton = page.locator('tr').filter({ hasText: categoryName }).locator('button[aria-label="Hapus"]');
+    const deleteButton = page.locator('tr').filter({ hasText: categoryName }).locator('button[aria-label="Delete"]');
     await deleteButton.click();
-    await expect(page.getByRole('dialog', { name: 'Hapus Kategori' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Delete Category' })).toBeVisible();
 
-    await page.getByRole('dialog', { name: 'Hapus Kategori' }).getByRole('button', { name: 'Hapus' }).click();
-    await expect(page.getByRole('dialog', { name: 'Hapus Kategori' })).toBeHidden({ timeout: 10000 });
+    await page.getByRole('dialog', { name: 'Delete Category' }).getByRole('button', { name: 'Delete' }).click();
+    await expect(page.getByRole('dialog', { name: 'Delete Category' })).toBeHidden({ timeout: 10000 });
 
     await page.getByPlaceholder('Search by name or slug...').fill('');
     await page.waitForTimeout(1000);

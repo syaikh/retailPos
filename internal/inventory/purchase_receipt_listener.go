@@ -35,14 +35,14 @@ func (l *PurchaseReceiptListener) HandleEvent(ctx context.Context, event eventbu
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	// A store-scoped goods receipt routes every adjusted row to that store's
-	// product_stock bucket; store_id 0 means the receipt is not store-scoped
-	// (global bucket).
+	// Goods-receipt stock is the SELLABLE total: product_stock is the single
+	// sellable bucket read by checkout (StockDeducer deducts the global row),
+	// surfaced by v_products_full, and written by consignment receipts. A
+	// receipt must therefore route every adjusted row to the global bucket
+	// (storeID nil); routing to a per-store bucket would make received goods
+	// invisible and never sellable. Store ownership was already validated when
+	// the PO was created/received.
 	var storeID *int
-	if payload.StoreID > 0 {
-		sid := payload.StoreID
-		storeID = &sid
-	}
 
 	var adjustments []StockAdjustment
 	for _, item := range payload.Items {

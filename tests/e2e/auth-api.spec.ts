@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE } from './fixtures';
 
 async function login(request: any, username: string, password: string) {

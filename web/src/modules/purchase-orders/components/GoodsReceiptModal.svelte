@@ -57,6 +57,7 @@
       }
       const result = await store.receive({
         purchase_order_id: poId,
+        store_id: po?.store_id || null,
         notes,
         items: validItems,
       });
