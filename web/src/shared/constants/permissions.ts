@@ -128,6 +128,10 @@ export const Permissions = {
     settle: 'consignment.settle',
     pay: 'consignment.pay',
   },
+  appSettings: {
+    view: 'app_settings.view',
+    update: 'app_settings.update',
+  },
 } as const;
 
 export type PermissionCode = (typeof Permissions)[keyof typeof Permissions][keyof (typeof Permissions)[keyof typeof Permissions]];

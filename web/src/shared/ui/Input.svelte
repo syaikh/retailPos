@@ -28,11 +28,11 @@
 
   function handleInput(e: Event) {
     const target = e.target as HTMLInputElement | HTMLSelectElement;
-    const rawValue =
+    const rawValue: string =
       target.tagName === 'SELECT'
         ? ((target as HTMLSelectElement).selectedOptions?.[0] as
             | (HTMLOptionElement & { __value?: unknown })
-            | undefined)?.__value ?? (target as HTMLSelectElement).value
+            | undefined)?.__value as string ?? (target as HTMLSelectElement).value
         : (target as HTMLInputElement).value;
     value = rest.type === 'number' ? (rawValue === '' ? 0 : Number(rawValue)) : rawValue;
     externalOninput?.(e);

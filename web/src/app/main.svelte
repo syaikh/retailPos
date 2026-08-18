@@ -10,6 +10,7 @@
   import { getDefaultRoute } from '$shared/utils/default-route';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { toast } from '$shared/stores/toast.svelte';
+  import { initSettings, loadFullSettings, settingsStore } from '$shared/stores/settings.svelte';
 
   import Layout from '$app/layouts/Layout.svelte';
   import { Toast } from '$shared/ui';
@@ -42,6 +43,7 @@
     '/admin/users':        () => labels.userManagement,
     '/admin/roles':        () => labels.roleManagement,
     '/admin/audit-logs':   () => labels.auditLogs,
+    '/admin/settings':     () => labels.settings,
     '/admin/categories':   () => labels.categoryManagement,
     '/stores':             () => labels.storeManagement,
     '/stores/import-history': () => t('importHistoryWithName', { name: labels.stores }),
@@ -78,6 +80,7 @@
     '/admin/users':         () => import('$modules/admin/components/UsersPage.svelte'),
     '/admin/roles':         () => import('$modules/admin/components/RolesPage.svelte'),
     '/admin/audit-logs':    () => import('$modules/admin/components/AuditLogsPage.svelte'),
+    '/admin/settings':      () => import('$modules/admin/components/SettingsPage.svelte'),
     '/stores':              () => import('$modules/stores/components/StoresPage.svelte'),
     '/stores/import-history': () => import('$modules/import-export/components/ImportHistoryPage.svelte'),
     '/admin/categories':    () => import('$modules/settings/components/CategoriesPage.svelte'),
@@ -116,7 +119,7 @@
 
   function updateTitle(path) {
     const title = pageTitles[path]?.() ?? labels.dashboard;
-    document.title = `${title} — RetailPOS`;
+    document.title = `${title} — ${settingsStore.storeName}`;
   }
 
   function hasRoutePermission(path) {
@@ -173,6 +176,7 @@
   let wsInitialized = false;
 
   async function initializeRoute(path) {
+    await initSettings();
     await initAuth();
     const authStore = useAuthStore();
 
@@ -194,6 +198,7 @@
     wsInitialized = true;
     initWebSocket();
     startProactiveRefresh();
+    loadFullSettings();
     subscribe(handleRoute);
 
     if (path === '/login') {

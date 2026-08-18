@@ -2,12 +2,16 @@
   import { printReceipt } from '$shared/stores/printReceipt.svelte';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
   import { labels } from '$shared/i18n';
+  import { settingsStore } from '$shared/stores/settings.svelte';
 </script>
 
 {#if $printReceipt}
 <div class="thermal-receipt-container">
   <div class="thermal-receipt" id="thermal-receipt">
-    <div class="thermal-shop-name">RETAIL POS</div>
+    <div class="thermal-shop-name">{settingsStore.storeName}</div>
+    {#if settingsStore.receiptHeader}
+      <div class="thermal-receipt-header">{settingsStore.receiptHeader}</div>
+    {/if}
     <div class="thermal-row">
       <span class="thermal-label">{labels.invoice}:</span>
       <span class="thermal-value">{$printReceipt.invoice_number}</span>
@@ -65,8 +69,14 @@
     </div>
     <div class="thermal-divider"></div>
     <div class="thermal-footer">
-      <p>{labels.receiptThanks}</p>
-      <p>{labels.receiptNoReturn}</p>
+      {#if settingsStore.receiptFooter}
+        {#each settingsStore.receiptFooter.split('\n') as line}
+          <p>{line}</p>
+        {/each}
+      {:else}
+        <p>{labels.receiptThanks}</p>
+        <p>{labels.receiptNoReturn}</p>
+      {/if}
     </div>
   </div>
 </div>

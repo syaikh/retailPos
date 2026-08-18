@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/appsettings"
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
 	"retail-pos-system/internal/config"
@@ -332,6 +333,7 @@ type Dependencies struct {
 	StockOpnameRepo     *stockopname.Repository
 	StorageLocationRepo *storagelocation.Repository
 	ConsignmentRepo     *consignment.Repository
+	AppSettingsRepo     *appsettings.Repository
 
 	UserSvc            user.Service
 	AuthSvc            *user.AuthService
@@ -353,6 +355,7 @@ type Dependencies struct {
 	StockOpnameSvc     *stockopname.Service
 	StorageLocationSvc *storagelocation.Service
 	ConsignmentSvc     *consignment.Service
+	AppSettingsSvc     *appsettings.Service
 
 	UserH            *user.Handler
 	AuthH            *user.AuthHandler
@@ -374,6 +377,7 @@ type Dependencies struct {
 	StockOpnameH     *stockopname.Handler
 	StorageLocationH *storagelocation.Handler
 	ConsignmentH     *consignment.Handler
+	AppSettingsH     *appsettings.Handler
 
 	IEH *ieh.Handler
 
@@ -505,6 +509,9 @@ func Initialize(p Providers) *Dependencies {
 	d.StorageLocationSvc = storagelocation.NewService(d.StorageLocationRepo)
 	d.ConsignmentSvc = consignment.NewService(d.ConsignmentRepo)
 
+	d.AppSettingsRepo = appsettings.NewRepository(p.DB)
+	d.AppSettingsSvc = appsettings.NewService(d.AppSettingsRepo)
+
 	d.UserH = user.NewHandler(d.UserSvc, d.AuditSvc)
 	d.AuthH = user.NewAuthHandler(d.AuthSvc, d.AuditSvc)
 	d.ProductH = product.NewHandler(d.ProductSvc, d.AuditSvc)
@@ -526,6 +533,7 @@ func Initialize(p Providers) *Dependencies {
 	d.StockOpnameH = stockopname.NewHandler(d.StockOpnameSvc, d.AuditSvc)
 	d.StorageLocationH = storagelocation.NewHandler(d.StorageLocationSvc, d.AuditSvc)
 	d.ConsignmentH = consignment.NewHandler(d.ConsignmentSvc, d.AuditSvc)
+	d.AppSettingsH = appsettings.NewHandler(d.AppSettingsSvc, d.AuditSvc)
 
 	schemaReg := schema.NewRegistry()
 	_ = schemaReg.Register(category.Schema)

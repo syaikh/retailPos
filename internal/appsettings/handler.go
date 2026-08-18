@@ -1,0 +1,341 @@
+package appsettings
+
+import (
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
+	"retail-pos-system/internal/shared"
+
+	"github.com/gin-gonic/gin"
+)
+
+// cacheEntry holds an in-memory snapshot of the public branding settings.
+type cacheEntry struct {
+	data      BrandingSettings
+	expiresAt time.Time
+}
+
+// Handler handles HTTP requests for application settings.
+type Handler struct {
+	svc      *Service
+	auditSvc audit.Creator
+
+	mu         sync.RWMutex
+	cache      *cacheEntry
+	cacheTTL   time.Duration
+	logoDirAbs string
+}
+
+// NewHandler returns a new Handler. It creates the logo upload directory if it
+// does not already exist.
+func NewHandler(svc *Service, auditSvc audit.Creator) *Handler {
+	logoDir := filepath.Join("uploads", "logos")
+	if err := os.MkdirAll(logoDir, 0755); err != nil {
+		slog.Warn("appsettings: could not create logo directory", "path", logoDir, "error", err)
+	}
+
+	absLogoDir, err := filepath.Abs(logoDir)
+	if err != nil {
+		absLogoDir = logoDir
+	}
+
+	return &Handler{
+		svc:        svc,
+		auditSvc:   auditSvc,
+		cacheTTL:   60 * time.Second,
+		logoDirAbs: absLogoDir,
+	}
+}
+
+// RegisterPublicRoutes registers routes that require no authentication.
+func (h *Handler) RegisterPublicRoutes(rg *gin.RouterGroup) {
+	rg.GET("/settings/public", h.GetPublicBranding)
+	rg.GET("/settings/logo", h.ServeLogo)
+}
+
+// RegisterRoutes registers the authenticated settings routes.
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	sg := r.Group("/settings")
+	sg.GET("", auth, perm(permissions.AppSettingsView), h.GetAll)
+	sg.PUT("", auth, perm(permissions.AppSettingsUpdate), h.UpdateAll)
+	sg.POST("/logo", auth, perm(permissions.AppSettingsUpdate), h.UploadLogo)
+	sg.DELETE("/logo", auth, perm(permissions.AppSettingsUpdate), h.RemoveLogo)
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Public branding (no auth)
+// ──────────────────────────────────────────────────────────────────────
+
+// GetPublicBranding returns store_name, store_jargon, and logo_path with
+// a 60-second in-memory cache.
+func (h *Handler) GetPublicBranding(c *gin.Context) {
+	h.mu.RLock()
+	if h.cache != nil && time.Now().Before(h.cache.expiresAt) {
+		data := h.cache.data
+		h.mu.RUnlock()
+		c.JSON(http.StatusOK, data)
+		return
+	}
+	h.mu.RUnlock()
+
+	settings, err := h.svc.GetMultiple(c.Request.Context(), []string{"store_name", "store_jargon", "logo_path"})
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	branding := BrandingSettings{
+		StoreName:   settings["store_name"],
+		StoreJargon: settings["store_jargon"],
+		LogoPath:    settings["logo_path"],
+	}
+
+	h.mu.Lock()
+	h.cache = &cacheEntry{data: branding, expiresAt: time.Now().Add(h.cacheTTL)}
+	h.mu.Unlock()
+
+	c.JSON(http.StatusOK, branding)
+}
+
+// ServeLogo serves the logo file from uploads/logos/.
+func (h *Handler) ServeLogo(c *gin.Context) {
+	// Read the logo_path from settings (or cache) to know which file to serve.
+	logoPath := ""
+	h.mu.RLock()
+	if h.cache != nil && time.Now().Before(h.cache.expiresAt) {
+		logoPath = h.cache.data.LogoPath
+	}
+	h.mu.RUnlock()
+
+	if logoPath == "" {
+		// Cache miss or empty; fetch from DB.
+		settings, err := h.svc.GetMultiple(c.Request.Context(), []string{"logo_path"})
+		if err != nil {
+			shared.InternalError(c, err)
+			return
+		}
+		logoPath = settings["logo_path"]
+	}
+
+	if logoPath == "" {
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	// Resolve absolute path and ensure it stays within the logo directory.
+	absPath := filepath.Join(h.logoDirAbs, filepath.Base(logoPath))
+	cleanPath := filepath.Clean(absPath)
+	if !strings.HasPrefix(cleanPath, h.logoDirAbs) {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	// Detect content type from extension.
+	ext := strings.ToLower(filepath.Ext(cleanPath))
+	contentType := "application/octet-stream"
+	switch ext {
+	case ".png":
+		contentType = "image/png"
+	case ".jpg", ".jpeg":
+		contentType = "image/jpeg"
+	}
+	c.Header("Content-Type", contentType)
+	c.File(cleanPath)
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Protected settings (auth + permission)
+// ──────────────────────────────────────────────────────────────────────
+
+// GetAll returns all application settings.
+func (h *Handler) GetAll(c *gin.Context) {
+	settings, err := h.svc.GetAll(c.Request.Context())
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"settings": settings,
+	})
+}
+
+// UpdateAll bulk-updates settings from a JSON body.
+func (h *Handler) UpdateAll(c *gin.Context) {
+	var req struct {
+		Settings map[string]string `json:"settings" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid request body"))
+		return
+	}
+
+	if err := h.svc.Upsert(c.Request.Context(), req.Settings); err != nil {
+		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrValidation, err.Error()))
+		return
+	}
+
+	h.invalidateCache()
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "update",
+			EntityType:  "app_settings",
+			NewValues:   req.Settings,
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: "Updated application settings",
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "settings updated"})
+}
+
+// UploadLogo handles multipart logo image uploads.
+func (h *Handler) UploadLogo(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 2<<20)
+
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "file is required or too large (max 2MB)"))
+		return
+	}
+	defer file.Close()
+
+	// Validate extension.
+	ext := filepath.Ext(header.Filename)
+	cleanExt, err := ValidateLogoExtension(ext)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrValidation, err.Error()))
+		return
+	}
+
+	// Read a small buffer to sniff MIME type.
+	buf := make([]byte, 512)
+	n, _ := file.Read(buf)
+	if n > 0 {
+		mimeType := http.DetectContentType(buf[:n])
+		validMime := map[string]bool{
+			"image/png": true, "image/jpeg": true,
+		}
+		if !validMime[mimeType] {
+			c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrValidation, "file content does not match image type"))
+			return
+		}
+	}
+	if seeker, ok := file.(io.Seeker); ok {
+		seeker.Seek(0, io.SeekStart)
+	}
+
+	// Save file.
+	destPath := LogoPathForFile(cleanExt)
+	absDest := filepath.Join(h.logoDirAbs, filepath.Base(destPath))
+
+	// Remove old logo file if it exists and differs from the new one.
+	oldSettings, _ := h.svc.GetMultiple(c.Request.Context(), []string{"logo_path"})
+	if oldPath := oldSettings["logo_path"]; oldPath != "" && oldPath != filepath.Base(destPath) {
+		oldAbs := filepath.Join(h.logoDirAbs, filepath.Base(oldPath))
+		if err := os.Remove(oldAbs); err != nil && !os.IsNotExist(err) {
+			slog.Warn("appsettings: could not delete old logo on replacement", "path", oldAbs, "error", err)
+		}
+	}
+
+	out, err := os.Create(absDest)
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, file); err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	// Persist the path in settings (relative path for portability).
+	if err := h.svc.SaveLogoPath(c.Request.Context(), filepath.Base(destPath)); err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	h.invalidateCache()
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "upload",
+			EntityType:  "app_settings",
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: "Uploaded application logo",
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"logo_path": filepath.Base(destPath),
+		"message":   "logo uploaded successfully",
+	})
+}
+
+// RemoveLogo deletes the current logo file and clears the setting.
+func (h *Handler) RemoveLogo(c *gin.Context) {
+	settings, err := h.svc.GetMultiple(c.Request.Context(), []string{"logo_path"})
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	currentPath := settings["logo_path"]
+	if currentPath != "" {
+		absPath := filepath.Join(h.logoDirAbs, filepath.Base(currentPath))
+		if err := os.Remove(absPath); err != nil && !os.IsNotExist(err) {
+			slog.Warn("appsettings: could not delete old logo", "path", absPath, "error", err)
+		}
+	}
+
+	if err := h.svc.SaveLogoPath(c.Request.Context(), ""); err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	h.invalidateCache()
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "remove",
+			EntityType:  "app_settings",
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: "Removed application logo",
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "logo removed"})
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────────────────────────────
+
+func (h *Handler) invalidateCache() {
+	h.mu.Lock()
+	h.cache = nil
+	h.mu.Unlock()
+}

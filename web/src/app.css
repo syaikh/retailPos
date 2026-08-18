@@ -68,6 +68,13 @@
     margin-bottom: 2mm !important;
   }
 
+  .thermal-receipt-header {
+    font-size: 8pt !important;
+    text-align: center !important;
+    margin-bottom: 2mm !important;
+    white-space: pre-line !important;
+  }
+
   .thermal-row {
     display: flex !important;
     justify-content: space-between !important;

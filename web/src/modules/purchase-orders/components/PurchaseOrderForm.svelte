@@ -36,7 +36,7 @@
   });
   let suppliers = $state<any[]>([]);
   let stores = $state<any[]>([]);
-  let selectedStoreId = $state<number | null>(null);
+  let selectedStoreId = $state<number | undefined>(undefined);
   let customPaymentTerm = $state('');
 
   const PAYMENT_TERMS = [
@@ -55,7 +55,7 @@
   $effect(() => {
     if (store.selectedPO) {
       po = { ...store.selectedPO, items: store.selectedPO.items?.map((item: any) => ({ ...item })) || [] };
-      selectedStoreId = store.selectedPO.store_id ?? useAuthStore().user?.store_id ?? null;
+      selectedStoreId = store.selectedPO.store_id ?? useAuthStore().user?.store_id ?? undefined;
       open = true;
       currentStep = 1;
       if (!selectedStoreId) {
@@ -77,7 +77,7 @@
         items: [],
       };
       supplierProducts = [];
-      const userStoreId = useAuthStore().user?.store_id ?? null;
+      const userStoreId = useAuthStore().user?.store_id ?? undefined;
       selectedStoreId = userStoreId;
       if (!userStoreId) {
         loadStores();

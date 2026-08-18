@@ -106,6 +106,9 @@ invoice-INV-*.pdf
 session-*.md
 *.session
 
+# Uploaded files (logos, etc.)
+uploads/
+
 # Documentation files (except essential ones and docs/ directory)
 *.md
 !README.md

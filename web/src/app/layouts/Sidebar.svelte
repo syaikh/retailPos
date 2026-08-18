@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler, Truck, Percent, Clock, ClipboardList, Warehouse, Handshake } from 'lucide-svelte';
+  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler, Truck, Percent, Clock, ClipboardList, Warehouse, Handshake, Settings } from 'lucide-svelte';
   import { fly } from 'svelte/transition';
   import { goto, getPath } from '$app/router';
   import { logout, useAuthStore } from '$modules/auth';
@@ -9,6 +9,7 @@
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Roles } from '$shared/constants/roles';
   import { labels } from '$shared/i18n';
+  import { settingsStore } from '$shared/stores/settings.svelte';
 
   let {
     currentPath = $bindable('/'),
@@ -131,6 +132,7 @@
     { label: () => labels.userManagement,       href: '/admin/users',       icon: Users },
     { label: () => labels.roleManagement,       href: '/admin/roles',       icon: Shield },
     { label: () => labels.auditLogs,  href: '/admin/audit-logs',  icon: ScrollText },
+    { label: () => labels.settings,   href: '/admin/settings',   icon: Settings },
   ];
 
   // @display-only — grouping kandidat menu per role (presentasi, bukan authz);
@@ -201,13 +203,17 @@
 >
   <!-- Brand -->
   <div class="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
-    <div class="w-9 h-9 rounded-xl gradient-bg-primary flex items-center justify-center shrink-0 shadow-glow-primary-sm">
-      <Store size={18} class="text-white" />
-    </div>
+    {#if settingsStore.logoPath}
+      <img src="/api/settings/logo" alt={settingsStore.storeName} class="w-9 h-9 rounded-xl object-cover shrink-0" />
+    {:else}
+      <div class="w-9 h-9 rounded-xl gradient-bg-primary flex items-center justify-center shrink-0 shadow-glow-primary-sm">
+        <Store size={18} class="text-white" />
+      </div>
+    {/if}
     {#if !collapsed}
       <div class="overflow-hidden">
-        <p class="text-sm font-bold text-text-primary leading-tight truncate">RetailPOS</p>
-        <p class="text-[10px] text-text-muted truncate">{labels.managementSystem}</p>
+        <p class="text-sm font-bold text-text-primary leading-tight truncate">{settingsStore.storeName}</p>
+        <p class="text-[10px] text-text-muted truncate">{settingsStore.storeJargon}</p>
       </div>
     {/if}
   </div>

@@ -134,6 +134,7 @@ func main() {
 	deps.BrandH.RegisterPublicRoutes(router.Group("/api"))
 	deps.UOMH.RegisterPublicRoutes(router.Group("/api"))
 	deps.StoreH.RegisterPublicRoutes(router.Group("/api"))
+	deps.AppSettingsH.RegisterPublicRoutes(router.Group("/api"))
 
 	deps.AuthH.RegisterLoginRoute(router.Group("/api"), middleware.LoginRateLimitMiddleware())
 	deps.AuthH.RegisterRoutes(router.Group("/api"), authMiddleware, middleware.CSRFMiddleware(), permMiddleware)
@@ -165,6 +166,7 @@ func main() {
 		deps.StockOpnameH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.StorageLocationH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.ConsignmentH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		deps.AppSettingsH.RegisterRoutes(protected, noopAuth, permMiddleware)
 	}
 
 	router.GET("/health", func(c *gin.Context) {

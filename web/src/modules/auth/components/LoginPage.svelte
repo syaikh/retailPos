@@ -7,6 +7,7 @@
   import { Eye, EyeOff, Store, ShieldCheck } from 'lucide-svelte';
   import { fade, fly } from 'svelte/transition';
   import { labels, t } from '$shared/i18n';
+  import { settingsStore } from '$shared/stores/settings.svelte';
 
   let username = $state('');
   let password = $state('');
@@ -59,12 +60,16 @@
     <div class="relative z-10 flex flex-col justify-center h-full px-16">
       <!-- Logo -->
       <div class="flex items-center gap-4 mb-12">
-        <div class="w-14 h-14 rounded-2xl gradient-bg-primary shadow-glow-primary flex items-center justify-center">
-          <Store size={28} class="text-white" />
-        </div>
+        {#if settingsStore.logoPath}
+          <img src="/api/settings/logo" alt={settingsStore.storeName} class="w-14 h-14 rounded-2xl object-cover shadow-glow-primary" />
+        {:else}
+          <div class="w-14 h-14 rounded-2xl gradient-bg-primary shadow-glow-primary flex items-center justify-center">
+            <Store size={28} class="text-white" />
+          </div>
+        {/if}
         <div>
-          <h1 class="text-2xl font-bold text-text-primary">RetailPOS</h1>
-          <p class="text-sm text-text-muted">{labels.managementSystem}</p>
+          <h1 class="text-2xl font-bold text-text-primary">{settingsStore.storeName}</h1>
+          <p class="text-sm text-text-muted">{settingsStore.storeJargon}</p>
         </div>
       </div>
 
@@ -96,10 +101,14 @@
 
       <!-- Mobile logo -->
       <div class="flex items-center gap-3 mb-10 lg:hidden">
-        <div class="w-10 h-10 rounded-xl gradient-bg-primary shadow-glow-primary-sm flex items-center justify-center">
-          <Store size={20} class="text-white" />
-        </div>
-        <p class="text-lg font-bold text-text-primary">RetailPOS</p>
+        {#if settingsStore.logoPath}
+          <img src="/api/settings/logo" alt={settingsStore.storeName} class="w-10 h-10 rounded-xl object-cover shadow-glow-primary-sm" />
+        {:else}
+          <div class="w-10 h-10 rounded-xl gradient-bg-primary shadow-glow-primary-sm flex items-center justify-center">
+            <Store size={20} class="text-white" />
+          </div>
+        {/if}
+        <p class="text-lg font-bold text-text-primary">{settingsStore.storeName}</p>
       </div>
 
       <h2 class="text-2xl font-bold text-text-primary mb-1">{labels.welcomeBack}</h2>

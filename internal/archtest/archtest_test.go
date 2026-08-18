@@ -26,9 +26,10 @@ var domainModules = []string{
 // must go through ports wired in internal/wiring; cross-module effects must go
 // through events in internal/events.
 var isolatedModules = []string{
-	"brand", "category", "customer", "customergroup", "inventory",
-	"platform", "pricing", "product", "purchase", "report", "sale", "shift",
-	"stockopname", "storagelocation", "store", "supplier", "uom", "user",
+	"appsettings", "brand", "category", "customer", "customergroup",
+	"inventory", "platform", "pricing", "product", "purchase", "report",
+	"sale", "shift", "stockopname", "storagelocation", "store", "supplier",
+	"uom", "user",
 }
 
 var sqlKeywordRe = regexp.MustCompile(`\b(?:FROM|INTO|UPDATE|JOIN|REFERENCES|TABLE)\s+([a-z_]+)`)
@@ -79,6 +80,8 @@ var tableContext = map[string]string{
 	// Analitik (read model)
 	"mv_daily_sales":  "analitik",
 	"mv_hourly_sales": "analitik",
+	// Platform (config)
+	"app_settings": "platform",
 	// Platform
 	"users":              "platform",
 	"roles":              "platform",
@@ -114,6 +117,7 @@ var moduleContext = map[string]string{
 	"report":          "analitik",
 	"user":            "platform",
 	"platform":        "platform",
+	"appsettings":     "platform",
 }
 
 // strictModuleTables overrides context ownership for modules already hardened
@@ -201,6 +205,9 @@ var strictModuleTables = map[string]map[string]bool{
 		"import_errors":      true,
 		"outbox":             true,
 		"dead_letter_events": true,
+	},
+	"appsettings": {
+		"app_settings": true,
 	},
 }
 

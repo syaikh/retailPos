@@ -120,6 +120,9 @@ const (
 	ConsignmentUpdate  Code = "consignment.update"
 	ConsignmentSettle  Code = "consignment.settle"
 	ConsignmentPay     Code = "consignment.pay"
+
+	AppSettingsView   Code = "app_settings.view"
+	AppSettingsUpdate Code = "app_settings.update"
 )
 
 // All returns every registered permission code.
@@ -143,6 +146,7 @@ func All() []Code {
 		StockOpnameView, StockOpnameCreate, StockOpnameAssign, StockOpnameCount, StockOpnameSubmit, StockOpnameRecount, StockOpnameCancel, StockOpnameExport, StockOpnameVerify, StockOpnamePost, StockOpnameClose, StockOpnameReport,
 		StorageLocationView, StorageLocationCreate, StorageLocationUpdate, StorageLocationDelete,
 		ConsignmentView, ConsignmentCreate, ConsignmentUpdate, ConsignmentSettle, ConsignmentPay,
+		AppSettingsView, AppSettingsUpdate,
 	}
 }
 
