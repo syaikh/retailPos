@@ -23,7 +23,7 @@ type UOMRepo interface {
 
 type Repo interface {
 	GetProductByID(ctx context.Context, id int, storeID *int) (*Product, error)
-	GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error)
+	GetProductsByIDs(ctx context.Context, ids []int, storeID *int) ([]Product, error)
 	GetProductBySKU(ctx context.Context, sku string, storeID *int) (*Product, error)
 	GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string, supplierID *int) ([]Product, int, error)
 	GetNextSKU(ctx context.Context) (string, error)
@@ -52,8 +52,8 @@ func (s *service) GetProductByID(ctx context.Context, id, storeID int) (*Product
 	return s.repo.GetProductByID(ctx, id, ptr(storeID))
 }
 
-func (s *service) GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error) {
-	return s.repo.GetProductsByIDs(ctx, ids)
+func (s *service) GetProductsByIDs(ctx context.Context, ids []int, storeID *int) ([]Product, error) {
+	return s.repo.GetProductsByIDs(ctx, ids, storeID)
 }
 
 func (s *service) GetProductBySKU(ctx context.Context, sku string, storeID int) (*Product, error) {

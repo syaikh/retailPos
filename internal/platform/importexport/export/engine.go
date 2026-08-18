@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"retail-pos-system/internal/platform/importexport/schema"
+	"retail-pos-system/internal/shared"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -47,7 +48,7 @@ func (e *Engine) exportCSV(w io.Writer, s schema.ModuleSchema, data []map[string
 	for i, col := range cols {
 		header[i] = col.Label
 	}
-	if err := writeCSVRow(writer, header); err != nil {
+	if err := shared.WriteCSVRow(writer, header); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 
@@ -56,7 +57,7 @@ func (e *Engine) exportCSV(w io.Writer, s schema.ModuleSchema, data []map[string
 		for i, col := range cols {
 			record[i] = formatValue(col.Type, row[col.Name])
 		}
-		if err := writeCSVRow(writer, record); err != nil {
+		if err := shared.WriteCSVRow(writer, record); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
 	}
@@ -181,23 +182,4 @@ func columnWidth(t schema.ColumnType) (float64, bool) {
 		return 25, true
 	}
 	return 0, false
-}
-
-func writeCSVRow(w *csv.Writer, record []string) error {
-	sanitized := make([]string, len(record))
-	for i, v := range record {
-		sanitized[i] = sanitizeCSVField(v)
-	}
-	return w.Write(sanitized)
-}
-
-var dangerousPrefixes = []string{"=", "+", "-", "@", "\t", "\r"}
-
-func sanitizeCSVField(s string) string {
-	for _, p := range dangerousPrefixes {
-		if strings.HasPrefix(s, p) {
-			return "'" + s
-		}
-	}
-	return s
 }

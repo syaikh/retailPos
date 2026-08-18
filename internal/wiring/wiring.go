@@ -81,7 +81,7 @@ type productNameLookupAdapter struct {
 }
 
 func (a *productNameLookupAdapter) GetProductNamesByIDs(ctx context.Context, ids []int) (map[int]purchase.ProductInfo, error) {
-	products, err := a.repo.GetProductsByIDs(ctx, ids)
+	products, err := a.repo.GetProductsByIDs(ctx, ids, nil)
 	if err != nil {
 		return nil, err
 	}

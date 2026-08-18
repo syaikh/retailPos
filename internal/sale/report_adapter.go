@@ -15,7 +15,7 @@ func NewReportAdapter() *reportAdapter {
 }
 
 func (reportAdapter) GetCompletedSalesStats(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (revenue int, orders int, err error) {
-	query := `SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM sales WHERE status = 'completed' AND created_at >= $1 AND created_at < $2`
+	query := `SELECT COALESCE(SUM(total_revenue), 0), COALESCE(SUM(transaction_count), 0) FROM mv_hourly_sales WHERE sale_hour >= $1::timestamptz AT TIME ZONE 'Asia/Jakarta' AND sale_hour < $2::timestamptz AT TIME ZONE 'Asia/Jakarta'`
 	args := []interface{}{start, end}
 	if storeID != nil {
 		query += ` AND store_id = $3`

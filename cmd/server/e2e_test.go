@@ -53,7 +53,7 @@ type e2eProductNameLookup struct {
 }
 
 func (l e2eProductNameLookup) GetProductNamesByIDs(ctx context.Context, ids []int) (map[int]purchase.ProductInfo, error) {
-	products, err := l.repo.GetProductsByIDs(ctx, ids)
+	products, err := l.repo.GetProductsByIDs(ctx, ids, nil)
 	if err != nil {
 		return nil, err
 	}

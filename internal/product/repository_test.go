@@ -246,19 +246,19 @@ func TestProductRepository_GetProductsByIDs(t *testing.T) {
 		seedTestProduct(ctx, repo, t, p1)
 		seedTestProduct(ctx, repo, t, p2)
 
-		products, err := repo.GetProductsByIDs(ctx, []int{p1.ID, p2.ID})
+		products, err := repo.GetProductsByIDs(ctx, []int{p1.ID, p2.ID}, nil)
 		require.NoError(t, err)
 		assert.Len(t, products, 2)
 	})
 
 	t.Run("empty ids returns empty slice", func(t *testing.T) {
-		products, err := repo.GetProductsByIDs(ctx, []int{})
+		products, err := repo.GetProductsByIDs(ctx, []int{}, nil)
 		require.NoError(t, err)
 		assert.Empty(t, products)
 	})
 
 	t.Run("nonexistent ids returns empty", func(t *testing.T) {
-		products, err := repo.GetProductsByIDs(ctx, []int{-999, -998})
+		products, err := repo.GetProductsByIDs(ctx, []int{-999, -998}, nil)
 		require.NoError(t, err)
 		assert.Empty(t, products)
 	})

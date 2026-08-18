@@ -12,7 +12,6 @@ import (
 
 var (
 	ErrStoreForbidden = errors.New("store access forbidden")
-	ErrUnauthorized   = errors.New("unauthorized consignment operation")
 )
 
 type Service struct {
@@ -899,10 +898,3 @@ func validPendingReturnReason(reason string) bool {
 	}
 	return false
 }
-
-// Repo accessors used by the handler via the Service.
-func (s *Service) repository() *Repository {
-	return s.repo
-}
-
-var _ = ErrUnauthorized

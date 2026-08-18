@@ -18,7 +18,7 @@ type testProductLookup struct {
 }
 
 func (l *testProductLookup) GetProductNamesByIDs(ctx context.Context, ids []int) (map[int]ProductInfo, error) {
-	products, err := l.repo.GetProductsByIDs(ctx, ids)
+	products, err := l.repo.GetProductsByIDs(ctx, ids, nil)
 	if err != nil {
 		return nil, err
 	}

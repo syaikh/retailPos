@@ -1,32 +1,11 @@
 package sale
 
 import (
-	"encoding/csv"
 	"fmt"
 	"io"
-	"strconv"
 
 	"github.com/xuri/excelize/v2"
-
-	"retail-pos-system/internal/shared"
 )
-
-func WriteCSV(rows []ExportRow, w io.Writer) error {
-	cw := csv.NewWriter(w)
-	_ = shared.WriteCSVRow(cw, []string{"Invoice Number", "Date", "Customer", "Items", "Payment Method", "Total Amount"})
-	for _, row := range rows {
-		_ = shared.WriteCSVRow(cw, []string{
-			row.InvoiceNumber,
-			row.CreatedAt,
-			row.CustomerName,
-			strconv.Itoa(row.ItemCount),
-			row.PaymentMethod,
-			fmt.Sprintf("%d", row.TotalAmount),
-		})
-	}
-	cw.Flush()
-	return cw.Error()
-}
 
 func WriteXLSX(rows []ExportRow, w io.Writer) error {
 	f := excelize.NewFile()

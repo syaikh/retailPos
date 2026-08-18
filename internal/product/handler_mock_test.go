@@ -19,7 +19,7 @@ import (
 
 type mockProductService struct {
 	getAllFn            func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error)
-	getByIDsFn          func(ctx context.Context, ids []int) ([]Product, error)
+	getByIDsFn          func(ctx context.Context, ids []int, storeID *int) ([]Product, error)
 	getByIDFn           func(ctx context.Context, id, storeID int) (*Product, error)
 	createFn            func(ctx context.Context, product *Product) error
 	updateFn            func(ctx context.Context, product *Product) error
@@ -33,9 +33,9 @@ type mockProductService struct {
 func (m *mockProductService) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
 	return m.getAllFn(ctx, limit, offset, search, sortBy, sortDir, category, storeID, isActive, maxStock, status, supplierID)
 }
-func (m *mockProductService) GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error) {
+func (m *mockProductService) GetProductsByIDs(ctx context.Context, ids []int, storeID *int) ([]Product, error) {
 	if m.getByIDsFn != nil {
-		return m.getByIDsFn(ctx, ids)
+		return m.getByIDsFn(ctx, ids, storeID)
 	}
 	return []Product{}, nil
 }
@@ -217,7 +217,7 @@ func TestMockHandler_GetProducts(t *testing.T) {
 func TestMockHandler_GetProducts_ByIDs(t *testing.T) {
 	t.Run("valid ids batch", func(t *testing.T) {
 		svc := &mockProductService{
-			getByIDsFn: func(ctx context.Context, ids []int) ([]Product, error) {
+			getByIDsFn: func(ctx context.Context, ids []int, storeID *int) ([]Product, error) {
 				assert.Equal(t, []int{1, 2, 3}, ids)
 				return []Product{{ID: 1, Name: "A"}, {ID: 2, Name: "B"}, {ID: 3, Name: "C"}}, nil
 			},
@@ -245,7 +245,7 @@ func TestMockHandler_GetProducts_ByIDs(t *testing.T) {
 
 	t.Run("deduplicated ids", func(t *testing.T) {
 		svc := &mockProductService{
-			getByIDsFn: func(ctx context.Context, ids []int) ([]Product, error) {
+			getByIDsFn: func(ctx context.Context, ids []int, storeID *int) ([]Product, error) {
 				assert.Equal(t, []int{5}, ids, "should deduplicate")
 				return []Product{{ID: 5, Name: "Only"}}, nil
 			},
@@ -258,7 +258,7 @@ func TestMockHandler_GetProducts_ByIDs(t *testing.T) {
 
 	t.Run("service error returns 500", func(t *testing.T) {
 		svc := &mockProductService{
-			getByIDsFn: func(ctx context.Context, ids []int) ([]Product, error) {
+			getByIDsFn: func(ctx context.Context, ids []int, storeID *int) ([]Product, error) {
 				return nil, errors.New("db error")
 			},
 		}
@@ -270,7 +270,7 @@ func TestMockHandler_GetProducts_ByIDs(t *testing.T) {
 
 	t.Run("nil products become empty array", func(t *testing.T) {
 		svc := &mockProductService{
-			getByIDsFn: func(ctx context.Context, ids []int) ([]Product, error) {
+			getByIDsFn: func(ctx context.Context, ids []int, storeID *int) ([]Product, error) {
 				return nil, nil
 			},
 		}
@@ -295,7 +295,7 @@ func TestMockHandler_GetProducts_ByIDs(t *testing.T) {
 
 	t.Run("ids with negative and zero are filtered out", func(t *testing.T) {
 		svc := &mockProductService{
-			getByIDsFn: func(ctx context.Context, ids []int) ([]Product, error) {
+			getByIDsFn: func(ctx context.Context, ids []int, storeID *int) ([]Product, error) {
 				assert.Equal(t, []int{3, 7}, ids)
 				return []Product{}, nil
 			},

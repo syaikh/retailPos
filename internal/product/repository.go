@@ -200,7 +200,7 @@ func (r *Repository) GetProductPrices(ctx context.Context, ids []int) (map[int]i
 	return prices, rows.Err()
 }
 
-func (r *Repository) GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error) {
+func (r *Repository) GetProductsByIDs(ctx context.Context, ids []int, storeID *int) ([]Product, error) {
 	if len(ids) == 0 {
 		return []Product{}, nil
 	}
@@ -212,9 +212,15 @@ func (r *Repository) GetProductsByIDs(ctx context.Context, ids []int) ([]Product
 		args[i] = id
 	}
 
+	whereClause := fmt.Sprintf("v.id IN (%s)", strings.Join(placeholders, ","))
+	if storeID != nil {
+		whereClause += fmt.Sprintf(" AND v.store_id = $%d", len(ids)+1)
+		args = append(args, *storeID)
+	}
+
 	query := fmt.Sprintf(`%s
-		WHERE v.id IN (%s)
-		ORDER BY v.name`, productSelectCols, strings.Join(placeholders, ","))
+		WHERE %s
+		ORDER BY v.name`, productSelectCols, whereClause)
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {

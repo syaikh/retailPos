@@ -687,7 +687,7 @@ func TestRepo_GetAllProducts_WithSortByInvalid(t *testing.T) {
 
 func TestRepo_GetProductsByIDs_Empty(t *testing.T) {
 	repo := NewRepository(nil)
-	products, err := repo.GetProductsByIDs(context.Background(), []int{})
+	products, err := repo.GetProductsByIDs(context.Background(), []int{}, nil)
 	require.NoError(t, err)
 	assert.Empty(t, products)
 }
@@ -701,7 +701,7 @@ func TestRepo_GetProductsByIDs_Found(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(1, 2).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	products, err := repo.GetProductsByIDs(context.Background(), []int{1, 2})
+	products, err := repo.GetProductsByIDs(context.Background(), []int{1, 2}, nil)
 	require.NoError(t, err)
 	assert.Len(t, products, 1)
 	assert.Equal(t, "SKU-001", products[0].SKU)
@@ -716,7 +716,7 @@ func TestRepo_GetProductsByIDs_QueryError(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(1).WillReturnError(pgx.ErrNoRows)
 
 	repo := NewRepository(mock)
-	_, err = repo.GetProductsByIDs(context.Background(), []int{1})
+	_, err = repo.GetProductsByIDs(context.Background(), []int{1}, nil)
 	assert.Error(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -730,7 +730,7 @@ func TestRepo_GetProductsByIDs_ScanError(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(1).WillReturnRows(badRows)
 
 	repo := NewRepository(mock)
-	_, err = repo.GetProductsByIDs(context.Background(), []int{1})
+	_, err = repo.GetProductsByIDs(context.Background(), []int{1}, nil)
 	assert.Error(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -765,7 +765,7 @@ func TestRepo_GetProductsByIDs_MultipleRows(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(1, 2).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	products, err := repo.GetProductsByIDs(context.Background(), []int{1, 2})
+	products, err := repo.GetProductsByIDs(context.Background(), []int{1, 2}, nil)
 	require.NoError(t, err)
 	assert.Len(t, products, 2)
 	assert.Equal(t, "SKU-001", products[0].SKU)

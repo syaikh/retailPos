@@ -41,7 +41,7 @@ func parseIDs(raw string) []int {
 
 type Service interface {
 	GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error)
-	GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error)
+	GetProductsByIDs(ctx context.Context, ids []int, storeID *int) ([]Product, error)
 	GetProductByID(ctx context.Context, id, storeID int) (*Product, error)
 	GetProductBySKU(ctx context.Context, sku string, storeID int) (*Product, error)
 	CreateProduct(ctx context.Context, product *Product) error
@@ -121,7 +121,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"data": []Product{}, "total": 0})
 			return
 		}
-		products, err := h.svc.GetProductsByIDs(c.Request.Context(), ids)
+		products, err := h.svc.GetProductsByIDs(c.Request.Context(), ids, shared.GetStoreID(c))
 		if err != nil {
 			shared.InternalError(c, err)
 			return

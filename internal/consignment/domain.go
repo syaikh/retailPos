@@ -24,7 +24,6 @@ var (
 	ErrSettlementAlreadyPaid        = errors.New("consignment settlement is already paid")
 	ErrInvalidPayoutAmount          = errors.New("payout amount must match the settlement payable")
 	ErrPaymentMethodNotFound        = errors.New("payment method not found")
-	ErrSettlementForbidden          = errors.New("settlement not allowed for this arrangement")
 )
 
 const (
@@ -250,18 +249,6 @@ type SaleItemRecord struct {
 	StoreShareValue  float64 `json:"store_share_value"`
 	StoreShareAmount int     `json:"store_share_amount"`
 	CreatedAt        string  `json:"created_at"`
-}
-
-// SupplierSummary is the per-supplier consignment stock/liability summary.
-type SupplierSummary struct {
-	SupplierID      int    `json:"supplier_id"`
-	SupplierName    string `json:"supplier_name,omitempty"`
-	ArrangementID   int    `json:"arrangement_id"`
-	StoreID         int    `json:"store_id"`
-	AvailableQty    int    `json:"available_qty"`
-	PendingReturnQty int   `json:"pending_return_qty"`
-	UnsettledValue  int    `json:"unsettled_value"`
-	UnsettledQty    int    `json:"unsettled_qty"`
 }
 
 // ---- Requests ----

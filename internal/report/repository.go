@@ -3,8 +3,10 @@ package report
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"math/rand"
+	"sync"
 	"time"
 
 	"retail-pos-system/internal/config"
@@ -526,44 +528,74 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 	todayEnd := todayStart.Add(24 * time.Hour)
 
 	var stats DashboardStats
-	var err error
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 
-	var todaysRevInt, todaysSalesInt int
-	todaysRevInt, todaysSalesInt, err = r.saleStats.GetCompletedSalesStats(ctx, r.db, todayStart, todayEnd, storeID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get today's sales stats: %w", err)
-	}
-	stats.TodaysRevenue = int64(todaysRevInt)
-	stats.TodaysSales = int64(todaysSalesInt)
+	wg.Add(5)
 
-	var totalRevInt, totalSalesInt int
-	totalRevInt, totalSalesInt, err = r.saleStats.GetAllCompletedSalesStats(ctx, r.db, storeID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get all-time sales stats: %w", err)
-	}
-	stats.TotalRevenue = int64(totalRevInt)
-	stats.TotalSales = int64(totalSalesInt)
+	go func() {
+		defer wg.Done()
+		rev, sales, err := r.saleStats.GetCompletedSalesStats(ctx, r.db, todayStart, todayEnd, storeID)
+		if err != nil {
+			slog.Error("dashboard: today stats failed", "err", err)
+			return
+		}
+		mu.Lock()
+		stats.TodaysRevenue = int64(rev)
+		stats.TodaysSales = int64(sales)
+		mu.Unlock()
+	}()
 
-	var activeCustomersInt64 int64
-	activeCustomersInt64, err = r.saleStats.GetActiveCustomerCount(ctx, r.db, storeID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get active customer count: %w", err)
-	}
-	stats.ActiveCustomers = activeCustomersInt64
+	go func() {
+		defer wg.Done()
+		rev, sales, err := r.saleStats.GetAllCompletedSalesStats(ctx, r.db, storeID)
+		if err != nil {
+			slog.Error("dashboard: all-time stats failed", "err", err)
+			return
+		}
+		mu.Lock()
+		stats.TotalRevenue = int64(rev)
+		stats.TotalSales = int64(sales)
+		mu.Unlock()
+	}()
 
-	var totalProductsInt64 int64
-	totalProductsInt64, err = r.productStats.GetActiveProductCount(ctx, r.db, storeID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get product count: %w", err)
-	}
-	stats.TotalProducts = totalProductsInt64
+	go func() {
+		defer wg.Done()
+		count, err := r.saleStats.GetActiveCustomerCount(ctx, r.db, storeID)
+		if err != nil {
+			slog.Error("dashboard: active customer count failed", "err", err)
+			return
+		}
+		mu.Lock()
+		stats.ActiveCustomers = count
+		mu.Unlock()
+	}()
 
-	var lowStockCountInt64 int64
-	lowStockCountInt64, err = r.stockStats.GetLowStockCount(ctx, r.db, config.Load().StockCriticalThreshold, storeID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get low stock count: %w", err)
-	}
-	stats.LowStockCount = lowStockCountInt64
+	go func() {
+		defer wg.Done()
+		count, err := r.productStats.GetActiveProductCount(ctx, r.db, storeID)
+		if err != nil {
+			slog.Error("dashboard: product count failed", "err", err)
+			return
+		}
+		mu.Lock()
+		stats.TotalProducts = count
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		count, err := r.stockStats.GetLowStockCount(ctx, r.db, config.Load().StockCriticalThreshold, storeID)
+		if err != nil {
+			slog.Error("dashboard: low stock count failed", "err", err)
+			return
+		}
+		mu.Lock()
+		stats.LowStockCount = count
+		mu.Unlock()
+	}()
+
+	wg.Wait()
 
 	if r.cache != nil {
 		ttl := 10*time.Second + time.Duration(rand.Intn(5))*time.Second

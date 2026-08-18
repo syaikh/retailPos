@@ -101,19 +101,19 @@ func TestProductService_ReadOperations(t *testing.T) {
 		}
 		require.NoError(t, svc.CreateProduct(ctx, p2))
 
-		products, err := svc.GetProductsByIDs(ctx, []int{p.ID, p2.ID})
+		products, err := svc.GetProductsByIDs(ctx, []int{p.ID, p2.ID}, nil)
 		require.NoError(t, err)
 		assert.Len(t, products, 2)
 	})
 
 	t.Run("GetProductsByIDs empty", func(t *testing.T) {
-		products, err := svc.GetProductsByIDs(ctx, []int{})
+		products, err := svc.GetProductsByIDs(ctx, []int{}, nil)
 		require.NoError(t, err)
 		assert.Empty(t, products)
 	})
 
 	t.Run("GetProductsByIDs nonexistent", func(t *testing.T) {
-		products, err := svc.GetProductsByIDs(ctx, []int{-999})
+		products, err := svc.GetProductsByIDs(ctx, []int{-999}, nil)
 		require.NoError(t, err)
 		assert.Empty(t, products)
 	})

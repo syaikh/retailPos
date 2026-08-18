@@ -473,10 +473,10 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	return sales, total, nil
 }
 
-func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, endDate string, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error) {
+func (r *Repository) buildExportQuery(ctx context.Context, search string, minTotal, maxTotal *int, storeID *int, paymentMethods string, startDate, endDate string) (string, []interface{}, error) {
 	productIDs, customerIDs, err := r.resolveSearchIDs(ctx, search)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	qb := r.buildSaleFilter(productIDs, customerIDs, search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil)
 	query := `SELECT s.invoice_number, s.created_at, s.customer_id,
@@ -490,8 +490,16 @@ func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, e
 			GROUP BY sale_id
 		) sp_codes ON sp_codes.sale_id = s.id
 		WHERE ` + qb.Where() + " ORDER BY s.created_at DESC"
+	return query, qb.Args, nil
+}
 
-	rows, err := r.db.Query(ctx, query, qb.Args...)
+func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, endDate string, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error) {
+	query, args, err := r.buildExportQuery(ctx, search, minTotal, maxTotal, storeID, paymentMethods, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -548,10 +556,11 @@ func (r *Repository) StreamSalesExportCSV(ctx context.Context, w io.Writer, sear
 		return err
 	}
 	qb := r.buildSaleFilter(productIDs, customerIDs, search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil)
-	query := `SELECT s.invoice_number, s.created_at, s.customer_id,
+	query := `SELECT s.invoice_number, s.created_at, COALESCE(c.name, ''),
 		COALESCE(si_counts.cnt, 0) as items_count,
 		COALESCE(sp_codes.payment_codes, s.payment_method) as payment_method, s.total_amount
 		FROM sales s
+		LEFT JOIN customers c ON c.id = s.customer_id
 		LEFT JOIN (SELECT sale_id, COUNT(*) AS cnt FROM sale_items GROUP BY sale_id) si_counts ON si_counts.sale_id = s.id
 		LEFT JOIN (
 			SELECT sale_id, STRING_AGG(payment_method_code, ',' ORDER BY id) AS payment_codes
@@ -566,69 +575,31 @@ func (r *Repository) StreamSalesExportCSV(ctx context.Context, w io.Writer, sear
 	}
 	defer rows.Close()
 
-	type csvRow struct {
-		invoiceNumber, createdAt, paymentMethod string
-		customerID                              int
-		itemCount                               int
-		totalAmount                             int64
-	}
-	var buffered []csvRow
-	for rows.Next() {
-		var invoiceNumber, paymentMethod string
-		var customerIDVal sql.NullInt64
-		var createdAt time.Time
-		var itemCount int
-		var totalAmount int64
-		if err := rows.Scan(&invoiceNumber, &createdAt, &customerIDVal, &itemCount, &paymentMethod, &totalAmount); err != nil {
-			return fmt.Errorf("scan sale export row: %w", err)
-		}
-		buffered = append(buffered, csvRow{
-			invoiceNumber: invoiceNumber,
-			createdAt:     createdAt.In(shared.JakartaLocation()).Format(time.RFC3339),
-			customerID:    int(customerIDVal.Int64),
-			itemCount:     itemCount,
-			totalAmount:   totalAmount,
-			paymentMethod: paymentMethod,
-		})
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-
-	names := map[int]string{}
-	customerIDSet := make(map[int]bool)
-	for _, row := range buffered {
-		if row.customerID != 0 {
-			customerIDSet[row.customerID] = true
-		}
-	}
-	if len(customerIDSet) > 0 {
-		customerIDList := make([]int, 0, len(customerIDSet))
-		for id := range customerIDSet {
-			customerIDList = append(customerIDList, id)
-		}
-		names, err = r.customerNamesByIDs(ctx, customerIDList)
-		if err != nil {
-			return err
-		}
-	}
-
 	cw := csv.NewWriter(w)
 	_ = shared.WriteCSVRow(cw, []string{"Invoice Number", "Date", "Customer", "Items", "Payment Method", "Total Amount"})
 
-	for _, row := range buffered {
-		customerName := names[row.customerID]
+	for rows.Next() {
+		var invoiceNumber, customerName, paymentMethod string
+		var createdAt time.Time
+		var itemCount int
+		var totalAmount int64
+		if err := rows.Scan(&invoiceNumber, &createdAt, &customerName, &itemCount, &paymentMethod, &totalAmount); err != nil {
+			return fmt.Errorf("scan sale export row: %w", err)
+		}
 		_ = shared.WriteCSVRow(cw, []string{
-			row.invoiceNumber,
-			row.createdAt,
+			invoiceNumber,
+			createdAt.In(shared.JakartaLocation()).Format(time.RFC3339),
 			customerName,
-			strconv.Itoa(row.itemCount),
-			row.paymentMethod,
-			fmt.Sprintf("%d", row.totalAmount),
+			strconv.Itoa(itemCount),
+			paymentMethod,
+			fmt.Sprintf("%d", totalAmount),
 		})
 		cw.Flush()
+		if err := cw.Error(); err != nil {
+			return err
+		}
 	}
-	return cw.Error()
+	return rows.Err()
 }
 
 func (r *Repository) GetNextInvoiceNumber(ctx context.Context) (string, error) {
@@ -645,6 +616,31 @@ func (r *Repository) GetNextInvoiceNumber(ctx context.Context) (string, error) {
 }
 
 // ==================== PAYMENT METHODS ====================
+
+func (r *Repository) GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error) {
+	var methods []PaymentMethod
+	rows, err := r.db.Query(ctx, `
+		SELECT id, code, name, is_active, requires_reference, sort_order, created_at
+		FROM payment_methods
+		ORDER BY sort_order ASC, id ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var m PaymentMethod
+		var createdAt time.Time
+		err := rows.Scan(&m.ID, &m.Code, &m.Name, &m.IsActive, &m.RequiresReference, &m.SortOrder, &createdAt)
+		if err != nil {
+			return nil, err
+		}
+		m.CreatedAt = createdAt.Format(time.RFC3339)
+		methods = append(methods, m)
+	}
+	return methods, rows.Err()
+}
 
 func (r *Repository) GetAllActive(ctx context.Context) ([]PaymentMethod, error) {
 	var methods []PaymentMethod

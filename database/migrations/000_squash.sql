@@ -1242,6 +1242,8 @@ CREATE TRIGGER trg_products_search_vector BEFORE INSERT OR UPDATE OF name, sku, 
 
 COMMIT;
 
+BEGIN;
+
 -- Roles
 INSERT INTO roles (name, description, is_system) VALUES
     ('superadmin', 'Super Administrator', True),
@@ -1608,4 +1610,6 @@ SELECT 'staff', 'staff@retailpos.local', crypt('admin123', gen_salt('bf', 14)), 
        (SELECT id FROM users WHERE username = 'manager'), true
 FROM roles r WHERE r.name = 'staff'
 ON CONFLICT (username) DO NOTHING;
+
+COMMIT;
 

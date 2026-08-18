@@ -45,6 +45,7 @@ type Repo interface {
 	CreateSalePayments(ctx context.Context, tx pgx.Tx, saleID int, payments []Payment) error
 	DeleteCartItem(ctx context.Context, tx pgx.Tx, cartID, itemID int) error
 	GetAllActive(ctx context.Context) ([]PaymentMethod, error)
+	GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error)
 	GetAllSales(ctx context.Context, limit, offset int, search string, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int) ([]Sale, int, error)
 	GetCartItems(ctx context.Context, cartID int) ([]CartItem, error)
 	GetCartSessionByID(ctx context.Context, cartID int) (*CartSession, error)
@@ -190,6 +191,15 @@ func (s *service) validatePayments(ctx context.Context, totalAmount int, payment
 		return nil, ErrMaxPaymentsExceeded
 	}
 
+	allMethods, err := s.repo.GetAllPaymentMethods(ctx)
+	if err != nil {
+		return nil, err
+	}
+	methodsByCode := make(map[string]*PaymentMethod, len(allMethods))
+	for i := range allMethods {
+		methodsByCode[strings.ToUpper(allMethods[i].Code)] = &allMethods[i]
+	}
+
 	var totalPaid int
 	result := make([]Payment, 0, len(payments))
 	seenMethods := make(map[string]bool)
@@ -200,8 +210,8 @@ func (s *service) validatePayments(ctx context.Context, totalAmount int, payment
 			return nil, ErrZeroPaymentAmount
 		}
 
-		pm, err := s.repo.GetPaymentMethodByCode(ctx, p.PaymentMethodCode)
-		if err != nil {
+		pm, ok := methodsByCode[strings.ToUpper(p.PaymentMethodCode)]
+		if !ok {
 			return nil, ErrInvalidPaymentMethod
 		}
 		if !pm.IsActive {

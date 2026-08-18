@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"retail-pos-system/internal/platform/importexport/schema"
+	"retail-pos-system/internal/shared"
 )
 
 var testSchema = schema.ModuleSchema{
@@ -153,9 +154,9 @@ func TestSanitizeCSVField(t *testing.T) {
 		{"", ""},
 	}
 	for _, tt := range tests {
-		got := sanitizeCSVField(tt.in)
+		got := shared.SanitizeCSVField(tt.in)
 		if got != tt.want {
-			t.Errorf("sanitizeCSVField(%q) = %q, want %q", tt.in, got, tt.want)
+			t.Errorf("SanitizeCSVField(%q) = %q, want %q", tt.in, got, tt.want)
 		}
 	}
 }

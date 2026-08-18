@@ -47,6 +47,13 @@ func (s *service) Create(ctx context.Context, rule *Rule) error {
 	if exists {
 		return ErrDuplicateName
 	}
+	conflicts, err := s.repo.FindConflicts(ctx, rule, 0)
+	if err != nil {
+		return fmt.Errorf("check pricing conflicts: %w", err)
+	}
+	if len(conflicts) > 0 {
+		return ErrRuleConflict
+	}
 	// Default status to approved if not set (backward compat)
 	if rule.Status == "" {
 		rule.Status = StatusApproved

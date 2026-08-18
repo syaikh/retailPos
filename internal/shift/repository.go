@@ -168,6 +168,15 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 	shift.OpenedAt = openedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	shift.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
+	var openCarts int
+	err = tx.QueryRow(ctx, `SELECT COUNT(*) FROM cart_sessions WHERE shift_id = $1 AND status = 'open'`, shiftID).Scan(&openCarts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for active carts: %w", err)
+	}
+	if openCarts > 0 {
+		return nil, fmt.Errorf("cannot close shift: %d active cart(s) still open", openCarts)
+	}
+
 	if storeID.Valid {
 		v := int(storeID.Int64)
 		shift.StoreID = &v

@@ -2,105 +2,11 @@ package sale
 
 import (
 	"bytes"
-	"encoding/csv"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/xuri/excelize/v2"
 )
-
-func TestWriteCSV(t *testing.T) {
-	tests := []struct {
-		name     string
-		rows     []ExportRow
-		wantRows int
-	}{
-		{
-			name:     "empty rows",
-			rows:     []ExportRow{},
-			wantRows: 1,
-		},
-		{
-			name: "single row",
-			rows: []ExportRow{
-				{
-					InvoiceNumber: "INV-001",
-					CreatedAt:     "2026-01-15 10:30:00",
-					CustomerName:  "John",
-					ItemCount:     3,
-					PaymentMethod: "cash",
-					TotalAmount:   150000,
-				},
-			},
-			wantRows: 2,
-		},
-		{
-			name: "multiple rows",
-			rows: []ExportRow{
-				{
-					InvoiceNumber: "INV-001",
-					CreatedAt:     "2026-01-15 10:30:00",
-					CustomerName:  "John",
-					ItemCount:     3,
-					PaymentMethod: "cash",
-					TotalAmount:   150000,
-				},
-				{
-					InvoiceNumber: "INV-002",
-					CreatedAt:     "2026-01-15 11:00:00",
-					CustomerName:  "Jane",
-					ItemCount:     1,
-					PaymentMethod: "card",
-					TotalAmount:   50000,
-				},
-			},
-			wantRows: 3,
-		},
-		{
-			name: "special characters preserved",
-			rows: []ExportRow{
-				{
-					InvoiceNumber: "INV-003",
-					CreatedAt:     "2026-01-15",
-					CustomerName:  "O'Brien & Co.",
-					ItemCount:     2,
-					PaymentMethod: "e-wallet",
-					TotalAmount:   250000,
-				},
-			},
-			wantRows: 2,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var buf bytes.Buffer
-			err := WriteCSV(tt.rows, &buf)
-			assert.NoError(t, err)
-
-			r := csv.NewReader(&buf)
-			records, err := r.ReadAll()
-			assert.NoError(t, err)
-			assert.Equal(t, tt.wantRows, len(records))
-
-			if len(tt.rows) > 0 {
-				assert.Equal(t, "Invoice Number", records[0][0])
-				assert.Equal(t, "Date", records[0][1])
-				assert.Equal(t, "Customer", records[0][2])
-				assert.Equal(t, "Items", records[0][3])
-				assert.Equal(t, "Payment Method", records[0][4])
-				assert.Equal(t, "Total Amount", records[0][5])
-
-				assert.Equal(t, tt.rows[0].InvoiceNumber, records[1][0])
-				assert.Equal(t, tt.rows[0].CreatedAt, records[1][1])
-				assert.Equal(t, tt.rows[0].CustomerName, records[1][2])
-				assert.Equal(t, fmt.Sprintf("%d", tt.rows[0].ItemCount), records[1][3])
-				assert.Equal(t, tt.rows[0].PaymentMethod, records[1][4])
-				assert.Equal(t, fmt.Sprintf("%d", tt.rows[0].TotalAmount), records[1][5])
-			}
-		})
-	}
-}
 
 func TestWriteXLSX(t *testing.T) {
 	tests := []struct {
@@ -171,29 +77,6 @@ func TestWriteXLSX(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestWriteCSV_SpecialCharactersPreserved(t *testing.T) {
-	rows := []ExportRow{
-		{
-			InvoiceNumber: "=SUM(A1:A2)",
-			CreatedAt:     "2026-01-15",
-			CustomerName:  "+tricky prefix",
-			ItemCount:     1,
-			PaymentMethod: "-discount",
-			TotalAmount:   10000,
-		},
-	}
-	var buf bytes.Buffer
-	err := WriteCSV(rows, &buf)
-	assert.NoError(t, err)
-
-	r := csv.NewReader(&buf)
-	records, err := r.ReadAll()
-	assert.NoError(t, err)
-	assert.Equal(t, 2, len(records))
-
-	assert.Contains(t, records[1][0], "SUM")
 }
 
 func TestWriteXLSX_CellValues(t *testing.T) {

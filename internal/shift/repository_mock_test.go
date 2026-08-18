@@ -104,6 +104,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectBegin()
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1, 1).WillReturnRows(rowShift())
+		mock.ExpectQuery("SELECT COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnError(boom)
 		_, err := repo.CloseShift(ctx, 1, 1, 100000, nil)
 		assert.ErrorContains(t, err, "failed to calculate shift summary")
@@ -113,6 +114,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectBegin()
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1, 1).WillReturnRows(rowShift())
+		mock.ExpectQuery("SELECT COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnRows(summaryRow())
 		mock.ExpectQuery("UPDATE shifts").WithArgs(100000, 0, 0, 0, 0, 0, (*string)(nil), false, 1).WillReturnError(boom)
 		_, err := repo.CloseShift(ctx, 1, 1, 100000, nil)
@@ -123,6 +125,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectBegin()
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1, 1).WillReturnRows(rowShift())
+		mock.ExpectQuery("SELECT COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnRows(summaryRow())
 		mock.ExpectQuery("UPDATE shifts").WithArgs(100000, 0, 0, 0, 0, 0, (*string)(nil), false, 1).WillReturnRows(
 			pgxmock.NewRows([]string{"closed_at", "updated_at"}).AddRow(now, now))
