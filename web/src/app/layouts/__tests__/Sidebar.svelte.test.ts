@@ -24,6 +24,19 @@ describe('Sidebar.svelte source-structure guards', () => {
     expect(src).toContain("import { Tooltip } from '$shared/ui'");
   });
 
+  it('imports settingsStore for dynamic branding', () => {
+    expect(src).toContain("import { settingsStore } from '$shared/stores/settings.svelte'");
+  });
+
+  it('uses settingsStore for branding text', () => {
+    expect(src).toContain('settingsStore.storeName');
+    expect(src).toContain('settingsStore.storeJargon');
+  });
+
+  it('uses settingsStore.logoPath for conditional logo display', () => {
+    expect(src).toContain('settingsStore.logoPath');
+  });
+
   it('uses $bindable for currentPath prop', () => {
     expect(src).toContain('currentPath = $bindable(\'/\')');
   });
@@ -45,6 +58,11 @@ describe('Sidebar.svelte source-structure guards', () => {
     expect(src).toContain('staffNavItems');
     expect(src).toContain('managerNavItems');
     expect(src).toContain('adminItems');
+  });
+
+  it('has settings item in admin navigation', () => {
+    expect(src).toContain('/admin/settings');
+    expect(src).toContain('labels.settings');
   });
 
   it('has aria-label on aside for accessibility', () => {

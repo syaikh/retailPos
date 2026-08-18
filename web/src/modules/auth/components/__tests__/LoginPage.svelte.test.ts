@@ -19,6 +19,19 @@ describe('LoginPage.svelte source-structure guards', () => {
     expect(src).toContain("import { labels, t } from '$shared/i18n'");
   });
 
+  it('imports settingsStore for dynamic branding', () => {
+    expect(src).toContain("import { settingsStore } from '$shared/stores/settings.svelte'");
+  });
+
+  it('uses settingsStore for branding text', () => {
+    expect(src).toContain('settingsStore.storeName');
+    expect(src).toContain('settingsStore.storeJargon');
+  });
+
+  it('uses settingsStore.logoPath for conditional logo display', () => {
+    expect(src).toContain('settingsStore.logoPath');
+  });
+
   it('imports login and useAuthStore from auth module', () => {
     expect(src).toContain("import { login } from '$modules/auth'");
     expect(src).toContain("import { useAuthStore } from '$modules/auth'");

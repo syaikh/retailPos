@@ -7,8 +7,8 @@ import (
 
 func TestRegistryCount(t *testing.T) {
 	got := len(All())
-	if got != 74 {
-		t.Fatalf("registry has %d codes, want 74 (72 from database/permission-matrix-final.md + product.history.view/product.cost.view from docs/audits/permission-additions-sprint1.md)", got)
+	if got != 81 {
+		t.Fatalf("registry has %d codes, want 81 (72 from database/permission-matrix-final.md + product.history.view/product.cost.view + consignment.* + app_settings.*)", got)
 	}
 }
 
@@ -74,9 +74,11 @@ func TestSpotCheckCodes(t *testing.T) {
 		PurchaseOrderView, PurchaseOrderCreate, PurchaseOrderUpdate, PurchaseOrderDelete, PurchaseOrderConfirm, PurchaseOrderReceive, PurchaseOrderCancel,
 		StockOpnameView, StockOpnameCreate, StockOpnameAssign, StockOpnameCount, StockOpnameSubmit, StockOpnameRecount, StockOpnameCancel, StockOpnameExport, StockOpnameVerify, StockOpnamePost, StockOpnameClose, StockOpnameReport,
 		StorageLocationView, StorageLocationCreate, StorageLocationUpdate, StorageLocationDelete,
+		ConsignmentView, ConsignmentCreate, ConsignmentUpdate, ConsignmentSettle, ConsignmentPay,
+		AppSettingsView, AppSettingsUpdate,
 	}
-	if len(spot) != 74 {
-		t.Fatalf("spot-check list has %d entries, want 74", len(spot))
+	if len(spot) != 81 {
+		t.Fatalf("spot-check list has %d entries, want 81", len(spot))
 	}
 	for _, c := range spot {
 		if !Exists(c) {
@@ -90,7 +92,7 @@ func TestAllCoversSpotCheck(t *testing.T) {
 	for _, c := range All() {
 		allSet[c] = struct{}{}
 	}
-	spot := []Code{ProductImport, StockOpnameVerify, PurchaseOrderReceive, StorageLocationDelete, CustomerGroupCreate}
+	spot := []Code{ProductImport, StockOpnameVerify, PurchaseOrderReceive, StorageLocationDelete, CustomerGroupCreate, AppSettingsView, AppSettingsUpdate}
 	for _, c := range spot {
 		if _, ok := allSet[c]; !ok {
 			t.Errorf("code %q missing from All()", c)

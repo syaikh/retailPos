@@ -1,7 +1,7 @@
 /**
  * Permission Registry — single source of truth for all permission codes.
  *
- * Sync source: database (permissions table, 74 live codes) — see
+ * Sync source: database (permissions table, 81 live codes) — see
  * docs/audits/permission-matrix-final.md (72, approved 2026-08-04) and
  * docs/audits/permission-additions-sprint1.md (+product.history.view,
  * +product.cost.view).

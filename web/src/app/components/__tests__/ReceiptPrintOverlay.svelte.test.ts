@@ -15,6 +15,14 @@ describe('ReceiptPrintOverlay.svelte source-structure guards', () => {
     expect(src).toContain("import { printReceipt } from '$shared/stores/printReceipt.svelte'");
   });
 
+  it('imports settingsStore for dynamic receipt branding', () => {
+    expect(src).toContain("import { settingsStore } from '$shared/stores/settings.svelte'");
+  });
+
+  it('uses settingsStore for receipt store name', () => {
+    expect(src).toContain('settingsStore.storeName');
+  });
+
   it('imports formatDateTimeInJakarta utility', () => {
     expect(src).toContain("import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime'");
   });
@@ -44,6 +52,14 @@ describe('ReceiptPrintOverlay.svelte source-structure guards', () => {
   it('conditionally renders DPP and PPN', () => {
     expect(src).toContain('$printReceipt.subtotal_dpp');
     expect(src).toContain('$printReceipt.tax');
+  });
+
+  it('conditionally renders receipt header from settingsStore', () => {
+    expect(src).toContain('settingsStore.receiptHeader');
+  });
+
+  it('conditionally renders receipt footer from settingsStore or defaults', () => {
+    expect(src).toContain('settingsStore.receiptFooter');
   });
 
   it('displays total amount', () => {
