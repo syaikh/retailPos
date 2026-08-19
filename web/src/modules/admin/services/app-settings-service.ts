@@ -10,7 +10,8 @@ export interface AllSettings {
   store_name: string;
   store_jargon: string;
   logo_path: string;
-  default_language: string;
+  store_address: string;
+  store_phone: string;
   receipt_header: string;
   receipt_footer: string;
 }

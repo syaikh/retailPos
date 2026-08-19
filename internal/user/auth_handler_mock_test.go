@@ -21,6 +21,7 @@ type mockAuthLoginService struct {
 	changePasswordFn func(ctx context.Context, userID int, currentPassword, newPassword string) error
 	logoutFn         func(ctx context.Context, userID int, refreshToken string) error
 	hashPasswordFn   func(password string) (string, error)
+	getUserByIDFn    func(ctx context.Context, id int) (*User, error)
 }
 
 func (m *mockAuthLoginService) Login(ctx context.Context, username, password string) (*LoginResponse, error) {
@@ -43,6 +44,12 @@ func (m *mockAuthLoginService) HashPassword(password string) (string, error) {
 		return m.hashPasswordFn(password)
 	}
 	return "$2a$10$hashedpassword", nil
+}
+func (m *mockAuthLoginService) GetUserByID(ctx context.Context, id int) (*User, error) {
+	if m.getUserByIDFn != nil {
+		return m.getUserByIDFn(ctx, id)
+	}
+	return &User{ID: id, Username: "testuser", Language: "id", Theme: "light"}, nil
 }
 
 var _ AuthLoginService = (*mockAuthLoginService)(nil)

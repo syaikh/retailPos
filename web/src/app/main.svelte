@@ -11,10 +11,14 @@
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { toast } from '$shared/stores/toast.svelte';
   import { initSettings, loadFullSettings, settingsStore } from '$shared/stores/settings.svelte';
+  import { initTheme } from '$shared/utils/theme';
 
   import Layout from '$app/layouts/Layout.svelte';
   import { Toast } from '$shared/ui';
   import { labels, t } from '$shared/i18n';
+
+  // Apply saved theme before first paint
+  initTheme();
 
   // Always-needed pages (loaded eagerly)
   import LoginPage from '$modules/auth/components/LoginPage.svelte';

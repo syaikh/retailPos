@@ -1,15 +1,16 @@
 <script lang="ts">
-  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler, Truck, Percent, Clock, ClipboardList, Warehouse, Handshake, Settings } from 'lucide-svelte';
+  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler, Truck, Percent, Clock, ClipboardList, Warehouse, Handshake, Settings, Globe, Sun, Moon } from 'lucide-svelte';
   import { fly } from 'svelte/transition';
   import { goto, getPath } from '$app/router';
-  import { logout, useAuthStore } from '$modules/auth';
+  import { logout, useAuthStore, updatePreferences } from '$modules/auth';
   import { useShiftStore } from '$modules/shifts';
   import { Tooltip } from '$shared/ui';
   import { routePermissions } from '$app/config/permissions';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Roles } from '$shared/constants/roles';
-  import { labels } from '$shared/i18n';
+  import { labels, setLocale, currentLocale } from '$shared/i18n';
   import { settingsStore } from '$shared/stores/settings.svelte';
+  import { applyTheme, currentTheme } from '$shared/utils/theme';
 
   let {
     currentPath = $bindable('/'),
@@ -173,6 +174,21 @@
     await logout();
   }
 
+  let userLang = $derived(currentLocale());
+  let userTheme = $derived(currentTheme());
+
+  async function toggleLanguage() {
+    const newLang = userLang === 'id' ? 'en' : 'id';
+    setLocale(newLang);
+    await updatePreferences(newLang, userTheme);
+  }
+
+  async function toggleTheme() {
+    const newTheme = userTheme === 'light' ? 'dark' : 'light';
+    applyTheme(newTheme);
+    await updatePreferences(userLang, newTheme);
+  }
+
   function createRipple(event: MouseEvent, el: HTMLElement) {
     const button = el;
     const circle = document.createElement('span');
@@ -328,6 +344,26 @@
         <div class="flex-1 min-w-0">
           <p class="text-xs font-semibold text-text-primary truncate">{username}</p>
           <p class="text-[10px] text-text-muted capitalize truncate">{rbac.roleDisplayName}</p>
+        </div>
+        <div class="flex items-center gap-0.5">
+          <button type="button" onclick={toggleLanguage}
+            class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary-subtle transition-all duration-200"
+            title={userLang === 'id' ? labels.switchToEnglish : labels.switchToIndonesian}
+            aria-label={labels.switchLanguage}
+          >
+            <Globe size={13} />
+          </button>
+          <button type="button" onclick={toggleTheme}
+            class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary-subtle transition-all duration-200"
+            title={userTheme === 'light' ? labels.switchToDarkMode : labels.switchToLightMode}
+            aria-label={labels.switchTheme}
+          >
+            {#if userTheme === 'light'}
+              <Moon size={13} />
+            {:else}
+              <Sun size={13} />
+            {/if}
+          </button>
         </div>
         {#if canLogout}
           <button type="button" 

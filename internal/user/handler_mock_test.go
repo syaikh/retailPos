@@ -101,6 +101,9 @@ func (m *mockUserService) GetRolePermissions(ctx context.Context, roleID int) ([
 func (m *mockUserService) UpdateRolePermissions(ctx context.Context, roleID int, permissionIDs []int) error {
 	return m.updatePermsFn(ctx, roleID, permissionIDs)
 }
+func (m *mockUserService) UpdatePreferences(ctx context.Context, userID int, language, theme string) error {
+	return nil
+}
 
 var _ Service = (*mockUserService)(nil)
 

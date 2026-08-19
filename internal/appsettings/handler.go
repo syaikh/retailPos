@@ -1,6 +1,7 @@
 package appsettings
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -24,10 +25,16 @@ type cacheEntry struct {
 	expiresAt time.Time
 }
 
+// StoreProvider abstracts fetching branch address/phone from the stores module.
+type StoreProvider interface {
+	GetStoreAddress(ctx context.Context, storeID int) (address, phone string, err error)
+}
+
 // Handler handles HTTP requests for application settings.
 type Handler struct {
 	svc      *Service
 	auditSvc audit.Creator
+	store    StoreProvider
 
 	mu         sync.RWMutex
 	cache      *cacheEntry
@@ -37,7 +44,7 @@ type Handler struct {
 
 // NewHandler returns a new Handler. It creates the logo upload directory if it
 // does not already exist.
-func NewHandler(svc *Service, auditSvc audit.Creator) *Handler {
+func NewHandler(svc *Service, auditSvc audit.Creator, store StoreProvider) *Handler {
 	logoDir := filepath.Join("uploads", "logos")
 	if err := os.MkdirAll(logoDir, 0755); err != nil {
 		slog.Warn("appsettings: could not create logo directory", "path", logoDir, "error", err)
@@ -51,6 +58,7 @@ func NewHandler(svc *Service, auditSvc audit.Creator) *Handler {
 	return &Handler{
 		svc:        svc,
 		auditSvc:   auditSvc,
+		store:      store,
 		cacheTTL:   60 * time.Second,
 		logoDirAbs: absLogoDir,
 	}
@@ -156,12 +164,31 @@ func (h *Handler) ServeLogo(c *gin.Context) {
 // Protected settings (auth + permission)
 // ──────────────────────────────────────────────────────────────────────
 
-// GetAll returns all application settings.
+// GetAll returns all application settings merged with the caller's branch data.
 func (h *Handler) GetAll(c *gin.Context) {
-	settings, err := h.svc.GetAll(c.Request.Context())
+	rawSettings, err := h.svc.GetAll(c.Request.Context())
 	if err != nil {
 		shared.InternalError(c, err)
 		return
+	}
+
+	settings := AllSettings{
+		BrandingSettings: BrandingSettings{
+			StoreName:   rawSettings["store_name"],
+			StoreJargon: rawSettings["store_jargon"],
+			LogoPath:    rawSettings["logo_path"],
+		},
+		ReceiptHeader: rawSettings["receipt_header"],
+		ReceiptFooter: rawSettings["receipt_footer"],
+	}
+
+	// Merge per-branch address/phone from the stores table using the caller's store_id.
+	storeID := middleware.StoreIDFromContext(c.Request.Context())
+	if storeID != nil && h.store != nil {
+		if addr, phone, err := h.store.GetStoreAddress(c.Request.Context(), *storeID); err == nil {
+			settings.StoreAddress = addr
+			settings.StorePhone = phone
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -38,6 +38,7 @@ type Service interface {
 	GetAllUsers(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool) ([]User, int, error)
 	CreateUser(ctx context.Context, user *User) error
 	UpdateUser(ctx context.Context, user *User) error
+	UpdatePreferences(ctx context.Context, userID int, language, theme string) error
 	DeleteUser(ctx context.Context, id int) error
 	GetSubordinates(ctx context.Context, managerID int) ([]User, error)
 	GetManager(ctx context.Context, userID int) (*User, error)
@@ -77,6 +78,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.PUT("/admin/roles/:id/permissions", auth, perm(permissions.RoleUpdate), h.UpdateRolePermissions)
 	r.DELETE("/admin/roles/:id", auth, perm(permissions.RoleDelete), h.DeleteRole)
 	r.GET("/admin/permissions", auth, perm(permissions.RoleView), h.ListPermissions)
+	r.PUT("/users/me/preferences", auth, h.UpdatePreferences)
 }
 
 type CreateUserRequest struct {
@@ -415,6 +417,37 @@ func (h *Handler) GetOrgChart(c *gin.Context) {
 		users = []User{}
 	}
 	c.JSON(http.StatusOK, gin.H{"data": users})
+}
+
+type UpdatePreferencesRequest struct {
+	Language string `json:"language" binding:"required,oneof=id en"`
+	Theme    string `json:"theme" binding:"required,oneof=light dark"`
+}
+
+func (h *Handler) UpdatePreferences(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		shared.JSONError(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+	uid, ok := userID.(int)
+	if !ok {
+		shared.JSONError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid user session")
+		return
+	}
+
+	var req UpdatePreferencesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.JSONError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body")
+		return
+	}
+
+	if err := h.svc.UpdatePreferences(c.Request.Context(), uid, req.Language, req.Theme); err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"language": req.Language, "theme": req.Theme})
 }
 
 func (h *Handler) ListRoles(c *gin.Context) {

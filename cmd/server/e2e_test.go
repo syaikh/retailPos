@@ -21,6 +21,7 @@ import (
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
 	"retail-pos-system/internal/config"
+	"retail-pos-system/internal/consignment"
 	"retail-pos-system/internal/customer"
 	"retail-pos-system/internal/customergroup"
 	"retail-pos-system/internal/eventbus"
@@ -244,6 +245,7 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	pricingRepo.SetBrandSearchProvider(brand.BrandNamesProvider{})
 	supplierRepo := supplier.NewRepository(e2ePool)
 	purchaseRepo := purchase.NewRepository(e2ePool)
+	consignmentRepo := consignment.NewRepository(e2ePool)
 
 	userSvc := user.NewService(userRepo)
 	authSvc := user.NewAuthService(userRepo, nil, config.Load())
@@ -253,6 +255,7 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	saleSvc := sale.NewService(saleRepo, bus)
 	saleSvc.SetStockDeducer(inventory.StockDeducer{})
 	saleSvc.SetShiftTotalUpdater(shift.TotalUpdater{})
+	saleSvc.SetConsignmentCheckout(consignment.NewCheckoutProvider(consignmentRepo))
 	inventorySvc := inventory.NewService(inventoryRepo, bus)
 	customerSvc := customer.NewService(customerRepo)
 	categorySvc := category.NewService(categoryRepo)

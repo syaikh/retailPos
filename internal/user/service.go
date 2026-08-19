@@ -13,6 +13,7 @@ type Repo interface {
 	GetAllUsers(ctx context.Context, limit, offset int, search string, sortBy string, sortDir string, roleID int, isActive *bool) ([]User, int, error)
 	CreateUser(ctx context.Context, user *User) error
 	UpdateUser(ctx context.Context, user *User) error
+	UpdatePreferences(ctx context.Context, userID int, language, theme string) error
 	DeleteUser(ctx context.Context, id int) error
 	CountUsersByRole(ctx context.Context, roleID int) (int, error)
 	GetAllRoles(ctx context.Context) ([]Role, error)
@@ -73,6 +74,10 @@ func (s *service) CreateUser(ctx context.Context, user *User) error {
 
 func (s *service) UpdateUser(ctx context.Context, user *User) error {
 	return s.repo.UpdateUser(ctx, user)
+}
+
+func (s *service) UpdatePreferences(ctx context.Context, userID int, language, theme string) error {
+	return s.repo.UpdatePreferences(ctx, userID, language, theme)
 }
 
 func (s *service) DeleteUser(ctx context.Context, id int) error {

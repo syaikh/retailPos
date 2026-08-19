@@ -9,6 +9,12 @@
 <div class="thermal-receipt-container">
   <div class="thermal-receipt" id="thermal-receipt">
     <div class="thermal-shop-name">{settingsStore.storeName}</div>
+    {#if settingsStore.storeAddress}
+      <div class="thermal-shop-detail">{settingsStore.storeAddress}</div>
+    {/if}
+    {#if settingsStore.storePhone}
+      <div class="thermal-shop-detail">{labels.phone}: {settingsStore.storePhone}</div>
+    {/if}
     {#if settingsStore.receiptHeader}
       <div class="thermal-receipt-header">{settingsStore.receiptHeader}</div>
     {/if}

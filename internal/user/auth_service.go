@@ -266,6 +266,10 @@ func (s *AuthService) HashPassword(password string) (string, error) {
 	return string(bytes), nil
 }
 
+func (s *AuthService) GetUserByID(ctx context.Context, id int) (*User, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
 func (s *AuthService) generateToken(user *User, permissions []string, ttl time.Duration) (string, error) {
 	claims := AuthClaims{
 		ID:          user.ID,

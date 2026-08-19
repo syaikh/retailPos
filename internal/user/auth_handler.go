@@ -22,6 +22,7 @@ type AuthLoginService interface {
 	ChangePassword(ctx context.Context, userID int, currentPassword, newPassword string) error
 	Logout(ctx context.Context, userID int, refreshToken string) error
 	HashPassword(password string) (string, error)
+	GetUserByID(ctx context.Context, id int) (*User, error)
 }
 
 type AuthHandler struct {
@@ -168,12 +169,24 @@ func (h *AuthHandler) ValidateSession(c *gin.Context) {
 		resp.StoreID = v
 	}
 
+	// Fetch language/theme preferences from DB.
+	userLang := "id"
+	userTheme := "light"
+	if resp.ID > 0 && h.svc != nil {
+		if fullUser, err := h.svc.GetUserByID(c.Request.Context(), resp.ID); err == nil {
+			userLang = fullUser.Language
+			userTheme = fullUser.Theme
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":       resp.ID,
 			"username": resp.Username,
 			"role":     resp.Role,
 			"store_id": resp.StoreID,
+			"language": userLang,
+			"theme":    userTheme,
 		},
 		"permissions": resp.Permissions,
 	})

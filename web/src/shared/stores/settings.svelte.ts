@@ -4,7 +4,8 @@ class SettingsStore {
   storeName = $state('RetailPOS');
   storeJargon = $state('Management System');
   logoPath = $state('');
-  defaultLanguage = $state('id');
+  storeAddress = $state('');
+  storePhone = $state('');
   receiptHeader = $state('');
   receiptFooter = $state('Terima kasih atas kunjungan Anda!');
 
@@ -18,7 +19,8 @@ class SettingsStore {
     if (data.store_name !== undefined) this.storeName = data.store_name;
     if (data.store_jargon !== undefined) this.storeJargon = data.store_jargon;
     if (data.logo_path !== undefined) this.logoPath = data.logo_path;
-    if (data.default_language !== undefined) this.defaultLanguage = data.default_language;
+    if (data.store_address !== undefined) this.storeAddress = data.store_address;
+    if (data.store_phone !== undefined) this.storePhone = data.store_phone;
     if (data.receipt_header !== undefined) this.receiptHeader = data.receipt_header;
     if (data.receipt_footer !== undefined) this.receiptFooter = data.receipt_footer;
   }

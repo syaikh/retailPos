@@ -48,9 +48,9 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*User,
 	var lastLogin sql.NullTime
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, created_at, updated_at, last_login
+		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, language, theme, created_at, updated_at, last_login
 		FROM users WHERE username = $1 AND deleted_at IS NULL
-	`, username).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
+	`, username).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &u.Language, &u.Theme, &createdAt, &updatedAt, &lastLogin)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -70,6 +70,12 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*User,
 	if reportsTo.Valid {
 		v := int(reportsTo.Int64)
 		u.ReportsToID = &v
+	}
+	if u.Language == "" {
+		u.Language = "id"
+	}
+	if u.Theme == "" {
+		u.Theme = "light"
 	}
 	if u.RoleID > 0 {
 		role, err := r.GetRoleByID(ctx, u.RoleID)
@@ -93,9 +99,9 @@ func (r *Repository) getUserByID(ctx context.Context, id int) (*User, error) {
 	var lastLogin sql.NullTime
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, created_at, updated_at, last_login
+		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, language, theme, created_at, updated_at, last_login
 		FROM users WHERE id = $1 AND deleted_at IS NULL
-	`, id).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
+	`, id).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &u.Language, &u.Theme, &createdAt, &updatedAt, &lastLogin)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -115,6 +121,12 @@ func (r *Repository) getUserByID(ctx context.Context, id int) (*User, error) {
 	if reportsTo.Valid {
 		v := int(reportsTo.Int64)
 		u.ReportsToID = &v
+	}
+	if u.Language == "" {
+		u.Language = "id"
+	}
+	if u.Theme == "" {
+		u.Theme = "light"
 	}
 	if u.RoleID > 0 {
 		role, _ := r.GetRoleByID(ctx, u.RoleID)
@@ -166,7 +178,7 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 
 	query = `SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.store_id, u.reports_to,
 	                 COALESCE(m.username, '') AS reports_to_username,
-	                 u.is_active,
+	                 u.is_active, u.language, u.theme,
 	                 u.created_at, u.updated_at, u.last_login,
 	                 COALESCE(r.id, 0), COALESCE(r.name, ''), COALESCE(r.description, ''), COALESCE(r.is_system, false), r.created_at
 	          FROM users u
@@ -223,7 +235,7 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 
 		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo,
 			&u.ReportsToUsername,
-			&u.IsActive,
+			&u.IsActive, &u.Language, &u.Theme,
 			&createdAt, &updatedAt, &lastLogin,
 			&roleIDVal, &roleName, &roleDesc, &roleIsSystem, &roleCreatedAt)
 		if err != nil {
@@ -241,6 +253,12 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 		if reportsTo.Valid {
 			v := int(reportsTo.Int64)
 			u.ReportsToID = &v
+		}
+		if u.Language == "" {
+			u.Language = "id"
+		}
+		if u.Theme == "" {
+			u.Theme = "light"
 		}
 		if roleIDVal > 0 {
 			u.Role.ID = roleIDVal
@@ -320,7 +338,7 @@ func (r *Repository) DeleteUser(ctx context.Context, id int) error {
 
 func (r *Repository) GetSubordinates(ctx context.Context, managerID int) ([]User, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, created_at, updated_at, last_login
+		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, language, theme, created_at, updated_at, last_login
 		FROM users WHERE reports_to = $1 AND deleted_at IS NULL ORDER BY username
 	`, managerID)
 	if err != nil {
@@ -336,7 +354,7 @@ func (r *Repository) GetSubordinates(ctx context.Context, managerID int) ([]User
 		var createdAt, updatedAt time.Time
 		var lastLogin sql.NullTime
 
-		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
+		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &u.Language, &u.Theme, &createdAt, &updatedAt, &lastLogin)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan subordinate: %w", err)
 		}
@@ -353,6 +371,12 @@ func (r *Repository) GetSubordinates(ctx context.Context, managerID int) ([]User
 			v := int(reportsTo.Int64)
 			u.ReportsToID = &v
 		}
+		if u.Language == "" {
+			u.Language = "id"
+		}
+		if u.Theme == "" {
+			u.Theme = "light"
+		}
 		subordinates = append(subordinates, u)
 	}
 	return subordinates, rows.Err()
@@ -366,11 +390,11 @@ func (r *Repository) GetManager(ctx context.Context, userID int) (*User, error) 
 	var lastLogin sql.NullTime
 
 	err := r.db.QueryRow(ctx, `
-		SELECT m.id, m.username, m.email, m.password_hash, m.role_id, m.store_id, m.reports_to, m.is_active, m.created_at, m.updated_at, m.last_login
+		SELECT m.id, m.username, m.email, m.password_hash, m.role_id, m.store_id, m.reports_to, m.is_active, m.language, m.theme, m.created_at, m.updated_at, m.last_login
 		FROM users u
 		JOIN users m ON m.id = u.reports_to
 		WHERE u.id = $1 AND u.deleted_at IS NULL AND m.deleted_at IS NULL
-	`, userID).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
+	`, userID).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &u.Language, &u.Theme, &createdAt, &updatedAt, &lastLogin)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -391,21 +415,27 @@ func (r *Repository) GetManager(ctx context.Context, userID int) (*User, error) 
 		v := int(reportsTo.Int64)
 		u.ReportsToID = &v
 	}
+	if u.Language == "" {
+		u.Language = "id"
+	}
+	if u.Theme == "" {
+		u.Theme = "light"
+	}
 	return &u, nil
 }
 
 func (r *Repository) GetOrgChart(ctx context.Context) ([]User, error) {
 	rows, err := r.db.Query(ctx, `
 		WITH RECURSIVE org_tree AS (
-			SELECT id, username, email, role_id, store_id, reports_to, is_active, created_at, updated_at, last_login, 0 AS level
+			SELECT id, username, email, role_id, store_id, reports_to, is_active, language, theme, created_at, updated_at, last_login, 0 AS level
 			FROM users WHERE reports_to IS NULL AND deleted_at IS NULL
 			UNION ALL
-			SELECT u.id, u.username, u.email, u.role_id, u.store_id, u.reports_to, u.is_active, u.created_at, u.updated_at, u.last_login, ot.level + 1
+			SELECT u.id, u.username, u.email, u.role_id, u.store_id, u.reports_to, u.is_active, u.language, u.theme, u.created_at, u.updated_at, u.last_login, ot.level + 1
 			FROM users u
 			JOIN org_tree ot ON ot.id = u.reports_to
 			WHERE u.deleted_at IS NULL
 		)
-		SELECT id, username, email, role_id, store_id, reports_to, is_active, created_at, updated_at, last_login
+		SELECT id, username, email, role_id, store_id, reports_to, is_active, language, theme, created_at, updated_at, last_login
 		FROM org_tree ORDER BY level, username
 	`)
 	if err != nil {
@@ -421,7 +451,7 @@ func (r *Repository) GetOrgChart(ctx context.Context) ([]User, error) {
 		var createdAt, updatedAt time.Time
 		var lastLogin sql.NullTime
 
-		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
+		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &u.Language, &u.Theme, &createdAt, &updatedAt, &lastLogin)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan org chart user: %w", err)
 		}
@@ -438,6 +468,12 @@ func (r *Repository) GetOrgChart(ctx context.Context) ([]User, error) {
 			v := int(reportsTo.Int64)
 			u.ReportsToID = &v
 		}
+		if u.Language == "" {
+			u.Language = "id"
+		}
+		if u.Theme == "" {
+			u.Theme = "light"
+		}
 		users = append(users, u)
 	}
 	return users, rows.Err()
@@ -445,6 +481,14 @@ func (r *Repository) GetOrgChart(ctx context.Context) ([]User, error) {
 
 func (r *Repository) UpdateLastLogin(ctx context.Context, userID int) error {
 	_, err := r.db.Exec(ctx, "UPDATE users SET last_login = NOW() WHERE id = $1", userID)
+	return err
+}
+
+func (r *Repository) UpdatePreferences(ctx context.Context, userID int, language, theme string) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE users SET language = $1, theme = $2, updated_at = NOW()
+		WHERE id = $3 AND deleted_at IS NULL
+	`, language, theme, userID)
 	return err
 }
 

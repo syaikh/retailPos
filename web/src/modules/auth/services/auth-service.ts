@@ -3,6 +3,8 @@ import type { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../stores/auth-store.svelte';
 import { setAccessToken, removeAccessToken, getAuthToken } from '../lib/session';
 import type { User } from '../types';
+import { applyTheme } from '$shared/utils/theme';
+import { setLocale } from '$shared/i18n';
 
 function decodeTokenPayload(token: string): Record<string, unknown> | null {
   try {
@@ -211,6 +213,10 @@ export async function login(username: string, password: string): Promise<{ acces
         data.user.permissions = claims.permissions as string[];
       }
     }
+    if (data.user) {
+      if (data.user.theme) applyTheme(data.user.theme);
+      if (data.user.language) setLocale(data.user.language);
+    }
     return data;
   } catch {
     return false;
@@ -227,4 +233,20 @@ export async function logout(): Promise<void> {
   const store = useAuthStore();
   store.clearUser();
   window.location.replace('/login');
+}
+
+export async function updatePreferences(language: string, theme: string): Promise<boolean> {
+  try {
+    const res = await authApi.put('/users/me/preferences', { language, theme }, { headers: getAuthHeaders() });
+    if (res.status === 200) {
+      const store = useAuthStore();
+      if (store.user) {
+        store.user = { ...store.user, language, theme };
+      }
+      applyTheme(theme as 'light' | 'dark');
+      setLocale(language as 'id' | 'en');
+      return true;
+    }
+  } catch { /* ignore */ }
+  return false;
 }

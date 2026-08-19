@@ -16,7 +16,8 @@ describe('SettingsStore', () => {
     settingsStore.storeName = 'RetailPOS';
     settingsStore.storeJargon = 'Management System';
     settingsStore.logoPath = '';
-    settingsStore.defaultLanguage = 'id';
+    settingsStore.storeAddress = '';
+    settingsStore.storePhone = '';
     settingsStore.receiptHeader = '';
     settingsStore.receiptFooter = 'Terima kasih atas kunjungan Anda!';
     vi.resetAllMocks();
@@ -26,7 +27,8 @@ describe('SettingsStore', () => {
     expect(settingsStore.storeName).toBe('RetailPOS');
     expect(settingsStore.storeJargon).toBe('Management System');
     expect(settingsStore.logoPath).toBe('');
-    expect(settingsStore.defaultLanguage).toBe('id');
+    expect(settingsStore.storeAddress).toBe('');
+    expect(settingsStore.storePhone).toBe('');
     expect(settingsStore.receiptHeader).toBe('');
     expect(settingsStore.receiptFooter).toBe('Terima kasih atas kunjungan Anda!');
   });
@@ -40,7 +42,7 @@ describe('SettingsStore', () => {
     expect(settingsStore.storeName).toBe('New Store');
     expect(settingsStore.storeJargon).toBe('POS System');
     expect(settingsStore.logoPath).toBe('logo.png');
-    expect(settingsStore.defaultLanguage).toBe('id');
+    expect(settingsStore.storeAddress).toBe('');
   });
 
   it('updateBranding ignores undefined fields', () => {
@@ -55,14 +57,16 @@ describe('SettingsStore', () => {
       store_name: 'Full Store',
       store_jargon: 'Full Jargon',
       logo_path: 'full-logo.png',
-      default_language: 'en',
+      store_address: 'Jl. Sudirman 123',
+      store_phone: '021-1234567',
       receipt_header: 'Welcome!',
       receipt_footer: 'Come again!',
     });
     expect(settingsStore.storeName).toBe('Full Store');
     expect(settingsStore.storeJargon).toBe('Full Jargon');
     expect(settingsStore.logoPath).toBe('full-logo.png');
-    expect(settingsStore.defaultLanguage).toBe('en');
+    expect(settingsStore.storeAddress).toBe('Jl. Sudirman 123');
+    expect(settingsStore.storePhone).toBe('021-1234567');
     expect(settingsStore.receiptHeader).toBe('Welcome!');
     expect(settingsStore.receiptFooter).toBe('Come again!');
   });
@@ -102,7 +106,7 @@ describe('initSettings', () => {
 describe('loadFullSettings', () => {
   beforeEach(() => {
     settingsStore.storeName = 'RetailPOS';
-    settingsStore.defaultLanguage = 'id';
+    settingsStore.storeAddress = '';
     settingsStore.receiptHeader = '';
   });
 
@@ -111,7 +115,8 @@ describe('loadFullSettings', () => {
       store_name: 'Full Store',
       store_jargon: 'Full Jargon',
       logo_path: 'full.png',
-      default_language: 'en',
+      store_address: 'Jl. Sudirman 123',
+      store_phone: '021-1234567',
       receipt_header: 'Hello',
       receipt_footer: 'Goodbye',
     });
@@ -119,7 +124,8 @@ describe('loadFullSettings', () => {
     await loadFullSettings();
 
     expect(settingsStore.storeName).toBe('Full Store');
-    expect(settingsStore.defaultLanguage).toBe('en');
+    expect(settingsStore.storeAddress).toBe('Jl. Sudirman 123');
+    expect(settingsStore.storePhone).toBe('021-1234567');
     expect(settingsStore.receiptHeader).toBe('Hello');
     expect(mockFetchAllSettings).toHaveBeenCalledOnce();
   });

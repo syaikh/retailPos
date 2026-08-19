@@ -12,6 +12,8 @@ export interface User {
   created_at?: string;
   updated_at?: string;
   permissions?: string[];
+  language?: string;
+  theme?: string;
 }
 
 export interface AuthState {

@@ -13,9 +13,10 @@
 
   let storeName = $state('');
   let storeJargon = $state('');
-  let defaultLanguage = $state('id');
   let receiptHeader = $state('');
   let receiptFooter = $state('');
+  let storeAddress = $state('');
+  let storePhone = $state('');
 
   let loading = $state(true);
   let saving = $state(false);
@@ -38,7 +39,8 @@
     if (data) {
       storeName = data.store_name ?? '';
       storeJargon = data.store_jargon ?? '';
-      defaultLanguage = data.default_language ?? 'id';
+      storeAddress = data.store_address ?? '';
+      storePhone = data.store_phone ?? '';
       receiptHeader = data.receipt_header ?? '';
       receiptFooter = data.receipt_footer ?? '';
       if (data.logo_path) {
@@ -104,7 +106,6 @@
     const settings = {
       store_name: storeName.trim(),
       store_jargon: storeJargon.trim(),
-      default_language: defaultLanguage,
       receipt_header: receiptHeader.trim(),
       receipt_footer: receiptFooter.trim(),
     };
@@ -268,7 +269,7 @@
     </Card>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <!-- ─── Language ──────────────────────────────────────────── -->
+      <!-- ─── Branch Info ──────────────────────────────────────── -->
       <Card>
         <div class="px-6 py-5">
           <div class="flex items-center gap-3 mb-5">
@@ -276,22 +277,31 @@
               <Globe size={18} class="text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
-              <h2 class="text-base font-semibold text-text-primary">{labels.localization}</h2>
-              <p class="text-xs text-text-muted mt-0.5">{labels.languageSubtitle}</p>
+              <h2 class="text-base font-semibold text-text-primary">{labels.branchInfo}</h2>
+              <p class="text-xs text-text-muted mt-0.5">{labels.branchInfoSubtitle}</p>
             </div>
           </div>
-          <div>
-            <label for="default-lang" class="block text-sm font-medium text-text-secondary mb-1.5">{labels.defaultLanguage}</label>
-            <Input
-              tag="select"
-              id="default-lang"
-              bind:value={defaultLanguage}
-              disabled={!canUpdate}
-            >
-              <option value="id">{labels.languageId}</option>
-              <option value="en">{labels.languageEn}</option>
-            </Input>
+          <div class="space-y-3">
+            <div>
+              <label for="branch-address" class="block text-sm font-medium text-text-secondary mb-1.5">{labels.address}</label>
+              <Input
+                id="branch-address"
+                type="text"
+                value={storeAddress || '—'}
+                disabled
+              />
+            </div>
+            <div>
+              <label for="branch-phone" class="block text-sm font-medium text-text-secondary mb-1.5">{labels.phone}</label>
+              <Input
+                id="branch-phone"
+                type="text"
+                value={storePhone || '—'}
+                disabled
+              />
+            </div>
           </div>
+          <p class="text-xs text-text-muted mt-3">{labels.branchInfoHint}</p>
         </div>
       </Card>
 

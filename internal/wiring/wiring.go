@@ -533,7 +533,7 @@ func Initialize(p Providers) *Dependencies {
 	d.StockOpnameH = stockopname.NewHandler(d.StockOpnameSvc, d.AuditSvc)
 	d.StorageLocationH = storagelocation.NewHandler(d.StorageLocationSvc, d.AuditSvc)
 	d.ConsignmentH = consignment.NewHandler(d.ConsignmentSvc, d.AuditSvc)
-	d.AppSettingsH = appsettings.NewHandler(d.AppSettingsSvc, d.AuditSvc)
+	d.AppSettingsH = appsettings.NewHandler(d.AppSettingsSvc, d.AuditSvc, &storeProviderAdapter{svc: d.StoreSvc})
 
 	schemaReg := schema.NewRegistry()
 	_ = schemaReg.Register(category.Schema)
@@ -582,4 +582,17 @@ func Initialize(p Providers) *Dependencies {
 	d.Bus.Subscribe(inventory.NewPurchaseReceiptListener(d.InventoryRepo, d.InventorySvc))
 
 	return d
+}
+
+// storeProviderAdapter adapts the store.Service to the appsettings.StoreProvider interface.
+type storeProviderAdapter struct {
+	svc *store.Service
+}
+
+func (a *storeProviderAdapter) GetStoreAddress(ctx context.Context, storeID int) (string, string, error) {
+	s, err := a.svc.GetByID(ctx, storeID)
+	if err != nil {
+		return "", "", err
+	}
+	return s.Address, s.Phone, nil
 }

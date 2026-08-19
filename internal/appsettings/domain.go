@@ -9,9 +9,12 @@ type BrandingSettings struct {
 }
 
 // AllSettings is the full payload returned by the authenticated GET /api/settings.
+// StoreAddress and StorePhone are per-branch values injected from the stores table
+// by the handler (not stored in app_settings).
 type AllSettings struct {
 	BrandingSettings
-	DefaultLanguage string `json:"default_language"`
-	ReceiptHeader   string `json:"receipt_header"`
-	ReceiptFooter   string `json:"receipt_footer"`
+	ReceiptHeader string `json:"receipt_header"`
+	ReceiptFooter string `json:"receipt_footer"`
+	StoreAddress  string `json:"store_address,omitempty"`
+	StorePhone    string `json:"store_phone,omitempty"`
 }

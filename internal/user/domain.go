@@ -13,6 +13,8 @@ type User struct {
 	ReportsToID       *int   `json:"reports_to,omitempty"`
 	ReportsToUsername string `json:"reports_to_username,omitempty"`
 	IsActive          bool   `json:"is_active"`
+	Language          string `json:"language"`
+	Theme             string `json:"theme"`
 	LastLogin         string `json:"last_login,omitempty"`
 	CreatedAt         string `json:"created_at,omitempty"`
 	UpdatedAt         string `json:"updated_at,omitempty"`
@@ -61,6 +63,8 @@ type WithPermissions struct {
 	Role              string   `json:"role"`
 	Permissions       []string `json:"permissions"`
 	StoreID           *int     `json:"store_id,omitempty"`
+	Language          string   `json:"language"`
+	Theme             string   `json:"theme"`
 	ReportsToID       *int     `json:"reports_to,omitempty"`
 	ReportsToUsername string   `json:"reports_to_username,omitempty"`
 }
