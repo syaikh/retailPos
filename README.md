@@ -11,7 +11,9 @@ Sistem Point of Sale (POS) modern untuk toko retail dengan manajemen inventory, 
 - **Store Management** — CRUD toko/outlet + halaman UI manajemen toko (daftar, status aktif/nonaktif)
 - **Shift Management** — Buka/tutup shift kasir, opening/closing balance, discrepancy review & audit
 - **Pricing Engine** — Aturan harga (special price / promotion) berbasis produk, kategori, brand, customer group, dan store; workflow approval (draft → pending → approved/rejected); resolver harga real-time
-- **Supplier Management** — CRUD supplier, tautan produk-supplier, preferred supplier, bulk actions
+- **Supplier Management** — CRUD supplier, tautan produk-supplier, preferred supplier, bulk actions, auto-generate kode (SUP-XXXXXX)
+- **Konsinyasi Supplier (Consignment)** — Manajemen konsinyasi penuh: perjanjian, penerimaan barang, retur, penyelesaian (settlement), pembayaran (payout), stok konsinyasi, integrasi checkout POS
+- **Application Settings** — Pengaturan global (branding toko, jargon, logo) khusus superadmin, info struk per cabang, preferensi per-user (theme/light-dark, bahasa)
 - **Customer & Customer Groups** — Manajemen pelanggan, grup pelanggan (Walk-in, Member, VIP), bulk actions
 - **Multi-Warehouse & Multi-Store** — Inventori per warehouse/store dengan kunci unik komposit, manajemen toko
 - **Inventory Management** — Tracking stok, movement, low stock alerts, stock thresholds, multi-category filter
@@ -127,15 +129,20 @@ make build-all                 # Build image backend + frontend
 
 ```
 internal/
+├── appsettings/       # Application settings (branding, receipt, per-user preferences)
 ├── audit/             # Audit logging (domain events + listener)
 ├── brand/             # Brand CRUD + import adapter
 ├── category/          # Category CRUD + import adapter
 ├── config/            # App configuration (env, timezone)
+├── consignment/       # Konsinyasi supplier (arrangements, receipts, returns, settlements, payouts)
 ├── customergroup/     # Customer group CRUD + bulk actions
 ├── customer/          # Customer CRUD + bulk actions + import adapter
 ├── eventbus/          # In-process event bus (retry, dead-letter, metrics)
-├── inventory/         # Stock tracking, adjustments, low stock
+├── events/            # Event type definitions (domain event structs)
+├── inventory/         # Stock tracking, adjustments, low stock, per-location stock
 ├── middleware/        # Auth (JWT), CORS, rate limit, CSRF, security headers
+├── ownership/         # Ownership helper utilities
+├── permissions/       # Permission code definitions and RBAC checking
 ├── platform/
 │   └── importexport/  # Schema-driven import/export framework
 ├── pricing/           # Pricing rules engine + resolver + approval workflow
@@ -169,6 +176,8 @@ internal/
 | `internal/shift/service.go` | Shift lifecycle (open/close/review/audit) |
 | `internal/stockopname/service.go` | Stock opname workflow (9-state lifecycle, count/verify/post) |
 | `internal/storagelocation/service.go` | Storage location CRUD |
+| `internal/consignment/service.go` | Konsinyasi supplier (arrangements, receipts, returns, settlements) |
+| `internal/appsettings/handler.go` | Application settings (branding, receipt info, per-user preferences) |
 | `internal/sale/service.go` | POS transaction, parked sales, split payment |
 | `internal/shared/logger.go` | Structured logging (slog) |
 | `database/migrations/000_squash.sql` | Baseline schema (role, user, product, sale, inventory, dll) |
@@ -262,6 +271,7 @@ Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau 
 | GET | `/sales/parked` | List parked sales | `sale.park` |
 | GET | `/sales/parked/:id` | Detail parked sale | `sale.park` |
 | POST | `/sales/parked/:id/recall` | Recall parked sale | `sale.park` |
+| POST | `/sales/parked/:id/complete` | Complete parked sale (checkout) | `sale.park` |
 | DELETE | `/sales/parked/:id` | Batalkan parked sale | `sale.park` |
 | GET | `/payment-methods` | List metode pembayaran | Public |
 | GET | `/payment-methods/:code` | Detail metode pembayaran | Yes |
@@ -271,6 +281,9 @@ Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
 | POST | `/inventory/adjust` | Penyesuaian stok manual | `inventory.adjust` |
+| GET | `/inventory/locations` | Lihat stok per lokasi (rak) | `product.view` |
+| POST | `/inventory/locations` | Set stok di lokasi (rak) | `inventory.adjust` |
+| POST | `/inventory/locations/transfer` | Transfer stok antar lokasi | `inventory.adjust` |
 
 #### Stock Opname
 
@@ -386,6 +399,31 @@ Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau 
 | POST | `/suppliers/:id/products/:productId/preferred` | Set preferred supplier | `pricing.update` |
 | GET | `/products/:id/suppliers` | Supplier dari produk | `pricing.view` |
 
+#### Consignment (Konsinyasi Supplier)
+
+| Method | Endpoint | Description | Permission |
+|--------|----------|-------------|------------|
+| GET | `/consignment/suppliers` | List supplier konsinyasi | `consignment.view` |
+| GET | `/consignment/arrangements` | List perjanjian konsinyasi | `consignment.view` |
+| POST | `/consignment/arrangements` | Buat perjanjian | `consignment.create` |
+| GET | `/consignment/arrangements/:id` | Detail perjanjian | `consignment.view` |
+| PUT | `/consignment/arrangements/:id/terms` | Update syarat/ketentuan | `consignment.update` |
+| GET | `/consignment/receipts` | List penerimaan barang | `consignment.view` |
+| POST | `/consignment/receipts` | Buat penerimaan barang | `consignment.create` |
+| GET | `/consignment/receipts/:id` | Detail penerimaan | `consignment.view` |
+| GET | `/consignment/stock` | Stok konsinyasi | `consignment.view` |
+| GET | `/consignment/pending-returns` | Retur tertunda | `consignment.view` |
+| POST | `/consignment/pending-returns` | Buat retur tertunda | `consignment.update` |
+| GET | `/consignment/returns` | List retur | `consignment.view` |
+| POST | `/consignment/returns` | Buat retur formal | `consignment.create` |
+| GET | `/consignment/returns/:id` | Detail retur | `consignment.view` |
+| GET | `/consignment/settlements/preview` | Preview penyelesaian | `consignment.settle` |
+| GET | `/consignment/settlements` | List penyelesaian | `consignment.view` |
+| POST | `/consignment/settlements` | Buat penyelesaian | `consignment.settle` |
+| GET | `/consignment/settlements/:id` | Detail penyelesaian | `consignment.view` |
+| GET | `/consignment/payment-methods` | Metode pembayaran konsinyasi | `consignment.settle` |
+| POST | `/consignment/settlements/:id/payouts` | Buat pembayaran ke supplier | `consignment.pay` |
+
 #### Shifts
 
 | Method | Endpoint | Description | Permission |
@@ -417,6 +455,7 @@ Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau 
 | PUT | `/admin/roles/:id/permissions` | Update permission role | `role.update` |
 | DELETE | `/admin/roles/:id` | Hapus role | `role.delete` |
 | GET | `/admin/permissions` | List semua permissions | `role.view` |
+| PUT | `/users/me/preferences` | Update preferensi user (theme, language) | Yes |
 
 #### Audit Logs
 
@@ -443,6 +482,17 @@ Module yang didukung: `products`, `categories`, `brands`, `uoms`, `customers`, `
 | GET | `/import-export/history/:module/:jobId` | Detail snapshot job |
 | GET | `/import-export/history/:module/:jobId/rows` | Rows hasil import |
 | GET | `/import-export/export/:module` | Export data (CSV/XLSX) |
+
+#### Application Settings
+
+| Method | Endpoint | Description | Permission |
+|--------|----------|-------------|------------|
+| GET | `/settings/public` | Branding publik (nama toko, jargon) | No |
+| GET | `/settings/logo` | Logo toko | No |
+| GET | `/settings` | Semua pengaturan | `app_settings.view` |
+| PUT | `/settings` | Update pengaturan | `app_settings.update` |
+| POST | `/settings/logo` | Upload logo | `app_settings.update` |
+| DELETE | `/settings/logo` | Hapus logo | `app_settings.update` |
 
 #### System
 
@@ -474,18 +524,19 @@ web/src/
 ├── modules/           # Feature modules
 │   ├── admin/         # Users, roles, audit logs
 │   ├── auth/          # Login, session
+│   ├── consignment/   # Konsinyasi supplier (arrangements, receipts, returns, settlements)
 │   ├── customer-groups/ # Customer groups management
 │   ├── customers/     # Customer management
 │   ├── dashboard/     # Charts, stats, live updates
 │   ├── import-export/ # Import wizard, history
-│   ├── inventory/     # Stock management
+│   ├── inventory/     # Stock management, per-location stock
 │   ├── pos/           # Point of Sale (split payment, parked sales)
 │   ├── pricing/       # Pricing rules + approval
 │   ├── product/       # Product catalog
 │   ├── purchase-orders/ # PO + goods receiving
 │   ├── reporting/     # Reports with chart config + export
 │   ├── sales/         # Sales history
-│   ├── settings/      # Settings
+│   ├── settings/      # Application settings (branding, per-user preferences)
 │   ├── shifts/        # Shift management
 │   ├── stock-opname/  # Stock opname (list, detail, counting, adjustments report)
 │   ├── storage-location/ # Storage locations management
@@ -525,6 +576,9 @@ Backend menyimpan data dalam UTC, namun **semua query menggunakan timezone Asia/
 | `LOG_LEVEL` | `debug`/`info` | Level log: debug, info, warn, error |
 | `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin (tidak boleh `*` di production) |
 | `PORT` | `9095` | Port HTTP server |
+| `FRONTEND_PORT` | `5173` | Frontend dev server port (Vite) |
+| `BACKEND_PORT` | `9095` | Backend dev server port (Go) |
+| `DATABASE_PORT` | `5433` | Development database port (postgres-dev container) |
 | `COOKIE_DOMAIN` | (empty) | Domain cookie refresh token |
 | `COOKIE_SECURE` | `false` | Set `true` untuk HTTPS |
 | `LOGIN_RATE_LIMIT_RPM` | `5` | Rate limit login (per menit) |
@@ -569,44 +623,20 @@ sudo systemctl enable --now retail-pos
 
 ### Database Migrations
 
-Migrations adalah file SQL di `database/migrations/` (saat ini **000–030**). Migrations **tidak** berjalan otomatis oleh server — jalankan eksplisit via `./deploy/podman-deploy.sh migrate` (atau test harness, yang mengaplikasikan pending migrations ke test DB). Tracking file yang sudah ter-apply ada di tabel `schema_migrations`.
+Migrations adalah file SQL di `database/migrations/` (saat ini **000–006**). Migrations **tidak** berjalan otomatis oleh server — jalankan eksplisit via `./deploy/podman-deploy.sh migrate` (atau test harness, yang mengaplikasikan pending migrations ke test DB). Tracking file yang sudah ter-apply ada di tabel `schema_migrations`.
 
 **Fresh database (spin-up baru):** `migrate` melakukan bootstrap `pgcrypto`, `invoice_seq`, dan tabel `schema_migrations` terlebih dahulu, lalu mengaplikasikan setiap file secara berurutan dari `000_squash.sql` dengan `ON_ERROR_STOP=1`. Hasilnya: schema lengkap + reference data (roles, 74 permissions, grants, 5 user default, payment methods, customer groups). Data bisnis (stores, products, customers, sales) harus diisi via `./seed-dev.sh` atau `./deploy/podman-deploy.sh seed`.
 
-> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Beberapa migrasi punya constraint urutan (mis. `006_consolidate_permissions.sql`, `009_add_do_sequence.sql`, `012_stock_opname.sql`, `016_stock_opname_scope_workflow.sql`, `017_stock_opname_adjustment_ledger.sql`, `018_storage_locations.sql`, `020_per_rack_stock.sql`, `021_grant_storage_location_view.sql`, `024_add_product_history_cost_permissions.sql`, `025_add_supplier_to_products_full_view.sql`) — lihat AGENTS.md untuk daftar lengkap.
+> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Migrations bersifat idempotent (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`) dan harus dijalankan secara berurutan dari `000_squash.sql`. Migrasi terkini: `001_consignment.sql`, `002_settlement_items_product_id.sql`, `003_settlement_updated_at.sql`, `004_supplier_code_sequence.sql`, `005_app_settings.sql`, `006_user_preferences.sql` — lihat AGENTS.md untuk detail deployment ordering.
 
 Migrations terkini:
-- `000_squash.sql` — Baseline schema + seed data awal (roles, permissions, users, payment methods, customer groups)
-- `001_materialized_views.sql` — Materialized views untuk reporting (`refresh_sales_mv()`)
-- `002_multi_warehouse.sql` — Multi-warehouse (unique constraint komposit `product_stock`)
-- `003_shift_perf.sql` — Optimasi performa shift (composite index)
-- `004_split_payment.sql` — Tabel `sale_payments` untuk split payment
-- `005_reports_to.sql` — Hierarki manajer-bawahan di users
-- `006_consolidate_permissions.sql` — Konsolidasi permission ke dot-notation (hapus `.read` dan `:read`)
-- `007_purchase_orders.sql` — Tabel PO, goods receipts, permission purchase_order.*
-- `008_add_cancel_permission.sql` — Permission `purchase_order.cancel`
-- `009_add_do_sequence.sql` — Sequence `do_seq` untuk nomor DO
-- `010_sale_price_snapshot.sql` — Tabel `cart_sessions` + `cart_items` (snapshot harga immutable), kolom snapshot di `sale_items`
-- `011_add_staff_user.sql` — Seed user staff (inventory + dashboard)
-- `012_stock_opname.sql` — Sesi stock opname (`stock_opnames`, items, counts, assignments), sequence `so_seq`, permission `stock_opname.*`
-- `013_remove_dead_permissions.sql` — Hapus permission yang tidak pernah dipakai (sale.print, sale.void, inventory.view, supplier_cost.*)
-- `014_remove_orphaned_role_grants.sql` — Revoke permission yang tidak punya UI dari seeded roles (least-privilege cleanup)
-- `015_stock_opname_store_id.sql` — Kolom `store_id` di `stock_opnames` + backfill data lama
-- `016_stock_opname_scope_workflow.sql` — Workflow stock opname 9-state, multi-scope session, recount requests, permission `stock_opname.verify/post/close/report`
-- `017_stock_opname_adjustment_ledger.sql` — Ledger penyesuaian (`inventory_adjustments` + items, sequence `ia_seq`)
-- `018_storage_locations.sql` — Tabel `storage_locations` + permission `storage_location.*`
-- `019_remove_remaining_orphaned_role_grants.sql` — Revoke `store.create/update/delete` dan `customer_group.create/update/delete` dari Manager (least-privilege)
-- `020_per_rack_stock.sql` — Kolom `product_stock.location_id` (FK → storage_locations, unique `NULLS NOT DISTINCT` 4 kolom), kolom `stock_opnames.location_id` + scope `location`
-- `021_grant_storage_location_view.sql` — Grant `storage_location.view` ke Manager/Staff/Cashier (panel stok rak di detail produk + scope picker stock opname)
-- `022_admin_least_privilege.sql` — Revoke `audit.view`, `role.update/delete`, `user.delete` dari Admin (enforce least-privilege split)
-- `023_sprint0_finalize_permissions.sql` — Revoke `staff.product.update` dan `staff.inventory.adjust` (RBAC final, frontend permission-based)
-- `024_add_product_history_cost_permissions.sql` — Permissions baru `product.history.view` (Superadmin/Admin) dan `product.cost.view` (Superadmin/Admin/Manager)
-- `025_add_supplier_to_products_full_view.sql` — Re-create `v_products_full` dengan kolom `supplier_id`/`supplier_name` (preferred supplier)
-- `026_shift_open_unique.sql` — Unique index per-user untuk shift terbuka (`uq_open_shift_per_user`)
-- `027_parked_sale_scope.sql` — Kolom `sales.hold_note` + permission `sale.park`
-- `028_mv_dashboard_totals.sql` — Materialized view `mv_dashboard_totals` (total all-time per store) + extend `refresh_sales_mv()`
-- `029_drop_products_stock.sql` — Hapus kolom legacy `products.stock`
-- `030_consolidate_seed_permissions.sql` — Konsolidasi permission yang dulu hanya ada di seeds (`customer.*`, `inventory.adjust`) ke migrations (database/seeds di-retire)
+- `000_squash.sql` — Baseline schema + seed data awal (roles, 74 permissions, grants, 5 user default, payment methods, customer groups, tombstone sequences)
+- `001_consignment.sql` — Konsinyasi supplier: tabel `consignment_*`, sequence (`consignment_receipt_seq`, `consignment_return_seq`, `consignment_settlement_seq`, `consignment_payout_seq`, `consignment_stock_seq`), permission `consignment.*`
+- `002_settlement_items_product_id.sql` — Kolom `consignment_settlement_items.product_id` (FK ke products, NULL-able)
+- `003_settlement_updated_at.sql` — Kolom `consignment_settlements.updated_at`
+- `004_supplier_code_sequence.sql` — Sequence `supplier_seq` untuk auto-generate kode supplier (`SUP-%06d`)
+- `005_app_settings.sql` — Tabel `app_settings` (key-value global: branding, receipt text), seed defaults, permission `app_settings.view`/`app_settings.update`
+- `006_user_preferences.sql` — Kolom `users.language` dan `users.theme` untuk preferensi per-user, hapus `default_language` dari `app_settings`
 
 ---
 
@@ -614,9 +644,9 @@ Migrations terkini:
 
 | Role | Username | Password | Deskripsi |
 |------|----------|----------|-----------|
-| Superadmin | `superadmin` | `admin123` | Semua permission |
-| Admin | `admin` | `admin123` | User management, reports, PO, pricing (tanpa audit.view / role.update / user.delete) |
-| Manager | `manager` | `admin123` | Inventory, sales, PO, pricing, shifts |
+| Superadmin | `superadmin` | `admin123` | Semua permission (termasuk app_settings, consignment) |
+| Admin | `admin` | `admin123` | User management, reports, PO, pricing, consignment view/settle (tanpa audit.view / role.update / user.delete / app_settings.update / consignment.pay) |
+| Manager | `manager` | `admin123` | Inventory, sales, PO, pricing, shifts, consignment view/create/update/settle |
 | Cashier | `cashier` | `admin123` | POS only (create/view sales, park, shift) |
 | Staff | `staff` | `admin123` | Produk (view) + stock opname counting |
 
@@ -626,7 +656,7 @@ Ganti password di production via UI change-password. (Default user password seed
 
 ## Permission Matrix
 
-Permission memakai **dot-notation** (`entity.action`), contoh: `user.view`, `product.create`, `stock_opname.post`. Tabel ini adalah konfigurasi default dari seeds; dapat diubah via Role Management UI.
+Permission memakai **dot-notation** (`entity.action`), contoh: `user.view`, `product.create`, `stock_opname.post`. Tabel ini adalah konfigurasi default dari seeds; dapat diubah via Role Management UI. Total 81 permissions (termasuk `consignment.*` dan `app_settings.*`).
 
 | Permission | Superadmin | Admin | Manager | Cashier | Staff |
 |------------|:---:|:---:|:---:|:---:|:---:|
@@ -668,6 +698,12 @@ Permission memakai **dot-notation** (`entity.action`), contoh: `user.view`, `pro
 | `purchase_order.view/create/update/confirm/receive` | ✅ | ✅ | ✅ | – | – |
 | `purchase_order.delete` | ✅ | – | – | – | – |
 | `purchase_order.cancel` | ✅ | ✅ | ✅ | – | – |
+| `consignment.view` | ✅ | ✅ | ✅ | – | – |
+| `consignment.create`, `consignment.update` | ✅ | ✅ | ✅ | – | – |
+| `consignment.settle` | ✅ | ✅ | ✅ | – | – |
+| `consignment.pay` | ✅ | ✅ | – | – | – |
+| `app_settings.view` | ✅ | ✅ | – | – | – |
+| `app_settings.update` | ✅ | – | – | – | – |
 | `user.view`, `user.create`, `user.update` | ✅ | ✅ | – | – | – |
 | `user.delete` | ✅ | – | – | – | – |
 | `role.view`, `role.create` | ✅ | ✅ | – | – | – |

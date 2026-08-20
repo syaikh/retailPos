@@ -29,9 +29,16 @@ Thank you for your interest in contributing to the Retail POS System! This docum
 ### Testing
 - Write tests for new features
 - Ensure all tests pass before submitting PR
-- Run `make test` to execute backend unit tests with proper environment setup
-- Run `make test-full` to execute backend + E2E tests
-- Or run: `go test -p 1 -count=1 ./...` with the required env vars set in your shell
+- Run backend tests with required env vars:
+  ```bash
+  TEST_DB_PORT=5433 DB_PORT=5433 TEST_DB_USER=pos TEST_DB_PASSWORD=admin123 \
+  DB_USER=pos DB_PASSWORD=admin123 JWT_SECRET=test-secret-for-testing-only \
+  go test -p 1 -count=1 ./...
+  ```
+  Or use `make test` (reads from `.env.test` if present).
+- Run frontend unit tests: `cd web && npm run test:run`
+- Run E2E tests: `cd web && npx playwright test --reporter=list` (requires both backend and frontend servers running)
+- Use targeted testing: `go test -p 1 -count=1 ./internal/<package>/...` for backend, `cd web && npx vitest run <path>` for frontend
 - Maintain test coverage
 
 ### Pull Request Process
@@ -39,6 +46,10 @@ Thank you for your interest in contributing to the Retail POS System! This docum
 2. Ensure all tests pass
 3. Update documentation for any API changes
 4. Request review from maintainers
+
+### Git Policy
+- Never auto-commit on each change. Commits must be made manually when ready.
+- Write clear, concise commit messages that match the repo style.
 
 ## Code of Conduct
 

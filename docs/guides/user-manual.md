@@ -14,6 +14,8 @@ All prices are shown in Indonesian Rupiah (Rp) and all date/time values are disp
    - [The Main Screen (Navigation)](#the-main-screen-navigation)
    - [Notifications](#notifications)
    - [Logging Out](#logging-out)
+   - [User Preferences](#user-preferences)
+   - [Application Settings (Superadmin Only)](#application-settings-superadmin-only)
 2. [Dashboard](#2-dashboard)
 3. [Point of Sale (POS)](#3-point-of-sale-pos)
    - [Before You Start: Open a Shift](#before-you-start-open-a-shift)
@@ -30,6 +32,7 @@ All prices are shown in Indonesian Rupiah (Rp) and all date/time values are disp
    - [Browsing Products](#browsing-products)
    - [Adding / Editing a Product](#adding--editing-a-product)
    - [Adjusting Stock](#adjusting-stock)
+   - [Rack Stock (Stok Rak)](#rack-stock-stok-rak)
    - [Low Stock Alerts](#low-stock-alerts)
    - [Bulk Actions](#bulk-actions)
 7. [Categories, Brands & Units of Measure](#7-categories-brands--units-of-measure)
@@ -132,8 +135,8 @@ Sidebar visibility by role:
 
 - **Cashier** — Point of Sale, Transactions, Shifts.
 - **Staff** — Stock Opname, and Master Data → Products.
-- **Manager** — Dashboard, Transactions, Reports, Shifts, Purchase Orders, Stock Opname, and Master Data (Products, Categories, Brands, Units, Customers, Pricing Rules, Customer Groups, Suppliers).
-- **Admin / Superadmin** — the full menu plus Administration (Stores, Users, Roles; Audit Logs is superadmin-only).
+- **Manager** — Dashboard, Transactions, Reports, Shifts, Purchase Orders, Stock Opname, Konsinyasi, and Master Data (Products, Categories, Brands, Units, Customers, Pricing Rules, Customer Groups, Suppliers).
+- **Admin / Superadmin** — the full menu plus Administration (Stores, Users, Roles; Audit Logs and Settings are superadmin-only).
 
 > The sidebar shows only the menus above, but a role can also navigate directly to a URL whose permission code it holds (for example a cashier who also has `stock_opname.view` can open the Stock Opname page).
 
@@ -160,6 +163,27 @@ Clicking a notification jumps to the relevant page (e.g. the stock opname sessio
 1. Click **Logout** at the bottom of the sidebar.
 
 > **Cashier note:** you cannot log out while a shift is open. Close your shift first (the Logout button shows the tooltip *"Close shift first"*).
+
+### User Preferences
+
+Each user can personalise their experience via the profile menu (click your username at the bottom of the sidebar):
+
+- **Theme** — Switch between **Light** and **Dark** mode. The setting is saved per user and applied on every login.
+- **Language** — Choose the display language. The setting is saved per user and applied on every login.
+
+> These preferences are stored server-side and follow you across devices.
+
+### Application Settings (Superadmin Only)
+
+Superadmins can configure global branding under **Administration → Settings**:
+
+- **Store Name** — displayed in the sidebar, login page, and receipts.
+- **Store Jargon** — a subtitle/tagline (e.g. "Management System").
+- **Logo** — uploaded image shown on receipts and the login page.
+- **Receipt Header** — custom text printed at the top of receipts.
+- **Receipt Footer** — custom text printed at the bottom of receipts (default: "Terima kasih atas kunjungan Anda!").
+
+Admins can view these settings but only superadmins can edit them.
 
 ---
 
@@ -1058,9 +1082,11 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 | Roles — create/edit | ✓ | ✓ | — | — | — |
 | Roles — delete | ✓ | — | — | — | — |
 | Audit logs | ✓ | — | — | — | — |
+| Application settings — view | ✓ | ✓ | — | — | — |
+| Application settings — update | ✓ | — | — | — | — |
 | Import/Export | ✓ | ✓ | — | — | — |
 
-> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions)). Exact permission codes per action: `dashboard.view`, `sale.create/view`, `product.view/create/update/delete`, `category.view/create/update/delete`, `customer.view/create/update/delete`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel`, `shift.view/create`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `consignment.view/create/update/settle/pay`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view`, `product.export/import`, `product.history.view`, `product.cost.view`, `category.export/import`, `customer.export/import`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, admin, and manager can use it.
+> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions)). Exact permission codes per action: `dashboard.view`, `sale.create/view`, `product.view/create/update/delete`, `category.view/create/update/delete`, `customer.view/create/update/delete`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel`, `shift.view/create`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `consignment.view/create/update/settle/pay`, `app_settings.view/update`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view`, `product.export/import`, `product.history.view`, `product.cost.view`, `category.export/import`, `customer.export/import`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, admin, and manager can use it.
 
 ---
 

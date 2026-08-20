@@ -30,6 +30,15 @@ All database connection parameters are defined in `.env.example` for the develop
 The following environment variables are **required** — the server will panic at startup if missing:
 - `JWT_SECRET` — 256-bit random secret for JWT signing. Generate with: `openssl rand -hex 32`
 
+### Optional Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JWT_SECRET_REFRESH` | (derived from `JWT_SECRET`) | Separate secret for refresh tokens (recommended different in production) |
+| `FRONTEND_PORT` | `5173` | Frontend dev server port (Vite) |
+| `BACKEND_PORT` | `9095` | Backend dev server port (Go) |
+| `DATABASE_PORT` | `5433` | Development database port (postgres-dev container) |
+
 Copy `.env.example` to `.env` and adjust values as needed for your local setup.
 
 ## Timezone Handling
@@ -121,7 +130,7 @@ Flags:
 - `-categories=N` - Number of categories (65-80, random if 0)
 - `-truncate=false` - Skip truncating existing data
 
-Re-seeding (`-truncate=false`) is supported: the seeder continues document sequences (`invoice_seq`, `po_seq`, `gr_seq`, `so_seq`) and reuses existing products/suppliers/pricing rules, so it adds new transactions without colliding on unique keys (SKUs, invoice numbers, PO/GR numbers, stock opname sessions, shift-per-cashier-date, customer phones).
+Re-seeding (`-truncate=false`) is supported: the seeder continues document sequences (`invoice_seq`, `po_seq`, `gr_seq`, `so_seq`) and reuses existing products/suppliers/pricing rules, so it adds new transactions without colliding on unique keys (SKUs, invoice numbers, PO/GR numbers, stock opname sessions, shift-per-cashier-date, customer phones). Consignment data (arrangements, receipts, returns, settlements) is seeded when available.
 
 ## Deployment
 
@@ -130,26 +139,12 @@ Re-seeding (`-truncate=false`) is supported: the seeder continues document seque
 Migrations must be applied **before** deploying a new server binary. The server validates permission codes at startup, so if the binary expects dot-notation permissions (`.view`, `.create`) but the DB still has colon-notation (`:read`, `:create`), permission checks will fail for all non-superadmin users.
 
 Key migrations with deployment ordering constraints:
-- `006_consolidate_permissions.sql` — must be applied before the binary that removed `normalizePermissionCode`
-- `009_add_do_sequence.sql` — creates the `do_seq` sequence required by `GetNextDONumber`; if the binary that auto-generates DO numbers on goods receipt is deployed first, every `POST /api/goods-receipts` will fail with a missing `do_seq` relation
-- `012_stock_opname.sql` — creates the `so_seq` sequence, `stock_opnames` family of tables, and seeds `stock_opname.*` permissions/role grants; must be applied before the binary that added the Stock Opname endpoints, otherwise `POST /api/stock-opnames` fails with a missing `so_seq` relation and permission checks fail for `stock_opname.*` codes
-- `016_stock_opname_scope_workflow.sql` — reworks the Stock Opname workflow to 9 states (draft/open/counting/verification/needs_recount/approved/posted/closed/cancelled), adds multi-scope sessions + recount requests, seeds `stock_opname.verify/post/close/report` and removes legacy `approve`/`reject`; must be applied before the binary that uses the new status codes and permissions, otherwise approval flows fail with unknown permission codes
-- `017_stock_opname_adjustment_ledger.sql` — creates the `ia_seq` sequence and `inventory_adjustments`/`inventory_adjustment_items` ledger; must be applied before the binary that auto-generates adjustment numbers (IA-) on stock opname posting, otherwise `POST /api/stock-opnames/:id/post-adjustment` fails with a missing `ia_seq` relation
-- `018_storage_locations.sql` — creates the `storage_locations` table and seeds `storage_location.*` permissions/role grants; must be applied before the binary that added the Storage Locations endpoints, otherwise `POST /api/storage-locations` fails with a missing `storage_locations` relation and permission checks fail for `storage_location.*` codes
-- `013_remove_dead_permissions.sql` — deletes the unused permission codes `sale.print`, `sale.void`, `inventory.view`, `supplier_cost.view`, `supplier_cost.update` and their role grants; must be applied before the binary/UI that assumes those codes no longer exist
-- `014_remove_orphaned_role_grants.sql` — least-privilege cleanup (Manager: `store.view`, `sale.create`, `sale.park`; Staff: `dashboard.view`, `shift.view`, `category.view`; Cashier: `dashboard.view`, `pricing.view`, `customer_group.view`, `store.view`); must be applied before the binary that hides those routes from those roles, otherwise the roles keep over-granted access via direct API calls
-- `019_remove_remaining_orphaned_role_grants.sql` — completes the Manager cleanup by revoking `store.create/update/delete` and `customer_group.create/update/delete` (Manager has no Stores route and only views customer groups); same ordering constraint as `014`
-- `020_per_rack_stock.sql` — adds `product_stock.location_id` (FK to `storage_locations`), re-creates `uq_product_stock` as `UNIQUE NULLS NOT DISTINCT (product_id, warehouse_id, store_id, location_id)`, and adds `stock_opnames.location_id` with `'location'` scope; must be applied before the binary that added the rack-stock endpoints and the `location` stock-opname scope, otherwise `POST /api/inventory/locations` fails with a missing `location_id` column and scope validation rejects `'location'`
-- `021_grant_storage_location_view.sql` — grants `storage_location.view` to Manager/Staff/Cashier (the roles that render the product-detail rack panel and stock-opname location scopes); must be applied before the binary that exposes `GET /api/storage-locations` to those roles, otherwise the rack panel and location scope picker 403 for non-admin roles
-- `022_admin_least_privilege.sql` — revokes `audit.view`, `role.update/delete`, `user.delete` from Admin (enforces the least-privilege split); must be applied before the binary/UI that hides those routes from Admin, otherwise Admin keeps over-granted access via direct API calls
-- `023_sprint0_finalize_permissions.sql` — revokes `staff.product.update` and `staff.inventory.adjust` (final RBAC); must be applied **last** (PALING AKHIR), after all frontend Fase 1-5 changes, otherwise permission checks fail for non-superadmin users
-- `024_add_product_history_cost_permissions.sql` — adds `product.history.view` (Superadmin/Admin) and `product.cost.view` (Superadmin/Admin/Manager); must be applied before the binary that omits `cost` from `GET /products` / `GET /products/:id` for non-holders, otherwise nobody holds `product.cost.view` and cost is hidden for everyone (degraded, non-breaking)
-- `025_add_supplier_to_products_full_view.sql` — recreates `v_products_full` to add `supplier_id`/`supplier_name` (preferred supplier) columns; must be applied before the binary whose `productSelectCols` reads those columns from the view (otherwise `GET /products` and `GET /products/:id` fail with a missing `supplier_id` column)
-- `028_mv_dashboard_totals.sql` — creates `mv_dashboard_totals` (per-store all-time totals) and extends `refresh_sales_mv()` to refresh it; must be applied before the binary whose `GetAllCompletedSalesStats` reads the view instead of `sales` (otherwise the dashboard all-time total card fails with a missing `mv_dashboard_totals` relation)
-- `001_consignment.sql` — creates the `consignment_*` tables/sequences (`cr_seq`, `pr_seq`, `rt_seq`, `sl_seq`, `po_seq`) and seeds `consignment.*` permissions/role grants; must be applied before the binary that added the Konsinyasi Supplier module, otherwise `POST /api/consignment/*` fails with missing relations and permission checks fail for `consignment.*` codes
+- `001_consignment.sql` — creates the `consignment_*` tables/sequences (`consignment_receipt_seq`, `consignment_return_seq`, `consignment_settlement_seq`, `consignment_payout_seq`, `consignment_stock_seq`) and seeds `consignment.*` permissions/role grants; must be applied before the binary that added the Konsinyasi Supplier module, otherwise `POST /api/consignment/*` fails with missing relations and permission checks fail for `consignment.*` codes
 - `002_settlement_items_product_id.sql` — adds `consignment_settlement_items.product_id` (FK to `products`, NULL-able for empty previews); must be applied before the binary whose settlement reads scan that column (otherwise `GET /api/consignment/settlements` and settlement previews fail)
 - `003_settlement_updated_at.sql` — adds `consignment_settlements.updated_at`; must be applied before the binary whose settlement queries scan that column (otherwise settlement reads fail)
 - `004_supplier_code_sequence.sql` — creates the `supplier_seq` sequence used to auto-generate supplier codes (`SUP-%06d`) when a create payload omits `code`; must be applied before the binary whose supplier `Create` auto-generates codes, otherwise `POST /api/suppliers` with a blank code fails with a missing `supplier_seq` relation
+- `005_app_settings.sql` — creates the `app_settings` key-value table for global application configuration (store branding, receipt text), seeds defaults, and grants `app_settings.view`/`app_settings.update` to superadmin/admin; must be applied before the binary that reads/writes app settings, otherwise the server panics or returns 500 on `/api/settings`
+- `006_user_preferences.sql` — adds per-user `language` and `theme` columns to `users`, removes dead `default_language` key from `app_settings`; must be applied before the binary that reads/writes user language/theme preferences, otherwise login responses omit those fields
 
 ## Filesystem Convention
 
