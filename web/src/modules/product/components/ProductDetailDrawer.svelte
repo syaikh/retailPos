@@ -254,10 +254,10 @@
           </div>
           <div class="flex flex-col gap-1 border-b border-border/60 pb-3">
             <span class="text-xs font-semibold tracking-wide text-text-muted/80">{labels.margin}</span>
-            <p class="text-sm font-bold {margIsLoss ? 'text-danger-light' : 'text-emerald-400'} mt-0.5">
+            <p class="text-sm font-bold {margIsLoss ? 'text-danger-light' : 'text-success-light'} mt-0.5">
               {margVal !== null ? formatCurrency(margVal) : '—'}
               {#if margPctVal !== null}
-                <span class="{margIsLoss ? 'text-danger-light/70' : 'text-slate-400'} not-italic font-normal text-xs ml-0.5">
+                <span class="{margIsLoss ? 'text-danger-light/70' : 'text-text-muted'} not-italic font-normal text-xs ml-0.5">
                   {margIsLoss ? '-' : ''}{margPctVal.toFixed(1)}%
                 </span>
               {/if}

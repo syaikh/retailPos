@@ -199,25 +199,25 @@
 
   --color-success: #10b981;
   --color-success-default: #10b981;
-  --color-success-light: #34d399;
+  --color-success-light: #059669;
   --color-success-subtle: rgba(16, 185, 129, 0.10);
 
   --color-danger: #f43f5e;
   --color-danger-default: #f43f5e;
-  --color-danger-light: #fb7185;
+  --color-danger-light: #e11d48;
   --color-danger-subtle: rgba(244, 63, 94, 0.10);
 
   --color-warning-default: #f59e0b;
-  --color-warning-light: #fbbf24;
+  --color-warning-light: #b45309;
   --color-warning-subtle: rgba(245, 158, 11, 0.10);
 
   --color-info-default: #0ea5e9;
-  --color-info-light: #38bdf8;
+  --color-info-light: #2563eb;
   --color-info-subtle: rgba(14, 165, 233, 0.10);
 
   --color-text-primary: #0f172a;
   --color-text-secondary: #475569;
-  --color-text-muted: #94a3b8;
+  --color-text-muted: #64748b;
   --color-text-inverted: #f8fafc;
 
   /* Semantic Colors - Shortcuts for convenience */
@@ -385,6 +385,11 @@
   --color-danger-subtle: rgba(244, 63, 94, 0.12);
   --color-warning-subtle: rgba(245, 158, 11, 0.12);
   --color-info-subtle: rgba(14, 165, 233, 0.12);
+
+  --color-success-light: #34d399;
+  --color-danger-light: #fb7185;
+  --color-warning-light: #fbbf24;
+  --color-info-light: #38bdf8;
 
   --color-text-primary: #e2e8f0;
   --color-text-secondary: #94a3b8;

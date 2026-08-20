@@ -39,13 +39,13 @@
 
     {#if warnings.length > 0}
       <div class="p-3 bg-amber-500/10 rounded-lg">
-        <p class="text-xs font-semibold text-amber-400 mb-2 flex items-center gap-1.5">
+        <p class="text-xs font-semibold text-warning-light mb-2 flex items-center gap-1.5">
           <Info size={12} />
           {warnings.length} warning{warnings.length !== 1 ? 's' : ''}
         </p>
         <div class="max-h-32 overflow-y-auto space-y-1">
           {#each warnings as warn}
-            <p class="text-xs text-amber-400/80 flex items-start gap-1.5">
+            <p class="text-xs text-warning-light/80 flex items-start gap-1.5">
               <span class="shrink-0 mt-0.5">•</span>
               <span>
                 Row {warn.row}: <strong>{warn.field}</strong> — {warn.reason}

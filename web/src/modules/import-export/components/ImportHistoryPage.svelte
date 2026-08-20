@@ -189,15 +189,15 @@
             <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mt-0.5">{labels.totalRows}</p>
           </div>
           <div class="bg-surface-subtle rounded-lg p-3 border border-border/50">
-            <p class="text-sm font-bold text-emerald-400">{detail.progress.inserted ?? 0}</p>
+            <p class="text-sm font-bold text-success-light">{detail.progress.inserted ?? 0}</p>
             <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mt-0.5">{labels.inserted}</p>
           </div>
           <div class="bg-surface-subtle rounded-lg p-3 border border-border/50">
-            <p class="text-sm font-bold text-amber-400">{detail.progress.updated ?? 0}</p>
+            <p class="text-sm font-bold text-warning-light">{detail.progress.updated ?? 0}</p>
             <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mt-0.5">{labels.updated}</p>
           </div>
           <div class="bg-surface-subtle rounded-lg p-3 border border-border/50">
-            <p class="text-sm font-bold text-rose-400">{detail.progress.errors}</p>
+            <p class="text-sm font-bold text-danger-light">{detail.progress.errors}</p>
             <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mt-0.5">{labels.errors}</p>
           </div>
         </div>
@@ -321,7 +321,7 @@
                         <div class="space-y-1.5">
                           {#each row.errors as err}
                             <div class="flex items-start gap-2">
-                              <span class="text-[10px] uppercase tracking-wider font-semibold text-rose-400 shrink-0 mt-0.5">{err.field}</span>
+                              <span class="text-[10px] uppercase tracking-wider font-semibold text-danger-light shrink-0 mt-0.5">{err.field}</span>
                               <span class="text-xs text-text-secondary">{err.reason}</span>
                             </div>
                           {/each}
@@ -374,7 +374,7 @@
               onclick={() => selectJob(job)}
             >
               <div class="flex items-center gap-3 min-w-0">
-                <Icon size={16} class="shrink-0 {job.status === 'completed' ? 'text-emerald-400' : job.status === 'failed' ? 'text-rose-400' : job.status === 'cancelled' ? 'text-text-muted' : 'text-primary-light'}" />
+                <Icon size={16} class="shrink-0 {job.status === 'completed' ? 'text-success-light' : job.status === 'failed' ? 'text-danger-light' : job.status === 'cancelled' ? 'text-text-muted' : 'text-primary-light'}" />
                 <div class="min-w-0 flex items-baseline gap-2">
                   <Badge variant={badgeVariant(job.status)} size="sm">{job.status}</Badge>
                   <span class="text-xs text-text-muted whitespace-nowrap">
@@ -387,9 +387,9 @@
               </div>
               <div class="flex items-center gap-3 sm:gap-5 text-xs shrink-0">
                 <span class="text-text-muted hidden sm:inline">{t('rowsCount', { count: job.total_rows })}</span>
-                <span class="text-emerald-400">{job.inserted ?? 0}</span>
-                <span class="text-amber-400">{job.updated ?? 0}</span>
-                <span class="text-rose-400">{job.errors}</span>
+                <span class="text-success-light">{job.inserted ?? 0}</span>
+                <span class="text-warning-light">{job.updated ?? 0}</span>
+                <span class="text-danger-light">{job.errors}</span>
                 <ChevronRight size={14} class="text-text-muted" />
               </div>
             </button>

@@ -14,13 +14,13 @@
 
 {#if progress}
   <div class="space-y-4 text-center">
-    <div class="w-14 h-14 rounded-full bg-emerald-400/10 flex items-center justify-center mx-auto">
+    <div class="w-14 h-14 rounded-full bg-success-subtle flex items-center justify-center mx-auto">
       {#if progress.status === 'completed'}
-        <CheckCircle2 size={28} class="text-emerald-400" />
+        <CheckCircle2 size={28} class="text-success-light" />
       {:else if progress.status === 'failed'}
         <AlertCircle size={28} class="text-danger" />
       {:else}
-        <CheckCircle2 size={28} class="text-emerald-400" />
+        <CheckCircle2 size={28} class="text-success-light" />
       {/if}
     </div>
 
@@ -36,15 +36,15 @@
 
     <div class="grid grid-cols-3 gap-3">
       <div class="p-3 bg-surface-subtle rounded-lg">
-        <p class="text-lg font-bold text-emerald-400">{progress.inserted ?? 0}</p>
+        <p class="text-lg font-bold text-success-light">{progress.inserted ?? 0}</p>
         <p class="text-xs text-text-muted">{labels.inserted}</p>
       </div>
       <div class="p-3 bg-surface-subtle rounded-lg">
-        <p class="text-lg font-bold text-amber-400">{progress.updated ?? 0}</p>
+        <p class="text-lg font-bold text-warning-light">{progress.updated ?? 0}</p>
         <p class="text-xs text-text-muted">{labels.updated}</p>
       </div>
       <div class="p-3 bg-surface-subtle rounded-lg">
-        <p class="text-lg font-bold text-rose-400">{progress.errors}</p>
+        <p class="text-lg font-bold text-danger-light">{progress.errors}</p>
         <p class="text-xs text-text-muted">{labels.errors}</p>
       </div>
     </div>

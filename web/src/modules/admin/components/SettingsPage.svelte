@@ -349,19 +349,19 @@
       <Card variant="glass">
         <div class="px-6 py-5">
           <h3 class="text-sm font-semibold text-text-secondary mb-4">{labels.receiptPreview}</h3>
-          <div class="max-w-[280px] mx-auto bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden font-mono text-xs">
-            <div class="p-4 space-y-3 text-center text-gray-900 dark:text-gray-100">
+          <div class="max-w-[280px] mx-auto bg-white dark:bg-gray-950 rounded-xl border border-border dark:border-gray-800 shadow-sm overflow-hidden font-mono text-xs">
+            <div class="p-4 space-y-3 text-center text-text-primary dark:text-gray-100">
               {#if storeName}
                 <p class="font-bold text-sm tracking-wide">{storeName}</p>
               {/if}
               {#if storeJargon}
-                <p class="text-[10px] text-gray-500 dark:text-gray-400 -mt-1">{storeJargon}</p>
+                <p class="text-[10px] text-text-muted dark:text-gray-400 -mt-1">{storeJargon}</p>
               {/if}
               {#if receiptHeader}
-                <div class="whitespace-pre-line text-[10px] text-gray-600 dark:text-gray-300 leading-relaxed">{receiptHeader}</div>
+                <div class="whitespace-pre-line text-[10px] text-text-secondary dark:text-gray-300 leading-relaxed">{receiptHeader}</div>
               {/if}
-              <div class="border-t border-dashed border-gray-300 dark:border-gray-700"></div>
-              <div class="space-y-1 text-left text-[10px] text-gray-500">
+              <div class="border-t border-dashed border-border dark:border-gray-700"></div>
+              <div class="space-y-1 text-left text-[10px] text-text-muted">
                 <div class="flex justify-between">
                    <span>Sample Product A</span>
                    <span>{labels.currencySymbol} 25,000</span>
@@ -369,16 +369,16 @@
                  <div class="flex justify-between">
                    <span>Sample Product B</span>
                    <span>{labels.currencySymbol} 15,000</span>
-                </div>
-                <div class="border-t border-dashed border-gray-300 dark:border-gray-700 my-1"></div>
-                <div class="flex justify-between font-bold text-gray-900 dark:text-gray-100">
+                 </div>
+                <div class="border-t border-dashed border-border dark:border-gray-700 my-1"></div>
+                <div class="flex justify-between font-bold text-text-primary dark:text-gray-100">
                    <span>{labels.total}</span>
                    <span>{labels.currencySymbol} 40,000</span>
                 </div>
               </div>
               {#if receiptFooter}
-                <div class="border-t border-dashed border-gray-300 dark:border-gray-700"></div>
-                <div class="whitespace-pre-line text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed">{receiptFooter}</div>
+                <div class="border-t border-dashed border-border dark:border-gray-700"></div>
+                <div class="whitespace-pre-line text-[10px] text-text-muted dark:text-gray-400 leading-relaxed">{receiptFooter}</div>
               {/if}
             </div>
           </div>

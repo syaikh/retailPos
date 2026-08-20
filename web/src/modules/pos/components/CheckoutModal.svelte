@@ -226,7 +226,7 @@
                     {/if}
                   </span>
                   <span class="col-span-1 text-center text-text-secondary tabular-nums">{item.quantity}</span>
-                  <span class="col-span-2 text-right tabular-nums {item.discount && item.discount > 0 ? 'text-red-400' : 'text-text-muted'}">
+                  <span class="col-span-2 text-right tabular-nums {item.discount && item.discount > 0 ? 'text-danger-light' : 'text-text-muted'}">
                     {item.discount && item.discount > 0 ? (item.discount * item.quantity).toLocaleString('id-ID') : '—'}
                   </span>
                   <span class="col-span-3 text-right font-semibold text-text-primary tabular-nums">
@@ -255,7 +255,7 @@
                     {t('savingsWithAmount', { amount: totalSavings.toLocaleString('id-ID') })}
                   </div>
                 {/if}
-                <p class="text-3xl font-extrabold text-purple-400">
+                <p class="text-3xl font-extrabold text-primary">
                   {labels.currencySymbol} {totalAmount.toLocaleString('id-ID')}
                 </p>
               </div>

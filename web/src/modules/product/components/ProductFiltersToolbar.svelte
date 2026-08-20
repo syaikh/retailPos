@@ -48,8 +48,8 @@
   );
 
   let categoryBtnStyle = $derived(selectedCategories.length > 0
-    ? 'background: rgba(124,58,236,0.12); border-color: rgba(124,58,236,0.35); color: #c4b5fd;'
-    : 'background: rgba(30,27,36,0.7); border-color: #374151; color: #9ca3af;'
+    ? 'background: rgba(124,58,236,0.12); border-color: rgba(124,58,236,0.35); color: var(--color-primary-light);'
+    : 'background: var(--color-surface-default); border-color: var(--color-border-default); color: var(--color-text-secondary);'
   );
 
   let activeChips = $derived.by(() => {
@@ -89,7 +89,7 @@
       class="flex items-center gap-[9px] h-10 px-[14px] rounded-xl shrink-0 transition-all duration-200"
       style={categoryBtnStyle}
     >
-      <SlidersHorizontal size={15} style="color: {selectedCategories.length > 0 ? '#c4b5fd' : '#9ca3af'}" />
+      <SlidersHorizontal size={15} style="color: {selectedCategories.length > 0 ? 'var(--color-primary-light)' : 'var(--color-text-secondary)'}" />
       <span class="text-[13px] font-medium whitespace-nowrap">
         {#if selectedCategories.length > 0 && !(selectedCategories.length === 1 && selectedCategories[0] === 'All')}
           {t('categoriesSelectedCount', { count: selectedCategories.length })}
@@ -97,7 +97,7 @@
           {labels.category}
         {/if}
       </span>
-      <ChevronDown size={13} class="shrink-0 transition-opacity duration-150" style="color: {selectedCategories.length > 0 ? '#c4b5fd' : '#9ca3af'}; opacity: {selectedCategories.length > 0 ? 0.7 : 0.4}" />
+      <ChevronDown size={13} class="shrink-0 transition-opacity duration-150" style="color: {selectedCategories.length > 0 ? 'var(--color-primary-light)' : 'var(--color-text-secondary)'}; opacity: {selectedCategories.length > 0 ? 0.7 : 0.6}" />
     </button>
     <Dropdown placement="bottom-start" items={[
       { label: labels.allStatus, checked: filterStatus === 'all', onclick: () => { filterStatus = 'all'; onrefresh(); } },

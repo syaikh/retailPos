@@ -119,7 +119,7 @@
     </table>
   </div>
 {:else if suppliers.length === 0}
-  <div class="flex flex-col items-center justify-center py-12 text-gray-400" role="status">
+  <div class="flex flex-col items-center justify-center py-12 text-text-muted" role="status">
     <Truck class="w-12 h-12 mb-3" aria-hidden="true" />
     <p>{labels.noSuppliersFound}</p>
     {#if searchQuery}

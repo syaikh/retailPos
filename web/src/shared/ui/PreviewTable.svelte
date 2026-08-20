@@ -16,11 +16,11 @@
   function statusBadge(row: PreviewRow) {
     switch (row.status) {
       case 'insert':
-        return { label: labels.insert, class: 'bg-emerald-500/10 text-emerald-400' };
+        return { label: labels.insert, class: 'bg-success-subtle text-success-light' };
       case 'update':
-        return { label: labels.update, class: 'bg-amber-500/10 text-amber-400' };
+        return { label: labels.update, class: 'bg-warning-subtle text-warning-light' };
       case 'error':
-        return { label: labels.error, class: 'bg-rose-500/10 text-rose-400' };
+        return { label: labels.error, class: 'bg-danger-subtle text-danger-light' };
     }
   }
 
@@ -55,13 +55,13 @@
           <tr class="hover:bg-surface-hover/30 transition-colors">
             <td class="px-3 py-1.5">
               {#if row.status === 'error'}
-                <span class="inline-flex items-center gap-1 text-rose-400 font-medium">
-                  <span class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></span>
+                <span class="inline-flex items-center gap-1 text-danger-light font-medium">
+                  <span class="w-1.5 h-1.5 rounded-full bg-danger shrink-0"></span>
                   {labels.error}
                 </span>
               {:else}
-                <span class="inline-flex items-center gap-1 {row.status === 'insert' ? 'text-emerald-400' : 'text-amber-400'} font-medium">
-                  <span class="w-1.5 h-1.5 rounded-full {row.status === 'insert' ? 'bg-emerald-400' : 'bg-amber-400'} shrink-0"></span>
+                <span class="inline-flex items-center gap-1 {row.status === 'insert' ? 'text-success-light' : 'text-warning-light'} font-medium">
+                  <span class="w-1.5 h-1.5 rounded-full {row.status === 'insert' ? 'bg-success' : 'bg-warning-default'} shrink-0"></span>
                   {row.status === 'insert' ? labels.insert : labels.update}
                 </span>
               {/if}

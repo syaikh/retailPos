@@ -188,17 +188,17 @@
           <div class="flex items-center gap-3 text-sm">
             <span class="text-text-primary font-medium">{labels.preview}</span>
             <span class="text-text-muted">{preview.total_rows} {labels.rows}</span>
-            <span class="inline-flex items-center gap-1 text-emerald-400">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span class="inline-flex items-center gap-1 text-success-light">
+              <span class="w-1.5 h-1.5 rounded-full bg-success"></span>
               {preview.insert_count} {labels.insert}
             </span>
-            <span class="inline-flex items-center gap-1 text-amber-400">
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+            <span class="inline-flex items-center gap-1 text-warning-light">
+              <span class="w-1.5 h-1.5 rounded-full bg-warning-default"></span>
               {preview.update_count} {labels.update}
             </span>
             {#if preview.error_count > 0}
-              <span class="inline-flex items-center gap-1 text-rose-400">
-                <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+              <span class="inline-flex items-center gap-1 text-danger-light">
+                <span class="w-1.5 h-1.5 rounded-full bg-danger"></span>
                 {preview.error_count} {labels.error}
               </span>
             {/if}
