@@ -250,7 +250,7 @@ func (s *service) UpdateCartItemQuantity(ctx context.Context, cartID, itemID, qu
 		return nil, err
 	}
 
-	if err := s.recalculateCartTotalsFromItems(ctx, tx, cartID, items); err != nil {
+	if err := s.recalculateCartTotals(ctx, tx, cartID); err != nil {
 		return nil, err
 	}
 

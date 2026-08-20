@@ -400,6 +400,39 @@ func TestCartService_UpdateCartItemQuantity_Branches(t *testing.T) {
 	})
 }
 
+// Regression: UpdateCartItemQuantity must recompute cart totals from DB, not
+// from the stale in-memory items slice. Before the fix, the cart.total_amount
+// returned after a quantity change could differ from what checkout computed,
+// causing a payment mismatch error at checkout.
+func TestCartService_UpdateCartItemQuantity_RecomputesCartTotals(t *testing.T) {
+	skipIfNoDB(t)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+	svc, _ := newCartTestService(ctx, t)
+
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-UQ-REG", "Qty Regress Product", 12000, 50, 11)
+
+	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
+	require.NoError(t, err)
+	cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 1, nil, cashierID)
+	require.NoError(t, err)
+	itemID := cart.Items[0].ID
+
+	// Change quantity from 1 → 3. Expected: subtotal = 3 * 12000 = 36000
+	updated, err := svc.UpdateCartItemQuantity(ctx, cart.ID, itemID, 3, cashierID)
+	require.NoError(t, err)
+	assert.Equal(t, 36000, updated.Subtotal, "cart subtotal must reflect new quantity * unit_price")
+	assert.Equal(t, 36000, updated.TotalAmount, "cart total_amount must match subtotal (no cart-level discount)")
+
+	// Verify consistency: checkout must compute the same total (672000 bug).
+	// Re-read the cart from DB to simulate what checkout does.
+	cartAfter, err := svc.GetCartByID(ctx, cart.ID, cashierID)
+	require.NoError(t, err)
+	assert.Equal(t, updated.Subtotal, cartAfter.Subtotal, "re-read cart must have same subtotal")
+	assert.Equal(t, updated.TotalAmount, cartAfter.TotalAmount, "re-read cart must have same total")
+}
+
 // TestCartService_RemoveCartItem_ItemNotFound covers the repository
 // no-rows-affected branch when removing a nonexistent item.
 func TestCartService_RemoveCartItem_ItemNotFound(t *testing.T) {
