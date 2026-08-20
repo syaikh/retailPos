@@ -189,7 +189,7 @@
 
   function openAdd() {
     modalMode = 'add';
-    form = { username: '', email: '', password: '', role_id: roles[0]?.id || 0, is_active: true, reports_to: null };
+    form = { username: '', email: '', password: '', role_id: 0, is_active: true, reports_to: null };
     showModal = true;
   }
 
@@ -208,7 +208,7 @@
   }
 
   async function saveUser() {
-    if (!form.username || !form.email || (modalMode === 'add' && !form.password)) {
+    if (!form.username || !form.email || (modalMode === 'add' && !form.password) || !form.role_id) {
       toast.error('Please fill all required fields');
       return;
     }

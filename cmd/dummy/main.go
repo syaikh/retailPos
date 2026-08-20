@@ -168,6 +168,50 @@ var (
 		Variants:     []string{"Basic", "Standard", "Premium", "Deluxe", "Pro", "Lite"},
 		PriceMin:     50, PriceMax: 2000,
 	}
+
+	// Central company name for store generation (single name for all branches)
+	centralCompanyName = "Jadi Baru"
+
+	// Store location names (Indonesian cities/regions) - no duplicates
+	storeLocationNames = []string{
+		"Kebumen", "Sumpiuh", "Kroya", "Purwokerto", "Cilacap", "Banyumas",
+		"Wangon", "Ajibarang", "Gombong", "Karanganyar", "Kebasen", "Kutowinangun",
+		"Purwojati", "Sempor", "Ambal", "Kuwarasan", "Bonorowo", "Adimulyo",
+		"Alian", "Jogonalan", "Kaligesing", "Kutorejo", "Musuk", "Cepogo",
+		"Selo", "Boyolali", "Klego", "Ngemplak", "Sawit", "Andong",
+		"Kemusu", "Giriroto", "Wonosari", "Teras", "Juwangi", "Ketawang",
+		"Plandi", "Sumberlawang", "Mojolaban", "Sukoharjo", "Ngadirejo", "Ngargoyoso",
+		"Kerjo", "Jaten", "Jumantono", "Gondangrejo", "Karas",
+		"Tasikmadu", "Karangpandan", "Colomadu", "Ngaglik", "Sleman", "Depok",
+		"Gamping", "Godean", "Moyudan", "Sedayu", "Lendah", "Sentolo",
+		"Panjatan", "Wates", "Temon", "Tambak", "Banguntapan", "Pleret",
+		"Prambanan", "Kalasan", "Berbah", "Ngablak", "Bringin",
+		"Getasan", "Sumber", "Sumowono", "Bawen", "Bandungan",
+		"Umbulomah", "Jambu", "Kandangan", "Kedungaret", "Secang",
+		"Mertoyudan", "Sawangan", "Mungkid", "Mendut", "Borobudur", "Salaman",
+		"Kajoran", "Kaliangkrik", "Bandongan", "Candirejo",
+	}
+
+	// Warehouse names (Indonesian)
+	warehouseNamePool = []string{
+		"Gudang Pusat", "Gudang Utama", "Gudang Sentral", "Gudang Induk",
+		"Gudang Cabang", "Gudang Distribusi", "Gudang Logistik",
+		"Gudang Konsinyasi", "Gudang Penyimpanan", "Gudang Operasional",
+		"Gudang Regional", "Gudang Area", "Gudang Lokal", "Gudang Cabang Utama",
+		"Gudang Pengiriman", "Gudang Penerimaan", "Gudang Sortir", "Gudang Transit",
+	}
+
+	// Supplier company names (Indonesian)
+	supplierCompanyNames = []string{
+		"PT Sumber Makmur", "CV Berkah Jaya", "PT Maju Bersama", "CV Sentosa Trading",
+		"PT Dewa Elektronik", "CV Lestari Supplies", "PT Nusantara Distribution",
+		"CV Prima Kencana", "PT Gemilang Perkasa", "CV Sinar Terang",
+		"PT Abadi Makmur", "CV Cahaya Baru", "PT Sejahtera Abadi", "CV Mitra Usaha",
+		"PT Global Supply", "CV Bintang Jaya", "PT Multi Sukses", "CV Harapan Jaya",
+		"PT Cahaya Gemilang", "CV Mutiara Supplies", "PT Prima Nusantara", "CV Sentosa Makmur",
+		"PT Berkah Abadi", "CV Jaya Bersama", "PT Sukses Mandiri", "CV Cemerlang Trading",
+		"PT Mas Jaya", "CV Sumber Rejeki", "PT Prima Sejahtera", "CV Maju Jaya",
+	}
 )
 
 func main() {
@@ -211,14 +255,22 @@ func main() {
 	daysFlag := flag.Int("days", 0, "Number of days to generate data for (0 = interactive prompt)")
 	categoriesFlag := flag.Int("categories", 0, "Number of categories to ensure exist (random if 0)")
 	stockOpnamesFlag := flag.Int("stock-opnames", 0, "Number of stock opname sessions to inject (auto ~1/month if 0)")
+	storesFlag := flag.Int("stores", 0, "Number of stores to generate (random 20-40 if 0)")
+	warehousesFlag := flag.Int("warehouses", 1, "Number of warehouses per store")
+	storageZonesFlag := flag.Int("storage-zones", 4, "Number of storage zones per warehouse")
+	storageRacksFlag := flag.Int("storage-racks", 5, "Number of racks per storage zone")
+	suppliersFlag := flag.Int("suppliers", 0, "Number of suppliers to generate (random 10-15 if 0)")
+	consignmentFlag := flag.Int("consignment", 0, "Number of consignment suppliers (10-20% of suppliers if 0)")
 	flag.Parse()
 
-	if err := run(*truncateFlag, *productsFlag, *daysFlag, *categoriesFlag, *stockOpnamesFlag); err != nil {
+	if err := run(*truncateFlag, *productsFlag, *daysFlag, *categoriesFlag, *stockOpnamesFlag,
+		*storesFlag, *warehousesFlag, *storageZonesFlag, *storageRacksFlag, *suppliersFlag, *consignmentFlag); err != nil {
 		log.Fatalf("Dummy seeder failed: %v", err)
 	}
 }
 
-func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames int) error {
+func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames,
+	numStores, numWarehousesPerStore, storageZones, storageRacks, numSuppliers, numConsignment int) error {
 	ctx := context.Background()
 
 	// Validate parameters
@@ -241,6 +293,55 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	// Randomize categories if not specified (0 means random)
 	if numCategories == 0 {
 		numCategories = rand.Intn(36) + 65 // 65-100
+	}
+
+	// Validate and randomize new parameters
+	if numStores < 0 {
+		return fmt.Errorf("stores count must not be negative, got %d", numStores)
+	}
+	if numStores == 0 {
+		numStores = rand.Intn(21) + 20 // 20-40
+	}
+	if numWarehousesPerStore < 0 {
+		return fmt.Errorf("warehouses count must not be negative, got %d", numWarehousesPerStore)
+	}
+	if numWarehousesPerStore == 0 {
+		numWarehousesPerStore = 1
+	}
+	if storageZones < 0 {
+		return fmt.Errorf("storage zones count must not be negative, got %d", storageZones)
+	}
+	if storageZones == 0 {
+		storageZones = 4
+	}
+	if storageZones > 26 {
+		fmt.Printf("   ⚠️  Capping storage zones from %d to 26 (max supported)\n", storageZones)
+		storageZones = 26
+	}
+	if storageRacks < 0 {
+		return fmt.Errorf("storage racks count must not be negative, got %d", storageRacks)
+	}
+	if storageRacks == 0 {
+		storageRacks = 5
+	}
+	if numSuppliers < 0 {
+		return fmt.Errorf("suppliers count must not be negative, got %d", numSuppliers)
+	}
+	if numSuppliers == 0 {
+		numSuppliers = rand.Intn(6) + 10 // 10-15
+	}
+	if numConsignment < 0 {
+		return fmt.Errorf("consignment count must not be negative, got %d", numConsignment)
+	}
+	if numConsignment == 0 {
+		// Default: 10-20% of suppliers
+		numConsignment = numSuppliers * (rand.Intn(11) + 10) / 100
+		if numConsignment < 1 && numSuppliers > 0 {
+			numConsignment = 1
+		}
+	}
+	if numConsignment > numSuppliers {
+		numConsignment = numSuppliers
 	}
 
 	// Calculate date range
@@ -325,17 +426,17 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	fmt.Println("   ✅ Payment methods ready")
 
 	// 3e. Ensure stores exist
-	ensureStores(ctx, db)
+	ensureStores(ctx, db, numStores)
 	fmt.Println("   ✅ Stores ready")
 
 	// 3e1. Ensure warehouses exist
 	fmt.Printf("🏭 Ensuring warehouses...\n")
-	ensureWarehouses(ctx, db)
+	ensureWarehouses(ctx, db, numWarehousesPerStore)
 	fmt.Println("   ✅ Warehouses ready")
 
 	// 3e2. Ensure storage locations (racks) exist
 	fmt.Printf("📍 Ensuring storage locations...\n")
-	ensureStorageLocations(ctx, db)
+	ensureStorageLocations(ctx, db, storageZones, storageRacks)
 	fmt.Println("   ✅ Storage locations ready")
 
 	// 3f. Ensure customer groups exist
@@ -370,7 +471,7 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 
 	// 4b. Ensure suppliers exist and link to products
 	fmt.Printf("🏭 Injecting suppliers and product links...\n")
-	if err := ensureSuppliers(ctx, db, productData); err != nil {
+	if err := ensureSuppliers(ctx, db, productData, numSuppliers); err != nil {
 		return fmt.Errorf("failed to inject suppliers: %w", err)
 	}
 	fmt.Println("   ✅ Suppliers and product links ready")
@@ -439,7 +540,7 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	// consignment sale items can be backfilled, before stock opnames so
 	// consignment-owned SKUs are excluded from the opname snapshot.
 	fmt.Printf("🤝 Injecting consignment (Konsinyasi) data...\n")
-	if err := injectConsignment(ctx, db, startDate, endDate); err != nil {
+	if err := injectConsignment(ctx, db, startDate, endDate, numConsignment); err != nil {
 		return fmt.Errorf("failed to inject consignment: %w", err)
 	}
 	fmt.Println("   ✅ Consignment data injected")
@@ -526,6 +627,20 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 
 	// Truncate tables in correct order (children first)
 	tables := []string{
+		// Consignment child tables first
+		"consignment_settlement_items",
+		"consignment_payouts",
+		"consignment_return_items",
+		"consignment_receipt_items",
+		"consignment_returns",
+		"consignment_settlements",
+		"consignment_receipts",
+		"consignment_pending_returns",
+		"consignment_terms",
+		"consignment_stock",
+		"consignment_sale_items",
+		"consignment_arrangements",
+		// Core transaction tables
 		"goods_receipt_items",
 		"goods_receipts",
 		"purchase_order_items",
@@ -547,6 +662,7 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		"customers",
 		"payment_methods",
 		"warehouses",
+		"stores",
 		"units_of_measure",
 		"tax_classes",
 		"brands",
@@ -577,6 +693,11 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		if err != nil {
 			log.Printf("Warning: failed to restore system user %d: %v", u.id, err)
 		}
+	}
+
+	// Resync sequences after explicit ID inserts to prevent duplicate key errors
+	if _, err := db.ExecContext(ctx, `SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 1) FROM users))`); err != nil {
+		log.Printf("Warning: failed to resync users_id_seq: %v", err)
 	}
 
 	return nil
@@ -717,20 +838,60 @@ func ensurePaymentMethods(ctx context.Context, db *sql.DB) {
 	}
 }
 
-func ensureStores(ctx context.Context, db *sql.DB) {
-	_, err := db.ExecContext(ctx, `
+func ensureStores(ctx context.Context, db *sql.DB, numStores int) {
+	// Check if stores already exist
+	var count int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM stores").Scan(&count); err == nil && count > 0 {
+		fmt.Printf("   Found %d existing stores, skipping creation\n", count)
+		return
+	}
+
+	// Shuffle location names for variety
+	locations := make([]string, len(storeLocationNames))
+	copy(locations, storeLocationNames)
+	rand.Shuffle(len(locations), func(i, j int) {
+		locations[i], locations[j] = locations[j], locations[i]
+	})
+
+	// Warn if requesting more stores than available locations
+	if numStores > len(locations) {
+		fmt.Printf("   ⚠️  Capping stores from %d to %d (max available locations)\n", numStores, len(locations))
+		numStores = len(locations)
+	}
+
+	// Generate store names: {CentralCompanyName} {Location}
+	stmt, err := db.PrepareContext(ctx, `
 		INSERT INTO stores (id, name, address, phone, is_active, created_at)
-		VALUES
-		(1, 'Main Store', '123 Main Street', '081234567890', true, NOW()),
-		(2, 'Branch Store', '456 Branch Avenue', '081234567891', true, NOW()),
-		(3, 'Warehouse Store', '789 Industrial Road', '081234567892', true, NOW())
+		VALUES ($1, $2, $3, $4, true, NOW())
 		ON CONFLICT (id) DO NOTHING`)
 	if err != nil {
-		fmt.Printf("Warning: failed to ensure stores: %v\n", err)
+		fmt.Printf("Warning: failed to prepare store stmt: %v\n", err)
+		return
 	}
+	defer func() { _ = stmt.Close() }()
+
+	created := 0
+	for i := 0; i < numStores && i < len(locations); i++ {
+		storeName := fmt.Sprintf("%s %s", centralCompanyName, locations[i])
+		address := fmt.Sprintf("Jl. Raya %s No. %d, %s", locations[i], 1+rand.Intn(100), locations[i])
+		phone := fmt.Sprintf("081%d%08d", i%10, rand.Intn(100000000))
+		if _, err := stmt.ExecContext(ctx, i+1, storeName, address, phone); err != nil {
+			fmt.Printf("Warning: failed to insert store %s: %v\n", storeName, err)
+			continue
+		}
+		created++
+	}
+	fmt.Printf("   🎲 Created %d stores\n", created)
 }
 
-func ensureWarehouses(ctx context.Context, db *sql.DB) {
+func ensureWarehouses(ctx context.Context, db *sql.DB, numWarehousesPerStore int) {
+	// Check if warehouses already exist
+	var count int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM warehouses").Scan(&count); err == nil && count > 0 {
+		fmt.Printf("   Found %d existing warehouses, skipping creation\n", count)
+		return
+	}
+
 	// Get store IDs so warehouses are linked to existing stores
 	rows, err := db.QueryContext(ctx, `SELECT id FROM stores ORDER BY id`)
 	if err != nil {
@@ -751,15 +912,12 @@ func ensureWarehouses(ctx context.Context, db *sql.DB) {
 		return
 	}
 
-	warehouseNames := []struct {
-		Name string
-		Code string
-		Addr string
-	}{
-		{"Gudang Pusat", "WH-001", "Jl. Raya Industri No. 10, Jakarta Utara"},
-		{"Gudang Cabang", "WH-002", "Jl. Raya Cabang No. 25, Jakarta Selatan"},
-		{"Gudang Konsinyasi", "WH-003", "Jl. Konsinyasi No. 5, Tangerang"},
-	}
+	// Shuffle warehouse names for variety
+	names := make([]string, len(warehouseNamePool))
+	copy(names, warehouseNamePool)
+	rand.Shuffle(len(names), func(i, j int) {
+		names[i], names[j] = names[j], names[i]
+	})
 
 	stmt, err := db.PrepareContext(ctx, `
 		INSERT INTO warehouses (name, code, address, store_id, is_active, created_at)
@@ -772,18 +930,31 @@ func ensureWarehouses(ctx context.Context, db *sql.DB) {
 	defer func() { _ = stmt.Close() }()
 
 	created := 0
-	for i, w := range warehouseNames {
-		storeID := storeIDs[i%len(storeIDs)]
-		if _, err := stmt.ExecContext(ctx, w.Name, w.Code, w.Addr, storeID); err != nil {
-			fmt.Printf("Warning: failed to insert warehouse %s: %v\n", w.Name, err)
-			continue
+	whNum := 0
+	for _, storeID := range storeIDs {
+		for j := 0; j < numWarehousesPerStore && j < len(names); j++ {
+			whNum++
+			whName := names[j%len(names)]
+			code := fmt.Sprintf("WH-%03d", whNum)
+			address := fmt.Sprintf("Jl. Gudang No. %d, Gudang %s", 1+rand.Intn(50), whName)
+			if _, err := stmt.ExecContext(ctx, whName, code, address, storeID); err != nil {
+				fmt.Printf("Warning: failed to insert warehouse %s: %v\n", whName, err)
+				continue
+			}
+			created++
 		}
-		created++
 	}
-	fmt.Printf("   🎲 Created %d warehouses\n", created)
+	fmt.Printf("   🎲 Created %d warehouses (%d per store)\n", created, numWarehousesPerStore)
 }
 
-func ensureStorageLocations(ctx context.Context, db *sql.DB) {
+func ensureStorageLocations(ctx context.Context, db *sql.DB, storageZones, storageRacks int) {
+	// Check if storage locations already exist
+	var count int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM storage_locations").Scan(&count); err == nil && count > 0 {
+		fmt.Printf("   Found %d existing storage locations, skipping creation\n", count)
+		return
+	}
+
 	// Get warehouse IDs
 	warehouseIDs := getIDs(ctx, db, "warehouses")
 	if len(warehouseIDs) == 0 {
@@ -791,8 +962,11 @@ func ensureStorageLocations(ctx context.Context, db *sql.DB) {
 		return
 	}
 
-	// Rack zone prefixes per warehouse
-	zones := []string{"A", "B", "C", "D"}
+	// Generate zone labels: A, B, C, ... up to storageZones
+	zones := make([]string, storageZones)
+	for i := 0; i < storageZones; i++ {
+		zones[i] = string(rune('A' + i))
+	}
 
 	stmt, err := db.PrepareContext(ctx, `
 		INSERT INTO storage_locations (code, name, warehouse_id, notes, is_active, created_at, updated_at)
@@ -808,7 +982,7 @@ func ensureStorageLocations(ctx context.Context, db *sql.DB) {
 	for _, whID := range warehouseIDs {
 		created := 0
 		for _, zone := range zones {
-			for rack := 1; rack <= 5; rack++ { // 5 racks per zone = 20 per warehouse
+			for rack := 1; rack <= storageRacks; rack++ {
 				code := fmt.Sprintf("WH%d-%s%02d", whID, zone, rack)
 				name := fmt.Sprintf("Rak %s-%02d", zone, rack)
 				notes := fmt.Sprintf("Zone %s, Rack %d", zone, rack)
@@ -821,7 +995,8 @@ func ensureStorageLocations(ctx context.Context, db *sql.DB) {
 		}
 		totalCreated += created
 	}
-	fmt.Printf("   🎲 Created %d storage locations across %d warehouses\n", totalCreated, len(warehouseIDs))
+	fmt.Printf("   🎲 Created %d storage locations across %d warehouses (%d zones × %d racks)\n",
+		totalCreated, len(warehouseIDs), storageZones, storageRacks)
 }
 
 func backfillRackStock(ctx context.Context, db *sql.DB) {
@@ -963,26 +1138,6 @@ func ensureUnitsOfMeasure(ctx context.Context, db *sql.DB) {
 }
 
 var (
-	supplierNames = []struct {
-		Name string
-		Code string
-	}{
-		{"PT Sumber Makmur", "SUP-001"},
-		{"CV Berkah Jaya", "SUP-002"},
-		{"PT Maju Bersama", "SUP-003"},
-		{"CV Sentosa Trading", "SUP-004"},
-		{"PT Dewa Elektronik", "SUP-005"},
-		{"CV Lestari Supplies", "SUP-006"},
-		{"PT Nusantara Distribution", "SUP-007"},
-		{"CV Prima Kencana", "SUP-008"},
-		{"PT Gemilang Perkasa", "SUP-009"},
-		{"CV Sinar Terang", "SUP-010"},
-		{"PT Abadi Makmur", "SUP-011"},
-		{"CV Cahaya Baru", "SUP-012"},
-		{"PT Sejahtera Abadi", "SUP-013"},
-		{"CV Mitra Usaha", "SUP-014"},
-		{"PT Global Supply", "SUP-015"},
-	}
 	supplierStreets = []string{
 		"Jl. Industri", "Jl. Raya Bogor", "Jl. Pasar Minggu", "Jl. Kemang Raya",
 		"Jl. Tebet Raya", "Jl. Senayan", "Jl. Kuningan", "Jl. Rasuna Said",
@@ -992,7 +1147,7 @@ var (
 	}
 )
 
-func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo) error {
+func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo, numSuppliers int) error {
 	// Check if suppliers already exist
 	var count int
 	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM suppliers").Scan(&count); err == nil && count > 0 {
@@ -1000,10 +1155,17 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo) er
 		return nil
 	}
 
-	numSuppliers := 10 + rand.Intn(6) // 10-15
-	if numSuppliers > len(supplierNames) {
-		numSuppliers = len(supplierNames)
+	// Cap to available names
+	if numSuppliers > len(supplierCompanyNames) {
+		numSuppliers = len(supplierCompanyNames)
 	}
+
+	// Shuffle names for variety
+	names := make([]string, len(supplierCompanyNames))
+	copy(names, supplierCompanyNames)
+	rand.Shuffle(len(names), func(i, j int) {
+		names[i], names[j] = names[j], names[i]
+	})
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -1028,18 +1190,18 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo) er
 	supplierIDs := make([]int, 0, numSuppliers)
 
 	for i := 0; i < numSuppliers; i++ {
-		s := supplierNames[i]
+		supplierName := names[i]
 		contactFirst := customerFirstNames[rand.Intn(len(customerFirstNames))]
 		contactLast := customerLastNames[rand.Intn(len(customerLastNames))]
 		contactName := fmt.Sprintf("%s %s", contactFirst, contactLast)
 		phone := fmt.Sprintf("021-%08d", rand.Intn(100000000))
-		email := fmt.Sprintf("info@%s.co.id", strings.ToLower(strings.ReplaceAll(s.Name, " ", "")))
+		email := fmt.Sprintf("info@%s.co.id", strings.ToLower(strings.ReplaceAll(supplierName, " ", "")))
 		address := fmt.Sprintf("%s No. %d, %s", supplierStreets[rand.Intn(len(supplierStreets))], 1+rand.Intn(100), supplierCities[rand.Intn(len(supplierCities))])
 		createdAt := ref.AddDate(0, 0, -rand.Intn(90)-30)
 
 		var id int
-		if err := supplierStmt.QueryRowContext(ctx, s.Name, s.Code, contactName, phone, email, address, createdAt).Scan(&id); err != nil {
-			fmt.Printf("   Warning: failed to insert supplier %s: %v\n", s.Name, err)
+		if err := supplierStmt.QueryRowContext(ctx, supplierName, fmt.Sprintf("SUP-%03d", i+1), contactName, phone, email, address, createdAt).Scan(&id); err != nil {
+			fmt.Printf("   Warning: failed to insert supplier %s: %v\n", supplierName, err)
 			continue
 		}
 		supplierIDs = append(supplierIDs, id)
@@ -1405,9 +1567,6 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, catID, brandID, uomID, createdAt).Scan(&id)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				if i == job.startProduct {
-					fmt.Printf("DEBUG worker %d: first SKU=%s got ErrNoRows\n", job.workerID, sku)
-				}
 				continue
 			}
 			// Detect transaction poisoning: a prior failure (e.g. product_stock FK) aborts
@@ -1415,23 +1574,17 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 			// "current transaction is aborted". The only fix is to roll back and start over.
 			errStr := err.Error()
 			if strings.Contains(errStr, "current transaction is aborted") || strings.Contains(errStr, "abort the current transaction") {
-				fmt.Printf("DEBUG worker %d: transaction poisoned at product %d, rolling back\n", job.workerID, i)
 				_ = tx.Rollback()
 				return nil, fmt.Errorf("transaction poisoned at product %d: %w", i, err)
 			}
 			fmt.Printf("Warning: worker %d failed to insert product %d: %v\n", job.workerID, i, err)
 			continue
 		}
-		if i == job.startProduct {
-			fmt.Printf("DEBUG worker %d: first SKU=%s inserted id=%d\n", job.workerID, sku, id)
-		}
+
 
 		// Insert into product_stock so v_products_full view returns correct stock
 		if _, err := stockStmt.ExecContext(ctx, id, stock); err != nil {
 			fmt.Printf("Warning: worker %d failed to insert product_stock for product %d: %v\n", job.workerID, i, err)
-			if i == job.startProduct {
-				fmt.Printf("DEBUG worker %d: product_stock failed on FIRST product, transaction may be poisoned\n", job.workerID)
-			}
 		}
 
 		taxClassID := 1
@@ -1455,8 +1608,6 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	if len(batch) > 0 {
 		products = append(products, batch...)
 	}
-
-	fmt.Printf("DEBUG worker %d: loop done, products=%d, batch=%d\n", job.workerID, len(products), len(batch))
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {

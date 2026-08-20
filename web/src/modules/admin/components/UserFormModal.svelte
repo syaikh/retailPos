@@ -94,21 +94,21 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <Modal bind:open={open} title={modalMode === 'add' ? `${labels.add} ${labels.user}` : `${labels.edit} ${labels.user}`} size="md">
-  <form onsubmit={(e) => { e.preventDefault(); onsave(); }} class="space-y-6">
+  <form onsubmit={(e) => { e.preventDefault(); onsave(); }} class="space-y-6" autocomplete="off">
     <div class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label for="usr-username" class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
             <User size={14} class="text-text-muted" />
-            {labels.username}
+            {labels.username}<span class="text-red-500">*</span>
           </label>
-          <Input id="usr-username" type="text" placeholder="johndoe" bind:value={form.username} required minlength="3" maxlength="50" pattern="[a-zA-Z0-9]+" title="3-50 alphanumeric characters only (will be converted to lowercase)" />
+          <Input id="usr-username" type="text" placeholder="johndoe" bind:value={form.username} required minlength="3" maxlength="50" pattern="[a-zA-Z0-9]+" title="3-50 alphanumeric characters only (will be converted to lowercase)" autocomplete="off" />
         </div>
         <div>
           <label for="usr-email" class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
-            {labels.email}
+            {labels.email}<span class="text-red-500">*</span>
           </label>
-          <Input id="usr-email" type="email" placeholder="john@example.com" bind:value={form.email} required />
+          <Input id="usr-email" type="email" placeholder="john@example.com" bind:value={form.email} required autocomplete="off" />
         </div>
       </div>
 
@@ -116,7 +116,7 @@
         <div class="relative form-role-dropdown-container">
           <label class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
             <Shield size={14} class="text-text-muted" />
-            {labels.role}
+            {labels.role}<span class="text-red-500">*</span>
           </label>
           <div class="form-role-dropdown-container">
             <button
@@ -188,9 +188,9 @@
       <div class="pt-2">
         <label for="usr-password" class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-text-muted"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          {labels.password}
+          {labels.password}{#if modalMode === 'add'}<span class="text-red-500">*</span>{/if}
         </label>
-        <Input id="usr-password" type="password" placeholder="••••••••" bind:value={form.password} required={modalMode === 'add'} minlength="6" />
+        <Input id="usr-password" type="password" placeholder={modalMode === 'add' ? labels.enterPassword : ''} bind:value={form.password} required={modalMode === 'add'} minlength="8" autocomplete="new-password" />
         {#if modalMode === 'edit'}
           <p class="text-xs text-text-muted mt-1.5">{labels.leaveBlankToKeepPassword}</p>
         {/if}

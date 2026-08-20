@@ -14,6 +14,7 @@ import (
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -191,6 +192,10 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	}
 
 	if err := h.svc.CreateUser(c.Request.Context(), user); err != nil {
+		if isDuplicateKeyError(err) {
+			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "username or email already exists")
+			return
+		}
 		shared.InternalError(c, err)
 		return
 	}
@@ -306,6 +311,10 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	}
 
 	if err := h.svc.UpdateUser(c.Request.Context(), existing); err != nil {
+		if isDuplicateKeyError(err) {
+			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "username or email already exists")
+			return
+		}
 		shared.InternalError(c, err)
 		return
 	}
@@ -619,4 +628,15 @@ func (h *Handler) ListPermissions(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": permissions})
+}
+
+func isDuplicateKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
+	}
+	return false
 }

@@ -8,19 +8,6 @@ import (
 	"time"
 )
 
-// consignmentSupplierNames are realistic Indonesian FMCG distributors selected
-// from supplierNames (main.go) to be flagged as consignment suppliers. Only
-// names actually present in the suppliers table are used.
-var consignmentSupplierNames = []string{
-	"PT Sumber Makmur",
-	"CV Berkah Jaya",
-	"CV Lestari Supplies",
-	"PT Nusantara Distribution",
-	"PT Gemilang Perkasa",
-	"PT Abadi Makmur",
-	"PT Sejahtera Abadi",
-}
-
 // consignmentSeedTerm is the agreed price/share for a consigned SKU,
 // mirroring the consignment_terms table.
 type consignmentSeedTerm struct {
@@ -42,7 +29,7 @@ type consignmentSeedTerm struct {
 //  6. create open pending returns, then a formal return per supplier,
 //  7. settle each supplier's unsettled consignment sales (some paid + payout),
 //  8. advance the CR-/RT-/CS-/CP- sequences through nextval on every document.
-func injectConsignment(ctx context.Context, db *sql.DB, startDate, endDate time.Time) error {
+func injectConsignment(ctx context.Context, db *sql.DB, startDate, endDate time.Time, numConsignment int) error {
 	storeIDs := getIDs(ctx, db, "stores")
 	if len(storeIDs) == 0 {
 		return fmt.Errorf("no stores found for consignment")
@@ -58,26 +45,38 @@ func injectConsignment(ctx context.Context, db *sql.DB, startDate, endDate time.
 	}
 	createdBy := userIDs[0]
 
-	supplierRows, err := findSuppliersByName(ctx, db, consignmentSupplierNames)
+	// Select suppliers for consignment: pick first N from suppliers table
+	// that don't already have an active arrangement
+	allSupplierRows, err := findAllSuppliers(ctx, db)
 	if err != nil {
 		return err
 	}
-	if len(supplierRows) == 0 {
-		fmt.Println("   ⚠️  No matching suppliers found; skipping consignment")
+	if len(allSupplierRows) == 0 {
+		fmt.Println("   ⚠️  No suppliers found; skipping consignment")
 		return nil
 	}
 
 	// Skip suppliers that already have an active arrangement (BR-47 single-active
 	// invariant) so re-running with -truncate=false does not collide.
-	supplierRows, err = filterSuppliersWithActiveArrangement(ctx, db, supplierRows, storeIDs[0])
+	availableRows, err := filterSuppliersWithActiveArrangement(ctx, db, allSupplierRows, storeIDs[0])
 	if err != nil {
 		return err
 	}
-	if len(supplierRows) == 0 {
-		fmt.Println("   ℹ️  All consignment suppliers already have an active arrangement; skipping")
+	if len(availableRows) == 0 {
+		fmt.Println("   ℹ️  All suppliers already have an active arrangement; skipping")
 		return nil
 	}
 
+	// Cap to requested number
+	if numConsignment > len(availableRows) {
+		numConsignment = len(availableRows)
+	}
+	if numConsignment <= 0 {
+		fmt.Println("   ℹ️  No consignment suppliers requested; skipping")
+		return nil
+	}
+
+	supplierRows := availableRows[:numConsignment]
 	supplierIDs := make([]int, 0, len(supplierRows))
 	for _, s := range supplierRows {
 		supplierIDs = append(supplierIDs, s.id)
@@ -389,11 +388,12 @@ type consignmentProductAssignment struct {
 	productIDs   []int
 }
 
-func findSuppliersByName(ctx context.Context, db *sql.DB, names []string) ([]consignmentSupplierRow, error) {
+// findAllSuppliers returns all suppliers ordered by id ascending.
+func findAllSuppliers(ctx context.Context, db *sql.DB) ([]consignmentSupplierRow, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT id, name FROM suppliers WHERE name = ANY($1) ORDER BY id ASC`, names)
+		SELECT id, name FROM suppliers ORDER BY id ASC`)
 	if err != nil {
-		return nil, fmt.Errorf("query consignment suppliers: %w", err)
+		return nil, fmt.Errorf("query all suppliers: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	var out []consignmentSupplierRow
