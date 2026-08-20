@@ -16,7 +16,7 @@ describe('Sidebar.svelte source-structure guards', () => {
   });
 
   it('imports auth module functions', () => {
-    expect(src).toContain("import { logout, useAuthStore } from '$modules/auth'");
+    expect(src).toContain("import { logout, useAuthStore, updatePreferences } from '$modules/auth'");
   });
 
   it('imports shift store and Tooltip', () => {

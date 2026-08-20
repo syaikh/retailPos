@@ -1799,7 +1799,7 @@ export const id = {
   storeJargon: 'Jargon Toko',
   branchInfo: 'Informasi Cabang',
   branchInfoSubtitle: 'Alamat dan telepon cabang',
-  branchInfoHint: 'Diambil dari data toko/cabang. Hubungi admin untuk mengubah.',
+  branchInfoHint: 'Alamat dan telepon ditampilkan di struk. Hanya pengguna dengan izin pengaturan yang dapat mengubah.',
   localization: 'Lokalisasi',
   receiptSettings: 'Pengaturan Struk',
   receiptHeader: 'Header Struk',
@@ -1829,6 +1829,8 @@ export const id = {
   receiptFooterPlaceholder: 'Teks footer di bawah struk',
   storeNamePlaceholder: 'Nama toko yang ditampilkan di sidebar dan struk',
   storeJargonPlaceholder: 'Subjudul di bawah nama toko',
+  storeAddressPlaceholder: 'Alamat cabang yang ditampilkan di struk',
+  storePhonePlaceholder: 'Nomor telepon cabang yang ditampilkan di struk',
 } as const;
 
 export type IdLabels = typeof id;

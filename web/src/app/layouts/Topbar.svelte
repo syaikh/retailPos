@@ -2,7 +2,6 @@
   import { useWebSocket } from '$shared/api/websocket';
   import { getCurrentJakartaDateDisplay, getCurrentJakartaClock } from '$shared/utils/jakartaTime';
   import NotificationBell from '$app/layouts/NotificationBell.svelte';
-  import { LanguageSwitch } from '$shared/ui';
   import { Menu } from 'lucide-svelte';
 
   let {
@@ -129,7 +128,7 @@
         <span class="text-text-muted text-xs">/</span>
       {/if}
       {#if i === breadcrumb.length - 1}
-        <h1 class="text-lg font-bold tracking-tight text-white">
+        <h1 class="text-lg font-bold tracking-tight text-text-primary">
           {crumb.label}
         </h1>
       {:else}
@@ -147,9 +146,6 @@
       <span class="text-text-muted hidden lg:inline">{$status === 'connected' ? 'Online' : $status === 'connecting' ? 'Connecting...' : 'Offline'}</span>
     </div>
     
-    <!-- Language switch -->
-    <LanguageSwitch />
-
     <!-- Notification bell -->
     <NotificationBell />
 

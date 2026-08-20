@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Input, LanguageSwitch } from '$shared/ui';
+  import { Button, Input } from '$shared/ui';
   import { goto } from '$app/router';
   import { login } from '$modules/auth';
   import { useAuthStore } from '$modules/auth';
@@ -36,11 +36,6 @@
 </script>
 
 <div class="h-dvh w-full flex bg-bg overflow-hidden" in:fade={{ duration: 400 }}>
-
-  <!-- Language switch -->
-  <div class="absolute top-4 right-4 z-30">
-    <LanguageSwitch />
-  </div>
 
   <!-- Left panel — animated brand -->
   <div class="hidden md:flex flex-col flex-1 relative bg-bg-secondary overflow-hidden">

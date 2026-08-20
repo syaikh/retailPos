@@ -596,3 +596,11 @@ func (a *storeProviderAdapter) GetStoreAddress(ctx context.Context, storeID int)
 	}
 	return s.Address, s.Phone, nil
 }
+
+func (a *storeProviderAdapter) UpdateStoreAddress(ctx context.Context, storeID int, address, phone string) error {
+	_, err := a.svc.Update(ctx, storeID, store.UpdateRequest{
+		Address: &address,
+		Phone:   &phone,
+	})
+	return err
+}

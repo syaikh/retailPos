@@ -10,7 +10,7 @@ describe('pos-utils', () => {
   describe('formatCurrency', () => {
     it('formats number as IDR', async () => {
       const { formatCurrency } = await import('../pos-utils');
-      expect(formatCurrency(15000)).toBe('15.000');
+      expect(formatCurrency(15000)).toBe('Rp 15.000');
     });
 
     it('returns default for null', async () => {

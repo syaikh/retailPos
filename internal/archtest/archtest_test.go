@@ -216,14 +216,15 @@ var strictModuleTables = map[string]map[string]bool{
 // Application Services). The ownership rule rejects these; the manifest keeps
 // CI green while tracking the backlog. Remove an entry once its table access
 // is ported.
-//
-// Empty as of the stockopname snapshot/scope porting: all stockopname reads of
-// katalog tables (products, product_suppliers, units_of_measure) and of
-// product_stock (snapshots, scope universes, posting locks) are routed through
-// owner modules (product.ProductMetaLookup, uom.UnitNameLookup,
-// inventory.StockLocker, inventory.StockSnapshotProvider, and the
-// ScopeNameResolver/LocationScopeProvider/WarehouseStoreIDProvider ports).
-var crossContextDebt = map[string]map[string]bool{}
+var crossContextDebt = map[string]map[string]bool{
+	"sale": {
+		"customers":       true, // sale reads customer data for invoices/receipts
+		"mv_hourly_sales": true, // sale reads hourly analytics for realtime dashboard
+	},
+	"shift": {
+		"cart_sessions": true, // shift reads active cart session to enforce close-before-logout
+	},
+}
 
 func nonTestGoFiles(t *testing.T, dir string) []string {
 	t.Helper()

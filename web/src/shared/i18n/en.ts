@@ -1799,7 +1799,7 @@ export const en: Labels = {
   storeJargon: 'Store Tagline',
   branchInfo: 'Branch Information',
   branchInfoSubtitle: 'Branch address and phone',
-  branchInfoHint: 'Pulled from store/branch data. Contact admin to update.',
+  branchInfoHint: 'Address and phone appear on receipts. Only users with settings permission can edit.',
   localization: 'Localization',
   receiptSettings: 'Receipt Settings',
   receiptHeader: 'Receipt Header',
@@ -1829,4 +1829,6 @@ export const en: Labels = {
   receiptFooterPlaceholder: 'Text below the receipt',
   storeNamePlaceholder: 'Store name displayed in sidebar and receipt',
   storeJargonPlaceholder: 'Subtitle below the store name',
+  storeAddressPlaceholder: 'Branch address shown on receipt',
+  storePhonePlaceholder: 'Branch phone number shown on receipt',
 };

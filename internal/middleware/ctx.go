@@ -88,3 +88,9 @@ func UserAgentFromContext(ctx context.Context) string {
 	}
 	return ""
 }
+
+// ContextWithStoreID returns a copy of ctx with the store ID set.
+// Useful in tests that need to simulate an authenticated request with a store assignment.
+func ContextWithStoreID(ctx context.Context, storeID *int) context.Context {
+	return context.WithValue(ctx, CtxKeyStoreID, storeID)
+}

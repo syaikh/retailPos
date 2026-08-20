@@ -36,6 +36,7 @@ type mockUserService struct {
 	getAllPermsFn        func(ctx context.Context) ([]Permission, error)
 	getRolePermissionsFn func(ctx context.Context, roleID int) ([]Permission, error)
 	updatePermsFn        func(ctx context.Context, roleID int, permissionIDs []int) error
+	updatePreferencesFn  func(ctx context.Context, userID int, language, theme string) error
 }
 
 func (m *mockUserService) GetUserByID(ctx context.Context, id int) (*User, error) {
@@ -102,6 +103,9 @@ func (m *mockUserService) UpdateRolePermissions(ctx context.Context, roleID int,
 	return m.updatePermsFn(ctx, roleID, permissionIDs)
 }
 func (m *mockUserService) UpdatePreferences(ctx context.Context, userID int, language, theme string) error {
+	if m.updatePreferencesFn != nil {
+		return m.updatePreferencesFn(ctx, userID, language, theme)
+	}
 	return nil
 }
 
@@ -777,4 +781,61 @@ func TestMockHandler_UpdateUser_WithReportsTo(t *testing.T) {
 
 func intPtr(i int) *int {
 	return &i
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// PUT /api/users/me/preferences
+// ──────────────────────────────────────────────────────────────────────
+
+func TestMockHandler_UpdatePreferences(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		var capturedUserID int
+		var capturedLang, capturedTheme string
+		svc := &mockUserService{
+			updatePreferencesFn: func(ctx context.Context, userID int, language, theme string) error {
+				capturedUserID = userID
+				capturedLang = language
+				capturedTheme = theme
+				return nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		body := `{"language":"en","theme":"dark"}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/users/me/preferences", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, 1, capturedUserID)
+		assert.Equal(t, "en", capturedLang)
+		assert.Equal(t, "dark", capturedTheme)
+
+		var resp map[string]string
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, "en", resp["language"])
+		assert.Equal(t, "dark", resp["theme"])
+	})
+
+	t.Run("invalid language", func(t *testing.T) {
+		r := setupMockUserRouter(&mockUserService{})
+		body := `{"language":"fr","theme":"light"}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/users/me/preferences", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("invalid theme", func(t *testing.T) {
+		r := setupMockUserRouter(&mockUserService{})
+		body := `{"language":"id","theme":"neon"}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/users/me/preferences", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
 }

@@ -25,14 +25,15 @@ type cacheEntry struct {
 	expiresAt time.Time
 }
 
-// StoreProvider abstracts fetching branch address/phone from the stores module.
+// StoreProvider abstracts fetching and updating branch address/phone from the stores module.
 type StoreProvider interface {
 	GetStoreAddress(ctx context.Context, storeID int) (address, phone string, err error)
+	UpdateStoreAddress(ctx context.Context, storeID int, address, phone string) error
 }
 
 // Handler handles HTTP requests for application settings.
 type Handler struct {
-	svc      *Service
+	svc      ServiceIface
 	auditSvc audit.Creator
 	store    StoreProvider
 
@@ -42,9 +43,17 @@ type Handler struct {
 	logoDirAbs string
 }
 
+// ServiceIface is the subset of Service methods used by Handler.
+type ServiceIface interface {
+	GetAll(ctx context.Context) (map[string]string, error)
+	GetMultiple(ctx context.Context, keys []string) (map[string]string, error)
+	Upsert(ctx context.Context, settings map[string]string) error
+	SaveLogoPath(ctx context.Context, logoPath string) error
+}
+
 // NewHandler returns a new Handler. It creates the logo upload directory if it
 // does not already exist.
-func NewHandler(svc *Service, auditSvc audit.Creator, store StoreProvider) *Handler {
+func NewHandler(svc ServiceIface, auditSvc audit.Creator, store StoreProvider) *Handler {
 	logoDir := filepath.Join("uploads", "logos")
 	if err := os.MkdirAll(logoDir, 0755); err != nil {
 		slog.Warn("appsettings: could not create logo directory", "path", logoDir, "error", err)
@@ -206,21 +215,52 @@ func (h *Handler) UpdateAll(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.Upsert(c.Request.Context(), req.Settings); err != nil {
-		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrValidation, err.Error()))
-		return
+	// Extract per-branch fields that live in the stores table, not app_settings.
+	storeAddr := req.Settings["store_address"]
+	storePhone := req.Settings["store_phone"]
+	_, hasStoreAddr := req.Settings["store_address"]
+	_, hasStorePhone := req.Settings["store_phone"]
+	delete(req.Settings, "store_address")
+	delete(req.Settings, "store_phone")
+
+	if len(req.Settings) > 0 {
+		if err := h.svc.Upsert(c.Request.Context(), req.Settings); err != nil {
+			c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrValidation, err.Error()))
+			return
+		}
+	}
+
+	// Persist branch address/phone if the caller has a store assignment.
+	if (hasStoreAddr || hasStorePhone) && h.store != nil {
+		storeID := middleware.StoreIDFromContext(c.Request.Context())
+		if storeID != nil {
+			if err := h.store.UpdateStoreAddress(c.Request.Context(), *storeID, storeAddr, storePhone); err != nil {
+				shared.InternalError(c, err)
+				return
+			}
+		}
 	}
 
 	h.invalidateCache()
 
 	if h.auditSvc != nil {
+		auditValues := make(map[string]string, len(req.Settings)+2)
+		for k, v := range req.Settings {
+			auditValues[k] = v
+		}
+		if hasStoreAddr {
+			auditValues["store_address"] = storeAddr
+		}
+		if hasStorePhone {
+			auditValues["store_phone"] = storePhone
+		}
 		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
 			Action:      "update",
 			EntityType:  "app_settings",
-			NewValues:   req.Settings,
+			NewValues:   auditValues,
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: "Updated application settings",

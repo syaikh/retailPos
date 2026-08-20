@@ -106,6 +106,8 @@
     const settings = {
       store_name: storeName.trim(),
       store_jargon: storeJargon.trim(),
+      store_address: storeAddress.trim(),
+      store_phone: storePhone.trim(),
       receipt_header: receiptHeader.trim(),
       receipt_footer: receiptFooter.trim(),
     };
@@ -287,8 +289,9 @@
               <Input
                 id="branch-address"
                 type="text"
-                value={storeAddress || '—'}
-                disabled
+                bind:value={storeAddress}
+                placeholder={labels.storeAddressPlaceholder}
+                disabled={!canUpdate}
               />
             </div>
             <div>
@@ -296,8 +299,9 @@
               <Input
                 id="branch-phone"
                 type="text"
-                value={storePhone || '—'}
-                disabled
+                bind:value={storePhone}
+                placeholder={labels.storePhonePlaceholder}
+                disabled={!canUpdate}
               />
             </div>
           </div>
@@ -345,7 +349,7 @@
     </div>
 
     <!-- ─── Receipt Preview ──────────────────────────────────── -->
-    {#if receiptHeader || receiptFooter || storeName}
+    {#if receiptHeader || receiptFooter || storeName || storeAddress || storePhone}
       <Card variant="glass">
         <div class="px-6 py-5">
           <h3 class="text-sm font-semibold text-text-secondary mb-4">{labels.receiptPreview}</h3>
@@ -356,6 +360,12 @@
               {/if}
               {#if storeJargon}
                 <p class="text-[10px] text-text-muted dark:text-gray-400 -mt-1">{storeJargon}</p>
+              {/if}
+              {#if storeAddress}
+                <p class="text-[10px] text-text-muted dark:text-gray-400">{storeAddress}</p>
+              {/if}
+              {#if storePhone}
+                <p class="text-[10px] text-text-muted dark:text-gray-400">{labels.phone}: {storePhone}</p>
               {/if}
               {#if receiptHeader}
                 <div class="whitespace-pre-line text-[10px] text-text-secondary dark:text-gray-300 leading-relaxed">{receiptHeader}</div>
