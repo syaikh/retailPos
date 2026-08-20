@@ -55,14 +55,18 @@ All prices are shown in Indonesian Rupiah (Rp) and all date/time values are disp
     - [Closing & Cancelling](#closing--cancelling)
     - [Adjustments Report](#adjustments-report)
 14. [Konsinyasi Supplier](#14-konsinyasi-supplier)
-    - [Marking a Supplier as Konsinyasi](#marking-a-supplier-as-konsinyasi)
-    - [Arrangements](#arrangements)
-    - [Terms (Price & Store Share)](#terms-price--store-share)
-    - [Receiving Goods](#receiving-goods)
-    - [Retur Tertunda (Pending Return)](#retur-tertunda-pending-return)
-    - [Retur (Formal Return)](#retur-formal-return)
-    - [Stock](#stock)
-    - [Settlement & Payout](#settlement--payout)
+    - [Core Concept — How Consignment Works](#core-concept--how-consignment-works)
+    - [Prerequisites](#prerequisites)
+    - [Navigating the Module](#navigating-the-module)
+    - [Tab 1: Penerimaan (Receiving Goods)](#tab-1-penerimaan-receiving-goods)
+    - [Tab 2: Terms (Price & Store Share)](#tab-2-terms-price--store-share)
+    - [Tab 3: Retur Tertunda (Pending Return)](#tab-3-retur-tertunda-pending-return)
+    - [Tab 4: Retur (Formal Return)](#tab-4-retur-formal-return)
+    - [Tab 5: Settlement & Payout](#tab-5-settlement--payout)
+    - [Tab 6: Stok (Consignment Stock)](#tab-6-stok-consignment-stock)
+    - [Quick Reference: Document Numbers](#quick-reference-document-numbers)
+    - [Quick Reference: Stock Math](#quick-reference-stock-math)
+    - [Complete Walkthrough — End-to-End Example](#complete-walkthrough--end-to-end-example)
 15. [Reports](#15-reports)
 16. [Store Management](#16-store-management)
 17. [Administration](#17-administration)
@@ -639,55 +643,301 @@ Posting is deliberately separate from verification (separation of duties) — th
 
 ## 14. Konsinyasi Supplier
 
-The **Konsinyasi Supplier** module (`/consignment`) manages consignment stock: goods owned by a supplier that sit on your shelves, sold at terms you agree, with the supplier paid only after the goods are sold and settled.
+The **Konsinyasi Supplier** module (`/consignment`) manages consignment stock — goods owned by a supplier that sit on your shelves. You sell them at terms you agree on, and the supplier is paid only after the goods are sold and a settlement is processed.
 
-**Core concept — ownership.** Every consignment item is owned by exactly one supplier. Available stock + pending return = still owned by that supplier. Selling a consignment item moves it from available stock into an "unsettled sale"; the money owed to the supplier is cleared through a settlement, then paid out.
+### Core Concept — How Consignment Works
 
-### Marking a Supplier as Konsinyasi
+In a consignment arrangement, **the supplier owns the goods** until they are sold to a customer. Your store acts as the selling agent and keeps an agreed share (the "store share") of each sale. The supplier is paid only after you create a settlement for sold items.
 
-**Supplier → Add/Edit** — toggle **Supplier Konsinyasi** on. Only suppliers marked konsinyasi can be used in a consignment arrangement.
+Here is the lifecycle at a glance:
 
-### Arrangements
+```
++-----------------------------------------------------------------------+
+|                     CONSIGNMENT LIFECYCLE                              |
+|                                                                       |
+|  1. SETUP                                                             |
+|     Mark supplier konsinyasi -> Create arrangement -> Set terms        |
+|                                                                       |
+|  2. RECEIVE STOCK                                                     |
+|     Supplier delivers goods -> Record receipt (CR-xxxxxx)             |
+|     -> Available stock increases                                      |
+|                                                                       |
+|  3. SELL AT POS                                                       |
+|     Customer buys consignment product -> Stock decreases              |
+|     -> Sale item recorded as "unsettled"                              |
+|                                                                       |
+|  4. RETURN (if needed)                                                |
+|     Damaged/expired items -> Record pending return                    |
+|     -> Physically hand back -> Record formal return (RT-xxxxxx)       |
+|                                                                       |
+|  5. SETTLE & PAY                                                      |
+|     Review unsettled sales -> Create settlement (CS-xxxxxx)           |
+|     -> Record payout -> Supplier is paid                              |
++-----------------------------------------------------------------------+
+```
 
-**Konsinyasi Supplier** (`/consignment`) lists arrangement per supplier. An arrangement is an open partnership between your store and a consignment supplier. Only **Aktif** arrangements can receive stock; ended arrangements are read-only.
+**Key rules:**
+- Only **one active arrangement** is allowed per supplier per store.
+- An arrangement is auto-ended if the supplier has not visited for too long.
+- Terms apply to stock not yet sold. They never change sales that already happened.
+- Settlements cover **all** unsettled sales at once — there is no partial settlement.
 
-**Create:** **Arrangement Baru** → pick the konsinyasi supplier (store defaults to your current store). Filter the list by **Semua / Aktif / Berakhir**.
+### Prerequisites
 
-### Terms (Price & Store Share)
+Before using the consignment module, you need:
 
-Open an arrangement → **Terms** tab. Each product sold on consignment needs a term:
-- **Price** — the agreed retail/sale price per unit.
-- **Hak Toko (Store Share)** — the store's cut of each unit sold. Either a **percentage** (e.g. 20%) or a **fixed nominal** (Rp per unit).
+1. **A supplier marked as konsinyasi.** Go to **Suppliers** -> Add or Edit a supplier -> toggle **Supplier Konsinyasi** on. Only suppliers with this flag appear in the consignment module.
+2. **Products linked to that supplier.** The supplier must have products assigned to it (done via the Supplier detail or Product edit page).
+3. **Permission.** Your role needs `consignment.view` at minimum. Creating, updating, settling, and paying each require separate permissions — see [Appendix A](#appendix-a-role--permission-matrix).
 
-> Terms apply to stock not yet sold. They never change sales that already happened.
+### Navigating the Module
 
-### Receiving Goods
+Open **Konsinyasi Supplier** from the sidebar. You'll see the **Arrangements List** — a table of all consignment arrangements across your accessible stores.
 
-Open an arrangement → **Penerimaan** tab → **Catat Penerimaan**.
-- Enter the products delivered, the **Dibawa** (brought) quantity and any **Ditolak** (rejected) quantity. Accepted = Dibawa − Ditolak.
-- The system shows the agreed price per unit for each line; products without a term are flagged — add the term first.
-- The receipt records the audit trail (CR-… number) and increases the supplier's available stock.
+**The list shows:**
 
-### Retur Tertunda (Pending Return)
+| Column | Meaning |
+|--------|---------|
+| Supplier | Name of the konsinyasi supplier |
+| Status | **Aktif** (active — can receive stock and sell) or **Berakhir** (ended — read-only) |
+| Terms | Number of products with agreed pricing terms |
+| Last Visit | When the supplier last delivered goods |
 
-Goods pulled off the display (damaged, expired, customer return) before they are formally handed back are recorded as **Retur Tertunda** (PR-…). They are removed from available stock but still count as supplier ownership. When you hand them back later, link the formal return to the pending record to close it.
+**Filtering:**
+- **Search bar** — type a supplier name to filter.
+- **Status buttons** — toggle between **Semua** (all), **Aktif** (active only), **Berakhir** (ended only).
 
-### Retur (Formal Return)
+**Creating a new arrangement:**
+1. Click **Arrangement Baru** (top-right).
+2. In the modal, select the **Supplier** from the dropdown (only konsinyasi suppliers appear).
+3. The **Store** defaults to your current store (superadmin/admin can change it).
+4. Click **Create**. The arrangement appears in the list with status **Aktif**.
 
-**Retur** tab → **Catat Retur**. Enter product, qty, and **Alasan** (Rusak / Kadaluarsa / Retur Pelanggan / Lainnya). Optionally link each line to a matching **retur tertunda**. The formal return (RT-… number) records the hand-back and releases the supplier's ownership of those units.
+> If no konsinyasi suppliers appear in the dropdown, go to **Suppliers** first and toggle the **Supplier Konsinyasi** flag on the supplier you want to use.
 
-### Stock
+**Opening an arrangement:**
+Click the **Buka** (Open) button on any row. This opens the arrangement detail view with six tabs. A back arrow (< Kembali) at the top-left returns you to the list.
 
-**Stok** tab shows, per product: available stock and pending return quantity for the supplier.
+The arrangement header shows the supplier name, status badge (**Aktif** / **Berakhir**), and the last visit date.
 
-### Settlement & Payout
+---
 
-**Settlement** tab shows the **belum diselesaikan** (unsettled) sales preview for the supplier, with per-product qty, unit price, subtotal, store share, and the running totals (Total Penjualan, Hak Toko, **Terhutang ke Supplier**).
-- **Buat Settlement** creates the settlement document (SL-…). Settlement covers *all* unsettled sales — there is no partial settlement.
-- **Riwayat Settlement** lists past settlements and their status (**Menunggu Pembayaran** / **Dibayar**).
-- A settlement awaiting payment can be **Bayar** (pay): choose the payment method (from the shared payment methods), enter the amount (partial payments allowed until fully paid), optional reference number and notes. Payment is recorded as a payout (PO-…).
+### Tab 1: Penerimaan (Receiving Goods)
 
-> Only completed sales are settled — a sale is available for settlement once it is completed at the POS.
+This is the **default tab** when you open an arrangement. It records goods delivered by the supplier.
+
+**The receipt history** shows all past receipts with columns: Receipt Number (CR-xxxxxx), Date, Items count, and Total Value.
+
+**Recording a new receipt:**
+
+1. Click **Catat Penerimaan** (top-right).
+2. The receipt form opens with one empty product line. For each line:
+   - **Produk** (required) — search and select the product.
+   - **Dibawa** (Brought) — the quantity the supplier delivered (default: 1).
+   - **Ditolak** (Rejected) — units you refuse (damaged, wrong item, etc.). Default: 0.
+   - **Accepted** = Dibawa minus Ditolak (shown automatically below the fields).
+3. If the product has a term, the agreed price per unit is displayed (e.g. "Terms: Rp 50,000 per unit"). If there is **no term** for the product, a yellow warning "Belum ada terms" appears — go to the Terms tab first to add one.
+4. Click **+ Tambah Baris** to add more product lines.
+5. Optionally add **Catatan** (notes) at the bottom.
+6. Click **Simpan** to save. A toast confirms the receipt number and the receipt appears in the history.
+
+> **Stock impact:** accepted quantities are added to the supplier's consignment stock immediately.
+
+---
+
+### Tab 2: Terms (Price & Store Share)
+
+Terms define the pricing agreement for each product on consignment. **You must set terms before receiving goods** for those products — otherwise the receipt form will warn you.
+
+**The terms list** shows: Product (name + SKU), Price (per unit), and Store Share.
+
+**Adding a term:**
+
+1. Click **Tambah Term** (top-right).
+2. Fill in the form:
+   - **Produk** (required) — search and select the product.
+   - **Harga (Rp)** (required) — the agreed retail price per unit.
+   - **Jenis Share** (required) — choose one:
+     - **Persentase (%)** — the store keeps a percentage of each sale (e.g. 20%). Must be between 0 and 100 (exclusive).
+     - **Nominal Tetap (Rp)** — the store keeps a fixed Rp amount per unit sold. Must be greater than 0.
+   - **Nilai Share** — the share value (percentage or Rp amount, depending on the type above).
+3. Click **Simpan**.
+
+> **Example:** Price = Rp 50,000, Share Type = Persentase, Share Value = 20. When one unit is sold, the store keeps Rp 10,000 and the supplier is owed Rp 40,000.
+
+> **Note:** When you save terms, the entire list is replaced. The system preserves all existing terms automatically when you add a new one — only the newly added term needs to be filled in.
+
+---
+
+### Tab 3: Retur Tertunda (Pending Return)
+
+A **Retur Tertunda** (Pending Return) records items pulled off the display **before** they are physically handed back to the supplier. This removes them from available stock while keeping them as supplier ownership until the formal return.
+
+**The list shows:** Product (name + SKU), Quantity, Reason, Status (**Terbuka** = open / **Diproses** = returned/fulfilled), and Date.
+
+**Recording a pending return:**
+
+1. Click **Catat Retur Tertunda** (top-right).
+2. Fill in the form:
+   - **Produk dari Stok** (required) — the dropdown shows only products with available consignment stock, along with their available quantity (e.g. "Kopi ABC (SKU-001) — Stok tersedia 50").
+   - **Jumlah** (required) — how many units to pull from display. Cannot exceed the available stock (a "Maks: XX" hint appears below the field).
+   - **Alasan** (required) — pick one: **Rusak** (damaged), **Kadaluarsa** (expired), **Retur Pelanggan** (customer return), or **Lainnya** (other).
+   - **Catatan** (optional) — free-text notes.
+3. Click **Simpan**.
+
+> **Stock impact:** the product's available stock decreases by the pending return quantity. The pending return quantity is tracked separately until a formal return is created.
+
+**Cancelling a pending return:** A pending return in **Terbuka** (open) status can be cancelled via the API, which restores the available stock.
+
+---
+
+### Tab 4: Retur (Formal Return)
+
+A formal return records the **physical hand-back** of goods to the supplier. It generates an RT-xxxxxx document and removes the items from supplier ownership entirely.
+
+**The list shows:** Return Number (RT-xxxxxx), Date, Item count, and Total quantity returned.
+
+If there are open pending returns, a yellow notice appears at the top: *"X retur tertunda terbuka"* — reminding you to link them.
+
+**Recording a formal return:**
+
+1. Click **Catat Retur** (top-right).
+2. The form opens with one empty product line. For each line:
+   - **Produk** (required) — search and select the product.
+   - **Jumlah** — the quantity being returned.
+   - **Alasan** — pick one: **Rusak**, **Kadaluarsa**, **Retur Pelanggan**, or **Lainnya**.
+   - **Link ke Retur Tertunda** (optional) — if this return corresponds to an existing pending return, select it from the dropdown. This closes the pending return and reduces the pending_return_qty. You can leave it as "Tidak ada link" if no pending return applies.
+   - **Catatan** (optional) — notes for this line.
+3. Click **+ Tambah Baris** to return multiple products at once.
+4. Optionally add **Catatan Keseluruhan** (overall notes) at the bottom.
+5. Click **Simpan**. A toast confirms the return number (RT-xxxxxx).
+
+> **Stock impact:** the product's total consignment stock decreases by the returned quantity. If a pending return was linked, the pending_return_qty is also reduced.
+
+---
+
+### Tab 5: Settlement & Payout
+
+The settlement tab handles the financial side — calculating what you owe the supplier for sold goods and recording payments.
+
+This tab has two sections:
+
+#### Unsettled Sales Preview (top card)
+
+This shows all completed POS sales of consignment items that have **not yet been settled** — i.e. items the supplier is still owed money for.
+
+**The preview table shows per product:** Product name, Quantity sold, Unit Price, Subtotal, and Store Share amount.
+
+**The footer row shows three totals:**
+- **Total Penjualan** — total sale value of unsettled items.
+- **Hak Toko** — your store's total share.
+- **Terhutang ke Supplier** — the amount you owe the supplier (= Total Penjualan minus Hak Toko).
+
+**Creating a settlement:**
+
+1. Review the unsettled items in the preview.
+2. Click **Buat Settlement** (top-right). The button is disabled when there are no unsettled items.
+3. A confirmation modal shows the number of items and the total payable amount.
+4. Click **Buat Settlement** to confirm. A toast confirms the settlement number (CS-xxxxxx).
+5. The unsettled preview clears (all items are now part of the settlement) and the settlement appears in the history below.
+
+> Settlement covers **all** unsettled sales — you cannot settle only some items.
+
+#### Settlement History (bottom card)
+
+This lists all past settlements with columns: Settlement Number (CS-xxxxxx), Date, Total amount, and Status (**Menunggu Pembayaran** = pending payment / **Dibayar** = paid).
+
+**Recording a payout (paying the supplier):**
+
+1. On a settlement with status **Menunggu Pembayaran**, click **Bayar**.
+2. The payout modal shows the outstanding amount at the top.
+3. Fill in:
+   - **Metode Pembayaran** (required) — select from the available payment methods (Cash, Card, E-Wallet, Transfer, QRIS, etc.).
+   - **Jumlah** (required) — defaults to the full outstanding amount. You can enter a lower amount for partial payment; the settlement remains pending until fully paid.
+   - **No. Referensi** (optional) — a reference number (e.g. transfer receipt number).
+   - **Catatan** (optional) — notes about the payment.
+4. Click **Bayar**. A toast confirms the payout number (CP-xxxxxx).
+
+> The settlement status changes to **Dibayar** only when the total paid equals the total payable. Until then, the **Bayar** button remains available for additional payments.
+
+---
+
+### Tab 6: Stok (Consignment Stock)
+
+This is a read-only view of the consignment stock for this supplier.
+
+**The stock table shows per product:**
+
+| Column | Meaning |
+|--------|---------|
+| Product | Product name and SKU |
+| Stok Tersedia | Available quantity (can be sold) |
+| Retur Tertunda | Quantity pending return (pulled from display, not yet handed back) |
+
+> **How stock changes:** Receipts increase available stock. POS sales decrease both total and available stock. Pending returns decrease available stock and increase pending_return_qty. Formal returns decrease total stock and decrease pending_return_qty.
+
+---
+
+### Quick Reference: Document Numbers
+
+| Document | Format | Created When |
+|----------|--------|-------------|
+| Receipt (Penerimaan) | CR-xxxxxx | You record goods received from the supplier |
+| Return (Retur) | RT-xxxxxx | You record goods physically handed back to the supplier |
+| Settlement | CS-xxxxxx | You create a settlement for unsold items |
+| Payout (Pembayaran) | CP-xxxxxx | You record a payment to the supplier |
+
+### Quick Reference: Stock Math
+
+| Event | Total Stock | Available Stock | Pending Return |
+|-------|:-----------:|:---------------:|:--------------:|
+| Receipt (goods received) | increases | increases | — |
+| POS Sale | decreases | decreases | — |
+| Pending Return created | — | decreases | increases |
+| Pending Return cancelled | — | increases | decreases |
+| Formal Return | decreases | — | decreases |
+
+### Complete Walkthrough — End-to-End Example
+
+Here is a full example of a consignment flow for a supplier "Toko Kopi Maju":
+
+**Step 1 — Setup**
+1. Go to **Suppliers**. Create or edit "Toko Kopi Maju" and toggle **Supplier Konsinyasi** on.
+2. Link the products this supplier will provide (e.g. "Kopi Robusta 250g", "Teh Hijau 100g").
+3. Go to **Konsinyasi Supplier**. Click **Arrangement Baru**, select "Toko Kopi Maju", and create.
+
+**Step 2 — Set Terms**
+1. Open the arrangement. Go to the **Terms** tab.
+2. Add a term for "Kopi Robusta 250g": Price = Rp 45,000, Share = Persentase 25%.
+3. Add a term for "Teh Hijau 100g": Price = Rp 25,000, Share = Nominal Tetap Rp 5,000.
+
+**Step 3 — Receive Goods**
+1. Switch to the **Penerimaan** tab. Click **Catat Penerimaan**.
+2. Line 1: Kopi Robusta 250g, Dibawa = 100, Ditolak = 2. Accepted = 98.
+3. Line 2: Teh Hijau 100g, Dibawa = 200, Ditolak = 0. Accepted = 200.
+4. Click **Simpan**. Receipt CR-000001 is created. Stock increases.
+
+**Step 4 — Sell at POS**
+1. A cashier sells 5 Kopi Robusta at the POS register. The sale completes normally.
+2. The system automatically deducts 5 from consignment stock and records the sale as unsettled.
+3. For each unit sold: store gets Rp 11,250 (25% of Rp 45,000), supplier is owed Rp 33,750.
+
+**Step 5 — Handle a Return (if needed)**
+1. 3 units of Teh Hijau are found expired on the shelf.
+2. Go to the arrangement -> **Retur Tertunda** tab -> **Catat Retur Tertunda**.
+3. Product = Teh Hijau 100g, Jumlah = 3, Alasan = Kadaluarsa. Save.
+4. Later, when the supplier picks them up, go to **Retur** tab -> **Catat Retur**.
+5. Line: Teh Hijau 100g, Jumlah = 3, Alasan = Kadaluarsa, Link = select the pending return. Save.
+
+**Step 6 — Settle and Pay**
+1. Go to the **Settlement** tab. The preview shows 5 units of Kopi Robusta sold.
+   - Total Penjualan: Rp 225,000 (5 x Rp 45,000)
+   - Hak Toko: Rp 56,250 (5 x Rp 11,250)
+   - Terhutang ke Supplier: Rp 168,750
+2. Click **Buat Settlement** and confirm. Settlement CS-000001 is created.
+3. Finance pays the supplier via bank transfer. Click **Bayar** on CS-000001.
+4. Select Transfer, enter the full amount Rp 168,750, add the transfer reference number. Click **Bayar**.
+5. Settlement status changes to **Dibayar**. Done.
 
 ---
 
