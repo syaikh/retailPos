@@ -2683,10 +2683,11 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 	grInserted := 0
 
 	type poResult struct {
-		poID      int
-		status    string
-		createdAt time.Time
-		items     []struct {
+		poID       int
+		status     string
+		createdAt  time.Time
+		confirmedAt *time.Time
+		items      []struct {
 			poItemID   int
 			qtyOrdered int
 			unitCost   int
@@ -2871,6 +2872,7 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 					poRes.poID = poID
 					poRes.status = status
 					poRes.createdAt = createdAt
+					poRes.confirmedAt = confirmedAt
 					for _, item := range items {
 						var poItemID int
 						err := itemStmt.QueryRowContext(ctx, poID, item.ProductID,
@@ -2924,20 +2926,22 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 		productID  int
 	}
 	type poInfo struct {
-		poID      int
-		status    string
-		items     []poItemInfo
-		createdAt time.Time
+		poID       int
+		status     string
+		items      []poItemInfo
+		createdAt  time.Time
+		confirmedAt *time.Time
 	}
 	var confirmedPOs []poInfo
 
 	for poRes := range results {
 		poInserted++
 		info := poInfo{
-			poID:      poRes.poID,
-			status:    poRes.status,
-			createdAt: poRes.createdAt,
-			items:     make([]poItemInfo, len(poRes.items)),
+			poID:       poRes.poID,
+			status:     poRes.status,
+			createdAt:  poRes.createdAt,
+			confirmedAt: poRes.confirmedAt,
+			items:      make([]poItemInfo, len(poRes.items)),
 		}
 		for j, item := range poRes.items {
 			info.items[j] = poItemInfo{
@@ -2983,7 +2987,12 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 
 		storeID := storeIDs[rand.Intn(len(storeIDs))]
 		receivedBy := userIDs[rand.Intn(len(userIDs))]
-		receivedAt := po.createdAt.Add(time.Duration(rand.Intn(72)) * time.Hour)
+		// receivedAt must be after confirmedAt to maintain temporal consistency
+		afterConfirm := po.createdAt.Add(time.Duration(1+rand.Intn(72)) * time.Hour)
+		if po.confirmedAt != nil && po.confirmedAt.After(afterConfirm) {
+			afterConfirm = po.confirmedAt.Add(time.Duration(1+rand.Intn(24)) * time.Hour)
+		}
+		receivedAt := afterConfirm
 
 		grInserted++
 		var grSeq int
@@ -3095,6 +3104,30 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit GR: %w", err)
 		}
+	}
+
+	// Recalculate PO status for all POs that received goods.
+	// Without this, POs remain "confirmed" even when items are partially/fully received.
+	if _, err := db.ExecContext(ctx, `
+		UPDATE purchase_orders po
+		SET status = CASE
+			WHEN sub.total_received = 0 THEN 'confirmed'
+			WHEN sub.total_received >= sub.total_ordered THEN 'fully_received'
+			ELSE 'partial_received'
+		END,
+		updated_at = NOW()
+		FROM (
+			SELECT purchase_order_id,
+			       SUM(qty_ordered) AS total_ordered,
+			       SUM(qty_received) AS total_received
+			FROM purchase_order_items
+			GROUP BY purchase_order_id
+		) sub
+		WHERE po.id = sub.purchase_order_id
+		  AND po.status = 'confirmed'
+		  AND sub.total_received > 0
+	`); err != nil {
+		return fmt.Errorf("recalculate PO statuses: %w", err)
 	}
 
 	fmt.Printf("   🎲 Created %d goods receipts for confirmed POs\n", grInserted)

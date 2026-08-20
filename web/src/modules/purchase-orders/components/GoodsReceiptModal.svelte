@@ -119,10 +119,10 @@
                     <td class="px-3 py-3 text-sm text-text-muted text-right tabular-nums" colspan="2">{t('fullyReceivedWithQty', { qty: item.qty_received })}</td>
                   {:else}
                     <td class="px-3 py-3">
-                      <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_good} class="w-20 text-sm ml-auto" selectOnFocus oninput={() => { if (item.qty_good + item.qty_damaged > getRemainingQty(item)) item.qty_damaged = Math.max(0, getRemainingQty(item) - item.qty_good); }} />
+                      <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_good} class="w-20 text-sm ml-auto" selectOnFocus oninput={() => { const rem = getRemainingQty(item); if (item.qty_good > rem) item.qty_good = rem; if (item.qty_good + item.qty_damaged > rem) item.qty_damaged = Math.max(0, rem - item.qty_good); }} />
                     </td>
                     <td class="px-3 py-3">
-                      <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_damaged} class="w-20 text-sm ml-auto" selectOnFocus oninput={() => { if (item.qty_good + item.qty_damaged > getRemainingQty(item)) item.qty_good = Math.max(0, getRemainingQty(item) - item.qty_damaged); }} />
+                      <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_damaged} class="w-20 text-sm ml-auto" selectOnFocus oninput={() => { const rem = getRemainingQty(item); if (item.qty_damaged > rem) item.qty_damaged = rem; if (item.qty_good + item.qty_damaged > rem) item.qty_good = Math.max(0, rem - item.qty_damaged); }} />
                     </td>
                   {/if}
                 </tr>

@@ -2,7 +2,10 @@
   import { useWebSocket } from '$shared/api/websocket';
   import { getCurrentJakartaDateDisplay, getCurrentJakartaClock } from '$shared/utils/jakartaTime';
   import NotificationBell from '$app/layouts/NotificationBell.svelte';
-  import { Menu } from 'lucide-svelte';
+  import { useAuthStore } from '$modules/auth';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { useShiftStore } from '$modules/shifts';
+  import { Menu, User } from 'lucide-svelte';
 
   let {
     currentPath = '/',
@@ -14,9 +17,19 @@
     isMobileMenuOpen?: boolean;
   } = $props();
   const ws = useWebSocket();
-  
+  const authStore = useAuthStore();
+  const rbac = useRBAC();
+  const shiftStore = useShiftStore();
+
   // Get the status store reference
   const status = ws.status;
+
+  // Load active shift for cashiers so header can display shift status
+  $effect(() => {
+    if (rbac.isCashier) {
+      shiftStore.loadActiveShift();
+    }
+  });
 
   // Breadcrumb computed as a derived value
   const breadcrumb = $derived(getBreadcrumb(currentPath));
@@ -148,6 +161,31 @@
     
     <!-- Notification bell -->
     <NotificationBell />
+
+    {#if authStore.user}
+      <!-- Subtle divider -->
+      <div class="w-px h-4 bg-border-subtle"></div>
+
+      <!-- User info -->
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
+          <User size={14} class="text-white" />
+        </div>
+        <span class="text-xs font-semibold text-text-primary truncate max-w-[120px]">
+          {authStore.user.username}
+        </span>
+        <span class="text-text-muted text-[10px]">&middot;</span>
+        {#if rbac.isCashier}
+          <span class="text-[10px] text-text-muted">
+            Shift: {shiftStore.activeShift ? 'Open' : 'Closed'}
+          </span>
+          <span class="text-text-muted text-[10px]">&middot;</span>
+        {/if}
+        <span class="text-[10px] font-medium text-primary capitalize">
+          {rbac.roleDisplayName}
+        </span>
+      </div>
+    {/if}
 
     <!-- Subtle divider -->
     <div class="w-px h-4 bg-border-subtle"></div>
