@@ -57,7 +57,7 @@
     };
   });
 
-  const modules = [
+  const modules = $derived([
     {
       label: labels.pointOfSale,
       desc: labels.posDesc,
@@ -94,7 +94,7 @@
       iconColor: 'text-warning-light',
       gradient: 'from-warning/10 to-amber-600/5',
     },
-  ];
+  ]);
 </script>
 
 <div class="space-y-8">
