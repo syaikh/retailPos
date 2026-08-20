@@ -183,7 +183,7 @@
     {/if}
     <div class="flex justify-between font-bold text-text-primary">
       <span>{labels.total}</span>
-      <span class="text-white text-base">{totalAmount.toLocaleString('id-ID')}</span>
+      <span class="text-base">{totalAmount.toLocaleString('id-ID')}</span>
     </div>
 
     <Button
