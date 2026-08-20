@@ -23,6 +23,14 @@ func createTestCategory(ctx context.Context, t *testing.T, name string) int {
 	return id
 }
 
+func createTestBrand(ctx context.Context, t *testing.T, name string) int {
+	t.Helper()
+	var id int
+	err := dbPool.QueryRow(ctx, `INSERT INTO brands (name, is_active) VALUES ($1, true) RETURNING id`, name).Scan(&id)
+	require.NoError(t, err)
+	return id
+}
+
 func TestGetAllProducts_SearchFilter(t *testing.T) {
 	repo := testRepo()
 	ctx := context.Background()
@@ -144,6 +152,85 @@ func TestGetAllProducts_CategoryFilter(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, products)
+	})
+}
+
+func TestGetAllProducts_BrandFilter(t *testing.T) {
+	repo := testRepo()
+	ctx := context.Background()
+
+	brandID1 := createTestBrand(ctx, t, uniqueSKU("QF-Brand-Filter-1"))
+	brandID2 := createTestBrand(ctx, t, uniqueSKU("QF-Brand-Filter-2"))
+
+	skuA := uniqueSKU("QF-BRAND-A")
+	skuB := uniqueSKU("QF-BRAND-B")
+	skuC := uniqueSKU("QF-BRAND-C")
+
+	seedTestProduct(ctx, repo, t, &Product{
+		SKU: skuA, Name: "BrandFilterA", BrandID: &brandID1,
+		Price: 1000, Cost: 500, Stock: 10, Status: "active",
+	})
+	seedTestProduct(ctx, repo, t, &Product{
+		SKU: skuB, Name: "BrandFilterB", BrandID: &brandID2,
+		Price: 2000, Cost: 1000, Stock: 5, Status: "active",
+	})
+	seedTestProduct(ctx, repo, t, &Product{
+		SKU: skuC, Name: "BrandFilterC",
+		Price: 3000, Cost: 1500, Stock: 7, Status: "active",
+	})
+
+	t.Run("single brand filter", func(t *testing.T) {
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "", "", nil, nil, "", nil, []int{brandID1})
+		require.NoError(t, err)
+		require.Equal(t, 1, total)
+		require.Len(t, products, 1)
+		assert.Equal(t, skuA, products[0].SKU)
+	})
+
+	t.Run("multiple brand filter", func(t *testing.T) {
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "", "", nil, nil, "", nil, []int{brandID1, brandID2})
+		require.NoError(t, err)
+		assert.Equal(t, 2, total)
+		assert.Len(t, products, 2)
+		for _, p := range products {
+			assert.Contains(t, []string{skuA, skuB}, p.SKU)
+		}
+	})
+
+	t.Run("brand filter with no match", func(t *testing.T) {
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "", "", nil, nil, "", nil, []int{999999})
+		require.NoError(t, err)
+		assert.Equal(t, 0, total)
+		assert.Empty(t, products)
+	})
+
+	t.Run("nil brandIDs returns unfiltered results", func(t *testing.T) {
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "QF-BRAND", nil, "", "", nil, nil, "", nil, nil)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, total, 3)
+		for _, p := range products {
+			assert.Contains(t, p.SKU, "QF-BRAND")
+		}
+	})
+
+	t.Run("brand + category combined", func(t *testing.T) {
+		catID := createTestCategory(ctx, t, uniqueSKU("QF-Brand-Cat"))
+		skuD := uniqueSKU("QF-BRAND-D")
+		seedTestProduct(ctx, repo, t, &Product{
+			SKU: skuD, Name: "BrandFilterD", BrandID: &brandID1, CategoryID: &catID,
+			Price: 4000, Cost: 2000, Stock: 4, Status: "active",
+		})
+
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", []int{catID}, "", "", nil, nil, "", nil, []int{brandID1})
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		require.Len(t, products, 1)
+		assert.Equal(t, skuD, products[0].SKU)
+
+		// Same category but different brand must not match
+		_, total, err = repo.GetAllProducts(ctx, 20, 0, "", []int{catID}, "", "", nil, nil, "", nil, []int{brandID2})
+		require.NoError(t, err)
+		assert.Equal(t, 0, total)
 	})
 }
 

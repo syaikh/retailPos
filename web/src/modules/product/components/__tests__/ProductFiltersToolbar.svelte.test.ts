@@ -26,6 +26,12 @@ describe('ProductFiltersToolbar.svelte source-structure guards', () => {
     expect(src).toContain('lowStockOnly = $bindable');
   });
 
+  it('uses $bindable for selectedBrandIDs and unified onfilter callback', () => {
+    expect(src).toContain('selectedBrandIDs = $bindable<number[]>([])');
+    expect(src).toContain('onfilter = () => {}');
+    expect(src).not.toContain('onfiltercategory');
+  });
+
   it('uses $props', () => {
     expect(src).toContain('= $props()');
   });
@@ -38,6 +44,16 @@ describe('ProductFiltersToolbar.svelte source-structure guards', () => {
   it('renders filter chips section', () => {
     expect(src).toContain('activeChips = $derived');
     expect(src).toContain('clearLabel={labels.clearAll}');
+  });
+
+  it('includes brand chips and clears them via chip removal', () => {
+    expect(src).toContain("chips.push({ type: 'brand', label: t('brandsCount', { count: selectedBrandIDs.length }) })");
+    expect(src).toContain("if (type === 'brand') { selectedBrandIDs = []; }");
+  });
+
+  it('derives hasActiveFilters from categories and brands', () => {
+    expect(src).toContain('hasActiveFilters = $derived');
+    expect(src).toContain('selectedBrandIDs.length > 0');
   });
 
   it('shows Add Product button with canCreate guard', () => {

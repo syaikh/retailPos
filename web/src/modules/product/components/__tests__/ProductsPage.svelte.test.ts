@@ -28,8 +28,8 @@ describe('ProductsPage.svelte source-structure guards', () => {
     expect(src).toContain("import { labels, t } from '$shared/i18n'");
   });
 
-  it('imports child components (CategoryFilterModal, ProductFormModal, etc.)', () => {
-    expect(src).toContain("import CategoryFilterModal");
+  it('imports child components (ProductFilterDrawer, ProductFormModal, etc.)', () => {
+    expect(src).toContain("import ProductFilterDrawer from '$modules/product/components/ProductFilterDrawer.svelte'");
     expect(src).toContain("import ProductActionsDropdown");
     expect(src).toContain("import ProductFormModal");
     expect(src).toContain("import StockAdjustModal");

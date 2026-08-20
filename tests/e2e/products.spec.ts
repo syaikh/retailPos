@@ -42,28 +42,47 @@ test.describe('Products Management', () => {
 
   test('should filter by single category', async ({ page }) => {
     await navigateToProducts(page);
-    await page.locator('button').filter({ hasText: 'Category' }).first().click();
+    await page.locator('button').filter({ hasText: 'Filter' }).first().click();
     await expect(page.getByText('Filter Products')).toBeVisible({ timeout: 5000 });
     await page.waitForTimeout(1000);
-    const bevLabel = page.locator('div[role="dialog"][aria-label="Filter Category"] label').filter({ hasText: 'Personal Care' }).first();
+    const bevLabel = page.locator('div[role="dialog"][aria-label="Filter Products"] label').filter({ hasText: 'Personal Care' }).first();
     await bevLabel.evaluate((el: HTMLElement) => el.click());
-    const applyBtn = page.locator('div[role="dialog"][aria-label="Filter Category"] button', { hasText: 'Apply Filter' });
+    const applyBtn = page.locator('div[role="dialog"][aria-label="Filter Products"] button', { hasText: 'Apply Filter' });
     await applyBtn.evaluate((el: HTMLElement) => el.click());
     await expect(page.getByText('Filter Products')).toBeHidden({ timeout: 5000 });
   });
 
   test('should filter by multiple categories', async ({ page }) => {
     await navigateToProducts(page);
-    await page.locator('button').filter({ hasText: 'Category' }).first().click();
+    await page.locator('button').filter({ hasText: 'Filter' }).first().click();
     await expect(page.getByText('Filter Products')).toBeVisible({ timeout: 5000 });
     await page.waitForTimeout(1000);
-    const gamingLabel = page.locator('div[role="dialog"][aria-label="Filter Category"] label').filter({ hasText: 'Gaming' }).first();
+    const gamingLabel = page.locator('div[role="dialog"][aria-label="Filter Products"] label').filter({ hasText: 'Gaming' }).first();
     await gamingLabel.evaluate((el: HTMLElement) => el.click());
-    const condLabel = page.locator('div[role="dialog"][aria-label="Filter Category"] label').filter({ hasText: 'Condiments' }).first();
+    const condLabel = page.locator('div[role="dialog"][aria-label="Filter Products"] label').filter({ hasText: 'Condiments' }).first();
     await condLabel.evaluate((el: HTMLElement) => el.click());
-    const applyBtn = page.locator('div[role="dialog"][aria-label="Filter Category"] button', { hasText: 'Apply Filter' });
+    const applyBtn = page.locator('div[role="dialog"][aria-label="Filter Products"] button', { hasText: 'Apply Filter' });
     await applyBtn.evaluate((el: HTMLElement) => el.click());
     await expect(page.getByText('Filter Products')).toBeHidden({ timeout: 5000 });
+  });
+
+  test('should filter by brand via drawer', async ({ page }) => {
+    await navigateToProducts(page);
+    await page.locator('button').filter({ hasText: 'Filter' }).first().click();
+    const dialog = page.locator('div[role="dialog"][aria-label="Filter Products"]');
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+    await page.waitForTimeout(1000);
+    // Switch to Brand tab
+    await dialog.locator('button').filter({ hasText: 'Brand' }).first().click();
+    // Select the first available brand
+    const firstBrand = dialog.locator('label').first();
+    await expect(firstBrand).toBeVisible({ timeout: 5000 });
+    await firstBrand.evaluate((el: HTMLElement) => el.click());
+    const applyBtn = dialog.locator('button', { hasText: 'Apply Filter' });
+    await applyBtn.evaluate((el: HTMLElement) => el.click());
+    await expect(dialog).toBeHidden({ timeout: 5000 });
+    // Brand chip appears in toolbar
+    await expect(page.getByText('1 Brands').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should add a new product', async ({ page, request }) => {
@@ -205,6 +224,57 @@ test.describe('Products API - Category Filter', () => {
         expect(validCategories).toContain(product.category_name);
       }
     }
+  });
+});
+
+test.describe('Products API - Brand Filter', () => {
+  test('GET /api/products?brand_id=single returns only products of that brand', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const headers = { Authorization: `Bearer ${token}` };
+    const brandsRes = await request.get(`${API_BASE}/api/brands`, { headers });
+    expect(brandsRes.ok()).toBeTruthy();
+    const brandsBody = await brandsRes.json();
+    const brands = brandsBody.data || [];
+    test.skip(brands.length === 0, 'no brands seeded');
+    const brandId = brands[0].id;
+
+    const response = await request.get(`${API_BASE}/api/products?brand_id=${brandId}`, { headers });
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    expect(body.data).toBeInstanceOf(Array);
+    for (const product of body.data) {
+      expect(product.brand_id).toBe(brandId);
+    }
+  });
+
+  test('GET /api/products?brand_id=multiple returns products matching any brand', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const headers = { Authorization: `Bearer ${token}` };
+    const brandsRes = await request.get(`${API_BASE}/api/brands`, { headers });
+    expect(brandsRes.ok()).toBeTruthy();
+    const brandsBody = await brandsRes.json();
+    const brands = (brandsBody.data || []).slice(0, 2);
+    test.skip(brands.length < 2, 'fewer than two brands seeded');
+    const brandIds = brands.map((b: any) => b.id).join(',');
+
+    const response = await request.get(`${API_BASE}/api/products?brand_id=${brandIds}`, { headers });
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    expect(body.data).toBeInstanceOf(Array);
+    for (const product of body.data) {
+      expect(brands.map((b: any) => b.id)).toContain(product.brand_id);
+    }
+  });
+
+  test('GET /api/products?brand_id=unknown returns empty list', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const response = await request.get(`${API_BASE}/api/products?brand_id=99999999`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBe(0);
   });
 });
 
