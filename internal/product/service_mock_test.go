@@ -18,7 +18,7 @@ import (
 func TestMockHandler_GetProducts_StatusParam(t *testing.T) {
 	t.Run("status=active", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				assert.Equal(t, "active", status)
 				return []Product{}, 0, nil
 			},
@@ -31,7 +31,7 @@ func TestMockHandler_GetProducts_StatusParam(t *testing.T) {
 
 	t.Run("status overrides isActive", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				assert.Equal(t, "inactive", status)
 				assert.Nil(t, isActive, "isActive should be nil when status is set")
 				return []Product{}, 0, nil
@@ -45,7 +45,7 @@ func TestMockHandler_GetProducts_StatusParam(t *testing.T) {
 
 	t.Run("isActive=false", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				require.NotNil(t, isActive)
 				assert.False(t, *isActive)
 				return []Product{}, 0, nil
@@ -59,7 +59,7 @@ func TestMockHandler_GetProducts_StatusParam(t *testing.T) {
 
 	t.Run("isActive=1", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				require.NotNil(t, isActive)
 				assert.True(t, *isActive)
 				return []Product{}, 0, nil
@@ -73,7 +73,7 @@ func TestMockHandler_GetProducts_StatusParam(t *testing.T) {
 
 	t.Run("custom limit and offset", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				assert.Equal(t, 25, limit)
 				assert.Equal(t, 50, offset)
 				return []Product{}, 0, nil
@@ -87,7 +87,7 @@ func TestMockHandler_GetProducts_StatusParam(t *testing.T) {
 
 	t.Run("invalid limit ignored", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				assert.Equal(t, 20, limit, "invalid limit should default to 20")
 				return []Product{}, 0, nil
 			},
@@ -100,7 +100,7 @@ func TestMockHandler_GetProducts_StatusParam(t *testing.T) {
 
 	t.Run("limit exceeds max ignored", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				assert.Equal(t, 20, limit, "limit >100 should default to 20")
 				return []Product{}, 0, nil
 			},
@@ -113,7 +113,7 @@ func TestMockHandler_GetProducts_StatusParam(t *testing.T) {
 
 	t.Run("invalid offset ignored", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				assert.Equal(t, 0, offset, "invalid offset should default to 0")
 				return []Product{}, 0, nil
 			},
@@ -126,7 +126,7 @@ func TestMockHandler_GetProducts_StatusParam(t *testing.T) {
 
 	t.Run("invalid maxStock ignored", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				assert.Nil(t, maxStock, "invalid maxStock should be nil")
 				return []Product{}, 0, nil
 			},
@@ -139,7 +139,7 @@ func TestMockHandler_GetProducts_StatusParam(t *testing.T) {
 
 	t.Run("negative maxStock ignored", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				assert.Nil(t, maxStock, "negative maxStock should be nil")
 				return []Product{}, 0, nil
 			},
@@ -297,7 +297,7 @@ func TestMockHandler_BulkUpdateStatus_WithStoreID(t *testing.T) {
 
 func TestMockHandler_GetProducts_WithStoreID(t *testing.T) {
 	svc := &mockProductService{
-		getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+		getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 			assert.NotNil(t, storeID)
 			assert.Equal(t, 5, *storeID)
 			return []Product{}, 0, nil
@@ -324,7 +324,7 @@ func TestMockHandler_GetProducts_WithStoreID(t *testing.T) {
 
 func TestMockHandler_GetProducts_WithInvalidStoreIDType(t *testing.T) {
 	svc := &mockProductService{
-		getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+		getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 			assert.Nil(t, storeID, "invalid storeID type should result in nil")
 			return []Product{}, 0, nil
 		},

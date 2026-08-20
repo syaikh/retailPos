@@ -571,7 +571,7 @@ func TestRepo_GetAllProducts_NoFilters(t *testing.T) {
 		productFullRow(1, "SKU-001", "Widget", 10000, 5000, 100, "active"))
 
 	repo := NewRepository(mock)
-	products, total, err := repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "", nil, nil, "", nil)
+	products, total, err := repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "", nil, nil, "", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	assert.Len(t, products, 1)
@@ -590,7 +590,7 @@ func TestRepo_GetAllProducts_WithSearch(t *testing.T) {
 		productFullRow(1, "SKU-001", "Widget", 10000, 5000, 100, "active"))
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "widget", nil, "", "", nil, nil, "", nil)
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "widget", nil, "", "", nil, nil, "", nil, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -605,7 +605,7 @@ func TestRepo_GetAllProducts_WithCategoryIDs(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(1, 2, 10, 0).WillReturnRows(emptyProductCols())
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", []int{1, 2}, "", "", nil, nil, "", nil)
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", []int{1, 2}, "", "", nil, nil, "", nil, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -621,7 +621,7 @@ func TestRepo_GetAllProducts_WithStoreID(t *testing.T) {
 
 	repo := NewRepository(mock)
 	sid := 1
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "", nil, &sid, "", nil)
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "", nil, &sid, "", nil, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -636,7 +636,7 @@ func TestRepo_GetAllProducts_WithStatus(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs("active", 10, 0).WillReturnRows(emptyProductCols())
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "active", nil, nil, "active", nil)
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "active", nil, nil, "active", nil, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -652,7 +652,7 @@ func TestRepo_GetAllProducts_WithMaxStock(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(10, 10, 0).WillReturnRows(emptyProductCols())
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "", &ms, nil, "", nil)
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "", &ms, nil, "", nil, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -666,7 +666,7 @@ func TestRepo_GetAllProducts_WithSortByValid(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(10, 0).WillReturnRows(emptyProductCols())
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "v.name", "ASC", nil, nil, "", nil)
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "v.name", "ASC", nil, nil, "", nil, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -680,7 +680,7 @@ func TestRepo_GetAllProducts_WithSortByInvalid(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(10, 0).WillReturnRows(emptyProductCols())
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "evil_col", "ASC", nil, nil, "", nil)
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "evil_col", "ASC", nil, nil, "", nil, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

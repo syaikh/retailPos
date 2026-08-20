@@ -9,7 +9,7 @@
   import { useWebSocket } from '$shared/api/websocket';
 
   import { Button, Modal, Pagination, ImportWizard, ConfirmDeleteModal } from '$shared/ui';
-  import CategoryFilterModal from '$modules/product/components/CategoryFilterModal.svelte';
+  import ProductFilterDrawer from '$modules/product/components/ProductFilterDrawer.svelte';
   import ProductActionsDropdown from '$modules/product/components/ProductActionsDropdown.svelte';
   import ProductFormModal from '$modules/product/components/ProductFormModal.svelte';
   import ProductDetailDrawer from './ProductDetailDrawer.svelte';
@@ -58,10 +58,12 @@
   let filterStatus = $state('all');
   let supplierFilterId = $state<number | null>(null);
   let supplierFilterName = $state('');
+  let selectedBrandIDs = $state<number[]>([]);
 
   let previousCategories = ['All'];
+  let previousBrandIDs: number[] = [];
   const { sortState, handleSort } = useSortable('name', 'asc', sortProducts);
-  let showCategoryFilterModal = $state(false);
+  let showFilterDrawer = $state(false);
   let modalCategorySearch = $state('');
 
   let selectedIds = $state(new Set<number>());
@@ -112,6 +114,8 @@
     selectedCategories = ['All'];
     supplierFilterId = null;
     supplierFilterName = '';
+    selectedBrandIDs = [];
+    previousBrandIDs = [];
     offset = 0;
     fetchProducts(0, limit);
   }
@@ -232,6 +236,7 @@
       if (lowStockOnly) params.append('maxStock', criticalThreshold.toString());
       if (filterStatus !== 'all') params.append('status', filterStatus);
       if (supplierFilterId !== null) params.append('supplier_id', supplierFilterId.toString());
+      if (selectedBrandIDs.length > 0) params.append('brand_id', selectedBrandIDs.join(','));
       const r = await apiClient.get(`/products?${params.toString()}`);
       products = r.data.data || [];
       total = r.data.total || 0;
@@ -270,6 +275,16 @@
     const currCatStr = selectedCategories.slice().sort().join(',');
     if (prevCatStr === currCatStr) return;
     previousCategories = [...selectedCategories];
+    offset = 0;
+    fetchProducts(0, limit);
+  });
+
+  $effect(() => {
+    if (isInitialMount) return;
+    const prevStr = previousBrandIDs.slice().sort().join(',');
+    const currStr = selectedBrandIDs.slice().sort().join(',');
+    if (prevStr === currStr) return;
+    previousBrandIDs = [...selectedBrandIDs];
     offset = 0;
     fetchProducts(0, limit);
   });
@@ -488,11 +503,13 @@
 
 <svelte:window onkeydown={handleWindowKeydown} />
 
-<CategoryFilterModal
-  bind:open={showCategoryFilterModal}
+<ProductFilterDrawer
+  bind:open={showFilterDrawer}
   bind:selectedCategories
   {categories}
-  onClose={() => showCategoryFilterModal = false}
+  {brands}
+  bind:selectedBrandIDs
+  onClose={() => showFilterDrawer = false}
   onApply={() => {}}
 />
 
@@ -519,8 +536,9 @@
     {canImport}
     bind:supplierFilterId
     bind:supplierFilterName
+    bind:selectedBrandIDs
     onsearch={handleSearchInput}
-    onfiltercategory={() => showCategoryFilterModal = true}
+    onfilter={() => showFilterDrawer = true}
     onrefresh={() => { offset = 0; fetchProducts(0, limit); }}
     onclearall={clearAllFilters}
     onadd={() => {

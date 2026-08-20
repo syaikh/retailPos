@@ -25,7 +25,7 @@ type Repo interface {
 	GetProductByID(ctx context.Context, id int, storeID *int) (*Product, error)
 	GetProductsByIDs(ctx context.Context, ids []int, storeID *int) ([]Product, error)
 	GetProductBySKU(ctx context.Context, sku string, storeID *int) (*Product, error)
-	GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string, supplierID *int) ([]Product, int, error)
+	GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error)
 	GetNextSKU(ctx context.Context) (string, error)
 	GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error)
 	GetAllTaxClasses(ctx context.Context) ([]TaxClass, error)
@@ -60,7 +60,7 @@ func (s *service) GetProductBySKU(ctx context.Context, sku string, storeID int) 
 	return s.repo.GetProductBySKU(ctx, sku, ptr(storeID))
 }
 
-func (s *service) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+func (s *service) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 	if status == "" && isActive != nil {
 		if *isActive {
 			status = "active"
@@ -97,7 +97,7 @@ func (s *service) GetAllProducts(ctx context.Context, limit, offset int, search,
 			}
 		}
 	}
-	return s.repo.GetAllProducts(ctx, limit, offset, search, categoryIDs, sortBy, sortDir, maxStock, storeID, status, supplierID)
+	return s.repo.GetAllProducts(ctx, limit, offset, search, categoryIDs, sortBy, sortDir, maxStock, storeID, status, supplierID, brandIDs)
 }
 
 func (s *service) CreateProduct(ctx context.Context, product *Product) error {

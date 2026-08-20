@@ -51,7 +51,7 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 	})
 
 	t.Run("search matches by name", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "Alpha", nil, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "Alpha", nil, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Len(t, products, 1)
@@ -59,7 +59,7 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 	})
 
 	t.Run("search matches by SKU", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, skuB, nil, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, skuB, nil, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Len(t, products, 1)
@@ -67,7 +67,7 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 	})
 
 	t.Run("search matches by partial SKU", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "QF-SEARCH", nil, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "QF-SEARCH", nil, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		// All 4 seeded products have "QF-SEARCH" prefix in their SKU
 		assert.GreaterOrEqual(t, total, 4, "expected at least 4 products (the QF-SEARCH group) to match partial SKU")
@@ -75,7 +75,7 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 	})
 
 	t.Run("search matches by barcode", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, barcodeD, nil, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, barcodeD, nil, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Len(t, products, 1)
@@ -83,7 +83,7 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 	})
 
 	t.Run("search matches by partial barcode", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "BC-SEARCH", nil, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "BC-SEARCH", nil, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Len(t, products, 1)
@@ -91,14 +91,14 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 	})
 
 	t.Run("search matches multiple via tsquery", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "Gadget", nil, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "Gadget", nil, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 2, total)
 		assert.Len(t, products, 2)
 	})
 
 	t.Run("search with no match", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "nonexistent-xyz", nil, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "nonexistent-xyz", nil, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, products)
@@ -126,21 +126,21 @@ func TestGetAllProducts_CategoryFilter(t *testing.T) {
 	})
 
 	t.Run("single category filter", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", []int{catID1}, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", []int{catID1}, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 2, total)
 		assert.Len(t, products, 2)
 	})
 
 	t.Run("multiple category filter", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", []int{catID1, catID2}, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", []int{catID1, catID2}, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 3, total)
 		assert.Len(t, products, 3)
 	})
 
 	t.Run("category filter with no match", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", []int{999999}, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", []int{999999}, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, products)
@@ -159,7 +159,7 @@ func TestGetAllProducts_StatusFilter(t *testing.T) {
 	})
 
 	t.Run("filter by active", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "", "", nil, nil, "active", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "", "", nil, nil, "active", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, p := range products {
@@ -168,7 +168,7 @@ func TestGetAllProducts_StatusFilter(t *testing.T) {
 	})
 
 	t.Run("filter by inactive", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "", "", nil, nil, "inactive", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "", "", nil, nil, "inactive", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, p := range products {
@@ -192,7 +192,7 @@ func TestGetAllProducts_MaxStockFilter(t *testing.T) {
 	})
 
 	maxStock := 1
-	products, _, err := repo.GetAllProducts(ctx, 100, 0, "", nil, "", "", &maxStock, nil, "", nil)
+	products, _, err := repo.GetAllProducts(ctx, 100, 0, "", nil, "", "", &maxStock, nil, "", nil, nil)
 	require.NoError(t, err)
 
 	found := false
@@ -219,20 +219,20 @@ func TestGetAllProducts_Pagination(t *testing.T) {
 	}
 
 	t.Run("first page", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 2, 0, "", nil, "v.id", "ASC", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 2, 0, "", nil, "v.id", "ASC", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(products), 2)
 		assert.GreaterOrEqual(t, total, 3)
 	})
 
 	t.Run("second page", func(t *testing.T) {
-		products, _, err := repo.GetAllProducts(ctx, 2, 2, "", nil, "v.id", "ASC", nil, nil, "", nil)
+		products, _, err := repo.GetAllProducts(ctx, 2, 2, "", nil, "v.id", "ASC", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(products), 2)
 	})
 
 	t.Run("offset beyond total", func(t *testing.T) {
-		products, _, err := repo.GetAllProducts(ctx, 10, 100, "", nil, "", "", nil, nil, "", nil)
+		products, _, err := repo.GetAllProducts(ctx, 10, 100, "", nil, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.Empty(t, products)
 	})
@@ -250,7 +250,7 @@ func TestGetAllProducts_SortOptions(t *testing.T) {
 	})
 
 	t.Run("sort by name ascending", func(t *testing.T) {
-		products, _, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "v.name", "ASC", nil, nil, "", nil)
+		products, _, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "v.name", "ASC", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(products), 2)
 		for i := 1; i < len(products); i++ {
@@ -259,7 +259,7 @@ func TestGetAllProducts_SortOptions(t *testing.T) {
 	})
 
 	t.Run("sort by price descending", func(t *testing.T) {
-		products, _, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "v.price", "DESC", nil, nil, "", nil)
+		products, _, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "v.price", "DESC", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(products), 2)
 		for i := 1; i < len(products); i++ {
@@ -268,7 +268,7 @@ func TestGetAllProducts_SortOptions(t *testing.T) {
 	})
 
 	t.Run("invalid sort falls back to default", func(t *testing.T) {
-		products, _, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "evil_column; DROP TABLE", "ASC", nil, nil, "", nil)
+		products, _, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "evil_column; DROP TABLE", "ASC", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, products)
 	})
@@ -297,7 +297,7 @@ func TestGetAllProducts_CombinedFilters(t *testing.T) {
 
 	t.Run("category + status + maxStock combined", func(t *testing.T) {
 		maxStock := 10
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", []int{catID}, "", "", &maxStock, nil, "active", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "", []int{catID}, "", "", &maxStock, nil, "active", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Len(t, products, 1)
@@ -305,7 +305,7 @@ func TestGetAllProducts_CombinedFilters(t *testing.T) {
 	})
 
 	t.Run("search + category combined", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "Alpha", []int{catID}, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "Alpha", []int{catID}, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Len(t, products, 1)
@@ -313,7 +313,7 @@ func TestGetAllProducts_CombinedFilters(t *testing.T) {
 	})
 
 	t.Run("ILIKE partial SKU + status combined", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "QF-COMB", nil, "", "", nil, nil, "active", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "QF-COMB", nil, "", "", nil, nil, "active", nil, nil)
 		require.NoError(t, err)
 		// skuA (active) should match; skuB (inactive) should not
 		assert.GreaterOrEqual(t, total, 1)
@@ -324,7 +324,7 @@ func TestGetAllProducts_CombinedFilters(t *testing.T) {
 	})
 
 	t.Run("ILIKE partial SKU + category combined", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "QF-COMB", []int{catID}, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "QF-COMB", []int{catID}, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		// skuA and skuB have category catID and contain "QF-COMB"; skuC (no category) should not appear
 		assert.GreaterOrEqual(t, total, 2)
@@ -338,7 +338,7 @@ func TestGetAllProducts_EmptyResult(t *testing.T) {
 	repo := testRepo()
 	ctx := context.Background()
 
-	products, total, err := repo.GetAllProducts(ctx, 10, 0, "zzz-no-match-zzz", nil, "", "", nil, nil, "", nil)
+	products, total, err := repo.GetAllProducts(ctx, 10, 0, "zzz-no-match-zzz", nil, "", "", nil, nil, "", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 0, total)
 	assert.Nil(t, products)

@@ -18,7 +18,7 @@ import (
 )
 
 type mockProductService struct {
-	getAllFn            func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error)
+	getAllFn            func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error)
 	getByIDsFn          func(ctx context.Context, ids []int, storeID *int) ([]Product, error)
 	getByIDFn           func(ctx context.Context, id, storeID int) (*Product, error)
 	createFn            func(ctx context.Context, product *Product) error
@@ -30,8 +30,8 @@ type mockProductService struct {
 	getProductOptionsFn func(ctx context.Context) ([]Option, error)
 }
 
-func (m *mockProductService) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
-	return m.getAllFn(ctx, limit, offset, search, sortBy, sortDir, category, storeID, isActive, maxStock, status, supplierID)
+func (m *mockProductService) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
+	return m.getAllFn(ctx, limit, offset, search, sortBy, sortDir, category, storeID, isActive, maxStock, status, supplierID, brandIDs)
 }
 func (m *mockProductService) GetProductsByIDs(ctx context.Context, ids []int, storeID *int) ([]Product, error) {
 	if m.getByIDsFn != nil {
@@ -127,7 +127,7 @@ func TestParseIDs(t *testing.T) {
 func TestMockHandler_GetProducts(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				assert.Equal(t, 20, limit)
 				return []Product{{ID: 1, Name: "Widget"}}, 1, nil
 			},
@@ -153,16 +153,22 @@ func TestMockHandler_GetProducts(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
-	t.Run("brand rejection", func(t *testing.T) {
-		r := setupMockProductRouter(&mockProductService{})
+	t.Run("brand_id param", func(t *testing.T) {
+		svc := &mockProductService{
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
+				assert.Equal(t, []int{1, 2}, brandIDs)
+				return []Product{}, 0, nil
+			},
+		}
+		r := setupMockProductRouter(svc)
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, httptest.NewRequest("GET", "/products?brand=Nike", nil))
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/products?brand_id=1,2", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
 	t.Run("isActive param", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				require.NotNil(t, isActive)
 				assert.True(t, *isActive)
 				return []Product{}, 0, nil
@@ -176,7 +182,7 @@ func TestMockHandler_GetProducts(t *testing.T) {
 
 	t.Run("nil products become empty array", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				return nil, 0, nil
 			},
 		}
@@ -189,7 +195,7 @@ func TestMockHandler_GetProducts(t *testing.T) {
 
 	t.Run("maxStock param", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				require.NotNil(t, maxStock)
 				assert.Equal(t, 10, *maxStock)
 				return []Product{}, 0, nil
@@ -203,7 +209,7 @@ func TestMockHandler_GetProducts(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				return nil, 0, errors.New("db error")
 			},
 		}
@@ -283,7 +289,7 @@ func TestMockHandler_GetProducts_ByIDs(t *testing.T) {
 
 	t.Run("empty ids param falls through to normal listing", func(t *testing.T) {
 		svc := &mockProductService{
-			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 				return []Product{{ID: 1}}, 1, nil
 			},
 		}

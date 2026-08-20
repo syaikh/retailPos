@@ -14,8 +14,9 @@
     canImport = false,
     supplierFilterId = $bindable(null),
     supplierFilterName = $bindable(''),
+    selectedBrandIDs = $bindable<number[]>([]),
     onsearch = () => {},
-    onfiltercategory = () => {},
+    onfilter = () => {},
     onrefresh = () => {},
     onclearall = () => {},
     onadd = () => {},
@@ -31,8 +32,9 @@
     canImport?: boolean;
     supplierFilterId?: number | null;
     supplierFilterName?: string;
+    selectedBrandIDs?: number[];
     onsearch?: () => void;
-    onfiltercategory?: () => void;
+    onfilter?: () => void;
     onrefresh?: () => void;
     onclearall?: () => void;
     onadd?: () => void;
@@ -47,9 +49,9 @@
     : filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)
   );
 
-  let categoryBtnStyle = $derived(selectedCategories.length > 0
-    ? 'background: rgba(124,58,236,0.12); border-color: rgba(124,58,236,0.35); color: var(--color-primary-light);'
-    : 'background: var(--color-surface-default); border-color: var(--color-border-default); color: var(--color-text-secondary);'
+  let hasActiveFilters = $derived(
+    (selectedCategories.length > 0 && !(selectedCategories.length === 1 && selectedCategories[0] === 'All'))
+    || selectedBrandIDs.length > 0
   );
 
   let activeChips = $derived.by(() => {
@@ -66,6 +68,9 @@
     if (supplierFilterId !== null) {
       chips.push({ type: 'supplier', label: t('supplierWithName', { name: supplierFilterName }) });
     }
+    if (selectedBrandIDs.length > 0) {
+      chips.push({ type: 'brand', label: t('brandsCount', { count: selectedBrandIDs.length }) });
+    }
     return chips;
   });
 
@@ -74,30 +79,38 @@
     if (type === 'category') selectedCategories = ['All'];
     if (type === 'stock') lowStockOnly = false;
     if (type === 'supplier') { supplierFilterId = null; supplierFilterName = ''; }
+    if (type === 'brand') { selectedBrandIDs = []; }
     onrefresh();
   }
 </script>
 
 <div class="card p-4">
-  <div class="flex items-center gap-4">
+  <div class="flex items-center gap-3">
     <div class="flex-2">
       <SearchBar bind:value={searchQuery} placeholder={labels.searchByNameSkuBarcode} oninput={onsearch} inputClass="h-10" />
     </div>
     <button
       type="button"
-      onclick={onfiltercategory}
-      class="flex items-center gap-[9px] h-10 px-[14px] rounded-xl shrink-0 transition-all duration-200"
-      style={categoryBtnStyle}
+      onclick={onfilter}
+      class="flex items-center gap-[9px] h-10 px-[14px] rounded-xl shrink-0 transition-all duration-200 border {hasActiveFilters ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
     >
-      <SlidersHorizontal size={15} style="color: {selectedCategories.length > 0 ? 'var(--color-primary-light)' : 'var(--color-text-secondary)'}" />
+      <SlidersHorizontal size={15} class={hasActiveFilters ? 'text-primary-light' : 'text-text-muted'} />
       <span class="text-[13px] font-medium whitespace-nowrap">
-        {#if selectedCategories.length > 0 && !(selectedCategories.length === 1 && selectedCategories[0] === 'All')}
-          {t('categoriesSelectedCount', { count: selectedCategories.length })}
+        {#if hasActiveFilters}
+          {#if selectedCategories.length > 0 && !(selectedCategories.length === 1 && selectedCategories[0] === 'All')}
+            {#if selectedBrandIDs.length > 0}
+              {t('categoriesCount', { count: selectedCategories.length })} + {t('brandsCount', { count: selectedBrandIDs.length })}
+            {:else}
+              {t('categoriesSelectedCount', { count: selectedCategories.length })}
+            {/if}
+          {:else if selectedBrandIDs.length > 0}
+            {t('brandsSelectedCount', { count: selectedBrandIDs.length })}
+          {/if}
         {:else}
-          {labels.category}
+          {labels.filter}
         {/if}
       </span>
-      <ChevronDown size={13} class="shrink-0 transition-opacity duration-150" style="color: {selectedCategories.length > 0 ? 'var(--color-primary-light)' : 'var(--color-text-secondary)'}; opacity: {selectedCategories.length > 0 ? 0.7 : 0.6}" />
+      <ChevronDown size={13} class="shrink-0 transition-opacity duration-150 {hasActiveFilters ? 'text-primary-light' : 'text-text-muted'}" />
     </button>
     <Dropdown placement="bottom-start" items={[
       { label: labels.allStatus, checked: filterStatus === 'all', onclick: () => { filterStatus = 'all'; onrefresh(); } },

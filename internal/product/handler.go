@@ -40,7 +40,7 @@ func parseIDs(raw string) []int {
 }
 
 type Service interface {
-	GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error)
+	GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error)
 	GetProductsByIDs(ctx context.Context, ids []int, storeID *int) ([]Product, error)
 	GetProductByID(ctx context.Context, id, storeID int) (*Product, error)
 	GetProductBySKU(ctx context.Context, sku string, storeID int) (*Product, error)
@@ -141,8 +141,8 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	sortDir := c.Query("sortDir")
 	category := c.Query("category")
 
-	if c.Query("minPrice") != "" || c.Query("maxPrice") != "" || c.Query("brand") != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "minPrice, maxPrice, and brand filters are not yet implemented. Please use search or category filters instead."})
+	if c.Query("minPrice") != "" || c.Query("maxPrice") != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "minPrice and maxPrice filters are not yet implemented."})
 		return
 	}
 
@@ -171,7 +171,12 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		}
 	}
 
-	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, storeID, isActive, maxStock, status, supplierID)
+	var brandIDs []int
+	if bid := c.Query("brand_id"); bid != "" {
+		brandIDs = parseIDs(bid)
+	}
+
+	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, storeID, isActive, maxStock, status, supplierID, brandIDs)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products"})
 		return

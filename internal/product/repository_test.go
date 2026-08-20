@@ -281,14 +281,14 @@ func TestProductRepository_GetAllProductsPagination(t *testing.T) {
 	}
 
 	t.Run("limit and offset", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 2, 0, "", nil, "price", "ASC", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 2, 0, "", nil, "price", "ASC", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(products), 2)
 		assert.Greater(t, total, 0)
 	})
 
 	t.Run("search by name", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 10, 0, "Paging", nil, "", "", nil, nil, "", nil)
+		products, total, err := repo.GetAllProducts(ctx, 10, 0, "Paging", nil, "", "", nil, nil, "", nil, nil)
 		require.NoError(t, err)
 		assert.Greater(t, total, 0)
 		assert.Greater(t, len(products), 0)

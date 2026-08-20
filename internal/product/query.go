@@ -10,7 +10,7 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string, supplierID *int) ([]Product, int, error) {
+func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
 	var products []Product
 	var total int
 
@@ -32,6 +32,15 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 			argIdx++
 		}
 		query += fmt.Sprintf(" AND v.category_id IN (%s)", strings.Join(placeholders, ","))
+	}
+	if len(brandIDs) > 0 {
+		placeholders := make([]string, len(brandIDs))
+		for i, bid := range brandIDs {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, bid)
+			argIdx++
+		}
+		query += fmt.Sprintf(" AND v.brand_id IN (%s)", strings.Join(placeholders, ","))
 	}
 	if maxStock != nil {
 		query += fmt.Sprintf(" AND v.stock <= $%d", argIdx)
@@ -75,6 +84,15 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 			argIdx2++
 		}
 		query2 += fmt.Sprintf(" AND v.category_id IN (%s)", strings.Join(placeholders, ","))
+	}
+	if len(brandIDs) > 0 {
+		placeholders := make([]string, len(brandIDs))
+		for i, bid := range brandIDs {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx2)
+			args2 = append(args2, bid)
+			argIdx2++
+		}
+		query2 += fmt.Sprintf(" AND v.brand_id IN (%s)", strings.Join(placeholders, ","))
 	}
 	if maxStock != nil {
 		query2 += fmt.Sprintf(" AND v.stock <= $%d", argIdx2)
