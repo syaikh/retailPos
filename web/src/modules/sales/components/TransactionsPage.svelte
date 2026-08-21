@@ -5,6 +5,10 @@
   import { createQueryManager } from '../lib/query-manager';
   import { useAuthStore } from '$modules/auth';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { useShiftStore } from '$modules/shifts';
+  import { goto } from '$app/router';
+  import { toast } from '$shared/stores/toast.svelte';
+  import { labels } from '$shared/i18n';
   import TransactionFilters from './TransactionFilters.svelte';
   import TransactionTable from './TransactionTable.svelte';
   import TransactionDrawer from './TransactionDrawer.svelte';
@@ -12,6 +16,7 @@
   const store = useSalesStore();
   const authStore = useAuthStore();
   const rbac = useRBAC();
+  const shiftStore = useShiftStore();
 
   // @ownership-only — data-scope: cashier hanya melihat transaksi milik sendiri.
   if (rbac.isCashier && authStore.user?.id) {
@@ -38,6 +43,8 @@
   });
 
   $effect(() => {
+    // Cashier tanpa shift aktif tidak memuat data transaksi (akan di-redirect ke /shifts).
+    if (rbac.isCashier && !shiftStore.activeShift) return;
     const current = {
       searchQuery: store.searchQuery,
       paymentMethods: store.paymentMethods,
@@ -113,6 +120,13 @@
   }
 
   onMount(async () => {
+    // @display-only — flow guard navigasi UX: cashier tanpa shift aktif diarahkan ke /shifts.
+    await shiftStore.loadActiveShift();
+    if (rbac.isCashier && !shiftStore.activeShift) {
+      toast.error(labels.toastMustOpenShiftFirst);
+      goto('/shifts');
+      return;
+    }
     await store.loadPaymentMethods();
   });
 </script>

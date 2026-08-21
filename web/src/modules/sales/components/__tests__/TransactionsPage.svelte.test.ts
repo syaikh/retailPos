@@ -85,4 +85,21 @@ describe('TransactionsPage.svelte source-structure guards', () => {
     expect(src).toContain("bind:startDate={store.startDate}");
     expect(src).toContain('bind:showDatePicker');
   });
+
+  it('imports shift store, router, toast and labels for shift guard', () => {
+    expect(src).toContain("import { useShiftStore } from '$modules/shifts'");
+    expect(src).toContain("import { goto } from '$app/router'");
+    expect(src).toContain("import { toast } from '$shared/stores/toast.svelte'");
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
+  it('loads active shift from shiftStore on mount', () => {
+    expect(src).toContain('shiftStore.loadActiveShift()');
+  });
+
+  it('redirects cashier without an active shift to /shifts', () => {
+    expect(src).toContain('shiftStore.activeShift');
+    expect(src).toContain("goto('/shifts')");
+    expect(src).toContain('toastMustOpenShiftFirst');
+  });
 });

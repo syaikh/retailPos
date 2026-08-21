@@ -138,10 +138,18 @@
 
   // @display-only — grouping kandidat menu per role (presentasi, bukan authz);
   // setiap item tetap digate permission via canAccess().
+  // @display-only — cashier hanya boleh melihat POS & Riwayat Transaksi setelah
+  // membuka shift; tanpa shift aktif, hanya Shift Management yang ditampilkan
+  // (sebagai pintu masuk untuk membuka shift). Bukan authz — rute tetap diguard
+  // di PosPage/TransactionsPage.
+  let cashierNavItemsResolved = $derived(
+    shiftStore.activeShift ? cashierNavItems : cashierNavItems.filter(i => i.href === '/shifts')
+  );
+
   let visibleNavItems = $derived(
     (rbac.userRole === Roles.staff ? staffNavItems :
-    rbac.userRole === Roles.cashier ? cashierNavItems :
-    (rbac.userRole === Roles.manager ? managerNavItems : navItems)
+     rbac.userRole === Roles.cashier ? cashierNavItemsResolved :
+     (rbac.userRole === Roles.manager ? managerNavItems : navItems)
     ).filter(item => canAccess(item.href))
   );
 

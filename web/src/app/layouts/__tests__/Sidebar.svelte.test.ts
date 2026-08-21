@@ -89,4 +89,10 @@ describe('Sidebar.svelte source-structure guards', () => {
     expect(src).toContain('rbac.userRole !== Roles.cashier');
     expect(src).toContain('rbac.roleDisplayName');
   });
+
+  it('gates cashier POS & Transactions behind an active shift', () => {
+    expect(src).toContain('cashierNavItemsResolved');
+    expect(src).toContain('shiftStore.activeShift ? cashierNavItems');
+    expect(src).toContain("cashierNavItems.filter(i => i.href === '/shifts')");
+  });
 });
