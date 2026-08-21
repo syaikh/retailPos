@@ -3008,11 +3008,13 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 					}
 
 					itemStmt, err := tx.PrepareContext(ctx, `
-						INSERT INTO purchase_order_items
-							(purchase_order_id, product_id, qty_ordered, unit_cost, subtotal, product_name)
-						VALUES ($1,$2,$3,$4,$5,
-							COALESCE((SELECT name FROM products WHERE id=$2), ''))
-						RETURNING id
+					INSERT INTO purchase_order_items
+						(purchase_order_id, product_id, qty_ordered, unit_cost, subtotal, product_name, sku, barcode)
+					VALUES ($1,$2,$3,$4,$5,
+						COALESCE((SELECT name FROM products WHERE id=$2), ''),
+						COALESCE((SELECT sku FROM products WHERE id=$2), ''),
+						COALESCE((SELECT barcode FROM products WHERE id=$2), ''))
+					RETURNING id
 					`)
 					if err != nil {
 						return poResult{}, fmt.Errorf("prepare item stmt: %w", err)
