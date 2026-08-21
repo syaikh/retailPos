@@ -225,7 +225,6 @@ export const id = {
   toastFailedToHoldSale: 'Gagal menahan penjualan',
   toastFailedToResumeSale: 'Gagal melanjutkan penjualan',
   toastCheckoutFailed: 'Checkout gagal',
-  toastCheckoutFailedRetry: 'Checkout gagal. Silakan coba lagi.',
   toastMustOpenShiftFirst: 'Anda harus membuka sif terlebih dahulu',
   hide: 'Sembunyikan',
   show: 'Tampilkan',

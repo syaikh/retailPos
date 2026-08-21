@@ -226,7 +226,6 @@ export const en: Labels = {
   toastFailedToHoldSale: 'Failed to hold sale',
   toastFailedToResumeSale: 'Failed to resume sale',
   toastCheckoutFailed: 'Checkout failed',
-  toastCheckoutFailedRetry: 'Checkout failed. Please try again.',
   toastMustOpenShiftFirst: 'You must open a shift first',
   hide: 'Hide',
   show: 'Show',

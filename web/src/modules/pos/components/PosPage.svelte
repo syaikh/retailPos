@@ -511,10 +511,11 @@ let selectedProductIndex = $state(-1);
            setTimeout(() => printReceiptStore.set(null), 1000);
          }, 300);
        }
-     }).catch((err: any) => {
-       console.error('Checkout failed:', err);
-       toast.error(labels.toastCheckoutFailedRetry);
-     });
+      }).catch((err: any) => {
+        // processCheckout already surfaced the specific server error toast;
+        // avoid a second generic toast for the same failure.
+        console.error('Checkout failed:', err);
+      });
     }
 
    $effect(() => {
@@ -556,7 +557,10 @@ let selectedProductIndex = $state(-1);
       openCheckoutModal();
       return;
     }
-    if (event.key === 'F5') {
+    if (event.key === 'F7') {
+      // While a modal is open it owns F7 (checkout uses it for "Exact");
+      // only open the parked-sales modal from the bare POS screen.
+      if (showCheckoutModal || showParkedModal || showCustomerModal) return;
       event.preventDefault();
       fetchHeldCarts().then(() => { showParkedModal = true; });
       return;

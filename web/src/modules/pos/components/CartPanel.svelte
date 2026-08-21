@@ -213,7 +213,7 @@
         {:else}
           {labels.recall}
         {/if}
-        <kbd class="px-1 py-0.5 text-[9px] font-medium text-amber-600/60 bg-amber-50/50 rounded border border-amber-300/20 select-none">F5</kbd>
+        <kbd class="px-1 py-0.5 text-[9px] font-medium text-amber-600/60 bg-amber-50/50 rounded border border-amber-300/20 select-none">F7</kbd>
       </button>
       <span class="text-text-muted text-[11px]">·</span>
       <button
