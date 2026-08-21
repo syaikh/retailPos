@@ -510,7 +510,7 @@ func (s *service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 		if s.shiftStore == nil {
 			return nil, errors.New("sale service: shift store not wired; call SetShiftTotalUpdater")
 		}
-		if err := s.shiftStore.UpdateShiftTotals(ctx, tx, shiftContribution(*sale.ShiftID, sale.TotalAmount, validatedPayments)); err != nil {
+		if err := s.shiftStore.UpdateShiftTotals(ctx, tx, shiftContribution(*sale.ShiftID, sale.CashierID, sale.TotalAmount, validatedPayments)); err != nil {
 			return nil, fmt.Errorf("update shift totals: %w", err)
 		}
 	}

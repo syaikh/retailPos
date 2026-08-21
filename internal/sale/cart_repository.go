@@ -8,21 +8,58 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"retail-pos-system/internal/shared"
 )
 
 // ==================== CART SESSIONS ====================
 
+// ExpireStaleOpenCarts marks open carts whose expired_at has passed as 'expired'
+// so they no longer occupy the one-open-cart-per-cashier unique slot.
+func (r *Repository) ExpireStaleOpenCarts(ctx context.Context, cashierID int) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE cart_sessions
+		SET status = 'expired', updated_at = NOW()
+		WHERE cashier_id = $1 AND status = 'open'
+		  AND expired_at IS NOT NULL AND expired_at <= NOW()
+	`, cashierID)
+	if err != nil {
+		return fmt.Errorf("expire stale open carts: %w", err)
+	}
+	return nil
+}
+
 // AtomicGetOrCreateOpenCart atomically returns the open cart for a cashier, creating one if absent.
+// Open carts whose expired_at has passed are treated as absent; a concurrent create that loses
+// the one-open-cart unique-index race is retried once by re-reading the winner.
 func (r *Repository) AtomicGetOrCreateOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error) {
+	if err := r.ExpireStaleOpenCarts(ctx, cashierID); err != nil {
+		return nil, err
+	}
+	for attempt := 0; ; attempt++ {
+		cart, err := r.atomicGetOrCreateOpenCartOnce(ctx, cashierID, storeID, shiftID, customerID)
+		if err == nil {
+			return cart, nil
+		}
+		var pgErr *pgconn.PgError
+		if attempt < 2 && errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			continue
+		}
+		return nil, err
+	}
+}
+
+func (r *Repository) atomicGetOrCreateOpenCartOnce(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error) {
 	var c CartSession
+	var expiredAt sql.NullTime
 	var createdAt, updatedAt time.Time
 	err := r.db.QueryRow(ctx, `
 		WITH existing AS (
 			SELECT id, cashier_id, store_id, shift_id, customer_id, status, subtotal, discount, tax, total_amount, expired_at, created_at, updated_at
 			FROM cart_sessions
 			WHERE cashier_id = $1 AND status = 'open'
+			  AND (expired_at IS NULL OR expired_at > NOW())
 		),
 		new_cart AS (
 			INSERT INTO cart_sessions (cashier_id, store_id, shift_id, customer_id)
@@ -38,10 +75,14 @@ func (r *Repository) AtomicGetOrCreateOpenCart(ctx context.Context, cashierID in
 	`, cashierID, storeID, shiftID, customerID).Scan(
 		&c.ID, &c.CashierID, &c.StoreID, &c.ShiftID, &c.CustomerID,
 		&c.Status, &c.Subtotal, &c.Discount, &c.Tax, &c.TotalAmount,
-		&c.ExpiredAt, &createdAt, &updatedAt,
+		&expiredAt, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("atomic get or create open cart: %w", err)
+	}
+	if expiredAt.Valid {
+		s := expiredAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
+		c.ExpiredAt = &s
 	}
 	c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	c.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -87,7 +128,9 @@ func (r *Repository) GetCartSessionByID(ctx context.Context, cartID int) (*CartS
 func (r *Repository) GetOpenCartByCashier(ctx context.Context, cashierID int) (*CartSession, error) {
 	cart, err := r.scanCartSession(ctx, `
 		SELECT id, cashier_id, store_id, shift_id, customer_id, status, subtotal, discount, tax, total_amount, expired_at, created_at, updated_at
-		FROM cart_sessions WHERE cashier_id = $1 AND status = 'open'
+		FROM cart_sessions
+		WHERE cashier_id = $1 AND status = 'open'
+		  AND (expired_at IS NULL OR expired_at > NOW())
 	`, cashierID)
 	if err != nil {
 		return nil, err

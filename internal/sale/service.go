@@ -471,7 +471,7 @@ func (s *service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sal
 		if s.shiftStore == nil {
 			return errors.New("sale service: shift store not wired; call SetShiftTotalUpdater")
 		}
-		if err := s.shiftStore.UpdateShiftTotals(ctx, tx, shiftContribution(*sale.ShiftID, sale.TotalAmount, payments)); err != nil {
+		if err := s.shiftStore.UpdateShiftTotals(ctx, tx, shiftContribution(*sale.ShiftID, sale.CashierID, sale.TotalAmount, payments)); err != nil {
 			return err
 		}
 	}
@@ -485,9 +485,11 @@ func (s *service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sal
 
 // shiftContribution computes the share of a completed sale accumulated onto its
 // shift's running totals. The cash/non-cash split is derived from the sale's own
-// payments; the shift module only accumulates what it is handed.
-func shiftContribution(shiftID, totalAmount int, payments []Payment) shared.ShiftSaleContribution {
-	c := shared.ShiftSaleContribution{ShiftID: shiftID, TotalAmount: totalAmount}
+// payments; the shift module only accumulates what it is handed. The cashier ID
+// travels with the contribution so the shift module can reject contributions
+// targeting another user's shift (client-supplied shift_id is untrusted).
+func shiftContribution(shiftID, cashierID, totalAmount int, payments []Payment) shared.ShiftSaleContribution {
+	c := shared.ShiftSaleContribution{ShiftID: shiftID, CashierID: cashierID, TotalAmount: totalAmount}
 	for _, p := range payments {
 		if strings.EqualFold(p.PaymentMethodCode, "CASH") {
 			c.CashSales += p.Amount

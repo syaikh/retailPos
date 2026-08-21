@@ -154,6 +154,14 @@ func TestRegression_SaleDetail_CostVisibility(t *testing.T) {
 	prodID := insertRegressionProduct(ctx, t, "REG-SALE-PROD", "Regression Sale Product", 10000, 6000, 10)
 	sale := createRegressionSale(ctx, t, repo, "INV-REG-SALE-001", prodID, 2, 10000, 6000)
 
+	// Sale detail reads are owner-scoped (sale.view holders without
+	// report.view only see their own sales), so reassign the sale to the
+	// authenticated test user — this suite asserts cost visibility, not
+	// ownership.
+	_ = setupSaleRouterWithPerms(t, []string{permissions.SaleView.String()})
+	_, err := dbPool.Exec(ctx, `UPDATE sales SET cashier_id = $1 WHERE id = $2`, int(testCashierID), sale.ID)
+	require.NoError(t, err)
+
 	cases := []struct {
 		name   string
 		perms  []string

@@ -15,6 +15,7 @@ import (
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/ownership"
 	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 )
@@ -369,6 +370,10 @@ func (h *Handler) CreateSale(c *gin.Context) {
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "parked sale already checked out or cancelled")
 			return
 		}
+		if errors.Is(err, shared.ErrShiftNotOpen) {
+			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
+			return
+		}
 		if errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
 			errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
 			errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
@@ -527,6 +532,17 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 		}
 	}
 
+	// Row-level scope: callers without report.view are clamped to their own
+	// sales regardless of any requested cashier_id filter.
+	scope := ownership.Resolve(
+		middleware.GetUserID(c),
+		ownership.CanAccessAll(middleware.GetPermissions(c), permissions.ReportView),
+		cashierID,
+	)
+	if ownID, restricted := scope.OwnID(); restricted {
+		cashierID = &ownID
+	}
+
 	sales, total, err := h.svc.ListSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal, cashierID)
 	if err != nil {
 		shared.InternalError(c, err)
@@ -566,6 +582,18 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 			return
 		}
 		shared.InternalError(c, err)
+		return
+	}
+
+	// Ownership gate: without report.view a caller may only read its own
+	// sales. A foreign sale is reported as 404 so its existence is not leaked.
+	scope := ownership.Resolve(
+		middleware.GetUserID(c),
+		ownership.CanAccessAll(middleware.GetPermissions(c), permissions.ReportView),
+		nil,
+	)
+	if !scope.CanAccess(sale.CashierID) {
+		shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "sale not found")
 		return
 	}
 
@@ -1072,6 +1100,10 @@ func (h *Handler) CompleteParkedSale(c *gin.Context) {
 		}
 		if errors.Is(err, ErrInsufficientStock) {
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
+			return
+		}
+		if errors.Is(err, shared.ErrShiftNotOpen) {
+			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
 			return
 		}
 		if errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||

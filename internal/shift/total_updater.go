@@ -2,7 +2,7 @@ package shift
 
 import (
 	"context"
-	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 
@@ -17,9 +17,12 @@ import (
 type TotalUpdater struct{}
 
 // UpdateShiftTotals accumulates a completed sale's contribution onto its shift's
-// running totals. Shifts that are no longer 'open' — e.g. a shift that closed
-// concurrently while the sale was committing — return an error so the caller can
-// reject the late addition instead of silently dropping the contribution.
+// running totals. The contribution is rejected unless the shift is 'open' AND
+// belongs to the contributing cashier — a client-supplied shift_id pointing at
+// another user's shift must never accumulate sales onto it. Shifts that are no
+// longer 'open' — e.g. a shift that closed concurrently while the sale was
+// committing — return an error so the caller can reject the late addition
+// instead of silently dropping the contribution.
 func (TotalUpdater) UpdateShiftTotals(ctx context.Context, tx pgx.Tx, c shared.ShiftSaleContribution) error {
 	tag, err := tx.Exec(ctx, `
 		UPDATE shifts
@@ -28,13 +31,13 @@ func (TotalUpdater) UpdateShiftTotals(ctx context.Context, tx pgx.Tx, c shared.S
 		    total_sales = total_sales + $3,
 		    transaction_count = transaction_count + 1,
 		    updated_at = NOW()
-		WHERE id = $4 AND status = 'open'
-	`, c.CashSales, c.NonCashSales, c.TotalAmount, c.ShiftID)
+		WHERE id = $4 AND status = 'open' AND user_id = $5
+	`, c.CashSales, c.NonCashSales, c.TotalAmount, c.ShiftID, c.CashierID)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return errors.New("shift is not open or no longer exists; sale contribution rejected")
+		return fmt.Errorf("sale contribution rejected: %w", shared.ErrShiftNotOpen)
 	}
 	return nil
 }

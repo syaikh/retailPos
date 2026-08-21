@@ -29,13 +29,24 @@ func skipIfNoDB(t *testing.T) {
 
 var testCashierID int32
 
+// testUserPermissions is the permission list handed to every request by
+// testAuthMiddleware. Ownership-scoping tests override it per subtest.
+var testUserPermissions = []string{"sale.create", "sale.view", "report.view"}
+
+func withPerms(t *testing.T, perms []string) {
+	t.Helper()
+	old := testUserPermissions
+	testUserPermissions = perms
+	t.Cleanup(func() { testUserPermissions = old })
+}
+
 func testAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set("userID", int(testCashierID))
 		c.Set("username", "sale_handler_user")
 		c.Set("roleID", 1)
 		c.Set("role", "superadmin")
-		c.Set("permissions", []string{"sale.create", "sale.view", "report.view"})
+		c.Set("permissions", testUserPermissions)
 		c.Set("storeID", nil)
 		c.Next()
 	}
@@ -128,6 +139,63 @@ func TestHandler_GetSalesHistory(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("non-elevated caller is clamped to own sales", func(t *testing.T) {
+		withPerms(t, []string{"sale.view"})
+		repo := newTestRepo(t)
+		ctx := context.Background()
+		prodID := insertTestProduct(ctx, t, "HDL-SCOPE-PROD", "Handler Scope Product", 10000, 50)
+		foreignSale := createAndCommitSale(ctx, t, repo, "INV-HDL-SCOPE-001", prodID, 1, 10000, 10000, 10000, 0)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/sales?limit=100", nil)
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data  []Sale `json:"data"`
+			Total int    `json:"total"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		for _, s := range resp.Data {
+			assert.NotEqual(t, foreignSale.ID, s.ID)
+		}
+
+		w = httptest.NewRecorder()
+		req, _ = http.NewRequest("GET", "/sales?cashier_id="+strconv.Itoa(foreignSale.CashierID), nil)
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		resp = struct {
+			Data  []Sale `json:"data"`
+			Total int    `json:"total"`
+		}{}
+		err = json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		for _, s := range resp.Data {
+			assert.NotEqual(t, foreignSale.ID, s.ID)
+		}
+	})
+
+	t.Run("elevated caller can filter by cashier_id", func(t *testing.T) {
+		repo := newTestRepo(t)
+		ctx := context.Background()
+		prodID := insertTestProduct(ctx, t, "HDL-SCOPE2-PROD", "Handler Scope2 Product", 12000, 40)
+		sale := createAndCommitSale(ctx, t, repo, "INV-HDL-SCOPE-002", prodID, 1, 12000, 12000, 12000, 0)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/sales?cashier_id="+strconv.Itoa(sale.CashierID), nil)
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data []Sale `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		require.NotEmpty(t, resp.Data)
+		for _, s := range resp.Data {
+			assert.Equal(t, sale.CashierID, s.CashierID)
+		}
 	})
 }
 
@@ -420,6 +488,37 @@ func TestHandler_GetSaleByID(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("foreign sale returns 404 for non-elevated caller", func(t *testing.T) {
+		withPerms(t, []string{"sale.view"})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/sales/"+strconv.Itoa(sale.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("own sale readable by non-elevated caller", func(t *testing.T) {
+		withPerms(t, []string{"sale.view"})
+		ctx := context.Background()
+		own := createAndCommitSaleForCashier(ctx, t, repo, "INV-HDL-GETBYID-OWN", prodID, 1, 8000, 8000, 8000, 0, int(testCashierID))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/sales/"+strconv.Itoa(own.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("elevated caller reads foreign sale", func(t *testing.T) {
+		// `sale` is still owned by the seeded test cashier, not testCashierID;
+		// the default permission set includes report.view (elevation).
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/sales/"+strconv.Itoa(sale.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }
 

@@ -260,6 +260,24 @@ func setupSaleHandler(svc Service, auditSvc audit.Creator) *gin.Engine {
 	return r
 }
 
+// setupSaleHandlerPerms builds a handler authenticated as userID 1 holding
+// exactly the given permissions, for ownership-scoping tests.
+func setupSaleHandlerPerms(svc Service, perms []string) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("permissions", perms)
+		c.Set("storeID", nil)
+		c.Next()
+	})
+	h := NewHandler(svc, nil)
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	return r
+}
+
 // setupSaleHandlerUser builds a handler with a configurable userID context
 // value (nil omits the key entirely) so the auth branches of the sale
 // handlers can be exercised.
@@ -893,7 +911,7 @@ func TestSaleHandler_GetSalesHistory_NegativeOffset(t *testing.T) {
 func TestSaleHandler_GetSaleByID_Success(t *testing.T) {
 	svc := &mockService{
 		getSaleByIDFn: func(ctx context.Context, id int, storeID *int) (*Sale, error) {
-			return &Sale{ID: 1, InvoiceNumber: "INV-001"}, nil
+			return &Sale{ID: 1, InvoiceNumber: "INV-001", CashierID: 1}, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -947,13 +965,30 @@ func TestSaleHandler_GetSalesHistory_WithCashierID(t *testing.T) {
 			return []Sale{}, 0, nil
 		},
 	}
-	r := setupSaleHandler(svc, nil)
+	r := setupSaleHandlerPerms(svc, []string{"sale.view", "report.view"})
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/sales?cashier_id=5", nil)
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, capturedCashierID)
 	assert.Equal(t, 5, *capturedCashierID)
+}
+
+func TestSaleHandler_GetSalesHistory_CashierIDClampedToSelf(t *testing.T) {
+	var capturedCashierID *int
+	svc := &mockService{
+		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
+			capturedCashierID = cashierID
+			return []Sale{}, 0, nil
+		},
+	}
+	r := setupSaleHandlerPerms(svc, []string{"sale.view"})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/sales?cashier_id=5", nil)
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, capturedCashierID)
+	assert.Equal(t, 1, *capturedCashierID)
 }
 
 func TestSaleHandler_GetSalesHistory_InvalidCashierID(t *testing.T) {
@@ -1253,6 +1288,28 @@ func TestSaleHandler_RecallSale_InvalidID(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// CompleteParkedSale maps shared.ErrShiftNotOpen to a friendly 409 like cart
+// checkout and direct sale creation do (D2 family); this pins that mapping.
+func TestSaleHandler_CompleteParkedSale_ClosedShiftConflict(t *testing.T) {
+	svc := &mockService{
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-TEST-0001", nil
+		},
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
+			return shared.ErrShiftNotOpen
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1}],"payments":[{"payment_method_code":"CASH","amount":10000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales/parked/7/complete", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "shift is closed or no longer exists")
 }
 
 func TestSaleHandler_CancelParkedSale_Success(t *testing.T) {

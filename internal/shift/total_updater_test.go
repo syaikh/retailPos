@@ -18,7 +18,7 @@ func TestShiftTotalUpdater(t *testing.T) {
 	ctx := context.Background()
 	updater := TotalUpdater{}
 
-	setupShift := func(t *testing.T, status string) int {
+	setupShift := func(t *testing.T, status string) (int, int) {
 		t.Helper()
 		userID := insertTestUser(ctx, t, 1)
 		var shiftID int
@@ -27,7 +27,7 @@ func TestShiftTotalUpdater(t *testing.T) {
 			VALUES ($1, $2, 0, NOW()) RETURNING id
 		`, userID, status).Scan(&shiftID)
 		require.NoError(t, err)
-		return shiftID
+		return shiftID, userID
 	}
 
 	getShiftTotals := func(t *testing.T, shiftID int) (cashSales, nonCashSales, totalSales, txCount int) {
@@ -40,9 +40,10 @@ func TestShiftTotalUpdater(t *testing.T) {
 		return
 	}
 
-	apply := func(t *testing.T, shiftID int, contribution shared.ShiftSaleContribution) {
+	apply := func(t *testing.T, shiftID int, cashierID int, contribution shared.ShiftSaleContribution) {
 		t.Helper()
 		contribution.ShiftID = shiftID
+		contribution.CashierID = cashierID
 		tx, err := dbPool.Begin(ctx)
 		require.NoError(t, err)
 		defer func() { _ = tx.Rollback(ctx) }()
@@ -51,8 +52,8 @@ func TestShiftTotalUpdater(t *testing.T) {
 	}
 
 	t.Run("cash contribution updates cash_sales only", func(t *testing.T) {
-		shiftID := setupShift(t, "open")
-		apply(t, shiftID, shared.ShiftSaleContribution{TotalAmount: 10000, CashSales: 10000})
+		shiftID, cashierID := setupShift(t, "open")
+		apply(t, shiftID, cashierID, shared.ShiftSaleContribution{TotalAmount: 10000, CashSales: 10000})
 
 		cashSales, nonCashSales, totalSales, txCount := getShiftTotals(t, shiftID)
 		assert.Equal(t, 10000, cashSales)
@@ -62,8 +63,8 @@ func TestShiftTotalUpdater(t *testing.T) {
 	})
 
 	t.Run("non-cash contribution updates non_cash_sales only", func(t *testing.T) {
-		shiftID := setupShift(t, "open")
-		apply(t, shiftID, shared.ShiftSaleContribution{TotalAmount: 20000, NonCashSales: 20000})
+		shiftID, cashierID := setupShift(t, "open")
+		apply(t, shiftID, cashierID, shared.ShiftSaleContribution{TotalAmount: 20000, NonCashSales: 20000})
 
 		cashSales, nonCashSales, totalSales, txCount := getShiftTotals(t, shiftID)
 		assert.Equal(t, 0, cashSales)
@@ -73,9 +74,9 @@ func TestShiftTotalUpdater(t *testing.T) {
 	})
 
 	t.Run("mixed contribution updates both and accumulates", func(t *testing.T) {
-		shiftID := setupShift(t, "open")
-		apply(t, shiftID, shared.ShiftSaleContribution{TotalAmount: 50000, CashSales: 30000, NonCashSales: 20000})
-		apply(t, shiftID, shared.ShiftSaleContribution{TotalAmount: 10000, CashSales: 10000})
+		shiftID, cashierID := setupShift(t, "open")
+		apply(t, shiftID, cashierID, shared.ShiftSaleContribution{TotalAmount: 50000, CashSales: 30000, NonCashSales: 20000})
+		apply(t, shiftID, cashierID, shared.ShiftSaleContribution{TotalAmount: 10000, CashSales: 10000})
 
 		cashSales, nonCashSales, totalSales, txCount := getShiftTotals(t, shiftID)
 		assert.Equal(t, 40000, cashSales)
@@ -85,15 +86,16 @@ func TestShiftTotalUpdater(t *testing.T) {
 	})
 
 	t.Run("closed shift rejects contribution", func(t *testing.T) {
-		shiftID := setupShift(t, "closed")
+		shiftID, cashierID := setupShift(t, "closed")
 
-		contribution := shared.ShiftSaleContribution{ShiftID: shiftID, TotalAmount: 10000, CashSales: 10000}
+		contribution := shared.ShiftSaleContribution{ShiftID: shiftID, CashierID: cashierID, TotalAmount: 10000, CashSales: 10000}
 		tx, err := dbPool.Begin(ctx)
 		require.NoError(t, err)
 		defer func() { _ = tx.Rollback(ctx) }()
 		err = updater.UpdateShiftTotals(ctx, tx, contribution)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "shift is not open")
+		assert.ErrorIs(t, err, shared.ErrShiftNotOpen)
 		require.NoError(t, tx.Rollback(ctx))
 
 		cashSales, nonCashSales, totalSales, txCount := getShiftTotals(t, shiftID)
@@ -107,9 +109,30 @@ func TestShiftTotalUpdater(t *testing.T) {
 		tx, err := dbPool.Begin(ctx)
 		require.NoError(t, err)
 		defer func() { _ = tx.Rollback(ctx) }()
-		err = updater.UpdateShiftTotals(ctx, tx, shared.ShiftSaleContribution{ShiftID: 999999, TotalAmount: 10000, CashSales: 10000})
+		err = updater.UpdateShiftTotals(ctx, tx, shared.ShiftSaleContribution{ShiftID: 999999, CashierID: 1, TotalAmount: 10000, CashSales: 10000})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "shift is not open")
+		assert.ErrorIs(t, err, shared.ErrShiftNotOpen)
 		require.NoError(t, tx.Rollback(ctx))
+	})
+
+	t.Run("another user's open shift rejects contribution", func(t *testing.T) {
+		shiftID, _ := setupShift(t, "open")
+		foreignCashierID := insertTestUser(ctx, t, 1)
+
+		contribution := shared.ShiftSaleContribution{ShiftID: shiftID, CashierID: foreignCashierID, TotalAmount: 10000, CashSales: 10000}
+		tx, err := dbPool.Begin(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+		err = updater.UpdateShiftTotals(ctx, tx, contribution)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, shared.ErrShiftNotOpen)
+		require.NoError(t, tx.Rollback(ctx))
+
+		cashSales, nonCashSales, totalSales, txCount := getShiftTotals(t, shiftID)
+		assert.Equal(t, 0, cashSales)
+		assert.Equal(t, 0, nonCashSales)
+		assert.Equal(t, 0, totalSales)
+		assert.Equal(t, 0, txCount)
 	})
 }

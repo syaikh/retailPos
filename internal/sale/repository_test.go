@@ -75,10 +75,14 @@ func insertTestCashier(ctx context.Context, t *testing.T) int {
 
 func createAndCommitSale(ctx context.Context, t *testing.T, repo *Repository, invoice string, prodID, qty, price, subtotal, dpp, tax int) *Sale {
 	t.Helper()
+	return createAndCommitSaleForCashier(ctx, t, repo, invoice, prodID, qty, price, subtotal, dpp, tax, insertTestCashier(ctx, t))
+}
+
+func createAndCommitSaleForCashier(ctx context.Context, t *testing.T, repo *Repository, invoice string, prodID, qty, price, subtotal, dpp, tax int, cashierID int) *Sale {
+	t.Helper()
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
 
-	cashierID := insertTestCashier(ctx, t)
 	sale := &Sale{
 		InvoiceNumber: invoice,
 		CashierID:     cashierID,

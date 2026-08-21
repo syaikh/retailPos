@@ -90,6 +90,8 @@ func (h *Handler) cartError(c *gin.Context, err error) {
 		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
 	case errors.Is(err, ErrCheckoutProductNotFound):
 		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+	case errors.Is(err, shared.ErrShiftNotOpen):
+		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
 	default:
 		shared.InternalError(c, err)
 	}
