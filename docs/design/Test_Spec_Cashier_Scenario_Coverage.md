@@ -165,3 +165,22 @@ Note on D3/D4 response codes: both surface as 404/409-style generic errors rathe
 - Track created IDs (sales, carts, shifts, user) from API responses
 - `tests/e2e/db-helper.ts`: psql/docker-exec wrapper for expiry backdate + cleanup
 - Purge order: `sale_payments` → `sale_items` → `sales` → `cart_sessions` → `shifts` → test user → audit logs (if FK-restricted); runs in `afterAll`
+- Shifts opened for the shared cashier are tracked (`trackShift`) so cleanup cascade-deletes them — an abandoned shift keeps stale denormalized `total_sales` counters after its tracked sales are deleted, which broke the CS-E4/E7 cross-check on subsequent runs
+
+## 6. Deferred Test Improvements (test-review outcomes)
+
+Findings from the post-implementation test review whose fixes were deliberately
+deferred: they are polish/robustness items, not correctness bugs, and each
+carries non-trivial change risk relative to its payoff. All P1 findings
+(vacuous subtests, unpinned status contracts, missing 409 coverage) and the
+actionable P2s (POS-UI-05 silent skip, magic user IDs, shift-counter pollution)
+were fixed before commit.
+
+| # | Finding | Location | Why deferred | Fix approach |
+|---|---------|----------|--------------|--------------|
+| 1 | Blind `waitForTimeout` sleeps (~15–20s cumulative) instead of condition-based waits | E2E specs (`pos-ui-edge.spec.ts`, `payment-validation.spec.ts`) | Specs are currently stable (42/42 twice consecutively); converting waits is a timing refactor that can introduce new flakiness mid-workstream | Replace with `expect(...).toBeVisible()` / `waitForFunction` polling on the awaited state |
+| 2 | Loose error-message assertions (presence-only, not content) | CS-D7/D8/D1b (`payment-validation.spec.ts`, `pos-ui-edge.spec.ts`) | Status codes are already pinned; asserting exact copy couples tests to UI wording that i18n/copy edits would break | Assert stable substrings (e.g. "reference", method code) or backend error codes if exposed |
+| 3 | CS-F8 backdating affects all of the shared cashier's sales, not just the fixture's | `pos-ui-edge.spec.ts` (reprint-window test) | Works today; narrowing requires per-fixture sale isolation rework | Create a dedicated cashier + sale for the backdate, or scope the SQL by tracked sale ID |
+| 4 | POS-UI-01/02/03 duplicate scenarios already covered by `pos-flow.spec.ts` | `pos-ui-edge.spec.ts` vs `pos-flow.spec.ts` | Deduplication requires deciding which spec owns each scenario, revising this doc's coverage inventory | Merge or delete duplicates; update §4 traceability accordingly |
+| 5 | `_ = setupSaleRouterWithPerms(...)` discarded-result smell | `internal/sale/security_regression_test.go` | Cosmetic; no behavioral impact | Use the returned router or drop the assignment |
+| 6 | Naming consistency and string-built SQL interpolation in test helpers | `tests/e2e/db-helper.ts` | Style-only; queries take no untrusted input | Parameterize via psql `-v` vars or an identifier allowlist; align helper naming |
