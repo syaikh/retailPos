@@ -453,7 +453,7 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 	}
 
 	allowedSortBy := map[string]bool{
-		"created_at": true, "po_number": true, "status": true,
+		"created_at": true, "updated_at": true, "po_number": true, "status": true,
 		"supplier_id": true, "expected_date": true, "grand_total": true,
 	}
 	if !allowedSortBy[sortBy] {

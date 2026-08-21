@@ -5,7 +5,7 @@ export async function getPurchaseOrders(filters: any, signal?: AbortSignal): Pro
     limit: filters.pageSize.toString(),
     offset: (filters.page * filters.pageSize).toString(),
     search: filters.search || '',
-    sort_by: filters.sortBy || 'created_at',
+    sort_by: filters.sortBy || 'updated_at',
     sort_dir: filters.sortDir || 'desc',
   });
   if (filters.status) params.set('status', filters.status);

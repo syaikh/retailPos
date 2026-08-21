@@ -13,7 +13,7 @@ let startDate = $state('');
 let endDate = $state('');
 let page = $state(0);
 let pageSize = $state(20);
-let sortBy = $state('created_at');
+let sortBy = $state('updated_at');
 let sortDir = $state<'asc' | 'desc'>('desc');
 
 let selectedPO = $state<PurchaseOrder | null>(null);

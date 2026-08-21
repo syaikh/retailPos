@@ -22,6 +22,7 @@
   import type { Product, Brand, TaxClass, UnitOfMeasure, ProductFormData } from '$modules/product/types';
   import { labels, t } from '$shared/i18n';
   import { useSortable } from '$shared/composables/useSortable.svelte';
+  import { getProductById } from '$modules/product/services/product-service';
 
   const rbac = useRBAC();
 
@@ -453,6 +454,10 @@
       }
     }
 
+    if (urlParams.get('low_stock') === 'true') {
+      lowStockOnly = true;
+    }
+
     (async () => {
       try {
         await Promise.all([
@@ -464,7 +469,14 @@
         if (pidParam) {
           const pid = parseInt(pidParam, 10);
           if (!isNaN(pid) && pid > 0) {
-            const product = products.find(p => p.id === pid);
+            let product = products.find(p => p.id === pid) || null;
+            if (!product) {
+              try {
+                product = await getProductById(pid);
+              } catch {
+                product = null;
+              }
+            }
             if (product) {
               selectedProduct = product;
               showDetailDrawer = true;

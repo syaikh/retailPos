@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { usePurchaseOrderStore } from '../stores/po-store.svelte';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
@@ -28,13 +29,24 @@
   let selectedPOForReceipt = $state<number | null>(null);
   let showReceiptModal = $state(false);
 
-  let firstLoad = true;
+  let firstRun = true;
   let loadTimer: ReturnType<typeof setTimeout>;
+
+  onMount(() => {
+    store.load(store.currentFilters);
+  });
+
   $effect(() => {
-    store.currentFilters;
-    if (firstLoad) {
-      firstLoad = false;
-      store.load(store.currentFilters);
+    // Track only filter inputs — pagination/sorting manage their own loads.
+    // Reading currentFilters synchronously here would also capture `page`,
+    // which would re-trigger this effect on every page change and reset to page 0.
+    void store.searchQuery;
+    void store.statusFilter;
+    void store.supplierFilter;
+    void store.startDate;
+    void store.endDate;
+    if (firstRun) {
+      firstRun = false;
       return;
     }
     clearTimeout(loadTimer);
@@ -106,6 +118,7 @@
       store.sortBy = column;
       store.sortDir = 'asc';
     }
+    store.page = 0;
     store.load(store.currentFilters);
   }
 </script>

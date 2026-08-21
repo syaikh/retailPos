@@ -13,7 +13,7 @@
     canConfirm = false,
     canReceive = false,
     canCancel = false,
-    sortBy = 'created_at',
+    sortBy = 'updated_at',
     sortDir = 'desc',
     onsort = () => {},
     onview = () => {},
@@ -102,7 +102,7 @@
         <col style="width: 12%;" />
         <col style="width: 8%;" />
       </colgroup>
-      <thead><tr><th>{labels.poNumber}</th><th>{labels.supplierLabel}</th><th>{labels.statusLabel}</th><th>{labels.expectedDateLabel}</th><th>{labels.grandTotal}</th><th>{labels.createdAtLabel}</th><th></th></tr></thead>
+      <thead><tr><th>{labels.poNumber}</th><th>{labels.supplierLabel}</th><th>{labels.statusLabel}</th><th>{labels.expectedDateLabel}</th><th>{labels.grandTotal}</th><th>{labels.updatedAtLabel}</th><th></th></tr></thead>
       <tbody>{#each Array(5) as _}<tr>{#each Array(7) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
     </table>
   </div>
@@ -144,7 +144,7 @@
             <SortableHeader label={labels.grandTotal} column="grand_total" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
           </th>
           <th class="px-4 py-3 font-semibold whitespace-nowrap" scope="col">
-            <SortableHeader label={labels.createdAtLabel} column="created_at" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+            <SortableHeader label={labels.updatedAtLabel} column="updated_at" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
           <th class="px-4 py-3 font-semibold whitespace-nowrap text-right" scope="col">{labels.actionsLabel}</th>
         </tr>
@@ -170,7 +170,7 @@
               </td>
               <td class="px-4 py-3 text-sm text-text-secondary tabular-nums whitespace-nowrap">{formatDate(po.expected_date)}</td>
               <td class="px-4 py-3 text-sm text-text-secondary tabular-nums text-right whitespace-nowrap">{formatCurrency(po.grand_total)}</td>
-              <td class="px-4 py-3 text-sm text-text-secondary tabular-nums whitespace-nowrap">{formatDate(po.created_at)}</td>
+              <td class="px-4 py-3 text-sm text-text-secondary tabular-nums whitespace-nowrap">{formatDate(po.updated_at)}</td>
               <td class="px-4 py-3 text-center">
                 <Dropdown items={[
                   ...(canView ? [{ label: labels.detail, icon: Eye, onclick: () => onview(po) }] : []),

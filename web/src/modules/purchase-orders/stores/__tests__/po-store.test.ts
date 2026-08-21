@@ -49,6 +49,13 @@ describe('po-store', () => {
     expect(store).toHaveProperty('subscribeToWS');
   });
 
+  it('defaults to updated_at descending sort', async () => {
+    const { usePurchaseOrderStore } = await import('../po-store.svelte');
+    store = usePurchaseOrderStore();
+    expect(store.sortBy).toBe('updated_at');
+    expect(store.sortDir).toBe('desc');
+  });
+
   it('loads purchase orders successfully', async () => {
     mockGetPurchaseOrders.mockResolvedValueOnce({ data: [{ id: 1 }], total: 1 });
     const { usePurchaseOrderStore } = await import('../po-store.svelte');

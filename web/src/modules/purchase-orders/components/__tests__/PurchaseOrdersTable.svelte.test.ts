@@ -41,4 +41,23 @@ describe('PurchaseOrdersTable.svelte source-structure guards', () => {
   it('has min-w-[1000px] on data table', () => {
     expect(src).toContain('min-w-[1000px]');
   });
+
+  it('defaults to updated_at descending sort', () => {
+    expect(src).toContain("sortBy = 'updated_at'");
+    expect(src).toContain("sortDir = 'desc'");
+  });
+
+  it('renders Updated column sortable by updated_at', () => {
+    expect(src).toContain('<SortableHeader label={labels.updatedAtLabel} column="updated_at"');
+  });
+
+  it('renders updated_at cell value', () => {
+    expect(src).toContain('{formatDate(po.updated_at)}');
+  });
+
+  it('no longer renders a created_at column', () => {
+    expect(src).not.toContain('labels.createdAtLabel');
+    expect(src).not.toContain('column="created_at"');
+    expect(src).not.toContain('{formatDate(po.created_at)}');
+  });
 });

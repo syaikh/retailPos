@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/router';
   import { useStockOpnameStore } from '../stores/stock-opname-store.svelte';
   import { useAuthStore } from '$modules/auth';
@@ -103,13 +104,21 @@
     loadOptions(row.scope_type);
   }
 
-  let firstLoad = true;
+  let firstRun = true;
   let loadTimer: ReturnType<typeof setTimeout>;
+
+  onMount(() => {
+    store.loadSessions(store.currentFilters);
+  });
+
   $effect(() => {
-    store.currentFilters;
-    if (firstLoad) {
-      firstLoad = false;
-      store.loadSessions(store.currentFilters);
+    // Track only filter inputs — pagination manages its own loads. Reading
+    // currentFilters synchronously here would also capture `page`, re-triggering
+    // this effect on every page change and resetting back to page 0.
+    void store.searchFilter;
+    void store.statusFilter;
+    if (firstRun) {
+      firstRun = false;
       return;
     }
     clearTimeout(loadTimer);

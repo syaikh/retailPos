@@ -28,4 +28,30 @@ describe('StockOpnamesPage.svelte location-scope source guards', () => {
     expect(src).toContain("createRows.some((r) => r.scope_type === 'location')");
     expect(src).toContain('labels.storageLocationScopeOnly');
   });
+
+  it('imports onMount from svelte', () => {
+    expect(src).toContain("import { onMount } from 'svelte';");
+  });
+
+  it('performs the first load in onMount, not the auto-reload effect', () => {
+    expect(src).toContain('onMount(() => {');
+    expect(src).toContain('store.loadSessions(store.currentFilters);');
+  });
+
+  it('auto-reload effect tracks only filter inputs, not pagination state', () => {
+    expect(src).toContain('void store.searchFilter');
+    expect(src).toContain('void store.statusFilter');
+    expect(src).not.toMatch(/^\s*store\.currentFilters;\s*$/m);
+  });
+
+  it('skips reload on first effect run via firstRun guard', () => {
+    const firstRunDecl = src.indexOf('let firstRun = true;');
+    expect(firstRunDecl).toBeGreaterThan(-1);
+    const effectIdx = src.indexOf('$effect(() => {', firstRunDecl);
+    expect(effectIdx).toBeGreaterThan(firstRunDecl);
+    const guardIdx = src.indexOf('if (firstRun) {', effectIdx);
+    expect(guardIdx).toBeGreaterThan(effectIdx);
+    const resetIdx = src.indexOf('firstRun = false;', guardIdx);
+    expect(resetIdx).toBeGreaterThan(guardIdx);
+  });
 });

@@ -15,9 +15,12 @@
   } from '$shared/stores/notifications.svelte';
   import { useAuthStore } from '$modules/auth';
   import { labels, t } from '$shared/i18n';
+  import { routePermissions } from '$app/config/permissions';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
 
   const ws = useWebSocket();
   const authStore = useAuthStore();
+  const rbac = useRBAC();
 
   const canSeeStockOpname = $derived(canReceiveStockOpnameNotifications(authStore.user?.permissions));
 
@@ -64,7 +67,19 @@
   function handleNotificationClick(n: Notification) {
     if (!n.read) notifications.markAsRead(n.id);
     open = false;
-    if (n.navigateTo) goto(n.navigateTo);
+    if (!n.navigateTo) return;
+    const targetPath = n.navigateTo.split('?')[0];
+    // Detail deep-links (e.g. /stock-opnames/<id>) have no exact entry, so fall
+    // back to the base resource path to gate them with the same permission.
+    const requiredPerms = routePermissions[targetPath] ?? routePermissions[basePath(targetPath)];
+    if (requiredPerms && !rbac.canAny(requiredPerms)) return;
+    goto(n.navigateTo);
+  }
+
+  function basePath(path: string): string {
+    const parts = path.split('/').filter(Boolean);
+    parts.pop();
+    return '/' + parts.join('/');
   }
 
   function handleMarkAllRead(e: Event) {

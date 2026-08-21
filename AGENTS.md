@@ -1,20 +1,64 @@
 # Development Commands
 
-## Codebase Index Priority
+## Codebase Investigation — Semantic Index First
 
-This project has a semantic codebase index (`.opencode/index`). Prioritize the index-based tools for understanding code before falling back to plain grep/read scans:
+This project has a semantic codebase index at `.opencode/index`.
 
-- `codebase_context` — the default first step for repository questions (routes to definitions, call-graph paths, or conceptual evidence packs)
-- `codebase_peek` — locate likely files/symbols by meaning without full source bodies
-- `codebase_search` — retrieve full matching source content
-- `codebase_edit_context` — bounded, edit-oriented evidence before modifying a known symbol
-- `implementation_lookup` — jump to symbol definitions
-- `call_graph` / `call_graph_path` — trace caller/callee relationships and dependency paths
-- `find_similar` — detect duplicate or similar patterns
-- `code_communities` — discover module boundaries and hub symbols
-- `pr_impact` — assess blast radius of a branch/PR
+For repository investigation, prefer the semantic codebase tools over broad raw `grep`/`read` scans. The goal is to understand existing architecture, relationships, and implementation patterns before making changes.
 
-If the index is out of date or missing results, check `index_status` / `index_health_check`, then re-index with `index_codebase` before falling back to raw search.
+### Required tool routing
+
+Choose the semantic tool that best matches the investigation task:
+
+- `codebase_context` — default for feature-level, architectural, conceptual, or repository questions; use this first when the relevant implementation area is not yet known.
+- `codebase_peek` — locate likely files and symbols by meaning without retrieving full source bodies.
+- `codebase_search` — retrieve matching source content after the relevant area/symbols are known.
+- `codebase_edit_context` — gather bounded, edit-oriented evidence before modifying a known symbol or implementation.
+- `implementation_lookup` — locate authoritative definitions of a known symbol.
+- `call_graph` / `call_graph_path` — trace callers, callees, and dependency paths.
+- `find_similar` — find analogous or duplicate implementations before creating new patterns.
+- `code_communities` — understand module boundaries, clusters, and important hub symbols.
+- `pr_impact` — assess the blast radius of a branch or PR.
+
+### Investigation workflow
+
+For non-trivial repository questions:
+
+1. Start with the semantic index using the tool appropriate to the task.
+2. Use `codebase_peek` to narrow the relevant files/symbols when necessary.
+3. Use `codebase_search` or `implementation_lookup` to retrieve authoritative source.
+4. Use `call_graph` / `call_graph_path` when behavior crosses package/module boundaries.
+5. Use `find_similar` before introducing a new implementation when an existing pattern may already exist.
+6. Before editing a known implementation, use `codebase_edit_context` to establish bounded context.
+7. Only fall back to broad `grep`/raw `read` when semantic tools cannot answer the question or when an exact textual/file-level operation is more appropriate.
+
+### Index health
+
+If semantic tools return no result, suspiciously incomplete results, or appear inconsistent with the repository:
+
+1. Check `index_status` and/or `index_health_check`.
+2. If the index is stale and re-indexing is appropriate, run `index_codebase`.
+3. Retry the semantic query after indexing.
+4. If the relevant content is intentionally outside the index, or the task is inherently exact/textual, use `grep`/`read` directly.
+
+Do not repeatedly retry semantic searches without changing the query or checking index health.
+
+### Direct raw-search exceptions
+
+Use `grep` or `read` directly when:
+
+- the user requests an exact literal/string search;
+- the exact file/path is already known;
+- reading a specific configuration, migration, generated file, fixture, or documentation file;
+- inspecting a small known source range;
+- the semantic index does not contain the relevant content;
+- re-indexing would provide no meaningful benefit.
+
+### Important
+
+Do not treat the semantic index as authoritative when its results conflict with the current working tree. The working tree is the source of truth for the actual code.
+
+When semantic evidence and raw source disagree, verify against the current source before making conclusions or edits.
 
 ## Environment Configuration
 

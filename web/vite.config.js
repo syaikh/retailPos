@@ -23,7 +23,9 @@ export default defineConfig({
       '$modules':  fileURLToPath(new URL('./src/modules', import.meta.url)),
       '$shared':   fileURLToPath(new URL('./src/shared', import.meta.url)),
       '$app':      fileURLToPath(new URL('./src/app', import.meta.url)),
-    }
+    },
+    // Testing-library/svelte needs the browser build of Svelte when running under Vitest
+    ...(process.env.VITEST ? { conditions: ['browser'] } : {})
   },
   server: {
     port: frontendPort,

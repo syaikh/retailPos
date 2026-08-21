@@ -81,4 +81,29 @@ describe('ProductsPage.svelte source-structure guards', () => {
     expect(src).toContain("dispatchEvent(new CustomEvent('close-all-dropdowns')");
     expect(src).toContain('<svelte:window onkeydown={handleWindowKeydown} />');
   });
+
+  it('imports getProductById for deep-link fallback', () => {
+    expect(src).toContain("import { getProductById } from '$modules/product/services/product-service'");
+  });
+
+  it('falls back to getProductById when deep-linked product is not on the loaded page', () => {
+    const fallbackIdx = src.indexOf('if (!product) {');
+    expect(fallbackIdx).toBeGreaterThan(-1);
+    const tryIdx = src.indexOf('await getProductById(pid)', fallbackIdx);
+    expect(tryIdx).toBeGreaterThan(-1);
+  });
+
+  it('opens detail drawer only after product resolution succeeds', () => {
+    const resolveIdx = src.indexOf('let product = products.find(p => p.id === pid) || null;');
+    const drawerIdx = src.indexOf('showDetailDrawer = true;', resolveIdx);
+    expect(resolveIdx).toBeGreaterThan(-1);
+    expect(drawerIdx).toBeGreaterThan(resolveIdx);
+  });
+
+  it('applies low_stock=true URL param to lowStockOnly filter before first fetch', () => {
+    expect(src).toContain("urlParams.get('low_stock') === 'true'");
+    const paramIdx = src.indexOf("urlParams.get('low_stock') === 'true'");
+    const fetchIdx = src.indexOf('await fetchProducts(0, limit);', paramIdx);
+    expect(fetchIdx).toBeGreaterThan(paramIdx);
+  });
 });

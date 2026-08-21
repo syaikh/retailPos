@@ -202,6 +202,14 @@ func TestRepository_GetAllPurchaseOrders(t *testing.T) {
 			assert.GreaterOrEqual(t, pos[0].PONumber, pos[1].PONumber)
 		}
 	})
+
+	t.Run("sorts by updated_at descending", func(t *testing.T) {
+		pos, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "updated_at", "desc", "", "", "", "", nil, nil)
+		require.NoError(t, err)
+		if len(pos) >= 2 {
+			assert.GreaterOrEqual(t, pos[0].UpdatedAt, pos[1].UpdatedAt)
+		}
+	})
 }
 
 func TestRepository_LockPurchaseOrderForUpdate_NotFound(t *testing.T) {
