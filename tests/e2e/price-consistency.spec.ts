@@ -288,8 +288,8 @@ test.describe('Price Consistency During Active Transactions', () => {
     // Master data price change while the sale is held.
     await updateProductPrice(token, request, productId, productSku, 8000);
 
-    // F5 → open parked sales modal and recall our cart.
-    await page.keyboard.press('F5');
+    // F7 → open parked sales modal and recall our cart.
+    await page.keyboard.press('F7');
     await expect(page.locator('text=Held Sales')).toBeVisible({ timeout: 5000 });
     const recallButton = page
       .locator('div:has(button[data-action="recall"])', { hasText: `Cart #${cartId}` })
@@ -470,7 +470,7 @@ test.describe('Price Consistency During Active Transactions', () => {
     expect(cart.items[0].unit_price).toBe(BASE_PRICE);
   });
 
-  // E2E-10 — full POS checkout flow regression (add → F4 → F7 → Selesai)
+  // E2E-10 — full POS checkout flow regression (add → F4 → F7 Exact → Selesai)
   test('E2E-10: full POS checkout flow still works', async ({ page, request }) => {
     const token = await getToken(request);
     await ensureFreshCart(token, request);
@@ -483,6 +483,7 @@ test.describe('Price Consistency During Active Transactions', () => {
     const selesaiBtn = page.getByRole('button', { name: /Done/ });
     await expect(selesaiBtn).toBeVisible({ timeout: 5000 });
 
+    // F7 inside the payment modal = "Exact" cash allocation fill.
     await page.keyboard.press('F7');
     await expect(selesaiBtn).toBeEnabled({ timeout: 5000 });
     await selesaiBtn.click();

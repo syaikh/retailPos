@@ -1,8 +1,11 @@
 import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken, authHeader } from './fixtures';
+import { purgeHeldCarts } from './db-helper';
 
 test.describe('Hold & Recall UI Flow', () => {
   test.beforeEach(async ({ page }) => {
+    // Recall uses `.first()` — stale held carts from other runs would win.
+    purgeHeldCarts(TEST_USERS.superadmin.id);
     await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     await page.goto('http://localhost:5173/pos');
     await expect(page).toHaveURL(/\/pos/);
@@ -12,7 +15,7 @@ test.describe('Hold & Recall UI Flow', () => {
     await logoutUI(page);
   });
 
-  test('should park sale via F6, recall via F5, and complete checkout', async ({ page }) => {
+  test('should park sale via F6, recall via F7, and complete checkout', async ({ page }) => {
     await page.waitForTimeout(2000);
     const addButton = page.locator('button:not([disabled])').filter({ hasText: 'Add' }).first();
     await addButton.waitFor({ state: 'visible', timeout: 10000 });
@@ -25,7 +28,7 @@ test.describe('Hold & Recall UI Flow', () => {
     await page.waitForResponse(res => res.url().includes('/api/pos/cart/') && res.url().includes('/hold') && res.status() === 200, { timeout: 10000 });
     await expect(page.locator('text=Your cart is empty')).toBeVisible({ timeout: 5000 });
 
-    await page.keyboard.press('F5');
+    await page.keyboard.press('F7');
     await page.waitForTimeout(1000);
     await expect(page.locator('text=Held Sales')).toBeVisible({ timeout: 5000 });
 
@@ -38,6 +41,7 @@ test.describe('Hold & Recall UI Flow', () => {
     await page.keyboard.press('F4');
     await page.waitForTimeout(1000);
 
+    // F7 inside the payment modal = "Exact" cash allocation fill.
     await page.keyboard.press('F7');
     await page.waitForTimeout(500);
 
