@@ -25,12 +25,26 @@ describe('FindTransaction.svelte source-structure guards', () => {
     expect(src).toContain('labels.lookupRedactedNotice');
   });
 
-  it('renders a redacted summary table (no items/cost/payment columns)', () => {
+  it('renders a redacted summary table (no items/cost/payment/status columns)', () => {
     expect(src).toContain('labels.cashierLabel');
-    expect(src).toContain('labels.statusLabel');
     expect(src).toContain('sale.invoice_number');
     // Redacted: the full transaction table with customer/item columns is NOT used.
     expect(src).not.toContain('<TransactionTable');
+  });
+
+  it('hides payment-method and amount-range filters (receipt lookup needs only search + date range)', () => {
+    expect(src).toContain('showPaymentMethods={false}');
+    expect(src).toContain('showAmountRange={false}');
+    // The shared filter's payment/amount widgets must not be wired in for lookup.
+    expect(src).not.toContain('labels.allMethods');
+    expect(src).not.toContain('labels.minLabel');
+    expect(src).not.toContain('labels.maxLabel');
+  });
+
+  it('keeps the invoice search bar and date-range widgets', () => {
+    expect(src).toContain('bind:searchQuery');
+    expect(src).toContain('bind:selectedDateRange');
+    expect(src).toContain('searchPlaceholder={labels.searchByInvoiceNumber}');
   });
 
   it('does not expose cost or customer columns', () => {

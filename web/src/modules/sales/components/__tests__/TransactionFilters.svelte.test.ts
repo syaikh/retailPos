@@ -161,4 +161,11 @@ describe('TransactionFilters.svelte source-structure guards', () => {
     expect(src).not.toContain('function cancelFilters');
     expect(src).not.toContain('function resetFilters');
   });
+
+  it('exposes showPaymentMethods/showAmountRange toggles (default visible)', () => {
+    expect(src).toContain('showPaymentMethods = true');
+    expect(src).toContain('showAmountRange = true');
+    expect(src).toContain('{#if showPaymentMethods}');
+    expect(src).toContain('{#if showAmountRange}');
+  });
 });

@@ -278,7 +278,7 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 	return &sale, nil
 }
 
-func (r *Repository) buildSaleFilter(productIDs, customerIDs []int, search, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int) *shared.QueryBuilder {
+func (r *Repository) buildSaleFilter(productIDs, customerIDs []int, search, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int, status *string) *shared.QueryBuilder {
 	qb := shared.NewQueryBuilder()
 	if search != "" {
 		qb.AddClause(" AND (s.invoice_number ILIKE $%[1]d OR s.id IN (SELECT DISTINCT si.sale_id FROM sale_items si WHERE si.product_id = ANY($%[2]d)) OR s.customer_id = ANY($%[3]d))", "%"+search+"%", productIDs, customerIDs)
@@ -316,10 +316,13 @@ func (r *Repository) buildSaleFilter(productIDs, customerIDs []int, search, star
 	if cashierID != nil {
 		qb.AddClause(" AND s.cashier_id = $%d", *cashierID)
 	}
+	if status != nil {
+		qb.AddClause(" AND s.status = $%d", *status)
+	}
 	return qb
 }
 
-func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search string, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
+func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search string, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
 	var sales []Sale
 	var total int
 
@@ -327,7 +330,7 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	if err != nil {
 		return nil, 0, err
 	}
-	qb := r.buildSaleFilter(productIDs, customerIDs, search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, cashierID)
+	qb := r.buildSaleFilter(productIDs, customerIDs, search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, cashierID, status)
 	countQuery := "SELECT COUNT(*) FROM sales s WHERE " + qb.Where()
 	err = r.db.QueryRow(ctx, countQuery, qb.Args...).Scan(&total)
 	if err != nil {
@@ -481,7 +484,7 @@ func (r *Repository) buildExportQuery(ctx context.Context, search string, minTot
 	if err != nil {
 		return "", nil, err
 	}
-	qb := r.buildSaleFilter(productIDs, customerIDs, search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil)
+	qb := r.buildSaleFilter(productIDs, customerIDs, search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil, nil)
 	query := `SELECT s.invoice_number, s.created_at, s.customer_id,
 		COALESCE(si_counts.cnt, 0) as items_count,
 		COALESCE(sp_codes.payment_codes, s.payment_method) as payment_method, s.total_amount
@@ -558,7 +561,7 @@ func (r *Repository) StreamSalesExportCSV(ctx context.Context, w io.Writer, sear
 	if err != nil {
 		return err
 	}
-	qb := r.buildSaleFilter(productIDs, customerIDs, search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil)
+	qb := r.buildSaleFilter(productIDs, customerIDs, search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil, nil)
 	query := `SELECT s.invoice_number, s.created_at, COALESCE(c.name, ''),
 		COALESCE(si_counts.cnt, 0) as items_count,
 		COALESCE(sp_codes.payment_codes, s.payment_method) as payment_method, s.total_amount

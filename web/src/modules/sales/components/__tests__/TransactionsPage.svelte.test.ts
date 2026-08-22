@@ -45,6 +45,11 @@ describe('TransactionsPage.svelte source-structure guards', () => {
     expect(src).toContain('{#if canLookup}');
   });
 
+  it('hides the tab bar entirely for report.view holders (single all-cashier view)', () => {
+    expect(src).toContain('const canAccessAll = $derived(rbac.can(Permissions.report.view))');
+    expect(src).toContain('{#if !canAccessAll}');
+  });
+
   it('renders the Find Transaction panel when the lookup tab is active', () => {
     expect(src).toContain('activeTab === \'lookup\'');
     expect(src).toContain('<FindTransaction />');

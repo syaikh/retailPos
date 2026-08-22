@@ -82,7 +82,13 @@ func (h *Handler) RegisterPublicRoutes(rg *gin.RouterGroup) {
 // RegisterRoutes registers the authenticated settings routes.
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	sg := r.Group("/settings")
-	sg.GET("", auth, perm(permissions.AppSettingsView), h.GetAll)
+	// GET /api/settings is readable by any authenticated user (not gated by
+	// app_settings.view). The payload is non-sensitive global config (store
+	// branding, receipt text, per-branch address/phone) that is required for
+	// receipt rendering across all roles, including cashiers. The Settings
+	// *management UI* remains gated by app_settings.view via the frontend
+	// routePermissions map, so this only relaxes reading the data, not editing it.
+	sg.GET("", auth, h.GetAll)
 	sg.PUT("", auth, perm(permissions.AppSettingsUpdate), h.UpdateAll)
 	sg.POST("/logo", auth, perm(permissions.AppSettingsUpdate), h.UploadLogo)
 	sg.DELETE("/logo", auth, perm(permissions.AppSettingsUpdate), h.RemoveLogo)

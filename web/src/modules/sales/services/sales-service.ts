@@ -1,6 +1,6 @@
 import { apiFetch } from '$shared/api/http-client';
 import { getAuthToken } from '$modules/auth';
-import type { Sale, SaleFilters, SaleLookupSummary } from '../types';
+import type { Sale, SaleFilters, SaleLookupDetail, SaleLookupSummary } from '../types';
 
 const SLIDER_MAX_BOUND = 50000000;
 
@@ -84,6 +84,21 @@ export async function getSalesLookup(filters: SaleFilters, signal?: AbortSignal)
     return { data: data.data || [], total: data.total || 0 };
   }
   return { data: [], total: 0 };
+}
+
+// getSaleLookupDetail fetches the redacted itemized detail of a single transaction
+// for receipt reprint (cross-cashier). Gated by sale.detail on the backend.
+export async function getSaleLookupDetail(id: number, signal?: AbortSignal): Promise<SaleLookupDetail | null> {
+  try {
+    const res = await apiFetch(`/api/sales/lookup/${id}`, { signal });
+    if (res.ok) {
+      const data = await res.json();
+      return data.data ?? null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export async function exportSales(format: 'csv' | 'xlsx', filters: SaleFilters): Promise<Blob | null> {

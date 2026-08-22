@@ -24,7 +24,7 @@ type Service interface {
 	CreateSale(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error
 	CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error
 	GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error)
-	ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int, cashierID *int) ([]Sale, int, error)
+	ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int, cashierID *int, status *string) ([]Sale, int, error)
 	GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error)
 	StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error
 	GetNextInvoiceNumber(ctx context.Context) (string, error)
@@ -72,6 +72,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.POST("/sales", auth, perm(permissions.SaleCreate), h.CreateSale)
 	r.GET("/sales", auth, perm(permissions.SaleView), h.GetSalesHistory)
 	r.GET("/sales/lookup", auth, perm(permissions.SaleLookup), h.GetSalesLookup)
+	r.GET("/sales/lookup/:id", auth, perm(permissions.SaleDetail), h.GetSaleLookupDetail)
 	r.GET("/sales/export", auth, perm(permissions.ReportView), h.ExportSales)
 	r.GET("/sales/:id", auth, perm(permissions.SaleView), h.GetSaleByID)
 	r.GET("/payment-methods/:code", auth, h.GetPaymentMethodByCode)
@@ -545,7 +546,7 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 		cashierID = &ownID
 	}
 
-	sales, total, err := h.svc.ListSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal, cashierID)
+	sales, total, err := h.svc.ListSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal, cashierID, nil)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -678,7 +679,10 @@ func (h *Handler) GetSalesLookup(c *gin.Context) {
 	// sales. Access is gated by the sale.lookup permission at the route level,
 	// and the response is a redacted summary (see presentSaleLookup), so the
 	// callers never receive sensitive fields for other cashiers' transactions.
-	sales, total, err := h.svc.ListSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal, nil)
+	// Only finalized (completed) sales are surfaced: held/discarded carts and
+	// other non-completed states have no customer-service value here.
+	lookupStatus := "completed"
+	sales, total, err := h.svc.ListSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal, nil, &lookupStatus)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -689,6 +693,56 @@ func (h *Handler) GetSalesLookup(c *gin.Context) {
 		summaries = append(summaries, presentSaleLookup(s))
 	}
 	shared.JSONPaginated(c, summaries, total, limit, offset)
+}
+
+// GetSaleLookupDetail godoc
+// @Summary Cross-cashier transaction detail (redacted itemized, for reprint)
+// @Description Fetch a single transaction's itemized detail for receipt reprint.
+// Unlike /sales/:id (owner-scoped via sale.view), this endpoint is cross-cashier
+// and available to holders of sale.detail. It returns a redacted payload: item
+// lines (no cost/margin), payments without reference, and no customer PII — so a
+// cashier can reprint a co-worker's receipt without exposing sensitive data.
+// @Tags sales
+// @Param id path int true "Sale ID"
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Router /sales/lookup/{id} [get]
+func (h *Handler) GetSaleLookupDetail(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid sale id")
+		return
+	}
+
+	storeIDPtr := shared.GetStoreID(c)
+
+	sale, err := h.svc.GetSaleByID(ctx, id, storeIDPtr)
+	if err != nil {
+		if errors.Is(err, ErrSaleNotFound) {
+			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, err.Error())
+			return
+		}
+		shared.InternalError(c, err)
+		return
+	}
+
+	// Cross-cashier by design: the sale.detail permission at the route level is
+	// the only gate, and the response is redacted (see presentSaleLookupDetail),
+	// so no ownership check is applied here (a foreign sale is a 404 only when it
+	// does not exist, never leaked by existence).
+	//
+	// Find Transaction is scoped to completed sales (the list pins
+	// status = 'completed'); the detail endpoint enforces the same boundary so a
+	// holder of sale.detail cannot drill into a held/refunded/voided sale's lines
+	// via a direct id guess. The payload is redacted regardless, so this is purely
+	// a consistency guard with the completed-only scope.
+	if sale.Status != "completed" {
+		shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "sale not found")
+		return
+	}
+	shared.JSONSuccess(c, presentSaleLookupDetail(*sale))
 }
 
 // ExportSales godoc

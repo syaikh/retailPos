@@ -77,3 +77,24 @@ export interface FilterState {
   sortBy: string;
   sortDir: string;
 }
+
+// SaleLookupDetail is the redacted itemized payload returned by
+// GET /sales/lookup/:id. It lets a cashier reprint a co-worker's receipt:
+// item lines are exposed (for the receipt) but cost/margin is omitted, payment
+// tender reference is omitted (payments carry only method + amount), and customer
+// PII is omitted.
+export interface SaleLookupDetail {
+  id: number;
+  invoice_number: string;
+  cashier_id: number;
+  cashier_name?: string;
+  created_at: string;
+  status: string;
+  total_amount: number;
+  tax: number;
+  items: SaleItem[];
+  payments: {
+    payment_method_code: string;
+    amount: number;
+  }[];
+}

@@ -28,6 +28,9 @@
     selectedDateRange = $bindable('last30d'),
     paymentMethodOptions = [] as { code: string; name: string }[],
     showExport = true,
+    showPaymentMethods = true,
+    showAmountRange = true,
+    searchPlaceholder = labels.searchByInvoiceProductCustomer,
     onexportcsv = () => {},
     onexportxlsx = () => {},
   } = $props();
@@ -254,9 +257,10 @@
 <div class="card p-3">
   <div class="flex flex-wrap items-center gap-3">
     <div class="min-w-0 flex-[2_1_200px]">
-      <SearchBar bind:value={searchQuery} placeholder={labels.searchByInvoiceProductCustomer} />
+      <SearchBar bind:value={searchQuery} placeholder={searchPlaceholder} />
     </div>
 
+    {#if showPaymentMethods}
     <Dropdown menu={false} placement="bottom-start" bind:open={dropdownOpen}>
       {#snippet trigger({ toggle })}
         <Button
@@ -304,7 +308,9 @@
         </div>
       {/snippet}
     </Dropdown>
+    {/if}
 
+    {#if showAmountRange}
     <div class="flex items-center gap-1.5">
       <div class="flex items-center gap-1 bg-surface-default border border-border rounded-lg px-2.5 h-[38px] {amountError ? 'border-danger' : ''}">
         <span class="text-xs text-text-muted font-medium shrink-0">{labels.currencySymbol}</span>
@@ -337,6 +343,7 @@
         </button>
       </div>
     </div>
+    {/if}
 
     <div class="relative shrink-0">
       <Button

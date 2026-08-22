@@ -115,3 +115,58 @@ func presentSaleLookup(s Sale) saleLookupSummary {
 		Status:        s.Status,
 	}
 }
+
+// saleLookupDetail is the redacted itemized wire representation returned by the
+// cross-cashier /sales/lookup/:id endpoint. It lets a cashier drill into a
+// co-worker's transaction to reprint its receipt. It exposes item lines (for
+// the receipt) but omits cost/margin, payment tender reference, and customer
+// PII — the same redaction philosophy as presentSaleLookup, just one level
+// deeper (itemized instead of a single summary row).
+type saleLookupDetail struct {
+	ID            int                   `json:"id"`
+	InvoiceNumber string                `json:"invoice_number"`
+	CashierID     int                   `json:"cashier_id"`
+	CashierName   string                `json:"cashier_name,omitempty"`
+	CreatedAt     string                `json:"created_at,omitempty"`
+	Status        string                `json:"status"`
+	TotalAmount   int                   `json:"total_amount"`
+	Tax           int                   `json:"tax"`
+	Items         []saleItemWithoutCost `json:"items,omitempty"`
+	Payments      []lookupPayment       `json:"payments,omitempty"`
+}
+
+// lookupPayment is a payment line without the sensitive reference number.
+type lookupPayment struct {
+	PaymentMethodCode string `json:"payment_method_code"`
+	Amount            int    `json:"amount"`
+}
+
+// presentSaleLookupDetail projects a Sale into its redacted itemized detail.
+func presentSaleLookupDetail(s Sale) saleLookupDetail {
+	d := saleLookupDetail{
+		ID:            s.ID,
+		InvoiceNumber: s.InvoiceNumber,
+		CashierID:     s.CashierID,
+		CashierName:   s.CashierName,
+		CreatedAt:     s.CreatedAt,
+		Status:        s.Status,
+		TotalAmount:   s.TotalAmount,
+		Tax:           s.Tax,
+	}
+	if s.Items != nil {
+		d.Items = make([]saleItemWithoutCost, 0, len(s.Items))
+		for _, it := range s.Items {
+			d.Items = append(d.Items, saleItemWithoutCost{Item: it})
+		}
+	}
+	if s.Payments != nil {
+		d.Payments = make([]lookupPayment, 0, len(s.Payments))
+		for _, p := range s.Payments {
+			d.Payments = append(d.Payments, lookupPayment{
+				PaymentMethodCode: p.PaymentMethodCode,
+				Amount:            p.Amount,
+			})
+		}
+	}
+	return d
+}

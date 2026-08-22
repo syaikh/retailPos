@@ -11,6 +11,8 @@
   let {
     selectedTransaction = null,
     showTransactionDrawer = $bindable(false),
+    mode = 'history',
+    canReprint = true,
     onclose = () => {},
     onprint = () => {},
     ondownload = () => {},
@@ -21,11 +23,23 @@
 
   const displayTransaction = $derived(transactionDetail || selectedTransaction);
 
+  // In lookup mode the caller only knows the id, so the body must wait for the
+  // detail fetch to populate `transactionDetail` (otherwise created_at is undefined
+  // and formatting it throws). In history mode the caller passes a full object, so
+  // it is ready immediately.
+  const ready = $derived(
+    mode === 'lookup' ? transactionDetail !== null : displayTransaction !== null,
+  );
+
   $effect(() => {
     if (showTransactionDrawer && selectedTransaction?.id) {
       detailLoading = true;
       transactionDetail = null;
-      apiClient.get(`/sales/${selectedTransaction.id}`)
+      // In lookup mode (cross-cashier Find Transaction drill-down) the detail is
+      // fetched from the redacted /sales/lookup/:id endpoint instead of the
+      // owner-scoped /sales/:id endpoint.
+      const url = mode === 'lookup' ? `/sales/lookup/${selectedTransaction.id}` : `/sales/${selectedTransaction.id}`;
+      apiClient.get(url)
         .then(r => {
           transactionDetail = r.data?.data || r.data;
         })
@@ -52,9 +66,10 @@
     return 'muted';
   }
 
-  const formatDateTime = (date: Date) => {
-    const isoStr = date instanceof Date ? date.toISOString() : String(date);
-    return formatDateTimeInJakarta(isoStr);
+  const formatDateTime = (date: Date | string | number | undefined | null) => {
+    const d = date instanceof Date ? date : new Date(date as string);
+    if (isNaN(d.getTime())) return '—';
+    return formatDateTimeInJakarta(d.toISOString());
   };
 
   function printTransactionReceipt() {
@@ -125,7 +140,7 @@
 </script>
 
 <Drawer bind:open={showTransactionDrawer} width={520} ariaLabel={labels.transactionDetails} onclose={() => onclose()}>
-  {#if displayTransaction}
+  {#if ready}
     <div class="flex items-center gap-3 mb-4">
       <h2 class="text-lg font-bold text-text-primary">{labels.transactionDetails}</h2>
       <span class="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full {statusVariant(displayTransaction.status) === 'success' ? 'bg-success/20 text-success' : statusVariant(displayTransaction.status) === 'warning' ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info'}">
@@ -249,18 +264,32 @@
   {/if}
 
   {#snippet footer()}
-    <div class="grid grid-cols-[auto_1fr_1fr] gap-3">
-      <Button variant="secondary" class="rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap" onclick={handleClose}>
-        {labels.close}
-      </Button>
-      <Button variant="secondary" class="rounded-xl px-4 h-11 text-sm font-semibold flex items-center gap-1.5 whitespace-nowrap" onclick={handlePrint}>
-        <Printer size={15} class="mr-1.5" />
-        {labels.printReceipt}
-      </Button>
-      <Button variant="primary" class="rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm flex items-center gap-1.5 whitespace-nowrap" onclick={handleDownload}>
-        <Download size={15} class="mr-1.5" />
-        {labels.downloadInvoice}
-      </Button>
-    </div>
+    {#if mode === 'lookup'}
+      <div class="grid grid-cols-[auto_1fr] gap-3">
+        <Button variant="secondary" class="rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap" onclick={handleClose}>
+          {labels.close}
+        </Button>
+        {#if canReprint}
+          <Button variant="primary" class="rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm flex items-center gap-1.5 whitespace-nowrap" onclick={handlePrint}>
+            <Printer size={15} class="mr-1.5" />
+            {labels.printReceipt}
+          </Button>
+        {/if}
+      </div>
+    {:else}
+      <div class="grid grid-cols-[auto_1fr_1fr] gap-3">
+        <Button variant="secondary" class="rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap" onclick={handleClose}>
+          {labels.close}
+        </Button>
+        <Button variant="secondary" class="rounded-xl px-4 h-11 text-sm font-semibold flex items-center gap-1.5 whitespace-nowrap" onclick={handlePrint}>
+          <Printer size={15} class="mr-1.5" />
+          {labels.printReceipt}
+        </Button>
+        <Button variant="primary" class="rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm flex items-center gap-1.5 whitespace-nowrap" onclick={handleDownload}>
+          <Download size={15} class="mr-1.5" />
+          {labels.downloadInvoice}
+        </Button>
+      </div>
+    {/if}
   {/snippet}
 </Drawer>

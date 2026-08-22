@@ -36,6 +36,9 @@
   // sale.lookup.
   let activeTab = $state<'mine' | 'lookup'>('mine');
   const canLookup = $derived(rbac.can(Permissions.sale.lookup));
+  // report.view holders already see every cashier's sales in "My Transactions",
+  // so the tab bar (My Transactions + Find Transaction) is redundant for them.
+  const canAccessAll = $derived(rbac.can(Permissions.report.view));
 
   let showDatePicker = $state(false);
   let showTransactionDrawer = $state(false);
@@ -142,22 +145,24 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="space-y-5">
-  <div class="flex items-center gap-1 border-b border-border">
-    <button
-      class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {activeTab === 'mine' ? 'border-primary-default text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'}"
-      onclick={() => (activeTab = 'mine')}
-    >
-      {labels.myTransactions}
-    </button>
-    {#if canLookup}
+  {#if !canAccessAll}
+    <div class="flex items-center gap-1 border-b border-border">
       <button
-        class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {activeTab === 'lookup' ? 'border-primary-default text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'}"
-        onclick={() => (activeTab = 'lookup')}
+        class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {activeTab === 'mine' ? 'border-primary-default text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'}"
+        onclick={() => (activeTab = 'mine')}
       >
-        {labels.findTransaction}
+        {labels.myTransactions}
       </button>
-    {/if}
-  </div>
+      {#if canLookup}
+        <button
+          class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {activeTab === 'lookup' ? 'border-primary-default text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'}"
+          onclick={() => (activeTab = 'lookup')}
+        >
+          {labels.findTransaction}
+        </button>
+      {/if}
+    </div>
+  {/if}
 
   {#if activeTab === 'mine'}
     <TransactionFilters

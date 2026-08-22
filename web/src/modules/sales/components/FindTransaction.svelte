@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Badge, Pagination, Skeleton } from '$shared/ui';
+  import { Pagination, Skeleton } from '$shared/ui';
   import { User, Search } from 'lucide-svelte';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
   import { labels } from '$shared/i18n';
@@ -8,8 +8,25 @@
   import { getSalesLookup } from '../services/sales-service';
   import type { SaleLookupSummary } from '../types';
   import TransactionFilters from './TransactionFilters.svelte';
+  import TransactionDrawer from './TransactionDrawer.svelte';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { Permissions } from '$shared/constants/permissions';
 
   const store = useSalesStore();
+  const rbac = useRBAC();
+
+  let selectedLookupId = $state<number | null>(null);
+  let showLookupDrawer = $state(false);
+
+  function openLookupDetail(id: number) {
+    selectedLookupId = id;
+    showLookupDrawer = true;
+  }
+
+  function handleLookupClose() {
+    showLookupDrawer = false;
+    selectedLookupId = null;
+  }
 
   let searchQuery = $state('');
   let startDate = $state(getDateNDaysAgoInJakarta(30));
@@ -80,23 +97,6 @@
     page = 0;
   }
 
-  function statusVariant(status: string): 'default' | 'success' | 'warning' | 'danger' | 'primary' | 'muted' {
-    switch ((status || '').toLowerCase()) {
-      case 'completed':
-      case 'paid':
-        return 'success';
-      case 'void':
-      case 'cancelled':
-      case 'canceled':
-        return 'danger';
-      case 'held':
-      case 'pending':
-        return 'warning';
-      default:
-        return 'muted';
-    }
-  }
-
   function formatDateTime(dateStr: string) {
     return formatDateTimeInJakarta(dateStr);
   }
@@ -117,6 +117,9 @@
     bind:selectedDateRange={dateRange}
     paymentMethodOptions={store.paymentMethodOptions}
     showExport={false}
+    showPaymentMethods={false}
+    showAmountRange={false}
+    searchPlaceholder={labels.searchByInvoiceNumber}
   />
 
   <p class="text-xs text-text-muted flex items-center gap-1.5 px-1">
@@ -162,11 +165,6 @@
                 </button>
               </th>
               <th class="text-left p-4 font-semibold">{labels.cashierLabel}</th>
-              <th class="text-left p-4 font-semibold">
-                <button class="flex items-center gap-1 hover:text-text-primary" onclick={() => toggleSort('status')}>
-                  {labels.statusLabel}
-                </button>
-              </th>
               <th class="text-right p-4 font-semibold">
                 <button class="flex items-center gap-1 hover:text-text-primary ml-auto" onclick={() => toggleSort('total_amount')}>
                   {labels.totalRp}
@@ -176,7 +174,19 @@
           </thead>
           <tbody>
             {#each data as sale (sale.id)}
-              <tr class="border-t border-border">
+              <tr
+                class="border-t border-border cursor-pointer hover:bg-surface/50 transition-colors"
+                role="button"
+                tabindex="0"
+                aria-label={labels.viewTransactionDetail}
+                onclick={() => openLookupDetail(sale.id)}
+                onkeydown={(e: KeyboardEvent) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openLookupDetail(sale.id);
+                  }
+                }}
+              >
                 <td class="p-4">
                   <span class="text-sm font-medium text-text-primary">{sale.invoice_number}</span>
                 </td>
@@ -185,11 +195,6 @@
                 </td>
                 <td class="p-4 text-sm text-text-secondary">
                   {sale.cashier_name || labels.walkInGeneral}
-                </td>
-                <td class="p-4">
-                  <Badge variant={statusVariant(sale.status)} class="text-xs px-2.5 py-0.5">
-                    {sale.status}
-                  </Badge>
                 </td>
                 <td class="p-4 text-right text-sm font-semibold text-text-primary">
                   {(sale.total_amount || 0).toLocaleString('id-ID')}
@@ -210,4 +215,12 @@
       </div>
     {/if}
   </div>
+
+  <TransactionDrawer
+    selectedTransaction={selectedLookupId ? { id: selectedLookupId } : null}
+    bind:showTransactionDrawer={showLookupDrawer}
+    mode="lookup"
+    canReprint={rbac.can(Permissions.sale.receiptPrint)}
+    onclose={handleLookupClose}
+  />
 </div>

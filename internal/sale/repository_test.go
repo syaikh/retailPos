@@ -234,21 +234,21 @@ func TestSaleRepository_ListSales(t *testing.T) {
 	_ = createAndCommitSale(ctx, t, repo, inv3, prodID, 3, 10000, 30000, 30000, 0)
 
 	t.Run("pagination", func(t *testing.T) {
-		sales, total, err := repo.GetAllSales(ctx, 2, 0, "", "", "", "", "", nil, "", nil, nil, nil)
+		sales, total, err := repo.GetAllSales(ctx, 2, 0, "", "", "", "", "", nil, "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.Len(t, sales, 2)
 		assert.GreaterOrEqual(t, total, 3)
 	})
 
 	t.Run("search by invoice number", func(t *testing.T) {
-		sales, total, err := repo.GetAllSales(ctx, 10, 0, inv1, "", "", "", "", nil, "", nil, nil, nil)
+		sales, total, err := repo.GetAllSales(ctx, 10, 0, inv1, "", "", "", "", nil, "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Equal(t, inv1, sales[0].InvoiceNumber)
 	})
 
 	t.Run("filter by payment method", func(t *testing.T) {
-		sales, total, err := repo.GetAllSales(ctx, 10, 0, "", "", "", "", "", nil, "CASH", nil, nil, nil)
+		sales, total, err := repo.GetAllSales(ctx, 10, 0, "", "", "", "", "", nil, "CASH", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 3)
 		for _, s := range sales {
@@ -257,7 +257,7 @@ func TestSaleRepository_ListSales(t *testing.T) {
 	})
 
 	t.Run("sort by total_amount DESC", func(t *testing.T) {
-		sales, _, err := repo.GetAllSales(ctx, 10, 0, "", "total_amount", "DESC", "", "", nil, "", nil, nil, nil)
+		sales, _, err := repo.GetAllSales(ctx, 10, 0, "", "total_amount", "DESC", "", "", nil, "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		if len(sales) >= 2 {
 			assert.GreaterOrEqual(t, sales[0].TotalAmount, sales[1].TotalAmount)
@@ -265,20 +265,20 @@ func TestSaleRepository_ListSales(t *testing.T) {
 	})
 
 	t.Run("search with no results", func(t *testing.T) {
-		sales, total, err := repo.GetAllSales(ctx, 10, 0, "__NONEXISTENT__", "", "", "", "", nil, "", nil, nil, nil)
+		sales, total, err := repo.GetAllSales(ctx, 10, 0, "__NONEXISTENT__", "", "", "", "", nil, "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.Empty(t, sales)
 		assert.Equal(t, 0, total)
 	})
 
 	t.Run("filter by cashier_id", func(t *testing.T) {
-		allSales, _, err := repo.GetAllSales(ctx, 100, 0, "", "", "", "", "", nil, "", nil, nil, nil)
+		allSales, _, err := repo.GetAllSales(ctx, 100, 0, "", "", "", "", "", nil, "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		if len(allSales) == 0 {
 			t.Skip("no sales to test cashier_id filter")
 		}
 		cashierID := allSales[0].CashierID
-		sales, total, err := repo.GetAllSales(ctx, 10, 0, "", "", "", "", "", nil, "", nil, nil, &cashierID)
+		sales, total, err := repo.GetAllSales(ctx, 10, 0, "", "", "", "", "", nil, "", nil, nil, &cashierID, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, s := range sales {
@@ -395,7 +395,7 @@ func TestSaleRepository_StoreScopedReads(t *testing.T) {
 	require.NotNil(t, got.StoreID)
 	assert.Equal(t, storeID, *got.StoreID)
 
-	sales, total, err := repo.GetAllSales(ctx, 10, 0, "", "", "", "", "", &storeID, "", nil, nil, nil)
+	sales, total, err := repo.GetAllSales(ctx, 10, 0, "", "", "", "", "", &storeID, "", nil, nil, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 2, total)
 	require.Len(t, sales, 2)
