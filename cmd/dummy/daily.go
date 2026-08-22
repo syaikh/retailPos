@@ -224,7 +224,10 @@ func loadProducts(ctx context.Context, db *sql.DB) ([]dailySaleProduct, error) {
 // loadCashierUserIDs mirrors getIDs(ctx, db, "users") in main.go — no role filter
 func loadCashierUserIDs(ctx context.Context, db *sql.DB) ([]int, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id FROM users WHERE is_active = true AND deleted_at IS NULL ORDER BY id`,
+		`SELECT u.id FROM users u
+		 JOIN roles r ON r.id = u.role_id
+		 WHERE r.name = 'cashier' AND u.is_active = true AND u.deleted_at IS NULL
+		 ORDER BY u.id`,
 	)
 	if err != nil {
 		return nil, err

@@ -189,6 +189,7 @@ Key migrations with deployment ordering constraints:
 - `004_supplier_code_sequence.sql` — creates the `supplier_seq` sequence used to auto-generate supplier codes (`SUP-%06d`) when a create payload omits `code`; must be applied before the binary whose supplier `Create` auto-generates codes, otherwise `POST /api/suppliers` with a blank code fails with a missing `supplier_seq` relation
 - `005_app_settings.sql` — creates the `app_settings` key-value table for global application configuration (store branding, receipt text), seeds defaults, and grants `app_settings.view`/`app_settings.update` to superadmin/admin; must be applied before the binary that reads/writes app settings, otherwise the server panics or returns 500 on `/api/settings`
 - `006_user_preferences.sql` — adds per-user `language` and `theme` columns to `users`, removes dead `default_language` key from `app_settings`; must be applied before the binary that reads/writes user language/theme preferences, otherwise login responses omit those fields
+- `007_sale_lookup.sql` — seeds the `sale.lookup` permission and grants it to the `cashier` and `manager` roles; must be applied before the binary that registers `permissions.SaleLookup` and gates the cross-cashier redacted `GET /api/sales/lookup` endpoint on it, otherwise cashiers/managers get 403 on the "Find Transaction" tab and its `sale.lookup` permission check fails
 
 ## Filesystem Convention
 

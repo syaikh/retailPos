@@ -53,6 +53,7 @@ type mockService struct {
 	removeCartItemFn                func(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error)
 	holdCartFn                      func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	resumeCartFn                    func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	cancelCartFn                    func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	checkoutCartFn                  func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
 	checkoutCartWithPaymentMethodFn func(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error)
 
@@ -190,6 +191,12 @@ func (m *mockService) HoldCart(ctx context.Context, cartID int, cashierID int) (
 func (m *mockService) ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
 	if m.resumeCartFn != nil {
 		return m.resumeCartFn(ctx, cartID, cashierID)
+	}
+	return nil, fmt.Errorf("not mocked")
+}
+func (m *mockService) CancelCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+	if m.cancelCartFn != nil {
+		return m.cancelCartFn(ctx, cartID, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }

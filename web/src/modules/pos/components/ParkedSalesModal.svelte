@@ -1,22 +1,25 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { Button } from '$shared/ui';
-  import { X, RotateCcw } from 'lucide-svelte';
+  import { Button, ConfirmDeleteModal } from '$shared/ui';
+  import { X, RotateCcw, Trash2 } from 'lucide-svelte';
   import { tick } from 'svelte';
   import type { CartSession } from '../types';
   import { labels, t } from '$shared/i18n';
 
   let dialogEl: HTMLDivElement | undefined = $state();
   let previousFocus: HTMLElement | null = null;
+  let confirmCartId = $state<number | null>(null);
 
   let {
     showModal = $bindable(false),
     heldCarts = [],
     onrecall = (id: number) => {},
+    oncancel = (id: number) => {},
   }: {
     showModal: boolean;
     heldCarts: CartSession[];
     onrecall?: (id: number) => void;
+    oncancel?: (id: number) => void;
   } = $props();
 
   function close() {
@@ -80,12 +83,36 @@
                   <RotateCcw size={12} />
                   {labels.recall}
                 </Button>
+                <Button
+                  data-action="cancel"
+                  onclick={() => (confirmCartId = cart.id)}
+                  variant="ghost"
+                  size="sm"
+                  class="text-xs text-danger hover:bg-danger-subtle"
+                  aria-label={labels.discard}
+                >
+                  <Trash2 size={12} />
+                  {labels.discard}
+                </Button>
               </div>
             </div>
           {/each}
         </div>
       {/if}
     </div>
+
+    <ConfirmDeleteModal
+      open={confirmCartId !== null}
+      message={labels.discardHeldSale}
+      confirmLabel={labels.discard}
+      oncancel={() => (confirmCartId = null)}
+      onconfirm={() => {
+        if (confirmCartId !== null) {
+          oncancel(confirmCartId);
+        }
+        confirmCartId = null;
+      }}
+    />
   </div>
 {/if}
 

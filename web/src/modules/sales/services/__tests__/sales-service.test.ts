@@ -214,4 +214,57 @@ describe('sales-service', () => {
 
     expect(result).toBeNull();
   });
+
+  it('getSalesLookup builds the lookup endpoint query and returns redacted summary', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: [
+            {
+              id: 1,
+              invoice_number: 'INV-LOOKUP-1',
+              cashier_id: 2,
+              cashier_name: 'kasir2',
+              total_amount: 50000,
+              status: 'completed',
+            },
+          ],
+          total: 1,
+        }),
+    });
+
+    const { getSalesLookup } = await import('../sales-service');
+    const result = await getSalesLookup({
+      startDate: '2026-06-01',
+      endDate: '2026-06-22',
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(mockFetch).toHaveBeenCalled();
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain('/api/sales/lookup');
+    expect(url).toContain('start_date=2026-06-01');
+    expect(url).toContain('end_date=2026-06-22');
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].invoice_number).toBe('INV-LOOKUP-1');
+    expect(result.data[0].cashier_name).toBe('kasir2');
+    expect(result.total).toBe(1);
+  });
+
+  it('getSalesLookup returns empty on non-ok response', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false });
+
+    const { getSalesLookup } = await import('../sales-service');
+    const result = await getSalesLookup({
+      startDate: '2026-06-01',
+      endDate: '2026-06-22',
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result.data).toEqual([]);
+    expect(result.total).toBe(0);
+  });
 });

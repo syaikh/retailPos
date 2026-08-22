@@ -31,6 +31,25 @@ describe('TransactionsPage.svelte source-structure guards', () => {
     expect(src).toContain("import { useSalesStore } from '../stores/sales-store.svelte'");
   });
 
+  it('imports FindTransaction and Permissions for the lookup tab', () => {
+    expect(src).toContain("import FindTransaction from './FindTransaction.svelte'");
+    expect(src).toContain("import { Permissions } from '$shared/constants/permissions'");
+  });
+
+  it('defaults the active tab to My Transactions', () => {
+    expect(src).toContain("let activeTab = $state<'mine' | 'lookup'>('mine')");
+  });
+
+  it('only offers the Find Transaction tab to sale.lookup holders', () => {
+    expect(src).toContain('const canLookup = $derived(rbac.can(Permissions.sale.lookup))');
+    expect(src).toContain('{#if canLookup}');
+  });
+
+  it('renders the Find Transaction panel when the lookup tab is active', () => {
+    expect(src).toContain('activeTab === \'lookup\'');
+    expect(src).toContain('<FindTransaction />');
+  });
+
   it('imports auth store and RBAC', () => {
     expect(src).toContain("import { useAuthStore } from '$modules/auth'");
     expect(src).toContain("import { useRBAC } from '$shared/composables/useRBAC.svelte'");

@@ -87,7 +87,7 @@
 {#if open}
   <!-- Backdrop -->
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+    class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60"
     transition:fade={{ duration: 200 }}
     role="presentation"
     onclick={() => { if (!persistent) open = false; }}

@@ -1,6 +1,6 @@
 import { apiFetch } from '$shared/api/http-client';
 import { getAuthToken } from '$modules/auth';
-import type { Sale, SaleFilters } from '../types';
+import type { Sale, SaleFilters, SaleLookupSummary } from '../types';
 
 const SLIDER_MAX_BOUND = 50000000;
 
@@ -12,7 +12,7 @@ export async function getSalesHistory(filters: SaleFilters, signal?: AbortSignal
     offset: filters.offset.toString(),
     search: filters.search || '',
     sort_by: filters.sortBy || 'created_at',
-    sort_dir: filters.sortDir || 'desc',
+    sort_dir: (filters.sortDir || 'desc').toUpperCase(),
   });
   if (filters.paymentMethods && filters.paymentMethods.length > 0) {
     params.set('payment_methods', filters.paymentMethods.join(','));
@@ -59,6 +59,33 @@ export async function getSaleById(id: number): Promise<Sale | null> {
   }
 }
 
+export async function getSalesLookup(filters: SaleFilters, signal?: AbortSignal): Promise<{ data: SaleLookupSummary[]; total: number }> {
+  const params = new URLSearchParams({
+    start_date: filters.startDate,
+    end_date: filters.endDate,
+    limit: filters.limit.toString(),
+    offset: filters.offset.toString(),
+    search: filters.search || '',
+    sort_by: filters.sortBy || 'created_at',
+    sort_dir: (filters.sortDir || 'desc').toUpperCase(),
+  });
+  if (filters.paymentMethods && filters.paymentMethods.length > 0) {
+    params.set('payment_methods', filters.paymentMethods.join(','));
+  }
+  if (filters.minTotal !== undefined && filters.minTotal > 0) {
+    params.set('min_total', filters.minTotal.toString());
+  }
+  if (filters.maxTotal !== undefined && filters.maxTotal < SLIDER_MAX_BOUND) {
+    params.set('max_total', filters.maxTotal.toString());
+  }
+  const res = await apiFetch(`/api/sales/lookup?${params.toString()}`, { signal });
+  if (res.ok) {
+    const data = await res.json();
+    return { data: data.data || [], total: data.total || 0 };
+  }
+  return { data: [], total: 0 };
+}
+
 export async function exportSales(format: 'csv' | 'xlsx', filters: SaleFilters): Promise<Blob | null> {
   const token = getAuthToken();
   if (!token) return null;
@@ -69,7 +96,7 @@ export async function exportSales(format: 'csv' | 'xlsx', filters: SaleFilters):
     end_date: filters.endDate,
     search: filters.search || '',
     sort_by: filters.sortBy || 'created_at',
-    sort_dir: filters.sortDir || 'desc',
+    sort_dir: (filters.sortDir || 'desc').toUpperCase(),
   });
   if (filters.paymentMethods && filters.paymentMethods.length > 0) {
     params.set('payment_methods', filters.paymentMethods.join(','));

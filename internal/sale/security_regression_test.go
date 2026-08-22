@@ -16,6 +16,7 @@ import (
 
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/inventory"
+	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/secregtest"
 	"retail-pos-system/internal/shared"
@@ -63,8 +64,8 @@ func setupSaleRouterWithPerms(t *testing.T, perms []string) *gin.Engine {
 	testCashierID = int32(id)
 
 	r := gin.New()
-	h.RegisterRoutes(r.Group("/"), regressionAuthMiddleware(perms), testPermMiddleware)
-	h.RegisterCartRoutes(r.Group("/"), regressionAuthMiddleware(perms), testPermMiddleware)
+	h.RegisterRoutes(r.Group("/"), regressionAuthMiddleware(perms), middleware.RequirePermission)
+	h.RegisterCartRoutes(r.Group("/"), regressionAuthMiddleware(perms), middleware.RequirePermission)
 	return r
 }
 

@@ -27,6 +27,7 @@ type Sale struct {
 	ID            int       `json:"id"`
 	InvoiceNumber string    `json:"invoice_number"`
 	CashierID     int       `json:"cashier_id"`
+	CashierName   string    `json:"cashier_name,omitempty"`
 	ShiftID       *int      `json:"shift_id,omitempty"`
 	CustomerID    *int      `json:"customer_id,omitempty"`
 	CustomerName  string    `json:"customer_name,omitempty"`

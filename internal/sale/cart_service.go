@@ -381,6 +381,44 @@ func (s *service) ResumeCart(ctx context.Context, cartID int, cashierID int) (*C
 	return s.repo.GetCartSessionByID(ctx, cartID)
 }
 
+// ==================== UC-06b: CANCEL (DISCARD) CART ====================
+
+// CancelCart discards a held (or still-open) cart session, marking it
+// 'cancelled' so it no longer appears in the held list. Ownership is enforced
+// and only carts that have not been checked out can be cancelled.
+func (s *service) CancelCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	status, _, err := s.repo.LockCartSession(ctx, tx, cartID)
+	if err != nil {
+		return nil, err
+	}
+	if status != "held" && status != "open" {
+		return nil, ErrCartNotOpen
+	}
+
+	cart, err := s.repo.GetCartSessionByID(ctx, cartID)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureCartOwned(cart, cashierID); err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.UpdateCartStatus(ctx, tx, cartID, "cancelled", nil); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+	return s.repo.GetCartSessionByID(ctx, cartID)
+}
+
 // ==================== UC-07: CHECKOUT CART ====================
 
 // CheckoutCart converts the cart into a completed sale using the stored snapshots,

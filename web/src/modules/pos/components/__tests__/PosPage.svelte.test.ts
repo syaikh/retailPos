@@ -80,7 +80,7 @@ describe('PosPage.svelte source-structure guards', () => {
   it('uses server cart checkout via checkoutCart', () => {
     expect(src).toContain('checkoutCart(activeCartId, payments');
     expect(src).toContain('import {');
-    expect(src).toContain('holdCart, resumeCart, checkoutCart');
+    expect(src).toContain('holdCart, resumeCart, cancelCart, checkoutCart');
   });
 
   it('loads active shift from shiftStore on mount', () => {

@@ -88,3 +88,30 @@ type cartItemWithoutCost struct {
 	CartItem
 	Cost *int `json:"cost,omitempty"`
 }
+
+// saleLookupSummary is the redacted wire representation returned by the
+// cross-cashier /sales/lookup endpoint. It deliberately exposes only enough
+// to identify a transaction (invoice, cashier, time, total, status) and omits
+// items, cost, customer PII, and payment tender/reference.
+type saleLookupSummary struct {
+	ID            int    `json:"id"`
+	InvoiceNumber string `json:"invoice_number"`
+	CashierID     int    `json:"cashier_id"`
+	CashierName   string `json:"cashier_name,omitempty"`
+	CreatedAt     string `json:"created_at,omitempty"`
+	TotalAmount   int    `json:"total_amount"`
+	Status        string `json:"status"`
+}
+
+// presentSaleLookup projects a Sale into its redacted lookup summary.
+func presentSaleLookup(s Sale) saleLookupSummary {
+	return saleLookupSummary{
+		ID:            s.ID,
+		InvoiceNumber: s.InvoiceNumber,
+		CashierID:     s.CashierID,
+		CashierName:   s.CashierName,
+		CreatedAt:     s.CreatedAt,
+		TotalAmount:   s.TotalAmount,
+		Status:        s.Status,
+	}
+}

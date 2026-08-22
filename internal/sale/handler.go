@@ -47,6 +47,7 @@ type Service interface {
 	RemoveCartItem(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error)
 	HoldCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	CancelCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
 	CheckoutCartWithPaymentMethod(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error)
 
@@ -70,6 +71,7 @@ func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	r.POST("/sales", auth, perm(permissions.SaleCreate), h.CreateSale)
 	r.GET("/sales", auth, perm(permissions.SaleView), h.GetSalesHistory)
+	r.GET("/sales/lookup", auth, perm(permissions.SaleLookup), h.GetSalesLookup)
 	r.GET("/sales/export", auth, perm(permissions.ReportView), h.ExportSales)
 	r.GET("/sales/:id", auth, perm(permissions.SaleView), h.GetSaleByID)
 	r.GET("/payment-methods/:code", auth, h.GetPaymentMethodByCode)
@@ -598,6 +600,95 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 	}
 
 	shared.JSONSuccess(c, presentSale(sale, canViewCost(c)))
+}
+
+// GetSalesLookup godoc
+// @Summary Cross-cashier transaction lookup (redacted summary)
+// @Description Search transactions across all cashiers. Unlike /sales (which
+// is scoped to the caller's own sales via sale.view), this endpoint is
+// available to holders of sale.lookup and returns a redacted summary only
+// (invoice, cashier, time, total, status) — no items, cost, customer, or
+// payment details. Enables a cashier to find a co-worker's transaction for
+// returns/receipt reprints without exposing sensitive data.
+// @Tags sales
+// @Accept json
+// @Produce json
+// @Param limit query int false "Limit" default(50)
+// @Param offset query int false "Offset" default(0)
+// @Param search query string false "Search by invoice number, receipt number, or customer name"
+// @Param payment_methods query string false "Filter by payment methods (comma-separated codes)"
+// @Param min_total query int false "Minimum total amount"
+// @Param max_total query int false "Maximum total amount"
+// @Param sort_by query string false "Sort field (created_at, total_amount, invoice_number, payment_method, status)" default(created_at)
+// @Param sort_dir query string false "Sort direction (ASC or DESC)" default(DESC)
+// @Param start_date query string false "Start date (YYYY-MM-DD, Jakarta time)"
+// @Param end_date query string false "End date (YYYY-MM-DD, Jakarta time)"
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Router /sales/lookup [get]
+func (h *Handler) GetSalesLookup(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+
+	search := c.Query("search")
+	paymentMethods := c.Query("payment_methods")
+
+	var minTotal, maxTotal *int
+	if v := c.Query("min_total"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 && n <= 50000000 {
+			minTotal = &n
+		}
+	}
+	if v := c.Query("max_total"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 && n <= 50000000 {
+			maxTotal = &n
+		}
+	}
+	if minTotal != nil && maxTotal != nil && *minTotal > *maxTotal {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "min_total cannot exceed max_total")
+		return
+	}
+
+	sortBy := c.DefaultQuery("sort_by", "created_at")
+	allowedSortBy := map[string]bool{"created_at": true, "total_amount": true, "invoice_number": true, "payment_method": true, "status": true}
+	if !allowedSortBy[sortBy] {
+		sortBy = "created_at"
+	}
+	sortDir := c.DefaultQuery("sort_dir", "DESC")
+	allowedSortDir := map[string]bool{"ASC": true, "DESC": true}
+	if !allowedSortDir[sortDir] {
+		sortDir = "DESC"
+	}
+
+	tz := config.Load().Timezone
+	now := time.Now().In(tz)
+	endDate := now.Format("2006-01-02")
+	startDate := now.AddDate(0, 0, -30).Format("2006-01-02")
+	if sd := c.Query("start_date"); sd != "" {
+		startDate = sd
+	}
+	if ed := c.Query("end_date"); ed != "" {
+		endDate = ed
+	}
+
+	storeIDPtr := shared.GetStoreID(c)
+
+	// Cross-cashier lookup: intentionally NOT clamped to the caller's own
+	// sales. Access is gated by the sale.lookup permission at the route level,
+	// and the response is a redacted summary (see presentSaleLookup), so the
+	// callers never receive sensitive fields for other cashiers' transactions.
+	sales, total, err := h.svc.ListSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal, nil)
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	summaries := make([]any, 0, len(sales))
+	for _, s := range sales {
+		summaries = append(summaries, presentSaleLookup(s))
+	}
+	shared.JSONPaginated(c, summaries, total, limit, offset)
 }
 
 // ExportSales godoc

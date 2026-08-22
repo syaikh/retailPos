@@ -107,6 +107,11 @@ export async function resumeCart(cartId: number): Promise<CartSession> {
   return unwrapCart(r);
 }
 
+export async function cancelCart(cartId: number): Promise<CartSession> {
+  const r = await apiClient.post(`/pos/cart/${cartId}/cancel`);
+  return unwrapCart(r);
+}
+
 export async function checkoutCart(cartId: number, payments: PaymentAllocation[]): Promise<unknown> {
   const r = await apiClient.post(`/pos/cart/${cartId}/checkout`, { payments });
   return r.data?.data || r.data;

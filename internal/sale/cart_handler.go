@@ -26,6 +26,7 @@ type CartService interface {
 	RemoveCartItem(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error)
 	HoldCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	CancelCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
 }
 
@@ -41,6 +42,7 @@ func (h *Handler) RegisterCartRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, p
 	r.PATCH("/pos/cart/:id/customer", auth, perm(permissions.SaleCreate), h.UpdateCartCustomer)
 	r.POST("/pos/cart/:id/hold", auth, perm(permissions.SaleCreate), h.HoldCart)
 	r.POST("/pos/cart/:id/resume", auth, perm(permissions.SaleCreate), h.ResumeCart)
+	r.POST("/pos/cart/:id/cancel", auth, perm(permissions.SaleCreate), h.CancelCart)
 	r.POST("/pos/cart/:id/checkout", auth, perm(permissions.SaleCreate), h.CheckoutCart)
 }
 
@@ -400,6 +402,50 @@ func (h *Handler) ResumeCart(c *gin.Context) {
 		h.cartError(c, err)
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{"data": presentCart(cart, canViewCost(c))})
+}
+
+// CancelCart godoc
+// @Summary Cancel (discard) a held cart session
+// @Tags cart
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Cart ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /pos/cart/{id}/cancel [post]
+func (h *Handler) CancelCart(c *gin.Context) {
+	cartID, ok := h.cartParamID(c, "id")
+	if !ok {
+		return
+	}
+
+	cashierID, ok := h.cartCashierID(c)
+	if !ok {
+		return
+	}
+
+	cart, err := h.svc.CancelCart(c.Request.Context(), cartID, cashierID)
+	if err != nil {
+		h.cartError(c, err)
+		return
+	}
+
+	if h.auditSvc != nil {
+		ctx := c.Request.Context()
+		actorID := middleware.UserIDFromContext(ctx)
+		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
+			UserID:      actorID,
+			Username:    middleware.UsernameFromContext(ctx),
+			Role:        middleware.RoleFromContext(ctx),
+			Action:      "cancel_cart",
+			EntityType:  "cart",
+			EntityID:    &cartID,
+			IPAddress:   middleware.IPAddressFromContext(ctx),
+			UserAgent:   middleware.UserAgentFromContext(ctx),
+			Description: fmt.Sprintf("Cancelled held cart %d", cartID),
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{"data": presentCart(cart, canViewCost(c))})
 }
 

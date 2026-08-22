@@ -12,6 +12,8 @@
   import TransactionFilters from './TransactionFilters.svelte';
   import TransactionTable from './TransactionTable.svelte';
   import TransactionDrawer from './TransactionDrawer.svelte';
+  import FindTransaction from './FindTransaction.svelte';
+  import { Permissions } from '$shared/constants/permissions';
 
   const store = useSalesStore();
   const authStore = useAuthStore();
@@ -28,6 +30,12 @@
   store.startDate = getDateNDaysAgoInJakarta(30);
   store.endDate = getTodayInJakarta();
   store.dateRange = 'last30d';
+
+  // Default scope is the cashier's own sales ("My Transactions"). The
+  // cross-cashier "Find Transaction" tab is only offered to holders of
+  // sale.lookup.
+  let activeTab = $state<'mine' | 'lookup'>('mine');
+  const canLookup = $derived(rbac.can(Permissions.sale.lookup));
 
   let showDatePicker = $state(false);
   let showTransactionDrawer = $state(false);
@@ -134,36 +142,57 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="space-y-5">
-  <TransactionFilters
-    bind:searchQuery={store.searchQuery}
-    bind:startDate={store.startDate}
-    bind:endDate={store.endDate}
-    bind:selectedPaymentMethods={store.paymentMethods}
-    bind:showDatePicker
-    bind:sliderMin={store.minTotal}
-    bind:sliderMax={store.maxTotal}
-    bind:selectedDateRange={store.dateRange}
-    paymentMethodOptions={store.paymentMethodOptions}
-  />
+  <div class="flex items-center gap-1 border-b border-border">
+    <button
+      class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {activeTab === 'mine' ? 'border-primary-default text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'}"
+      onclick={() => (activeTab = 'mine')}
+    >
+      {labels.myTransactions}
+    </button>
+    {#if canLookup}
+      <button
+        class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {activeTab === 'lookup' ? 'border-primary-default text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'}"
+        onclick={() => (activeTab = 'lookup')}
+      >
+        {labels.findTransaction}
+      </button>
+    {/if}
+  </div>
 
-  <TransactionTable
-    salesData={store.salesData}
-    loading={store.loading}
-    total={store.total}
-    limit={store.pageSize}
-    offset={store.page * store.pageSize}
-    bind:sortBy={store.sortBy}
-    bind:sortDir={store.sortDir}
-    ontogglesort={toggleSort}
-    onpagechange={handlePageChange}
-    onrowclick={openTransactionDetails}
-  />
+  {#if activeTab === 'mine'}
+    <TransactionFilters
+      bind:searchQuery={store.searchQuery}
+      bind:startDate={store.startDate}
+      bind:endDate={store.endDate}
+      bind:selectedPaymentMethods={store.paymentMethods}
+      bind:showDatePicker
+      bind:sliderMin={store.minTotal}
+      bind:sliderMax={store.maxTotal}
+      bind:selectedDateRange={store.dateRange}
+      paymentMethodOptions={store.paymentMethodOptions}
+    />
 
-  <TransactionDrawer
-    {selectedTransaction}
-    bind:showTransactionDrawer
-    onclose={closeTransactionDrawer}
-  />
+    <TransactionTable
+      salesData={store.salesData}
+      loading={store.loading}
+      total={store.total}
+      limit={store.pageSize}
+      offset={store.page * store.pageSize}
+      bind:sortBy={store.sortBy}
+      bind:sortDir={store.sortDir}
+      ontogglesort={toggleSort}
+      onpagechange={handlePageChange}
+      onrowclick={openTransactionDetails}
+    />
+
+    <TransactionDrawer
+      {selectedTransaction}
+      bind:showTransactionDrawer
+      onclose={closeTransactionDrawer}
+    />
+  {:else}
+    <FindTransaction />
+  {/if}
 </div>
 
 <style>

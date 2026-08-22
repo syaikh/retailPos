@@ -69,6 +69,9 @@ func mockCartFixture() *mockService {
 		resumeCartFn: func(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
 			return cart, nil
 		},
+		cancelCartFn: func(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+			return cart, nil
+		},
 		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
 			return sale, nil
 		},
@@ -503,6 +506,37 @@ func TestSaleCartHandler_ResumeCart(t *testing.T) {
 		r := setupSaleCartHandler(svc, nil, true, nil)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/pos/cart/7/resume", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+func TestSaleCartHandler_CancelCart(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		r := setupSaleCartHandler(mockCartFixture(), nil, true, nil)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pos/cart/7/cancel", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"id":7`)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		r := setupSaleCartHandler(mockCartFixture(), nil, true, nil)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pos/cart/abc/cancel", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("service error", func(t *testing.T) {
+		svc := mockCartFixture()
+		svc.cancelCartFn = func(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+			return nil, fmt.Errorf("boom")
+		}
+		r := setupSaleCartHandler(svc, nil, true, nil)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pos/cart/7/cancel", nil)
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})

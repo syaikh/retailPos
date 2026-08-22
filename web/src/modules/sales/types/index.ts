@@ -54,6 +54,16 @@ export interface SaleFilters {
   dateRange?: string;
 }
 
+export interface SaleLookupSummary {
+  id: number;
+  invoice_number: string;
+  cashier_id: number;
+  cashier_name?: string;
+  created_at: string;
+  total_amount: number;
+  status: string;
+}
+
 export interface FilterState {
   searchQuery: string;
   paymentMethods: string[];

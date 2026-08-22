@@ -448,6 +448,12 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	cleanupTestRoles(ctx, db)
 	fmt.Println("   ✅ Test/dummy roles cleaned up")
 
+	// 3f. Ensure enough cashier-role users exist so the cross-cashier lookup demo is realistic
+	if cashierErr := ensureCashierUsers(ctx, db, 5, 10); cashierErr != nil {
+		return fmt.Errorf("failed to ensure cashier users: %w", cashierErr)
+	}
+	fmt.Println("   ✅ Cashier users ensured")
+
 	// 4. Inject products
 	var productData []ProductInfo
 	if numProducts > 0 {
@@ -490,12 +496,22 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	}
 	fmt.Println("   ✅ Purchase orders and goods receipts injected")
 
-	// 5. Get users for cashier assignment (needed for sales)
-	var userIDs []int
+	// 5. Get users for assignment
+	var userIDs []int    // all users (audit logs etc.)
+	var cashierIDs []int // cashier-role users (sales are rung by cashiers)
 	if len(productData) > 0 {
 		userIDs = getIDs(ctx, db, "users")
 		if len(userIDs) == 0 {
 			return fmt.Errorf("no users found. Please run migrations/seeds first")
+		}
+		cids, cerr := loadCashierUserIDs(ctx, db)
+		if cerr != nil {
+			return fmt.Errorf("failed to load cashier users: %w", cerr)
+		}
+		cashierIDs = cids
+		if len(cashierIDs) == 0 {
+			log.Printf("   ⚠️  no cashier-role users found, falling back to all users for sale assignment")
+			cashierIDs = userIDs
 		}
 	}
 
@@ -522,7 +538,7 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	// 9. Inject sales transactions (10-20 per day across all days)
 	fmt.Printf("💰 Injecting daily sales (10-20 per day across %d days)...\n", numDays)
 
-	if err := injectDailySales(ctx, db, userIDs, productData, customerIDs, walkInCustomerID, startDate, endDate); err != nil {
+	if err := injectDailySales(ctx, db, cashierIDs, productData, customerIDs, walkInCustomerID, startDate, endDate); err != nil {
 		return fmt.Errorf("failed to inject sales: %w", err)
 	}
 
@@ -2022,8 +2038,11 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 			var saleID int
 			err := saleStmt.QueryRowContext(ctx, invoice, cashierID, customerID, paymentMethod, totalDPP, totalTax, totalAmount, createdAt).Scan(&saleID)
 			if err != nil {
-				log.Printf("Worker %d: insert sale %s: %v", job.workerID, invoice, err)
-				continue
+				_ = saleStmt.Close()
+				_ = itemStmt.Close()
+				_ = movementStmt.Close()
+				_ = tx.Rollback()
+				return 0, fmt.Errorf("worker %d: insert sale %s: %w", job.workerID, invoice, err)
 			}
 
 			// Sort items by ProductID — consistent lock order prevents deadlocks
@@ -2127,7 +2146,12 @@ func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time)
 	rows, err := db.QueryContext(ctx, `
 		INSERT INTO shifts (user_id, store_id, status, opening_balance, opened_at, created_at, updated_at)
 		SELECT s.cashier_id, $1,
-		       CASE WHEN s.sale_date = s.last_date THEN 'open' ELSE 'closed' END,
+		       CASE WHEN s.sale_date = s.last_date
+		                 AND NOT EXISTS (
+		                     SELECT 1 FROM shifts ex
+		                     WHERE ex.user_id = s.cashier_id AND ex.status = 'open'
+		                 )
+		            THEN 'open' ELSE 'closed' END,
 		       ((500 + floor(random() * 1501)) * 1000)::int,
 		       (s.sale_date + time '07:00:00'
 		           + (floor(random() * 2)) * interval '1 hour'
@@ -2500,6 +2524,71 @@ func getIDs(ctx context.Context, db *sql.DB, table string) []int {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+// ensureCashierUsers guarantees a realistic number of cashier-role users exist so the
+// cross-cashier "Find Transaction" lookup can be demonstrated. It tops up the existing
+// cashier count to a random target between minCashiers and maxCashiers (inclusive) by
+// creating dummy cashier users. It is idempotent: previously generated cashiers are
+// preserved (e.g. on re-seed with -truncate=false) and no new ones are added once the
+// target is already met.
+func ensureCashierUsers(ctx context.Context, db *sql.DB, minCashiers, maxCashiers int) error {
+	if minCashiers < 1 {
+		minCashiers = 1
+	}
+	if maxCashiers < minCashiers {
+		maxCashiers = minCashiers
+	}
+
+	var roleID int
+	if err := db.QueryRowContext(ctx, `SELECT id FROM roles WHERE name = 'cashier'`).Scan(&roleID); err != nil {
+		return fmt.Errorf("failed to find cashier role: %w", err)
+	}
+
+	var current int
+	if err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM users WHERE role_id = $1 AND is_active = true AND deleted_at IS NULL`,
+		roleID,
+	).Scan(&current); err != nil {
+		return fmt.Errorf("failed to count cashier users: %w", err)
+	}
+
+	target := minCashiers + rand.Intn(maxCashiers-minCashiers+1)
+	if current >= target {
+		log.Printf("   ℹ️  %d cashier users already present (target %d), skipping top-up", current, target)
+		return nil
+	}
+	needed := target - current
+
+	// Reuse an existing bcrypt password hash so the new cashiers can log in with the
+	// same default password as the seeded system users.
+	var pwHash string
+	_ = db.QueryRowContext(ctx,
+		`SELECT password_hash FROM users WHERE password_hash IS NOT NULL AND length(password_hash) > 0 LIMIT 1`,
+	).Scan(&pwHash)
+
+	// Cashiers report to a manager when one exists.
+	var managerID sql.NullInt64
+	_ = db.QueryRowContext(ctx,
+		`SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id
+		 WHERE r.name = 'manager' AND u.is_active = true AND u.deleted_at IS NULL LIMIT 1`,
+	).Scan(&managerID)
+
+	for i := 0; i < needed; i++ {
+		idx := current + i + 1
+		username := fmt.Sprintf("cashier_dummy_%03d", idx)
+		email := fmt.Sprintf("cashier.dummy.%03d@retail-pos.local", idx)
+		if _, err := db.ExecContext(ctx,
+			`INSERT INTO users (username, email, password_hash, role_id, reports_to, is_active, created_at)
+			 VALUES ($1, $2, $3, $4, $5, true, NOW())
+			 ON CONFLICT (username) DO NOTHING`,
+			username, email, pwHash, roleID, managerID,
+		); err != nil {
+			return fmt.Errorf("failed to create cashier user %s: %w", username, err)
+		}
+	}
+	log.Printf("   ℹ️  Created %d dummy cashier users (total now %d)", needed, target)
+	return nil
 }
 
 func randElem(s []string) string {

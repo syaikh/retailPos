@@ -10,8 +10,8 @@
    import {
      createCart, getOpenCart, getHeldCarts,
      addCartItem, updateCartItemQuantity, removeCartItem,
-     holdCart, resumeCart, checkoutCart, updateCartCustomer,
-   } from '../services/pos-service';
+      holdCart, resumeCart, cancelCart, checkoutCart, updateCartCustomer,
+    } from '../services/pos-service';
    import type { PaymentAllocation, CartItem, CartSession } from '../types';
    import type { Sale, SaleItem } from '$modules/sales/types';
   import type { Customer } from '$modules/customers/types';
@@ -416,6 +416,17 @@ let selectedProductIndex = $state(-1);
     }
   }
 
+  async function cancelSale(cartId: number) {
+    try {
+      await cancelCart(cartId);
+      toast.success(labels.toastSaleDiscarded);
+      await fetchHeldCarts();
+    } catch (err: any) {
+      const errData = err.response?.data?.error;
+      toast.error(typeof errData === 'string' ? errData : errData?.message || labels.toastFailedToDiscardSale);
+    }
+  }
+
    function buildReceiptPayload(sale: Sale, payments: PaymentAllocation[], customer: Customer | undefined) {
     const saleTaxAmount = sale.tax || 0;
     const paymentsList = payments.length > 0
@@ -816,6 +827,7 @@ let selectedProductIndex = $state(-1);
   bind:showModal={showParkedModal}
   {heldCarts}
   onrecall={recallSale}
+  oncancel={cancelSale}
 />
 
 <style>

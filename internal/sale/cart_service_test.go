@@ -147,6 +147,48 @@ func TestCartService_IT01_PriceChangeDuringHold(t *testing.T) {
 	assert.Equal(t, oldItem.SnapshotCreatedAt, cart.Items[0].SnapshotCreatedAt, "snapshot_created_at must not change")
 }
 
+func TestCartService_CancelHeldCart(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	svc, _ := newCartTestService(ctx, t)
+
+	cashierID := insertTestCashierNamed(ctx, t, "cancel_owner")
+	otherCashier := insertTestCashierNamed(ctx, t, "cancel_other")
+	prodID := insertTestProductWithTax(ctx, t, "CART-CANCEL-PROD", "Cancel Product", 3500, 100, 11)
+
+	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
+	require.NoError(t, err)
+	cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 1, nil, cashierID)
+	require.NoError(t, err)
+	cart, err = svc.HoldCart(ctx, cart.ID, cashierID)
+	require.NoError(t, err)
+	assert.Equal(t, "held", cart.Status)
+
+	// Cancelling discards the held cart and removes it from the held list.
+	cancelled, err := svc.CancelCart(ctx, cart.ID, cashierID)
+	require.NoError(t, err)
+	assert.Equal(t, "cancelled", cancelled.Status)
+
+	held, err := svc.ListHeldCarts(ctx, cashierID)
+	require.NoError(t, err)
+	assert.Empty(t, held, "cancelled cart must not appear in the held list")
+
+	// Ownership is enforced: another cashier cannot cancel a still-held cart.
+	otherCart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
+	require.NoError(t, err)
+	otherCart, err = svc.AddCartItem(ctx, otherCart.ID, prodID, 1, nil, cashierID)
+	require.NoError(t, err)
+	otherCart, err = svc.HoldCart(ctx, otherCart.ID, cashierID)
+	require.NoError(t, err)
+	assert.Equal(t, "held", otherCart.Status)
+	_, err = svc.CancelCart(ctx, otherCart.ID, otherCashier)
+	assert.ErrorIs(t, err, ErrCartNotOwned)
+
+	// Re-cancelling a cancelled cart is rejected.
+	_, err = svc.CancelCart(ctx, cart.ID, cashierID)
+	assert.ErrorIs(t, err, ErrCartNotOpen)
+}
+
 func TestCartService_IT02_NewItemAfterResumeUsesLatestPrice(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()

@@ -1,7 +1,7 @@
 // Package permissions is the single source of truth for permission codes on
 // the backend.
 //
-// Sync source: database (permissions table, 74 live codes) — see
+// Sync source: database (permissions table, 75 live codes) — see
 // docs/audits/permission-matrix-final.md (72, approved 2026-08-04) and
 // docs/audits/permission-additions-sprint1.md (+product.history.view,
 // +product.cost.view); web/src/shared/constants/permissions.ts (frontend mirror).
@@ -56,9 +56,10 @@ const (
 	CategoryExport Code = "category.export"
 	CategoryImport Code = "category.import"
 
-	SaleView   Code = "sale.view"
-	SaleCreate Code = "sale.create"
-	SalePark   Code = "sale.park"
+	SaleView    Code = "sale.view"
+	SaleCreate  Code = "sale.create"
+	SalePark    Code = "sale.park"
+	SaleLookup  Code = "sale.lookup"
 
 	ShiftView   Code = "shift.view"
 	ShiftCreate Code = "shift.create"
@@ -135,7 +136,7 @@ func All() []Code {
 		ReportView,
 		ProductView, ProductCreate, ProductUpdate, ProductDelete, ProductExport, ProductImport, ProductHistoryView, ProductCostView,
 		CategoryView, CategoryCreate, CategoryUpdate, CategoryDelete, CategoryExport, CategoryImport,
-		SaleView, SaleCreate, SalePark,
+		SaleView, SaleCreate, SalePark, SaleLookup,
 		ShiftView, ShiftCreate, ShiftReview, ShiftAudit,
 		CustomerView, CustomerCreate, CustomerUpdate, CustomerDelete, CustomerExport, CustomerImport,
 		PricingView, PricingCreate, PricingUpdate, PricingDelete,

@@ -7,8 +7,8 @@ import (
 
 func TestRegistryCount(t *testing.T) {
 	got := len(All())
-	if got != 81 {
-		t.Fatalf("registry has %d codes, want 81 (72 from database/permission-matrix-final.md + product.history.view/product.cost.view + consignment.* + app_settings.*)", got)
+	if got != 82 {
+		t.Fatalf("registry has %d codes, want 82 (72 from database/permission-matrix-final.md + product.history.view/product.cost.view + consignment.* + app_settings.* + sale.lookup)", got)
 	}
 }
 

@@ -27,6 +27,7 @@
     sliderMax = $bindable<number | null>(null),
     selectedDateRange = $bindable('last30d'),
     paymentMethodOptions = [] as { code: string; name: string }[],
+    showExport = true,
     onexportcsv = () => {},
     onexportxlsx = () => {},
   } = $props();
@@ -400,6 +401,7 @@
       {/if}
     </div>
 
+    {#if showExport}
     <Dropdown items={[
       { label: labels.exportCSV, icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: exportCsv },
       { label: labels.exportExcel, icon: FileSpreadsheet, iconClass: 'text-info-light', onclick: exportExcel },
@@ -416,5 +418,6 @@
         </Button>
       {/snippet}
     </Dropdown>
+    {/if}
   </div>
 </div>

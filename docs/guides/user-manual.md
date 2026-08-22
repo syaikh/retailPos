@@ -289,7 +289,10 @@ After a sale, the cart footer shows **Print · {invoice number}**. Click it to r
 
 ## 4. Transaction History
 
-The **Transactions** page lists completed sales.
+The **Transactions** page lists completed sales. It has two tabs:
+
+- **My Transactions** (default) — your own sales only.
+- **Find Transaction** — search across *all* cashiers' sales (cross-cashier). Available to roles granted the **`sale.lookup`** permission (cashier and manager by default). Results are a **redacted summary** — invoice number, cashier name, date/time, total, and status only. Items, cost, customer details, and payment tender/reference are **not** shown, so you can locate a co-worker's transaction (e.g. for a receipt reprint request) without exposing sensitive data.
 
 **Filtering**
 - **Search** — by invoice number, product, or customer (an `INV-` prefix is ignored).
@@ -297,7 +300,7 @@ The **Transactions** page lists completed sales.
 - **Amount range** — min/max in Rupiah.
 - **Date range** — presets: Today, Yesterday, Last 7 Days, Last 30 Days, This Month, This Year, or a custom range. The default is **Last 30 Days**. All dates use Jakarta time.
 
-Cashiers only see their own transactions.
+The **My Transactions** tab shows only the cashier's own sales. The **Find Transaction** tab is the only place cross-cashier sales appear, and only in redacted form.
 
 **Viewing a transaction**
 Click a row to open the **Transaction Details** drawer:
@@ -1086,7 +1089,7 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 | Application settings — update | ✓ | — | — | — | — |
 | Import/Export | ✓ | ✓ | — | — | — |
 
-> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions)). Exact permission codes per action: `dashboard.view`, `sale.create/view`, `product.view/create/update/delete`, `category.view/create/update/delete`, `customer.view/create/update/delete`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel`, `shift.view/create`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `consignment.view/create/update/settle/pay`, `app_settings.view/update`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view`, `product.export/import`, `product.history.view`, `product.cost.view`, `category.export/import`, `customer.export/import`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, admin, and manager can use it.
+> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions)). Exact permission codes per action: `dashboard.view`, `sale.create/view/lookup`, `product.view/create/update/delete`, `category.view/create/update/delete`, `customer.view/create/update/delete`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel`, `shift.view/create`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `consignment.view/create/update/settle/pay`, `app_settings.view/update`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view`, `product.export/import`, `product.history.view`, `product.cost.view`, `category.export/import`, `customer.export/import`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, admin, and manager can use it.
 
 ---
 

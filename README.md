@@ -623,11 +623,11 @@ sudo systemctl enable --now retail-pos
 
 ### Database Migrations
 
-Migrations adalah file SQL di `database/migrations/` (saat ini **000–006**). Migrations **tidak** berjalan otomatis oleh server — jalankan eksplisit via `./deploy/podman-deploy.sh migrate` (atau test harness, yang mengaplikasikan pending migrations ke test DB). Tracking file yang sudah ter-apply ada di tabel `schema_migrations`.
+Migrations adalah file SQL di `database/migrations/` (saat ini **000–007**). Migrations **tidak** berjalan otomatis oleh server — jalankan eksplisit via `./deploy/podman-deploy.sh migrate` (atau test harness, yang mengaplikasikan pending migrations ke test DB). Tracking file yang sudah ter-apply ada di tabel `schema_migrations`.
 
 **Fresh database (spin-up baru):** `migrate` melakukan bootstrap `pgcrypto`, `invoice_seq`, dan tabel `schema_migrations` terlebih dahulu, lalu mengaplikasikan setiap file secara berurutan dari `000_squash.sql` dengan `ON_ERROR_STOP=1`. Hasilnya: schema lengkap + reference data (roles, 74 permissions, grants, 5 user default, payment methods, customer groups). Data bisnis (stores, products, customers, sales) harus diisi via `./seed-dev.sh` atau `./deploy/podman-deploy.sh seed`.
 
-> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Migrations bersifat idempotent (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`) dan harus dijalankan secara berurutan dari `000_squash.sql`. Migrasi terkini: `001_consignment.sql`, `002_settlement_items_product_id.sql`, `003_settlement_updated_at.sql`, `004_supplier_code_sequence.sql`, `005_app_settings.sql`, `006_user_preferences.sql` — lihat AGENTS.md untuk detail deployment ordering.
+> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Migrations bersifat idempotent (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`) dan harus dijalankan secara berurutan dari `000_squash.sql`. Migrasi terkini: `001_consignment.sql`, `002_settlement_items_product_id.sql`, `003_settlement_updated_at.sql`, `004_supplier_code_sequence.sql`, `005_app_settings.sql`, `006_user_preferences.sql`, `007_sale_lookup.sql` — lihat AGENTS.md untuk detail deployment ordering.
 
 Migrations terkini:
 - `000_squash.sql` — Baseline schema + seed data awal (roles, 74 permissions, grants, 5 user default, payment methods, customer groups, tombstone sequences)
