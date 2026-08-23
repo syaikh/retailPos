@@ -1847,4 +1847,9 @@ export const en: Labels = {
   storeJargonPlaceholder: 'Subtitle below the store name',
   storeAddressPlaceholder: 'Branch address shown on receipt',
   storePhonePlaceholder: 'Branch phone number shown on receipt',
+  findTransactionHint: 'Enter an invoice number to look up a transaction.',
+  refineSearch: 'Refine your search to see more results.',
+  transaction: 'transactions',
+  newTransactionsSince: 'new transactions since',
+  view: 'View',
 };

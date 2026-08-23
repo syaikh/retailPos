@@ -24,7 +24,7 @@ describe('TransactionsPage.svelte source-structure guards', () => {
   });
 
   it('imports Jakarta time utilities', () => {
-    expect(src).toContain("import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$shared/utils/jakartaTime'");
+    expect(src).toContain("import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime'");
   });
 
   it('imports useSalesStore from store', () => {
@@ -112,7 +112,7 @@ describe('TransactionsPage.svelte source-structure guards', () => {
 
   it('imports shift store, router, toast and labels for shift guard', () => {
     expect(src).toContain("import { useShiftStore } from '$modules/shifts'");
-    expect(src).toContain("import { goto } from '$app/router'");
+    expect(src).toContain("import { goto, subscribe as subscribeRoute } from '$app/router'");
     expect(src).toContain("import { toast } from '$shared/stores/toast.svelte'");
     expect(src).toContain("import { labels } from '$shared/i18n'");
   });
@@ -125,5 +125,43 @@ describe('TransactionsPage.svelte source-structure guards', () => {
     expect(src).toContain('shiftStore.activeShift');
     expect(src).toContain("goto('/shifts')");
     expect(src).toContain('toastMustOpenShiftFirst');
+  });
+
+  it('imports RefreshCw, useWebSocket, Button for refresh + banner', () => {
+    expect(src).toContain("import { RefreshCw } from 'lucide-svelte'");
+    expect(src).toContain("import { useWebSocket } from '$shared/api/websocket'");
+    expect(src).toContain("import { Button } from '$shared/ui'");
+  });
+
+  it('has refresh + viewNew and resets to page 0', () => {
+    expect(src).toContain('function refresh');
+    expect(src).toContain('function viewNew');
+    expect(src).toContain('store.page = 0');
+  });
+
+  it('tracks last-updated timestamp and refreshing state', () => {
+    expect(src).toContain('let lastUpdated');
+    expect(src).toContain('let refreshing');
+    expect(src).toContain('let newTxnCount');
+    expect(src).toContain('let newTxnSince');
+    expect(src).toContain('function jakartaHHMM');
+  });
+
+  it('subscribes to sale_created only for the all-sales (manager) view', () => {
+    expect(src).toContain("ws.on('sale_created'");
+    expect(src).toContain('if (!canAccessAll) return;');
+  });
+
+  it('renders the refresh button and Updated label', () => {
+    expect(src).toContain('labels.refresh');
+    expect(src).toContain('labels.updated');
+    expect(src).toContain('labels.transaction');
+    expect(src).toContain('onclick={refresh}');
+  });
+
+  it('renders the manager new-transactions banner', () => {
+    expect(src).toContain('canAccessAll && newTxnCount > 0');
+    expect(src).toContain('labels.newTransactionsSince');
+    expect(src).toContain('onclick={viewNew}');
   });
 });

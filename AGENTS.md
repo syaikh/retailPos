@@ -1,63 +1,387 @@
 # Development Commands
 
-## Codebase Investigation — Semantic Index First
+## Codebase Investigation & Semantic Index Workflow
 
-This project has a semantic codebase index at `.opencode/index`.
+This project uses a semantic codebase index located at `.opencode/index`.
 
-For repository investigation, prefer the semantic codebase tools over broad raw `grep`/`read` scans. The goal is to understand existing architecture, relationships, and implementation patterns before making changes.
+The semantic index should be the primary tool for understanding non-trivial repository structure, relationships, and existing implementation patterns. However, the current working tree is always the source of truth.
 
-### Required tool routing
+The goal is to use semantic tools efficiently, avoid unnecessary full-codebase scans, and keep the index sufficiently up to date through incremental indexing.
 
-Choose the semantic tool that best matches the investigation task:
+### Core principles
 
-- `codebase_context` — default for feature-level, architectural, conceptual, or repository questions; use this first when the relevant implementation area is not yet known.
-- `codebase_peek` — locate likely files and symbols by meaning without retrieving full source bodies.
-- `codebase_search` — retrieve matching source content after the relevant area/symbols are known.
-- `codebase_edit_context` — gather bounded, edit-oriented evidence before modifying a known symbol or implementation.
-- `implementation_lookup` — locate authoritative definitions of a known symbol.
-- `call_graph` / `call_graph_path` — trace callers, callees, and dependency paths.
-- `find_similar` — find analogous or duplicate implementations before creating new patterns.
-- `code_communities` — understand module boundaries, clusters, and important hub symbols.
-- `pr_impact` — assess the blast radius of a branch or PR.
+1. Prefer semantic index tools for non-trivial codebase investigation.
+2. Use the smallest tool that can answer the current question.
+3. Do not run every semantic tool for every task.
+4. Do not perform a full re-index unless there is evidence that the index is stale or incomplete.
+5. Use incremental indexing when only a limited part of the repository has changed.
+6. Use raw `read`/`grep` when the task is inherently exact, textual, or concerns a known file.
+7. Always verify important conclusions against the current working tree before editing.
+8. Never treat stale semantic-index results as authoritative over the current source.
 
-### Recommended workflow
-1. Check readiness with index_status or /status.
-2. Index when needed with index_codebase or /index.
-3. Start repository discovery with codebase_context.
-4. Use codebase_peek when you only need likely locations.
-5. Use implementation_lookup for a known symbol or definition question.
-6. Use codebase_search when you need full matching source content.
-7. Use grep for exact identifiers or exhaustive text matches.
-8. Use call-graph tools for callers, callees, and dependency paths.
+### Tool selection
 
-### Index health
+Use the following decision rules:
 
-If semantic tools return no result, suspiciously incomplete results, or appear inconsistent with the repository:
+#### `codebase_context`
 
-1. Check `index_status` and/or `index_health_check`.
-2. If the index is stale and re-indexing is appropriate, run `index_codebase`.
-3. Retry the semantic query after indexing.
-4. If the relevant content is intentionally outside the index, or the task is inherently exact/textual, use `grep`/`read` directly.
+Use as the default starting point when:
 
-Do not repeatedly retry semantic searches without changing the query or checking index health.
+- the question is feature-level, architectural, conceptual, or repository-wide;
+- the relevant implementation area is not yet known;
+- multiple modules may be involved;
+- the task requires understanding how several components work together.
 
-Before recommending `add_knowledge_base` or any re-indexing step, first probe the existing index (`codebase_search` / `index_status`) to confirm what is already covered. The main `index_codebase` index is incremental and already includes `docs/*` (design, guides, adr, etc.), so do not duplicate it with a separate knowledge base.
+Examples:
 
-### Direct raw-search exceptions
+- "How does checkout work?"
+- "How does Stock Opname approval affect inventory?"
+- "Where should consignment logic live?"
+- "What happens when a cashier completes a split payment?"
 
-Use `grep` or `read` directly when:
+Do not use it for a simple exact lookup when the target is already known.
 
-- the user requests an exact literal/string search;
-- the exact file/path is already known;
-- reading a specific configuration, migration, generated file, fixture, or documentation file;
-- inspecting a small known source range;
-- the semantic index does not contain the relevant content;
+#### `codebase_peek`
+
+Use when the conceptual area is known but the exact files or symbols are not.
+
+Purpose:
+
+- locate likely files;
+- locate likely symbols;
+- narrow the investigation scope;
+- avoid retrieving large source bodies unnecessarily.
+
+Example:
+
+"Find the files and symbols involved in Stock Opname approval."
+
+#### `implementation_lookup`
+
+Use when the symbol is already known and the goal is to locate its authoritative definition.
+
+Examples:
+
+- "Where is `CompleteSale` implemented?"
+- "Find the implementation of `PricingService.ResolvePrice`."
+- "Where is `StockAdjustmentService` defined?"
+
+Prefer this over broad search when the symbol name is known.
+
+#### `codebase_search`
+
+Use when relevant files, symbols, or concepts are known and actual source content is required.
+
+Examples:
+
+- retrieve the implementation of `ResolvePrice`;
+- inspect the validation around `ApproveStockOpname`;
+- find all relevant source implementations of a known concept.
+
+Prefer targeted semantic searches over broad repository-wide grep.
+
+#### `call_graph`
+
+Use when understanding callers or callees of a known symbol.
+
+Examples:
+
+- "Who calls `CompleteSale`?"
+- "What does `ProcessPayment` call?"
+- "Which code paths depend on `AdjustStock`?"
+
+#### `call_graph_path`
+
+Use when the specific relationship between two points matters.
+
+Examples:
+
+- "How does `POST /checkout` reach `PaymentRepository.Save`?"
+- "How does Stock Opname approval eventually update inventory?"
+
+Prefer this when investigating an end-to-end execution path.
+
+#### `find_similar`
+
+Use before creating a new implementation when an existing pattern may already exist.
+
+Examples:
+
+- document-number generation;
+- lifecycle/state machines;
+- approval workflows;
+- repository/service patterns;
+- event handlers;
+- validation patterns;
+- import/export jobs.
+
+The goal is to follow existing repository conventions rather than inventing a parallel pattern.
+
+#### `code_communities`
+
+Use when the question concerns module boundaries, architecture, coupling, or important hub symbols.
+
+Examples:
+
+- "Which modules are most closely related to consignment?"
+- "What depends heavily on the pricing module?"
+- "Where are the architectural boundaries around inventory?"
+
+#### `codebase_edit_context`
+
+Use immediately before modifying a known implementation when additional bounded context is needed.
+
+It should help establish:
+
+- the target implementation;
+- relevant interfaces;
+- nearby domain/application logic;
+- important callers/callees;
+- related tests;
+- relevant invariants and side effects.
+
+Do not retrieve the entire repository merely to edit one known symbol.
+
+#### `pr_impact`
+
+Use when assessing the consequences of a branch or planned change.
+
+Examples:
+
+- "What could be affected by changing pricing resolution?"
+- "What is the blast radius of this PR?"
+- "Which modules and tests may need updates?"
+
+Use it before finalizing significant cross-module changes when impact is uncertain.
+
+---
+
+## Recommended investigation workflow
+
+For a non-trivial repository question, follow this general progression:
+
+1. Understand the problem.
+2. Identify the relevant area with `codebase_context`.
+3. Narrow to likely files/symbols with `codebase_peek`.
+4. Locate authoritative definitions with `implementation_lookup`.
+5. Retrieve relevant source with `codebase_search`.
+6. Trace dependencies with `call_graph` or `call_graph_path` when necessary.
+7. Search for existing patterns with `find_similar` before designing new behavior.
+8. Use `code_communities` when module boundaries or coupling matter.
+9. Use `codebase_edit_context` before modifying a known implementation.
+10. Use `pr_impact` when the change may affect multiple modules.
+11. Verify important findings against the current working tree.
+12. Only then implement the change.
+
+Do not blindly execute every step. Stop once sufficient evidence has been obtained.
+
+### Example: broad architectural question
+
+For:
+
+"How does payment work in this POS?"
+
+Prefer:
+
+`codebase_context`
+→ `codebase_peek`
+→ `implementation_lookup` / `codebase_search`
+→ `call_graph` if necessary
+
+Do not immediately run `grep` across the entire repository.
+
+### Example: known symbol
+
+For:
+
+"Where is `ResolvePrice` implemented?"
+
+Prefer:
+
+`implementation_lookup`
+
+Do not start with `codebase_context`.
+
+### Example: exact text
+
+For:
+
+"Find every occurrence of `ErrPaymentTotalMismatch`."
+
+Use:
+
+`grep` or another exact textual search.
+
+Semantic investigation is unnecessary unless the user asks for behavioral/contextual analysis.
+
+### Example: implementing a new feature
+
+For:
+
+"Add consignment support."
+
+Prefer:
+
+`codebase_context`
+→ `codebase_peek`
+→ `find_similar`
+→ `code_communities`
+→ `implementation_lookup` / `codebase_search`
+→ `codebase_edit_context`
+→ implement
+→ `pr_impact`
+
+---
+
+## Incremental indexing policy
+
+The semantic index should be kept reasonably synchronized with the working tree without unnecessary full re-indexing.
+
+### First check
+
+Before performing expensive indexing operations, determine whether the index is:
+
+- missing;
+- unhealthy;
+- clearly stale;
+- missing recently changed files;
+- returning incomplete or contradictory results.
+
+Use:
+
+- `index_status`
+- `index_health_check`
+
+when available.
+
+### Prefer incremental indexing
+
+When only a small portion of the repository has changed, prefer incremental indexing of the affected files/directories if the indexing tool supports it.
+
+Examples:
+
+- one edited Go package;
+- a new application service;
+- several files in one module;
+- recently added tests.
+
+Do not rebuild the entire index merely because a few files changed.
+
+### When to use full re-indexing
+
+Perform a full `index_codebase` only when appropriate, such as:
+
+- the index is missing;
+- index health indicates corruption or an unrecoverable problem;
+- a large portion of the repository changed;
+- major refactoring changed package/module structure;
+- many files were added, deleted, or moved;
+- the index schema/indexer version requires rebuilding;
+- incremental indexing cannot reliably reconcile the changes.
+
+### After normal edits
+
+Do not automatically run a full re-index after every code change.
+
+For small changes:
+
+1. Make the code change.
+2. If supported, incrementally index the affected files.
+3. Continue working.
+4. Re-check index health only when semantic results appear stale or inconsistent.
+
+### After large refactors
+
+For changes involving many files, packages, symbols, or module boundaries:
+
+1. Complete the refactor.
+2. Check index status/health.
+3. Prefer incremental indexing if it can reliably cover all affected files.
+4. Otherwise run a full `index_codebase`.
+5. Re-run important semantic queries after indexing.
+
+### Stale-index detection
+
+Treat the index as potentially stale when:
+
+- a recently created symbol cannot be found;
+- a recently deleted symbol is still returned;
+- file paths no longer exist;
+- semantic results contradict the current source;
+- call-graph relationships appear impossible;
+- search results stop at an older implementation;
+- newly changed code is consistently absent.
+
+When this happens:
+
+1. Check `index_status` / `index_health_check`.
+2. Determine the smallest affected scope.
+3. Incrementally index that scope when possible.
+4. Retry the semantic query.
+5. Escalate to full re-indexing only if necessary.
+6. Fall back to `read`/`grep` when the index cannot provide reliable evidence.
 
 ### Important
 
-Do not treat the semantic index as authoritative when its results conflict with the current working tree. The working tree is the source of truth for the actual code.
+Do not repeatedly re-index just because a semantic query returned no result.
 
-When semantic evidence and raw source disagree, verify against the current source before making conclusions or edits.
+First consider:
+
+- whether the query is too vague;
+- whether the wrong semantic tool was selected;
+- whether the target is outside the indexed source;
+- whether the symbol has a different name;
+- whether the index is actually stale.
+
+---
+
+## Source-of-truth rule
+
+The semantic index is an optimization and navigation layer.
+
+The current working tree is authoritative.
+
+When semantic-index results conflict with the current source:
+
+1. Trust the current source.
+2. Investigate why the index is stale or inconsistent.
+3. Update the index when appropriate.
+4. Do not make implementation decisions based solely on stale index results.
+
+---
+
+## Raw search/read exceptions
+
+Use `read`, `grep`, or equivalent raw tools directly when:
+
+- the exact file is already known;
+- the exact symbol location is already known;
+- an exact literal/string search is requested;
+- inspecting a migration;
+- inspecting configuration;
+- inspecting generated files;
+- inspecting fixtures or snapshots;
+- inspecting documentation;
+- inspecting a small known source range;
+- semantic indexing does not cover the relevant content.
+
+Semantic tools are intended to improve repository understanding, not to replace every raw file operation.
+
+---
+
+## Efficiency rule
+
+Optimize for the minimum evidence required to answer the question correctly.
+
+Do not:
+
+- run every semantic tool for every question;
+- perform repository-wide searches when the target is known;
+- retrieve full source files when only symbol locations are needed;
+- perform a full re-index for a small change;
+- repeatedly re-index without evidence that the index is stale.
+
+Use the smallest appropriate tool and expand the investigation only when the evidence is insufficient.
 
 ## Environment Configuration
 

@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Pagination, Skeleton } from '$shared/ui';
-  import { User, Search, Copy, Check } from 'lucide-svelte';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
-  import { labels } from '$shared/i18n';
+  import { SearchBar, Button, Skeleton } from '$shared/ui';
+  import { User, Copy, Check } from 'lucide-svelte';
+  import { getTodayInJakarta, formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
+  import { labels, t } from '$shared/i18n';
 
   let copiedInvoice = $state<string | null>(null);
 
@@ -19,7 +19,6 @@
   import { useSalesStore } from '../stores/sales-store.svelte';
   import { getSalesLookup } from '../services/sales-service';
   import type { SaleLookupSummary } from '../types';
-  import TransactionFilters from './TransactionFilters.svelte';
   import TransactionDrawer from './TransactionDrawer.svelte';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Permissions } from '$shared/constants/permissions';
@@ -40,13 +39,10 @@
     selectedLookupId = null;
   }
 
+  // Search-only: the cashier enters a receipt number to pull a single
+  // cross-cashier (redacted) transaction. No default store-wide table is
+  // loaded — a receipt is the proof of purchase, so lookup is intentional.
   let searchQuery = $state('');
-  let startDate = $state(getDateNDaysAgoInJakarta(30));
-  let endDate = $state(getTodayInJakarta());
-  let dateRange = $state('last30d');
-  let paymentMethods = $state<string[]>([]);
-  let minTotal = $state<number | null>(null);
-  let maxTotal = $state<number | null>(null);
   let sortBy = $state('created_at');
   let sortDir = $state<'asc' | 'desc'>('desc');
   let page = $state(0);
@@ -56,20 +52,19 @@
   let total = $state(0);
   let data = $state<SaleLookupSummary[]>([]);
 
-  let prevKey = '';
-
+  // Invoice lookup is date-independent: when a search term is present we widen
+  // the window to the epoch so old receipts can still be found (the receipt
+  // number itself is the gate, not recency).
   function buildFilters() {
+    const hasSearch = searchQuery.trim().length > 0;
     return {
-      startDate,
-      endDate,
+      startDate: hasSearch ? '2000-01-01' : getTodayInJakarta(),
+      endDate: getTodayInJakarta(),
       limit: pageSize,
       offset: page * pageSize,
-      search: searchQuery,
+      search: hasSearch ? searchQuery.trim() : undefined,
       sortBy,
       sortDir,
-      paymentMethods,
-      minTotal: minTotal ?? undefined,
-      maxTotal: maxTotal ?? undefined,
     };
   }
 
@@ -87,16 +82,10 @@
     }
   }
 
-  $effect(() => {
-    const key = JSON.stringify(buildFilters());
-    if (key === prevKey) return;
-    prevKey = key;
-    load();
-  });
-
-  function handlePageChange(newOffset: number, newLimit: number) {
-    page = Math.floor(newOffset / newLimit);
-    pageSize = newLimit;
+  async function runSearch() {
+    if (!searchQuery.trim()) return;
+    page = 0;
+    await load();
   }
 
   function toggleSort(col: string) {
@@ -107,6 +96,9 @@
       sortDir = 'asc';
     }
     page = 0;
+    // Re-query: the auto-load $effect was removed (search-only), so sorting
+    // must explicitly re-run the lookup. runSearch guards the empty-query case.
+    runSearch();
   }
 
   function formatDateTime(dateStr: string) {
@@ -119,23 +111,17 @@
 </script>
 
 <div class="space-y-5">
-  <TransactionFilters
-    bind:searchQuery
-    bind:startDate
-    bind:endDate
-    bind:selectedPaymentMethods={paymentMethods}
-    bind:sliderMin={minTotal}
-    bind:sliderMax={maxTotal}
-    bind:selectedDateRange={dateRange}
-    paymentMethodOptions={store.paymentMethodOptions}
-    showExport={false}
-    showPaymentMethods={false}
-    showAmountRange={false}
-    searchPlaceholder={labels.searchByInvoiceNumber}
-  />
+  <div class="flex items-center gap-2">
+    <SearchBar
+      bind:value={searchQuery}
+      placeholder={labels.searchByInvoiceNumber}
+      onsubmit={runSearch}
+      class="flex-1"
+    />
+    <Button onclick={runSearch} disabled={!searchQuery.trim()}>{labels.search}</Button>
+  </div>
 
   <p class="text-xs text-text-muted flex items-center gap-1.5 px-1">
-    <Search size={13} class="shrink-0" />
     {labels.lookupRedactedNotice}
   </p>
 
@@ -153,13 +139,19 @@
         {/each}
         </div>
       </div>
+    {:else if !searchQuery.trim()}
+      <div class="px-4 py-12 text-center" role="status">
+        <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
+          <User size={32} class="text-text-muted" />
+        </div>
+        <p class="text-text-primary font-semibold mt-4">{labels.findTransactionHint}</p>
+      </div>
     {:else if data.length === 0}
       <div class="px-4 py-12 text-center" role="status">
         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
           <User size={32} class="text-text-muted" />
         </div>
-        <p class="text-text-primary font-semibold mt-4">{labels.noTransactionsFound}</p>
-        <p class="text-text-muted text-sm mt-1">{labels.tryAdjustingSearchOrDateRange}</p>
+        <p class="text-text-primary font-semibold mt-4">{t('noResultsFor', { query: searchQuery.trim() })}</p>
       </div>
     {:else}
       <div class="overflow-x-auto">
@@ -232,14 +224,11 @@
         </table>
       </div>
 
-      <div class="p-4 bg-surface-subtle/30 border-t border-border/50">
-        <Pagination
-          {total}
-          limit={pageSize}
-          offset={page * pageSize}
-          onPageChange={handlePageChange}
-        />
-      </div>
+      {#if total > pageSize}
+        <div class="p-4 bg-surface-subtle/30 border-t border-border/50 text-center text-sm text-text-muted">
+          {labels.refineSearch}
+        </div>
+      {/if}
     {/if}
   </div>
 

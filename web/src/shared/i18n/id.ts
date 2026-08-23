@@ -1847,6 +1847,11 @@ export const id = {
   storeJargonPlaceholder: 'Subjudul di bawah nama toko',
   storeAddressPlaceholder: 'Alamat cabang yang ditampilkan di struk',
   storePhonePlaceholder: 'Nomor telepon cabang yang ditampilkan di struk',
+  findTransactionHint: 'Masukkan nomor faktur untuk mencari transaksi.',
+  refineSearch: 'Persempit pencarian Anda untuk melihat lebih banyak hasil.',
+  transaction: 'transaksi',
+  newTransactionsSince: 'transaksi baru sejak',
+  view: 'Lihat',
 } as const;
 
 export type IdLabels = typeof id;

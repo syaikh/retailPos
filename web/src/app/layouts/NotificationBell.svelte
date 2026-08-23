@@ -121,7 +121,7 @@
           type: 'sale_created',
           title: labels.newTransaction,
           description: t('newTransactionDesc', { invoice: data.invoice, amount: (data.total || 0).toLocaleString('id-ID') }),
-          navigateTo: '/transactions',
+          navigateTo: data.id ? `/transactions?txn=${data.id}` : '/transactions',
         });
       }),
       ws.on('stock_update', (data: any) => {

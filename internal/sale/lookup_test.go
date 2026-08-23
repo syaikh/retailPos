@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -157,4 +158,45 @@ func TestLookup_SearchByInvoice(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w2.Body.Bytes(), &found))
 	assert.Equal(t, 1, found.Total)
 	assert.Equal(t, "INV-LOOKUP-SEARCH", found.Data[0].InvoiceNumber)
+}
+
+// TestLookup_InvoiceSearchIgnores30DayWindow locks the date-independent invoice
+// lookup behaviour. The frontend widens start_date to the epoch for an invoice
+// search; the backend must not clamp or reject a far-past date. A sale created
+// well outside the default 30-day window must be found once the window is
+// widened, and must remain hidden under the bare default window.
+func TestLookup_InvoiceSearchIgnores30DayWindow(t *testing.T) {
+	skipIfNoDB(t)
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	repo := newTestRepo(t)
+	prodID := insertRegressionProduct(ctx, t, "LOOKUP-OLD-PROD", "Lookup Old Product", 10000, 6000, 10)
+
+	sale := createRegressionSale(ctx, t, repo, "INV-LOOKUP-OLD", prodID, 1, 10000, 6000)
+
+	// Move the sale far outside the default 30-day lookup window.
+	old := time.Now().AddDate(-2, 0, 0)
+	_, err := dbPool.Exec(ctx, `UPDATE sales SET created_at = $1 WHERE id = $2`, old, sale.ID)
+	require.NoError(t, err)
+
+	r := setupSaleRouterWithPerms(t, []string{permissions.SaleLookup.String()})
+
+	// Bare search (default last-30d window) must NOT surface the old sale.
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/sales/lookup?search=INV-LOOKUP-OLD", nil)
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	var bare lookupPage
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &bare))
+	assert.Equal(t, 0, bare.Total, "old sale must be hidden by the default 30-day window")
+
+	// Widened (epoch) window the frontend sends must surface the old sale.
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("GET", "/sales/lookup?search=INV-LOOKUP-OLD&start_date=2000-01-01&end_date="+time.Now().Format("2006-01-02"), nil)
+	r.ServeHTTP(w2, req2)
+	require.Equal(t, http.StatusOK, w2.Code)
+	var widened lookupPage
+	require.NoError(t, json.Unmarshal(w2.Body.Bytes(), &widened))
+	assert.Equal(t, 1, widened.Total, "old sale must be found when start_date is widened to the epoch")
+	assert.Equal(t, "INV-LOOKUP-OLD", widened.Data[0].InvoiceNumber)
 }

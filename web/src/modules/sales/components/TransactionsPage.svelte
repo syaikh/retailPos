@@ -1,19 +1,23 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$shared/utils/jakartaTime';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
   import { useSalesStore } from '../stores/sales-store.svelte';
   import { createQueryManager } from '../lib/query-manager';
   import { useAuthStore } from '$modules/auth';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { useShiftStore } from '$modules/shifts';
-  import { goto } from '$app/router';
+  import { goto, subscribe as subscribeRoute } from '$app/router';
   import { toast } from '$shared/stores/toast.svelte';
   import { labels } from '$shared/i18n';
+  import { RefreshCw } from 'lucide-svelte';
+  import { useWebSocket } from '$shared/api/websocket';
+  import { Button } from '$shared/ui';
   import TransactionFilters from './TransactionFilters.svelte';
   import TransactionTable from './TransactionTable.svelte';
   import TransactionDrawer from './TransactionDrawer.svelte';
   import FindTransaction from './FindTransaction.svelte';
   import { Permissions } from '$shared/constants/permissions';
+  import { getSaleById, getSaleLookupDetail } from '../services/sales-service';
 
   const store = useSalesStore();
   const authStore = useAuthStore();
@@ -43,6 +47,16 @@
   let showDatePicker = $state(false);
   let showTransactionDrawer = $state(false);
   let selectedTransaction = $state(null);
+  // Deep-link mode for notifications ("/transactions?txn=<id>"): 'history' uses
+  // the owner-scoped endpoint, 'lookup' the cross-cashier redacted endpoint.
+  let drawerMode = $state<'history' | 'lookup'>('history');
+
+  // Refresh + freshness state (Part B).
+  let lastUpdated = $state<Date | null>(null);
+  let refreshing = $state(false);
+  // Manager all-sales websocket banner (Phase 2).
+  let newTxnCount = $state(0);
+  let newTxnSince = $state<Date | null>(null);
 
   let prevFilters = '';
 
@@ -99,6 +113,50 @@
     qm.notify(store.currentFilters, changed);
   });
 
+  // Stamp the last successful fetch time (covers filters, pagination, refresh).
+  $effect(() => {
+    store.salesData;
+    lastUpdated = new Date();
+  });
+
+  // Manager all-sales view: count store-wide new sales pushed over websocket.
+  // Own-scope (cashier) tabs must not count — a sale from another cashier is not
+  // in their list, so a banner there would be wrong.
+  $effect(() => {
+    const ws = useWebSocket();
+    const unsub = ws.on('sale_created', () => {
+      if (!canAccessAll) return;
+      newTxnCount += 1;
+      if (!newTxnSince) newTxnSince = new Date();
+    });
+    return () => unsub();
+  });
+
+  function jakartaHHMM(d: Date = new Date()): string {
+    const shifted = new Date(d.getTime() + JAKARTA_OFFSET_MS);
+    const h = String(shifted.getUTCHours()).padStart(2, '0');
+    const m = String(shifted.getUTCMinutes()).padStart(2, '0');
+    return `${h}:${m} WIB`;
+  }
+
+  function refresh() {
+    refreshing = true;
+    store.page = 0;
+    store.load(store.currentFilters).finally(() => {
+      refreshing = false;
+      lastUpdated = new Date();
+      // The refreshed view already includes any new sales, so clear the banner.
+      newTxnCount = 0;
+      newTxnSince = null;
+    });
+  }
+
+  function viewNew() {
+    refresh();
+    newTxnCount = 0;
+    newTxnSince = null;
+  }
+
   function handlePageChange(newOffset: number, newLimit: number) {
     store.page = Math.floor(newOffset / newLimit);
     store.pageSize = newLimit;
@@ -117,6 +175,36 @@
   function openTransactionDetails(transaction: any) {
     selectedTransaction = transaction;
     showTransactionDrawer = true;
+  }
+
+  // Open the detail drawer for a transaction referenced by the ?txn=<id> query
+  // param (e.g. arriving from the "new transaction" notification). Prefers a
+  // transaction already in the loaded list, then owner-scoped detail, then the
+  // cross-cashier lookup detail as a fallback.
+  async function openTxnFromQuery() {
+    const txn = new URLSearchParams(window.location.search).get('txn');
+    const id = Number(txn);
+    if (!txn || !Number.isInteger(id) || id <= 0) return;
+
+    const existing = store.salesData.find((t: any) => t.id === id);
+    if (existing) {
+      drawerMode = 'history';
+      openTransactionDetails(existing);
+      return;
+    }
+
+    const sale = await getSaleById(id);
+    if (sale) {
+      drawerMode = 'history';
+      openTransactionDetails(sale);
+      return;
+    }
+
+    const lookup = await getSaleLookupDetail(id);
+    if (lookup) {
+      drawerMode = 'lookup';
+      openTransactionDetails(lookup);
+    }
   }
 
   function closeTransactionDrawer() {
@@ -139,6 +227,18 @@
       return;
     }
     await store.loadPaymentMethods();
+
+    // Deep-link from a "new transaction" notification: open its detail drawer.
+    await openTxnFromQuery();
+  });
+
+  // Re-open the deep-linked transaction whenever the route gains a ?txn=<id>
+  // (e.g. clicking the notification while already on this page).
+  $effect(() => {
+    const unsubscribe = subscribeRoute(() => {
+      openTxnFromQuery();
+    });
+    return () => unsubscribe();
   });
 </script>
 
@@ -177,6 +277,25 @@
       paymentMethodOptions={store.paymentMethodOptions}
     />
 
+    {#if canAccessAll && newTxnCount > 0}
+      <div class="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm">
+        <span class="text-text-secondary">
+          <span class="font-semibold text-primary">{newTxnCount}</span>
+          {labels.newTransactionsSince} {jakartaHHMM(newTxnSince ?? new Date())}
+        </span>
+        <Button variant="secondary" size="sm" onclick={viewNew}>{labels.view}</Button>
+      </div>
+    {/if}
+
+    <div class="flex items-center justify-between px-1 py-1">
+      <span class="text-xs text-text-muted">
+        {store.total} {labels.transaction} · {labels.updated} {jakartaHHMM(lastUpdated ?? new Date())}
+      </span>
+      <Button variant="ghost" size="icon" onclick={refresh} disabled={refreshing} aria-label={labels.refresh} title={labels.refresh}>
+        <RefreshCw size={16} class={refreshing ? 'animate-spin' : ''} />
+      </Button>
+    </div>
+
     <TransactionTable
       salesData={store.salesData}
       loading={store.loading}
@@ -192,6 +311,7 @@
 
     <TransactionDrawer
       {selectedTransaction}
+      mode={drawerMode}
       bind:showTransactionDrawer
       onclose={closeTransactionDrawer}
     />
