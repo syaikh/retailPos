@@ -20,17 +20,15 @@ Choose the semantic tool that best matches the investigation task:
 - `code_communities` — understand module boundaries, clusters, and important hub symbols.
 - `pr_impact` — assess the blast radius of a branch or PR.
 
-### Investigation workflow
-
-For non-trivial repository questions:
-
-1. Start with the semantic index using the tool appropriate to the task.
-2. Use `codebase_peek` to narrow the relevant files/symbols when necessary.
-3. Use `codebase_search` or `implementation_lookup` to retrieve authoritative source.
-4. Use `call_graph` / `call_graph_path` when behavior crosses package/module boundaries.
-5. Use `find_similar` before introducing a new implementation when an existing pattern may already exist.
-6. Before editing a known implementation, use `codebase_edit_context` to establish bounded context.
-7. Only fall back to broad `grep`/raw `read` when semantic tools cannot answer the question or when an exact textual/file-level operation is more appropriate.
+### Recommended workflow
+1. Check readiness with index_status or /status.
+2. Index when needed with index_codebase or /index.
+3. Start repository discovery with codebase_context.
+4. Use codebase_peek when you only need likely locations.
+5. Use implementation_lookup for a known symbol or definition question.
+6. Use codebase_search when you need full matching source content.
+7. Use grep for exact identifiers or exhaustive text matches.
+8. Use call-graph tools for callers, callees, and dependency paths.
 
 ### Index health
 
@@ -52,7 +50,6 @@ Use `grep` or `read` directly when:
 - reading a specific configuration, migration, generated file, fixture, or documentation file;
 - inspecting a small known source range;
 - the semantic index does not contain the relevant content;
-- re-indexing would provide no meaningful benefit.
 
 ### Important
 
