@@ -41,6 +41,8 @@ If semantic tools return no result, suspiciously incomplete results, or appear i
 
 Do not repeatedly retry semantic searches without changing the query or checking index health.
 
+Before recommending `add_knowledge_base` or any re-indexing step, first probe the existing index (`codebase_search` / `index_status`) to confirm what is already covered. The main `index_codebase` index is incremental and already includes `docs/*` (design, guides, adr, etc.), so do not duplicate it with a separate knowledge base.
+
 ### Direct raw-search exceptions
 
 Use `grep` or `read` directly when:
