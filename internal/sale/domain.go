@@ -17,6 +17,7 @@ var (
 	ErrInvalidPaymentMethod     = errors.New("invalid payment method code")
 	ErrMaxPaymentsExceeded      = errors.New("maximum number of payment entries exceeded")
 	ErrMultipleCashPayments     = errors.New("only one cash payment per transaction is allowed")
+	ErrPaymentOverTenderNonCash = errors.New("overpayment is only allowed on cash tender")
 )
 
 const MaxPaymentsPerSale = 10
@@ -37,6 +38,7 @@ type Sale struct {
 	Discount      int       `json:"discount"`
 	Tax           int       `json:"tax"`
 	TotalAmount   int       `json:"total_amount"`
+	ChangeDue     int       `json:"change_due,omitempty"`
 	PaymentMethod string    `json:"payment_method"`
 	Status        string    `json:"status"`
 	Items         []Item    `json:"items,omitempty"`

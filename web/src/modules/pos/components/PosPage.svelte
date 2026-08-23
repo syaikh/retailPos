@@ -449,7 +449,7 @@ let selectedProductIndex = $state(-1);
       paymentMethod: paymentsList,
       payments: payments.map(p => ({ method: p.payment_method_code, amount: p.amount })),
       cashReceived: payments.find(p => p.payment_method_code === 'CASH')?.amount || sale.total_amount,
-      changeDue: 0,
+      changeDue: sale.change_due ?? 0,
       customer_name: customer?.name,
       total_savings: (sale.items || []).reduce((sum: number, item: any) => {
         if (item.original_price && item.original_price > item.unit_price) {

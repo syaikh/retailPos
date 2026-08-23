@@ -57,13 +57,16 @@ test.describe('Payment Validation via Cart Checkout (CS-D*)', () => {
     expect((await res.json()).error.message).toContain('total payments do not match');
   });
 
-  test('CS-D1b: allocations above total are rejected with 400', async ({ request }) => {
+  test('CS-D1b: CASH over-tender is accepted and returns change (C1)', async ({ request }) => {
     const { cartId, total } = await newCartWithOneItem(request);
     const res = await request.post(`${API_BASE}/api/pos/cart/${cartId}/checkout`, {
       headers: cashier.headers,
       data: { payments: [{ payment_method_code: 'CASH', amount: total + 100 }] },
     });
-    expect(res.status()).toBe(400);
+    expect(res.status()).toBe(201);
+    const sale = (await res.json()).data;
+    tracker.trackSale(sale.id);
+    expect(sale.change_due).toBe(100);
   });
 
   test('CS-D2: more than 10 payment rows is rejected with 400', async ({ request }) => {
@@ -179,5 +182,33 @@ test.describe('Payment Validation via Cart Checkout (CS-D*)', () => {
     });
     // Empty payments short-circuits to ErrZeroPaymentAmount → 400.
     expect(res.status()).toBe(400);
+  });
+
+  test('CS-D11: cash over-tender returns change_due and persists it', async ({ request }) => {
+    const { cartId, total } = await newCartWithOneItem(request);
+    const res = await request.post(`${API_BASE}/api/pos/cart/${cartId}/checkout`, {
+      headers: cashier.headers,
+      data: { payments: [{ payment_method_code: 'CASH', amount: total + 250 }] },
+    });
+    expect(res.status()).toBe(201);
+    const sale = (await res.json()).data;
+    tracker.trackSale(sale.id);
+    expect(sale.change_due).toBe(250);
+
+    const getRes = await request.get(`${API_BASE}/api/sales/${sale.id}`, {
+      headers: cashier.headers,
+    });
+    expect(getRes.status()).toBe(200);
+    expect((await getRes.json()).data.change_due).toBe(250);
+  });
+
+  test('CS-D12: non-cash over-tender is rejected with 400', async ({ request }) => {
+    const { cartId, total } = await newCartWithOneItem(request);
+    const res = await request.post(`${API_BASE}/api/pos/cart/${cartId}/checkout`, {
+      headers: cashier.headers,
+      data: { payments: [{ payment_method_code: 'QRIS', amount: total + 100, reference_number: 'E2E-OVER' }] },
+    });
+    expect(res.status()).toBe(400);
+    expect((await res.json()).error.message.toLowerCase()).toContain('cash');
   });
 });

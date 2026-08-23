@@ -24,7 +24,7 @@ describe('TransactionTable.svelte source-structure guards', () => {
   });
 
   it('imports Banknote icon', () => {
-    expect(src).toContain("import { Banknote } from 'lucide-svelte'");
+    expect(src).toContain("import { Banknote, Copy, Check } from 'lucide-svelte'");
   });
 
   it('imports formatDateTimeInJakarta', () => {

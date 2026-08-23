@@ -1206,7 +1206,8 @@ func TestSaleService_CreateSaleTotalAmountClamp(t *testing.T) {
 	}}
 
 	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 5000}})
-	assert.ErrorIs(t, err, ErrPaymentTotalMismatch, "clamping should set TotalAmount=0, payment 5000 mismatches")
+	require.NoError(t, err, "total clamps to 0; cash over-tender is now allowed (C1) and returns change")
+	assert.Equal(t, 5000, sale.ChangeDue)
 }
 
 func TestSaleService_GetAllPaymentMethods(t *testing.T) {
@@ -1287,4 +1288,65 @@ func TestSaleService_CreateSaleNegativeUnitPrice(t *testing.T) {
 	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: -10000}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid unit price")
+}
+
+func TestSaleService_CashChangeOverTender(t *testing.T) {
+	repo := newTestRepo(t)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
+	ctx := context.Background()
+
+	prodID := insertTestProduct(ctx, t, "CHG-PROD", "Change Product", 5000, 100)
+	cashierID := insertTestCashier(ctx, t)
+
+	mkSale := func(inv string) (*Sale, []Item) {
+		s := &Sale{
+			InvoiceNumber: inv,
+			CashierID:     cashierID,
+			Subtotal:      5000,
+			Tax:           0,
+			TotalAmount:   5000,
+			PaymentMethod: "CASH",
+			Status:        "completed",
+		}
+		it := []Item{{
+			ProductID: prodID, Quantity: 1, UnitPrice: 5000, Subtotal: 5000,
+			DPPAmount: 5000, TaxAmount: 0,
+		}}
+		return s, it
+	}
+
+	// 1. CASH over-tender is allowed and returns change.
+	sale, items := mkSale("INV-CHG-CASH-001")
+	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 8000}})
+	require.NoError(t, err)
+	assert.Equal(t, 3000, sale.ChangeDue)
+
+	// 2. Exact cash still works with zero change.
+	sale2, items2 := mkSale("INV-CHG-EXACT-001")
+	err = svc.CreateSale(ctx, sale2, items2, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 5000}})
+	require.NoError(t, err)
+	assert.Equal(t, 0, sale2.ChangeDue)
+
+	// 3. Non-cash only over-tender is rejected (cannot return change from QRIS).
+	sale3, items3 := mkSale("INV-CHG-NC-001")
+	err = svc.CreateSale(ctx, sale3, items3, []CreatePaymentRequest{{PaymentMethodCode: "QRIS", Amount: 6000}})
+	require.ErrorIs(t, err, ErrPaymentOverTenderNonCash)
+
+	// 4. Mixed where non-cash portion alone exceeds the bill is rejected.
+	sale4, items4 := mkSale("INV-CHG-MIX-001")
+	err = svc.CreateSale(ctx, sale4, items4, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 1000}, {PaymentMethodCode: "QRIS", Amount: 6000}})
+	require.ErrorIs(t, err, ErrPaymentOverTenderNonCash)
+
+	// 5. Mixed valid over-tender: cash covers the overage, change returned.
+	sale5, items5 := mkSale("INV-CHG-MIX2-001")
+	err = svc.CreateSale(ctx, sale5, items5, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 6000}, {PaymentMethodCode: "QRIS", Amount: 2000}})
+	require.NoError(t, err)
+	assert.Equal(t, 3000, sale5.ChangeDue)
 }

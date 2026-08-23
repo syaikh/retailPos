@@ -516,10 +516,11 @@ func (s *service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 		return nil, err
 	}
 
-	validatedPayments, err := s.validatePayments(ctx, sale.TotalAmount, payments)
+	validatedPayments, change, err := s.validatePayments(ctx, sale.TotalAmount, payments)
 	if err != nil {
 		return nil, err
 	}
+	sale.ChangeDue = change
 
 	codes := make([]string, len(validatedPayments))
 	for i, p := range validatedPayments {
@@ -548,7 +549,7 @@ func (s *service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 		if s.shiftStore == nil {
 			return nil, errors.New("sale service: shift store not wired; call SetShiftTotalUpdater")
 		}
-		if err := s.shiftStore.UpdateShiftTotals(ctx, tx, shiftContribution(*sale.ShiftID, sale.CashierID, sale.TotalAmount, validatedPayments)); err != nil {
+		if err := s.shiftStore.UpdateShiftTotals(ctx, tx, shiftContribution(*sale.ShiftID, sale.CashierID, sale.TotalAmount, sale.ChangeDue, validatedPayments)); err != nil {
 			return nil, fmt.Errorf("update shift totals: %w", err)
 		}
 	}

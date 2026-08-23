@@ -48,7 +48,18 @@
 
   const totalAllocated = $derived(allocations.reduce((sum, a) => sum + a.amount, 0));
   const remainingBalance = $derived(totalAmount - totalAllocated);
-  const canComplete = $derived(remainingBalance === 0 && allocations.length > 0);
+  const cashTotal = $derived(allocations.filter(a => a.methodCode === 'CASH').reduce((sum, a) => sum + a.amount, 0));
+  const nonCashTotal = $derived(totalAllocated - cashTotal);
+  const overTenderOnCash = $derived(remainingBalance < 0 && nonCashTotal <= totalAmount);
+  const changeDue = $derived(remainingBalance < 0 && overTenderOnCash ? Math.abs(remainingBalance) : 0);
+  const canComplete = $derived(
+    allocations.length > 0 &&
+    (remainingBalance === 0 || (remainingBalance < 0 && overTenderOnCash)) &&
+    allocations.every(a => {
+      const opt = paymentOptions.find(o => o.id === a.methodCode);
+      return !(opt?.requiresReference && !a.referenceNumber?.trim());
+    })
+  );
   const cashAllocation = $derived(allocations.find(a => a.methodCode === 'CASH'));
 
   let totalSavings = $derived(
@@ -86,18 +97,32 @@
       input?.focus();
       return;
     }
+    // S-D: do not add a redundant method once the total is fully allocated.
+    if (remainingBalance <= 0) return;
     const opt = paymentOptions.find(o => o.id === methodCode);
-    const allocAmount = remainingBalance > 0 ? remainingBalance : 0;
+    const allocAmount = remainingBalance;
+    const newId = `a${nextId++}`;
     allocations = [...allocations, {
-      id: `a${nextId++}`,
+      id: newId,
       methodCode,
       amount: allocAmount,
       referenceNumber: opt?.requiresReference ? generateRefNumber(methodCode) : '',
     }];
+    tick().then(() => document.getElementById(`alloc-amount-${newId}`)?.focus());
   }
 
   function removeAllocation(id: string) {
     allocations = allocations.filter(a => a.id !== id);
+  }
+
+  function splitEqually() {
+    if (allocations.length === 0) return;
+    const base = Math.floor(totalAmount / allocations.length);
+    const remainder = totalAmount - base * allocations.length;
+    allocations = allocations.map((a, i) => ({
+      ...a,
+      amount: i === 0 ? base + remainder : base,
+    }));
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -105,6 +130,16 @@
       e.preventDefault();
       e.stopPropagation();
       close();
+      return;
+    }
+    // Number-key shortcuts: add the Nth payment method (ignored while typing in a field)
+    if (/^[1-9]$/.test(e.key) && dialogEl && !(document.activeElement instanceof HTMLInputElement)) {
+      const idx = parseInt(e.key, 10) - 1;
+      const opt = paymentOptions[idx];
+      if (opt) {
+        e.preventDefault();
+        addAllocation(opt.id);
+      }
       return;
     }
     if (e.key === 'F7' && cashAllocation) {
@@ -143,7 +178,7 @@
   $effect(() => {
     if (showCheckoutModal) {
       previousFocus = document.activeElement as HTMLElement;
-      allocations = [{ id: 'a1', methodCode: 'CASH', amount: 0, referenceNumber: '' }];
+      allocations = [{ id: 'a1', methodCode: 'CASH', amount: totalAmount, referenceNumber: '' }];
       nextId = 2;
       tick().then(() => {
         const firstFocusable = dialogEl?.querySelector<HTMLElement>(
@@ -265,13 +300,23 @@
                 {#each paymentOptions as opt}
                   {@const isUsed = allocations.some(a => a.methodCode === opt.id)}
                   <button
-                    class="py-2 rounded-xl border text-[11px] font-medium transition-all {isUsed ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
+                    disabled={remainingBalance <= 0 && !isUsed}
+                    class="py-2 rounded-xl border text-[11px] font-medium transition-all {isUsed ? 'border-primary bg-primary-subtle text-primary-light' : (remainingBalance <= 0 ? 'border-border text-text-muted/40 cursor-not-allowed' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary')}"
                      onclick={() => addAllocation(opt.id)}
                    >
                      {paymentMethodLabel(opt.id, opt.label)}
                     </button>
                 {/each}
               </div>
+
+              {#if allocations.length >= 2}
+                <button
+                  class="w-full py-1.5 rounded-lg border border-dashed border-border-strong text-[11px] font-medium text-text-secondary hover:border-primary-light hover:text-primary-light transition-colors"
+                  onclick={splitEqually}
+                >
+                  ⟳ {labels.splitEqually}
+                </button>
+              {/if}
 
               <!-- Customer -->
               <button
@@ -302,9 +347,12 @@
                 {@const isCash = alloc.methodCode === 'CASH'}
                 <div class="rounded-xl border border-border/50 bg-surface/50 p-2.5 space-y-2">
                   <div class="flex items-center justify-between">
-                     <span class="text-[11px] font-semibold text-text-primary px-2 py-0.5 rounded-lg bg-primary-subtle text-primary-light">
-                     {paymentMethodLabel(alloc.methodCode, opt?.label)}
-                     </span>
+                     <div class="flex items-center gap-1.5">
+                       <span class="text-[11px] font-semibold text-text-primary px-2 py-0.5 rounded-lg bg-primary-subtle text-primary-light">
+                       {paymentMethodLabel(alloc.methodCode, opt?.label)}
+                       </span>
+                       <span class="text-[10px] text-success">&#10003; {labels.added}</span>
+                     </div>
                     <button
                       class="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-danger hover:bg-danger-subtle/30 transition-colors"
                       onclick={() => removeAllocation(alloc.id)}
@@ -329,14 +377,14 @@
                   {#if !isCash && opt?.requiresReference}
                     <div>
                       <label for="alloc-ref-{alloc.id}" class="text-[10px] text-text-muted mb-1 block">
-                        {labels.referenceNumber}
+                        {labels.referenceNumber} <span class="text-danger">*</span>
                       </label>
                       <input
                         id="alloc-ref-{alloc.id}"
                         type="text"
                         bind:value={alloc.referenceNumber}
                         placeholder={labels.referenceNumberPlaceholder}
-                        class="w-full px-2 py-1.5 rounded-lg border border-border bg-surface text-xs text-text-primary placeholder:text-text-muted outline-none focus:border-primary-light transition-colors"
+                        class="w-full px-2 py-1.5 rounded-lg border text-xs text-text-primary placeholder:text-text-muted outline-none focus:border-primary-light transition-colors {alloc.referenceNumber?.trim() ? 'border-border bg-surface' : 'border-danger bg-danger-subtle/20'}"
                       />
                     </div>
                   {/if}
@@ -377,9 +425,33 @@
               {/if}
             </div>
 
-            <!-- Fixed bottom: Actions -->
+            <!-- Fixed bottom: Summary + Actions -->
             <div class="shrink-0">
-              <div class="flex gap-2 pt-2 border-t border-border/30">
+              <!-- Summary bar: Total | Paid | Remaining (U1) -->
+              <div class="grid grid-cols-3 gap-2 px-1 pb-2 mb-2 border-b border-border/30 text-center">
+                <div>
+                  <p class="text-[10px] uppercase tracking-wider text-text-muted">{labels.total}</p>
+                  <p class="text-sm font-semibold text-text-primary tabular-nums">{totalAmount.toLocaleString('id-ID')}</p>
+                </div>
+                <div>
+                  <p class="text-[10px] uppercase tracking-wider text-text-muted">{labels.paid}</p>
+                  <p class="text-sm font-semibold text-text-primary tabular-nums">{totalAllocated.toLocaleString('id-ID')}</p>
+                </div>
+                <div>
+                  <p class="text-[10px] uppercase tracking-wider text-text-muted">{labels.remaining}</p>
+                  {#if remainingBalance > 0}
+                    <p class="text-sm font-bold text-danger tabular-nums">{remainingBalance.toLocaleString('id-ID')} &#9888;</p>
+                  {:else if remainingBalance < 0 && overTenderOnCash}
+                    <p class="text-sm font-bold text-success tabular-nums">{labels.changeDue} {changeDue.toLocaleString('id-ID')}</p>
+                  {:else if remainingBalance < 0}
+                    <p class="text-sm font-bold text-danger tabular-nums">{labels.overpaid} {Math.abs(remainingBalance).toLocaleString('id-ID')}</p>
+                  {:else}
+                    <p class="text-sm font-bold text-success tabular-nums">&#10003;</p>
+                  {/if}
+                </div>
+              </div>
+              <!-- Actions -->
+              <div class="flex gap-2 pt-2">
                 <Button
                   variant="secondary"
                   class="flex-1 py-2"

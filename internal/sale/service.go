@@ -183,56 +183,58 @@ func toStockDeductItems(items []Item) []shared.StockDeductItem {
 	return result
 }
 
-func (s *service) validatePayments(ctx context.Context, totalAmount int, payments []CreatePaymentRequest) ([]Payment, error) {
+func (s *service) validatePayments(ctx context.Context, totalAmount int, payments []CreatePaymentRequest) ([]Payment, int, error) {
 	if len(payments) == 0 {
-		return nil, ErrZeroPaymentAmount
+		return nil, 0, ErrZeroPaymentAmount
 	}
 	if len(payments) > MaxPaymentsPerSale {
-		return nil, ErrMaxPaymentsExceeded
+		return nil, 0, ErrMaxPaymentsExceeded
 	}
 
 	allMethods, err := s.repo.GetAllPaymentMethods(ctx)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	methodsByCode := make(map[string]*PaymentMethod, len(allMethods))
 	for i := range allMethods {
 		methodsByCode[strings.ToUpper(allMethods[i].Code)] = &allMethods[i]
 	}
 
-	var totalPaid int
+	var totalPaid, cashTotal, nonCashTotal int
 	result := make([]Payment, 0, len(payments))
 	seenMethods := make(map[string]bool)
 	cashCount := 0
 
 	for _, p := range payments {
 		if p.Amount <= 0 {
-			return nil, ErrZeroPaymentAmount
+			return nil, 0, ErrZeroPaymentAmount
 		}
 
 		pm, ok := methodsByCode[strings.ToUpper(p.PaymentMethodCode)]
 		if !ok {
-			return nil, ErrInvalidPaymentMethod
+			return nil, 0, ErrInvalidPaymentMethod
 		}
 		if !pm.IsActive {
-			return nil, ErrPaymentMethodInactive
+			return nil, 0, ErrPaymentMethodInactive
 		}
 
 		methodUpper := strings.ToUpper(p.PaymentMethodCode)
 		if strings.EqualFold(p.PaymentMethodCode, "CASH") {
 			cashCount++
 			if cashCount > 1 {
-				return nil, ErrMultipleCashPayments
+				return nil, 0, ErrMultipleCashPayments
 			}
+			cashTotal += p.Amount
 		} else {
 			if seenMethods[methodUpper] {
-				return nil, ErrDuplicatePaymentMethod
+				return nil, 0, ErrDuplicatePaymentMethod
 			}
+			nonCashTotal += p.Amount
 		}
 		seenMethods[methodUpper] = true
 
 		if pm.RequiresReference && strings.TrimSpace(p.ReferenceNumber) == "" {
-			return nil, ErrPaymentReferenceRequired
+			return nil, 0, ErrPaymentReferenceRequired
 		}
 
 		totalPaid += p.Amount
@@ -244,11 +246,22 @@ func (s *service) validatePayments(ctx context.Context, totalAmount int, payment
 		})
 	}
 
-	if totalPaid != totalAmount {
-		return nil, fmt.Errorf("%w: paid %d, expected %d", ErrPaymentTotalMismatch, totalPaid, totalAmount)
+	if totalPaid < totalAmount {
+		return nil, 0, fmt.Errorf("%w: paid %d, expected %d", ErrPaymentTotalMismatch, totalPaid, totalAmount)
 	}
 
-	return result, nil
+	change := 0
+	if totalPaid > totalAmount {
+		// Change can only be returned from physical cash. If the non-cash
+		// tender alone already exceeds the bill, the overage sits entirely on a
+		// non-cash method and cannot be refunded.
+		if nonCashTotal > totalAmount {
+			return nil, 0, ErrPaymentOverTenderNonCash
+		}
+		change = totalPaid - totalAmount
+	}
+
+	return result, change, nil
 }
 
 func (s *service) CreateSale(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
@@ -262,10 +275,11 @@ func (s *service) CreateSale(ctx context.Context, sale *Sale, items []Item, paym
 		return err
 	}
 
-	validatedPayments, err := s.validatePayments(ctx, sale.TotalAmount, payments)
+	validatedPayments, change, err := s.validatePayments(ctx, sale.TotalAmount, payments)
 	if err != nil {
 		return err
 	}
+	sale.ChangeDue = change
 
 	codes := make([]string, len(validatedPayments))
 	for i, p := range validatedPayments {
@@ -430,10 +444,11 @@ func (s *service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 		return err
 	}
 
-	validatedPayments, err := s.validatePayments(ctx, sale.TotalAmount, payments)
+	validatedPayments, change, err := s.validatePayments(ctx, sale.TotalAmount, payments)
 	if err != nil {
 		return err
 	}
+	sale.ChangeDue = change
 
 	codes := make([]string, len(validatedPayments))
 	for i, p := range validatedPayments {
@@ -471,7 +486,7 @@ func (s *service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sal
 		if s.shiftStore == nil {
 			return errors.New("sale service: shift store not wired; call SetShiftTotalUpdater")
 		}
-		if err := s.shiftStore.UpdateShiftTotals(ctx, tx, shiftContribution(*sale.ShiftID, sale.CashierID, sale.TotalAmount, payments)); err != nil {
+		if err := s.shiftStore.UpdateShiftTotals(ctx, tx, shiftContribution(*sale.ShiftID, sale.CashierID, sale.TotalAmount, sale.ChangeDue, payments)); err != nil {
 			return err
 		}
 	}
@@ -488,7 +503,7 @@ func (s *service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sal
 // payments; the shift module only accumulates what it is handed. The cashier ID
 // travels with the contribution so the shift module can reject contributions
 // targeting another user's shift (client-supplied shift_id is untrusted).
-func shiftContribution(shiftID, cashierID, totalAmount int, payments []Payment) shared.ShiftSaleContribution {
+func shiftContribution(shiftID, cashierID, totalAmount, changeDue int, payments []Payment) shared.ShiftSaleContribution {
 	c := shared.ShiftSaleContribution{ShiftID: shiftID, CashierID: cashierID, TotalAmount: totalAmount}
 	for _, p := range payments {
 		if strings.EqualFold(p.PaymentMethodCode, "CASH") {
@@ -497,5 +512,10 @@ func shiftContribution(shiftID, cashierID, totalAmount int, payments []Payment) 
 			c.NonCashSales += p.Amount
 		}
 	}
+	// Change is always returned from physical cash (over-tender is only allowed
+	// on the CASH line), so the cash actually retained in the drawer is the
+	// tendered cash minus the change returned. Otherwise shift reconciliation
+	// overstates expected cash and reports false shortfalls.
+	c.CashSales -= changeDue
 	return c
 }

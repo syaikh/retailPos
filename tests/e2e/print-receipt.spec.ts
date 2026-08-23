@@ -23,19 +23,19 @@ test.describe('Thermal Receipt Print Flow', () => {
   }
 
   async function addItemToCart(page: any, count: number) {
-    const addButtons = page.locator('button:has-text("Add"):not([disabled])');
-    await addButtons.first().waitFor({ state: 'visible', timeout: 10000 });
+    const rows = page.locator('table tbody tr');
+    await rows.first().waitFor({ state: 'visible', timeout: 10000 });
     for (let i = 0; i < count; i++) {
-      await addButtons.nth(i).click();
+      await rows.nth(i).dblclick();
+      await page.waitForTimeout(400);
     }
-    await page.waitForTimeout(500);
   }
 
   async function openCheckoutAndPayExact(page: any) {
     await page.keyboard.press('F4');
-    await expect(page.getByRole('heading', { name: 'Payment' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
     await page.keyboard.press('F7');
-    await expect(page.getByRole('button', { name: /Done/ })).toBeEnabled({ timeout: 5000 });
+    await expect(page.getByRole('dialog').locator('button:has-text("Enter")')).toBeEnabled({ timeout: 5000 });
     await page.waitForTimeout(200);
   }
 
@@ -54,13 +54,14 @@ test.describe('Thermal Receipt Print Flow', () => {
       };
     });
 
-    await page.getByRole('button', { name: /Done \[Enter\]/ }).click();
+    await page.getByRole('dialog').locator('button:has-text("Enter")').click();
     await page.waitForFunction(() => (window as any)._printCallCount >= 1, { timeout: 10000 });
 
     await expect(page.locator('#thermal-receipt')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('.thermal-shop-name')).toHaveText('RETAIL POS');
-    await expect(page.locator('.thermal-label:has-text("Invoice:")')).toBeVisible();
-    await expect(page.locator('.thermal-label:has-text("Time:")')).toBeVisible();
+    await expect(page.locator('.thermal-shop-name')).toBeVisible();
+    expect((await page.locator('.thermal-shop-name').textContent() || '').trim().length).toBeGreaterThan(0);
+    await expect(page.locator('.thermal-label').filter({ hasText: /Invoice|Faktur/ })).toBeVisible();
+    await expect(page.locator('.thermal-label').filter({ hasText: /Time|Waktu/ })).toBeVisible();
 
     const itemCount = await page.locator('.thermal-item-name').count();
     expect(itemCount).toBeGreaterThanOrEqual(1);
@@ -89,7 +90,7 @@ test.describe('Thermal Receipt Print Flow', () => {
     await page.emulateMedia({ media: 'screen' });
 
     expect(page.url()).toContain('/pos');
-    await expect(page.getByRole('button', { name: /Print/ })).toBeVisible({ timeout: 3000 });
+    await expect(page.getByRole('button', { name: /Print|Cetak/ })).toBeVisible({ timeout: 3000 });
   });
 
   test('print preview renders black text on white background', async ({ page }) => {
@@ -97,7 +98,7 @@ test.describe('Thermal Receipt Print Flow', () => {
     await addItemToCart(page, 2);
     await openCheckoutAndPayExact(page);
 
-    await page.getByRole('button', { name: /Done \[Enter\]/ }).click();
+    await page.getByRole('dialog').locator('button:has-text("Enter")').click();
     await page.waitForTimeout(600);
 
     await page.emulateMedia({ media: 'print' });
@@ -126,7 +127,7 @@ test.describe('Thermal Receipt Print Flow', () => {
       };
     });
 
-    await page.getByRole('button', { name: /Done \[Enter\]/ }).click();
+    await page.getByRole('dialog').locator('button:has-text("Enter")').click();
     await page.waitForFunction(() => (window as any)._printCallCount >= 1, { timeout: 10000 });
 
     let printCalls = await page.evaluate(() => (window as any)._printCallCount || 0);
@@ -134,10 +135,38 @@ test.describe('Thermal Receipt Print Flow', () => {
 
     const invoiceFirst = await page.locator('.thermal-value').first().textContent();
 
-    await page.getByRole('button', { name: /Print/ }).click();
+    await page.getByRole('button', { name: /Print|Cetak/ }).click();
     await page.waitForFunction(() => (window as any)._printCallCount >= 2, { timeout: 10000 });
 
     printCalls = await page.evaluate(() => (window as any)._printCallCount || 0);
     expect(printCalls).toBeGreaterThanOrEqual(2);
+  });
+
+  test('over-tender on cash renders a CHANGE line on the thermal receipt (C1)', async ({ page }) => {
+    await loginAndGoToPos(page);
+    await addItemToCart(page, 1);
+
+    await page.keyboard.press('F4');
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
+
+    // CASH is pre-filled to the exact total (F7 makes it explicit). Then click the
+    // first denomination button (5000) of the CASH allocation to over-tender.
+    await page.keyboard.press('F7');
+    await page.getByRole('dialog').locator('.grid-cols-5 button').first().click();
+
+    // Over-tender on cash is allowed, so the Done button (shows the [Enter] hint) is enabled.
+    const doneButton = page.getByRole('dialog').locator('button:has-text("Enter")');
+    await expect(doneButton).toBeEnabled({ timeout: 5000 });
+
+    await doneButton.click();
+    await page.waitForSelector('#thermal-receipt', { state: 'visible', timeout: 5000 });
+
+    // The receipt must render a CHANGE line with a positive amount.
+    const changeLine = page.locator('#thermal-receipt .thermal-item-total', { hasText: /Change|Uang Kembali/ });
+    await expect(changeLine).toBeVisible({ timeout: 5000 });
+
+    const changeText = await changeLine.textContent();
+    const changeValue = parseInt((changeText || '').replace(/[^0-9]/g, ''), 10);
+    expect(changeValue).toBeGreaterThan(0);
   });
 });

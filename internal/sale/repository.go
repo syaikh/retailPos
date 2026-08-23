@@ -117,10 +117,10 @@ func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item) error {
 	var createdAt, updatedAt time.Time
 	err := tx.QueryRow(ctx, `
-		INSERT INTO sales (invoice_number, cashier_id, store_id, customer_id, shift_id, subtotal, discount, tax, total_amount, payment_method, status, hold_note)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		INSERT INTO sales (invoice_number, cashier_id, store_id, customer_id, shift_id, subtotal, discount, tax, total_amount, payment_method, status, hold_note, change_due)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		RETURNING id, created_at, updated_at
-	`, sale.InvoiceNumber, sale.CashierID, sale.StoreID, sale.CustomerID, sale.ShiftID, sale.Subtotal, sale.Discount, sale.Tax, sale.TotalAmount, sale.PaymentMethod, sale.Status, sale.HoldNote).
+	`, sale.InvoiceNumber, sale.CashierID, sale.StoreID, sale.CustomerID, sale.ShiftID, sale.Subtotal, sale.Discount, sale.Tax, sale.TotalAmount, sale.PaymentMethod, sale.Status, sale.HoldNote, sale.ChangeDue).
 		Scan(&sale.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert sale: %w", err)
@@ -195,6 +195,7 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 	query := `
 		SELECT s.id, s.invoice_number, s.cashier_id, s.customer_id, s.store_id,
 		       s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status,
+		       s.change_due,
 		       s.created_at, s.updated_at,
 		       COALESCE(
 		           (SELECT jsonb_agg(jsonb_build_object(
@@ -233,7 +234,7 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 	err := r.db.QueryRow(ctx, query, args...).Scan(
 		&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &sale.CustomerID, &sale.StoreID,
 		&sale.Subtotal, &sale.Discount, &sale.Tax,
-		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status,
+		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &sale.ChangeDue,
 		&createdAt, &updatedAt, &itemsJSON, &paymentsJSON,
 	)
 	if err != nil {

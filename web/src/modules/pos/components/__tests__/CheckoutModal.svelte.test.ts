@@ -20,7 +20,7 @@ describe('CheckoutModal.svelte source-structure guards', () => {
   });
 
   it('imports i18n labels', () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain("import { labels, t, paymentMethodLabel } from '$shared/i18n'");
   });
 
   it('has denominations array', () => {
@@ -126,7 +126,7 @@ describe('CheckoutModal.svelte source-structure guards', () => {
   });
 
   it('pre-selects CASH allocation on open', () => {
-    expect(src).toContain("allocations = [{ id: 'a1', methodCode: 'CASH', amount: 0, referenceNumber: '' }]");
+    expect(src).toContain("allocations = [{ id: 'a1', methodCode: 'CASH', amount: totalAmount, referenceNumber: '' }]");
     expect(src).toContain("nextId = 2");
   });
 
@@ -138,5 +138,18 @@ describe('CheckoutModal.svelte source-structure guards', () => {
   it('uses h-dvh for full-height dialog', () => {
     expect(src).toContain("h-dvh");
     expect(src).toContain("max-h-[calc(100vh-2rem)]");
+  });
+
+  it('computes cash change (changeDue) and allows over-tender only on cash (C1)', () => {
+    expect(src).toContain("const cashTotal = $derived");
+    expect(src).toContain("const nonCashTotal = $derived");
+    expect(src).toContain("const overTenderOnCash = $derived");
+    expect(src).toContain("const changeDue = $derived");
+    expect(src).toContain("(remainingBalance === 0 || (remainingBalance < 0 && overTenderOnCash))");
+  });
+
+  it('shows change due in the summary bar when over-tendered on cash (C1)', () => {
+    expect(src).toContain("{:else if remainingBalance < 0 && overTenderOnCash}");
+    expect(src).toContain("{labels.changeDue} {changeDue.toLocaleString('id-ID')}");
   });
 });

@@ -377,7 +377,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
 			return
 		}
-		if errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
+		if errors.Is(err, ErrPaymentOverTenderNonCash) || errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
 			errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
 			errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
 			errors.Is(err, ErrMaxPaymentsExceeded) || errors.Is(err, ErrMultipleCashPayments) {
@@ -1251,7 +1251,7 @@ func (h *Handler) CompleteParkedSale(c *gin.Context) {
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
 			return
 		}
-		if errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
+		if errors.Is(err, ErrPaymentOverTenderNonCash) || errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
 			errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
 			errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
 			errors.Is(err, ErrMaxPaymentsExceeded) || errors.Is(err, ErrMultipleCashPayments) {

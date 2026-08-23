@@ -100,7 +100,7 @@
         reference_number: p.reference_number,
       })),
       cashReceived,
-      changeDue: 0,
+      changeDue: displayTransaction.change_due ?? 0,
       customer_name: displayTransaction.customer_name || undefined,
       total_savings: (displayTransaction.items || []).reduce((sum: number, item: any) => {
         if (item.original_price && item.original_price > item.unit_price) {

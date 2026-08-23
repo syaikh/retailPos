@@ -73,6 +73,13 @@
         </div>
       {/if}
     </div>
+    {#if $printReceipt.changeDue > 0}
+      <div class="thermal-divider-thin"></div>
+      <div class="thermal-item thermal-item-total">
+        <span>{labels.changeDue}</span>
+        <span>{$printReceipt.changeDue.toLocaleString('id-ID')}</span>
+      </div>
+    {/if}
     <div class="thermal-divider"></div>
     <div class="thermal-footer">
       {#if settingsStore.receiptFooter}
