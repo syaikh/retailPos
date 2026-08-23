@@ -55,6 +55,26 @@ export const labels = new Proxy(i18n, {
   },
 }) as unknown as Labels;
 
+/**
+ * Map well-known payment method codes to localized label keys. Custom methods
+ * (added by the store) fall back to their stored name.
+ */
+const PAYMENT_METHOD_LABEL_KEYS: Record<string, keyof Labels> = {
+  CASH: 'cash',
+  CARD: 'card',
+  E_WALLET: 'eWallet',
+};
+
+/**
+ * Localized display name for a payment method. Reads `i18n.labels`, so calling
+ * this in a template re-renders when the UI language changes.
+ */
+export function paymentMethodLabel(code: string, fallback?: string): string {
+  const key = PAYMENT_METHOD_LABEL_KEYS[code.toUpperCase()];
+  if (key) return i18n.labels[key];
+  return fallback ?? code;
+}
+
 export const currentLocale = () => i18n.locale;
 export const setLocale = (locale: Locale) => i18n.setLocale(locale);
 export const toggleLocale = () => i18n.toggleLocale();

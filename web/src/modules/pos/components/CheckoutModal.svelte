@@ -4,7 +4,7 @@
   import { X, Check, User, ChevronRight, Plus, Trash2 } from 'lucide-svelte';
   import { tick } from 'svelte';
   import type { PaymentAllocation } from '../types';
-  import { labels, t } from '$shared/i18n';
+  import { labels, t, paymentMethodLabel } from '$shared/i18n';
 
   const denominations = [5000, 10000, 20000, 50000, 100000];
   let dialogEl: HTMLDivElement | undefined = $state();
@@ -266,10 +266,10 @@
                   {@const isUsed = allocations.some(a => a.methodCode === opt.id)}
                   <button
                     class="py-2 rounded-xl border text-[11px] font-medium transition-all {isUsed ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
-                    onclick={() => addAllocation(opt.id)}
-                  >
-                    {opt.label}
-                  </button>
+                     onclick={() => addAllocation(opt.id)}
+                   >
+                     {paymentMethodLabel(opt.id, opt.label)}
+                    </button>
                 {/each}
               </div>
 
@@ -302,9 +302,9 @@
                 {@const isCash = alloc.methodCode === 'CASH'}
                 <div class="rounded-xl border border-border/50 bg-surface/50 p-2.5 space-y-2">
                   <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-semibold text-text-primary px-2 py-0.5 rounded-lg bg-primary-subtle text-primary-light">
-                      {opt?.label || alloc.methodCode}
-                    </span>
+                     <span class="text-[11px] font-semibold text-text-primary px-2 py-0.5 rounded-lg bg-primary-subtle text-primary-light">
+                     {paymentMethodLabel(alloc.methodCode, opt?.label)}
+                     </span>
                     <button
                       class="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-danger hover:bg-danger-subtle/30 transition-colors"
                       onclick={() => removeAllocation(alloc.id)}

@@ -1111,6 +1111,7 @@ export const en: Labels = {
   searchProducts: 'Search products...',
   productWithId: 'Product #{id}',
   copyPoNumber: 'Copy PO Number',
+  copyInvoiceNumber: 'Copy Invoice Number',
   cancelPo: 'Cancel PO',
   createGoodsReceipt: 'Create Goods Receipt',
   goodsReceiptCreated: 'Goods receipt created successfully',

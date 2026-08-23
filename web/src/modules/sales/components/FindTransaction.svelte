@@ -1,9 +1,21 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Pagination, Skeleton } from '$shared/ui';
-  import { User, Search } from 'lucide-svelte';
+  import { User, Search, Copy, Check } from 'lucide-svelte';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
   import { labels } from '$shared/i18n';
+
+  let copiedInvoice = $state<string | null>(null);
+
+  async function copyInvoice(invoice: string) {
+    try {
+      await navigator.clipboard.writeText(invoice);
+      copiedInvoice = invoice;
+      setTimeout(() => { copiedInvoice = null; }, 1500);
+    } catch {
+      // Clipboard unavailable (non-secure context) — leave feedback unset.
+    }
+  }
   import { useSalesStore } from '../stores/sales-store.svelte';
   import { getSalesLookup } from '../services/sales-service';
   import type { SaleLookupSummary } from '../types';
@@ -188,7 +200,22 @@
                 }}
               >
                 <td class="p-4">
-                  <span class="text-sm font-medium text-text-primary">{sale.invoice_number}</span>
+                  <span class="flex items-center gap-1.5">
+                    <span class="text-sm font-medium text-text-primary">{sale.invoice_number}</span>
+                    <button
+                      type="button"
+                      class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0"
+                      title={labels.copyInvoiceNumber}
+                      aria-label={labels.copyInvoiceNumber}
+                      onclick={(e) => { e.stopPropagation(); copyInvoice(sale.invoice_number); }}
+                    >
+                      {#if copiedInvoice === sale.invoice_number}
+                        <Check size={13} class="text-primary" />
+                      {:else}
+                        <Copy size={13} class="text-text-muted hover:text-primary" />
+                      {/if}
+                    </button>
+                  </span>
                 </td>
                 <td class="p-4 text-sm text-text-secondary">
                   {formatDateTime(sale.created_at)}

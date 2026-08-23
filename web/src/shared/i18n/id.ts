@@ -1111,6 +1111,7 @@ export const id = {
   searchProducts: 'Cari produk...',
   productWithId: 'Produk #{id}',
   copyPoNumber: 'Salin Nomor PO',
+  copyInvoiceNumber: 'Salin Nomor Faktur',
   cancelPo: 'Batalkan PO',
   createGoodsReceipt: 'Buat Penerimaan Barang',
   goodsReceiptCreated: 'Penerimaan barang berhasil dibuat',
