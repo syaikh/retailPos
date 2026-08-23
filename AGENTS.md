@@ -187,6 +187,8 @@ Key migrations with deployment ordering constraints:
 - `005_app_settings.sql` — creates the `app_settings` key-value table for global application configuration (store branding, receipt text), seeds defaults, and grants `app_settings.view`/`app_settings.update` to superadmin/admin; must be applied before the binary that reads/writes app settings, otherwise the server panics or returns 500 on `/api/settings`
 - `006_user_preferences.sql` — adds per-user `language` and `theme` columns to `users`, removes dead `default_language` key from `app_settings`; must be applied before the binary that reads/writes user language/theme preferences, otherwise login responses omit those fields
 - `007_sale_lookup.sql` — seeds the `sale.lookup` permission and grants it to the `cashier` and `manager` roles; must be applied before the binary that registers `permissions.SaleLookup` and gates the cross-cashier redacted `GET /api/sales/lookup` endpoint on it, otherwise cashiers/managers get 403 on the "Find Transaction" tab and its `sale.lookup` permission check fails
+- `031_revoke_sale_lookup_manager.sql` — revokes the `sale.lookup` grant from the `manager` role (Find Transaction is cashier-only); must be applied before the binary that hides the "Find Transaction" tab for managers, otherwise managers see a redundant/weaker redacted subset
+- `032_sale_detail_and_receipt_print.sql` — seeds `sale.detail` and `receipt.print` permissions and grants them to `cashier`, `manager`, `admin`, `superadmin`; must be applied before the binary that registers `permissions.SaleDetail`/`ReceiptPrint` and gates the cross-cashier drill-down (`/sales/lookup/:id`) and receipt reprint endpoints on them, otherwise cashiers get 403 on the Find Transaction detail/reprint actions
 
 ## Filesystem Convention
 
@@ -208,4 +210,4 @@ Non-code files follow this organization:
   - `docs/docs.go`, `docs/swagger.go`, `docs/swagger.json`, `docs/swagger.yaml` — swag-generated OpenAPI artifacts (the `docs` Go package, imported by `cmd/server/main.go`; do not move)
 - Root-level kept: `README.md`, `CONTRIBUTING.md`, `AGENTS.md`, `LICENSE`
 - Build artifacts and auto-generated files are gitignored (see `.gitignore`)
-- SQL schema: `database/migrations/` (the `database/seeds/` directory was retired — all seed data is consolidated into migrations, see `030_consolidate_seed_permissions.sql`)
+- SQL schema: `database/migrations/` (the `database/seeds/` directory was retired — all seed data is consolidated into `000_squash.sql`)

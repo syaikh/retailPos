@@ -116,7 +116,7 @@ Login credentials:
 
 ## Database Migrations & Fresh-DB Spin-up
 
-Migrations are SQL files in `database/migrations/` (currently `000_squash.sql` through `030_consolidate_seed_permissions.sql`). They are **not** run automatically by the backend server — you must run them explicitly:
+Migrations are SQL files in `database/migrations/` (currently `000_squash.sql`, `001`–`007`, `031`–`032`). They are **not** run automatically by the backend server — you must run them explicitly:
 
 ```bash
 ./deploy/podman-deploy.sh migrate   # applies every *.sql in database/migrations/

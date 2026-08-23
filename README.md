@@ -623,11 +623,11 @@ sudo systemctl enable --now retail-pos
 
 ### Database Migrations
 
-Migrations adalah file SQL di `database/migrations/` (saat ini **000–007**). Migrations **tidak** berjalan otomatis oleh server — jalankan eksplisit via `./deploy/podman-deploy.sh migrate` (atau test harness, yang mengaplikasikan pending migrations ke test DB). Tracking file yang sudah ter-apply ada di tabel `schema_migrations`.
+Migrations adalah file SQL di `database/migrations/` (saat ini **`000_squash.sql`, `001`–`007`, `031`–`032`**). Migrations **tidak** berjalan otomatis oleh server — jalankan eksplisit via `./deploy/podman-deploy.sh migrate` (atau test harness, yang mengaplikasikan pending migrations ke test DB). Tracking file yang sudah ter-apply ada di tabel `schema_migrations`.
 
 **Fresh database (spin-up baru):** `migrate` melakukan bootstrap `pgcrypto`, `invoice_seq`, dan tabel `schema_migrations` terlebih dahulu, lalu mengaplikasikan setiap file secara berurutan dari `000_squash.sql` dengan `ON_ERROR_STOP=1`. Hasilnya: schema lengkap + reference data (roles, 74 permissions, grants, 5 user default, payment methods, customer groups). Data bisnis (stores, products, customers, sales) harus diisi via `./seed-dev.sh` atau `./deploy/podman-deploy.sh seed`.
 
-> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Migrations bersifat idempotent (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`) dan harus dijalankan secara berurutan dari `000_squash.sql`. Migrasi terkini: `001_consignment.sql`, `002_settlement_items_product_id.sql`, `003_settlement_updated_at.sql`, `004_supplier_code_sequence.sql`, `005_app_settings.sql`, `006_user_preferences.sql`, `007_sale_lookup.sql` — lihat AGENTS.md untuk detail deployment ordering.
+> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Migrations bersifat idempotent (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`) dan harus dijalankan secara berurutan dari `000_squash.sql`. Migrasi terkini: `001_consignment.sql`, `002_settlement_items_product_id.sql`, `003_settlement_updated_at.sql`, `004_supplier_code_sequence.sql`, `005_app_settings.sql`, `006_user_preferences.sql`, `007_sale_lookup.sql`, `031_revoke_sale_lookup_manager.sql`, `032_sale_detail_and_receipt_print.sql` — lihat AGENTS.md untuk detail deployment ordering.
 
 Migrations terkini:
 - `000_squash.sql` — Baseline schema + seed data awal (roles, 74 permissions, grants, 5 user default, payment methods, customer groups, tombstone sequences)
@@ -637,6 +637,9 @@ Migrations terkini:
 - `004_supplier_code_sequence.sql` — Sequence `supplier_seq` untuk auto-generate kode supplier (`SUP-%06d`)
 - `005_app_settings.sql` — Tabel `app_settings` (key-value global: branding, receipt text), seed defaults, permission `app_settings.view`/`app_settings.update`
 - `006_user_preferences.sql` — Kolom `users.language` dan `users.theme` untuk preferensi per-user, hapus `default_language` dari `app_settings`
+- `007_sale_lookup.sql` — Permission `sale.lookup` + grant ke `cashier` (grant `manager` kemudian dicabut oleh `031`)
+- `031_revoke_sale_lookup_manager.sql` — Cabut grant `sale.lookup` dari role `manager` (Find Transaction hanya untuk kasir); terapkan sebelum binary yang menyembunyikan tab tersebut untuk manager
+- `032_sale_detail_and_receipt_print.sql` — Permission `sale.detail` dan `receipt.print`; grant ke `cashier`, `manager`, `admin`, `superadmin`
 
 ---
 
@@ -647,7 +650,7 @@ Migrations terkini:
 | Superadmin | `superadmin` | `admin123` | Semua permission (termasuk app_settings, consignment) |
 | Admin | `admin` | `admin123` | User management, reports, PO, pricing, consignment view/settle (tanpa audit.view / role.update / user.delete / app_settings.update / consignment.pay) |
 | Manager | `manager` | `admin123` | Inventory, sales, PO, pricing, shifts, consignment view/create/update/settle |
-| Cashier | `cashier` | `admin123` | POS only (create/view sales, park, shift) |
+| Cashier | `cashier` | `admin123` | POS only (create/view sales, park, shift, Find Transaction lookup + cross-cashier reprint) |
 | Staff | `staff` | `admin123` | Produk (view) + stock opname counting |
 
 Ganti password di production via UI change-password. (Default user password seeds previously lived in `database/seeds/`, which was retired; the default `admin123` users are created in `database/migrations/000_squash.sql`.)
@@ -656,7 +659,7 @@ Ganti password di production via UI change-password. (Default user password seed
 
 ## Permission Matrix
 
-Permission memakai **dot-notation** (`entity.action`), contoh: `user.view`, `product.create`, `stock_opname.post`. Tabel ini adalah konfigurasi default dari seeds; dapat diubah via Role Management UI. Total 81 permissions (termasuk `consignment.*` dan `app_settings.*`).
+Permission memakai **dot-notation** (`entity.action`), contoh: `user.view`, `product.create`, `stock_opname.post`. Tabel ini adalah konfigurasi default dari seeds; dapat diubah via Role Management UI. Total 84 permissions (termasuk `consignment.*`, `app_settings.*`, `sale.lookup`, `sale.detail`, `receipt.print`).
 
 | Permission | Superadmin | Admin | Manager | Cashier | Staff |
 |------------|:---:|:---:|:---:|:---:|:---:|
@@ -673,6 +676,8 @@ Permission memakai **dot-notation** (`entity.action`), contoh: `user.view`, `pro
 | `category.import`, `category.export` | ✅ | ✅ | – | – | – |
 | `sale.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `sale.create`, `sale.park` | ✅ | ✅ | – | ✅ | – |
+| `sale.lookup` | ✅ | ✅ | – | ✅ | – |
+| `sale.detail`, `receipt.print` | ✅ | ✅ | ✅ | ✅ | – |
 | `shift.view`, `shift.create` | ✅ | ✅ | ✅ | ✅ | – |
 | `shift.review`, `shift.audit` | ✅ | ✅ | ✅ | – | – |
 | `inventory.adjust` | ✅ | ✅ | ✅ | – | – |
