@@ -15,7 +15,7 @@ test.describe('Transactions Page', () => {
 
   test('should display transaction table with columns', async ({ page }) => {
     await expect(page.locator('text=INVOICE')).toBeVisible();
-    await expect(page.locator('text=DATE')).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'DATE' })).toBeVisible();
     await expect(page.locator('text=CUSTOMER')).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'PAYMENT' })).toBeVisible();
     await expect(page.locator('text=TOTAL (RP)')).toBeVisible();
@@ -153,11 +153,19 @@ test.describe('Transactions Page', () => {
   test('should show Walk-in / General for sale without customer', async ({ page, request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
+    const productRes = await page.request.get(`${API_BASE}/api/products?limit=50`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const productData = await productRes.json();
+    const productWithStock = productData.data?.find((p: any) => (p.stock ?? 0) > 0) ?? productData.data?.[0];
+    expect(productWithStock, 'no product available').toBeTruthy();
+    const productId = productWithStock.id;
+
     const saleRes = await page.request.post(`${API_BASE}/api/sales`, {
       headers: { Authorization: `Bearer ${token}` },
       data: {
         payment_method: 'CASH',
-        items: [{ product_id: 4690, quantity: 1 }],
+        items: [{ product_id: productId, quantity: 1 }],
       },
     });
     expect(saleRes.ok()).toBeTruthy();
@@ -179,17 +187,33 @@ test.describe('Transactions Page', () => {
   test('should show customer name when sale has customer', async ({ page, request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
+    const productRes = await page.request.get(`${API_BASE}/api/products?limit=50`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const productData = await productRes.json();
+    const productWithStock = productData.data?.find((p: any) => (p.stock ?? 0) > 0) ?? productData.data?.[0];
+    expect(productWithStock, 'no product available').toBeTruthy();
+    const productId = productWithStock.id;
+
     const saleRes = await page.request.post(`${API_BASE}/api/sales`, {
       headers: { Authorization: `Bearer ${token}` },
       data: {
         payment_method: 'CASH',
         customer_id: 2,
-        items: [{ product_id: 4690, quantity: 1 }],
+        items: [{ product_id: productId, quantity: 1 }],
       },
     });
     expect(saleRes.ok()).toBeTruthy();
     const sale = await saleRes.json();
     const invoice = sale.data?.invoice_number || sale.invoice_number;
+
+    const custRes = await page.request.get(`${API_BASE}/api/customers/2`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(custRes.ok(), 'customer 2 lookup failed').toBeTruthy();
+    const custJson = await custRes.json();
+    const expectedName = custJson.data?.name ?? custJson.name;
+    expect(expectedName, 'customer 2 has no name').toBeTruthy();
 
     await page.goto('/transactions');
     await expect(page).toHaveURL(/\/transactions/);
@@ -200,7 +224,7 @@ test.describe('Transactions Page', () => {
     await page.waitForTimeout(1500);
 
     const customerCell = page.locator('table tbody td').nth(2);
-    await expect(customerCell).toContainText('Hasan Hakim', { timeout: 5000 });
+    await expect(customerCell).toContainText(expectedName as string, { timeout: 5000 });
   });
 
   test('cashier only sees own transactions via cashier_id filter', async ({ page, request }) => {

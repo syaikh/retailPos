@@ -47,9 +47,9 @@ test.describe('Purchase Orders - Kebab Menu Dropdown', () => {
     await logoutUI(page);
   });
 
-  test('dropdown appears fully visible without clipping on all rows', async ({ page }) => {
+  test('dropdown appears fully visible without clipping on all rows', { timeout: 60000 }, async ({ page }) => {
     await page.goto('/purchase-orders');
-    await page.waitForTimeout(1500);
+    await page.waitForLoadState('networkidle').catch(() => {});
 
     const table = page.locator('[role="grid"][aria-label="Purchase Orders"]');
     await expect(table).toBeVisible({ timeout: 5000 });
@@ -62,8 +62,6 @@ test.describe('Purchase Orders - Kebab Menu Dropdown', () => {
       const row = rows.nth(i);
       const actionBtn = row.locator('button[aria-label*="Actions for"]');
       await actionBtn.click();
-      await page.waitForTimeout(400);
-
       const dropdown = page.locator('[role="menu"]').first();
       await expect(dropdown).toBeVisible({ timeout: 3000 });
 
@@ -87,17 +85,17 @@ test.describe('Purchase Orders - Kebab Menu Dropdown', () => {
 
       // Click first menu item (View) to verify clickability
       await menuItems.first().click();
-      await page.waitForTimeout(500);
+      await page.waitForLoadState('networkidle').catch(() => {});
 
       // Should navigate away or show drawer; go back to PO list
       await page.goto('/purchase-orders');
-      await page.waitForTimeout(1000);
+      await page.waitForLoadState('networkidle').catch(() => {});
     }
   });
 
   test('dropdown renders above table container (z-stacking)', async ({ page }) => {
     await page.goto('/purchase-orders');
-    await page.waitForTimeout(1500);
+    await page.waitForLoadState('networkidle').catch(() => {});
 
     const table = page.locator('[role="grid"][aria-label="Purchase Orders"]');
     await expect(table).toBeVisible({ timeout: 5000 });
@@ -105,7 +103,6 @@ test.describe('Purchase Orders - Kebab Menu Dropdown', () => {
     const firstRow = table.locator('tbody tr').first();
     const actionBtn = firstRow.locator('button[aria-label*="Actions for"]');
     await actionBtn.click();
-    await page.waitForTimeout(400);
 
     const dropdown = page.locator('[role="menu"]').first();
     await expect(dropdown).toBeVisible({ timeout: 3000 });
@@ -127,7 +124,6 @@ test.describe('Purchase Orders - Kebab Menu Dropdown', () => {
 
     // Close via Escape
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
     await expect(dropdown).not.toBeVisible();
   });
 });

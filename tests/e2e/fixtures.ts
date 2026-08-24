@@ -1,4 +1,7 @@
 import { test as base, expect } from '@playwright/test';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 // ============================================================================
 // Configuration - Base URLs from environment variables
@@ -40,14 +43,22 @@ export const test = base.extend({
 
     // Add helper methods to page
     page.authAs = async (username: string, password: string) => {
+      const { token, refreshToken } = await getAuthTokens(page.request, username, password);
+
+      // Restore an existing session via the shared cached token instead of
+      // submitting the login form. This keeps total /api/login calls for the
+      // whole suite at ~4 (one per user, shared on disk), avoiding the per-IP
+      // login rate limiter. `restoreSession()` does NOT re-apply the user's
+      // language, so the English locale pinned by addInitScript above is kept.
       await page.goto('/');
-      await page.fill('#username', username);
-      await page.fill('#password', password);
-      await page.click('button[type="submit"]');
-      await expect(page).toHaveURL(/\/$/, { timeout: 5000 });
-      
-      // Return token
-      return await page.evaluate(() => sessionStorage.getItem('access_token'));
+      await page.evaluate(({ t, rt }) => {
+        sessionStorage.setItem('access_token', t);
+        sessionStorage.setItem('refresh_token', rt);
+      }, { t: token, rt: refreshToken });
+      await page.reload({ waitUntil: 'load' });
+      await waitForAppReady(page);
+
+      return token;
     };
 
     page.logout = async () => {
@@ -117,31 +128,89 @@ export const API_ENDPOINTS = {
 };
 
 // ============================================================================
-// Token Cache - Reuse tokens across tests to avoid login rate limiting
+// Shared token cache - persisted to a file on disk so every Playwright worker
+// process reuses the same tokens. The entire suite therefore makes at most one
+// /api/login call per user (~4 total), which keeps us well under the per-IP
+// login rate limiter (5 req/min, burst 5) and removes cross-spec auth flakiness.
 // ============================================================================
 
-const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes (JWT expires in 15 min)
+const TOKEN_CACHE_FILE = join(tmpdir(), 'retail-pos-e2e-tokens.json');
+
+type CachedToken = { token: string; refreshToken: string; expiresAt: number };
+type TokenStore = Record<string, CachedToken>;
+
+function readTokenStore(): TokenStore {
+  try {
+    if (existsSync(TOKEN_CACHE_FILE)) {
+      return JSON.parse(readFileSync(TOKEN_CACHE_FILE, 'utf8')) as TokenStore;
+    }
+  } catch {
+    // ignore corrupt/locked cache
+  }
+  return {};
+}
+
+function writeTokenStore(store: TokenStore): void {
+  try {
+    writeFileSync(TOKEN_CACHE_FILE, JSON.stringify(store));
+  } catch {
+    // ignore write failures (token simply won't be shared)
+  }
+}
 
 /**
- * Login via API and cache the access token to avoid hitting rate limits.
- * Uses request fixture from Playwright for HTTP calls.
+ * Login via API and cache both tokens on disk, shared across all workers.
  */
-export async function getToken(request: any, username: string = TEST_USERS.superadmin.username, password: string = TEST_USERS.superadmin.password): Promise<string> {
+async function getAuthTokens(
+  request: any,
+  username: string = TEST_USERS.superadmin.username,
+  password: string = TEST_USERS.superadmin.password
+): Promise<CachedToken> {
   const cacheKey = `${username}:${password}`;
-  const cached = tokenCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.token;
+  const now = Date.now();
+  const store = readTokenStore();
+  const cached = store[cacheKey];
+  if (cached && cached.expiresAt > now) {
+    return cached;
   }
 
-  const res = await request.post(`${API_BASE}/api/login`, {
-    data: { username, password },
-  });
-  expect(res.ok(), `login failed for ${username}: ${res.status()}`).toBeTruthy();
-  const body = await res.json();
-  const token = body.access_token;
-  tokenCache.set(cacheKey, { token, expiresAt: Date.now() + TOKEN_TTL_MS });
-  return token;
+  let body: any;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const res = await request.post(`${API_BASE}/api/login`, {
+      data: { username, password },
+    });
+    if (res.ok()) {
+      body = await res.json();
+      break;
+    }
+    // On rate-limit (429), back off and retry; the shared cache means only the
+    // first worker to need a given user actually reaches this under normal load.
+    if (res.status() === 429 && attempt < 5) {
+      await new Promise((r) => setTimeout(r, 1500));
+      continue;
+    }
+    expect(res.ok(), `login failed for ${username}: ${res.status()}`).toBeTruthy();
+  }
+  const entry: CachedToken = {
+    token: body.access_token,
+    refreshToken: body.refresh_token,
+    expiresAt: now + TOKEN_TTL_MS,
+  };
+  store[cacheKey] = entry;
+  writeTokenStore(store);
+  return entry;
+}
+
+/**
+ * Reuse a cached access token across tests to avoid login rate limiting.
+ */
+export async function getToken(
+  request: any,
+  username: string = TEST_USERS.superadmin.username,
+  password: string = TEST_USERS.superadmin.password
+): Promise<string> {
+  return (await getAuthTokens(request, username, password)).token;
 }
 
 /**
@@ -179,31 +248,20 @@ export function authHeader(token: string) {
  * Login via browser UI with retry for transient failures.
  * Clears session, fills form, submits, and waits for navigation away from login.
  */
-export async function loginUI(page: any, username: string, password: string, retries = 2) {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    await page.goto(`${FRONTEND_BASE}/login`);
-    await page.waitForTimeout(500);
-    await page.evaluate(() => sessionStorage.clear());
-    await page.reload();
-    await page.waitForSelector('#username', { state: 'visible', timeout: 15000 });
-    await page.fill('#username', username);
-    await page.fill('#password', password);
-    await page.click('button[type="submit"]');
-    await page.waitForTimeout(1500);
-    try {
-      await page.waitForFunction(() => {
-        const path = window.location.hash || window.location.pathname;
-        return path === '/' || path === '' || !path.includes('login');
-      }, { timeout: 10000 });
-      return;
-    } catch {
-      if (attempt < retries) {
-        await new Promise(r => setTimeout(r, 2000));
-        continue;
-      }
-      throw new Error(`loginUI failed after ${retries + 1} attempts for user "${username}"`);
-    }
-  }
+export async function loginUI(page: any, username: string, password: string, _retries = 2) {
+  const { token, refreshToken } = await getAuthTokens(page.request, username, password);
+
+  // Restore an existing session via the shared cached token instead of
+  // submitting the login form, avoiding the per-IP login rate limiter.
+  // `restoreSession()` does not re-apply the user's language, so the English
+  // locale pinned by addInitScript is preserved.
+  await page.goto(`${FRONTEND_BASE}/`);
+  await page.evaluate(({ t, rt }) => {
+    sessionStorage.setItem('access_token', t);
+    sessionStorage.setItem('refresh_token', rt);
+  }, { t: token, rt: refreshToken });
+  await page.reload({ waitUntil: 'load' });
+  await waitForAppReady(page);
 }
 
 /**
@@ -213,6 +271,22 @@ export async function logoutUI(page: any) {
   await page.evaluate(() => sessionStorage.clear());
   await page.goto(`${FRONTEND_BASE}/login`);
   await page.waitForSelector('#username', { state: 'visible', timeout: 10000 });
+}
+
+/**
+ * Driver-layer readiness gate. The SPA only renders role-gated navigation after
+ * the async /users/me permission fetch resolves, but it shows <aside> (empty)
+ * immediately. Asserting against the nav before that fetch lands is the classic
+ * "assert-before-hydration" flake. We absorb that accidental complexity HERE so
+ * individual specs only describe essential behaviour.
+ */
+export async function waitForAppReady(page: any) {
+  await page.locator('aside').waitFor({ state: 'visible', timeout: 15000 });
+  // The SPA keeps a persistent WebSocket open, so `networkidle` never fires;
+  // waiting on it just blocks for the full default timeout. The nav is
+  // permission-driven and populates async, so gate on a real nav button
+  // instead — that is the actual readiness signal.
+  await page.locator('aside button').first().waitFor({ state: 'visible', timeout: 15000 });
 }
 
 // ============================================================================

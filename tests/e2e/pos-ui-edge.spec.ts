@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { TEST_USERS, API_BASE, loginUI, logoutUI } from './fixtures';
+import { TEST_USERS, API_BASE, FRONTEND_BASE, loginUI, logoutUI } from './fixtures';
 import { TestDataTracker, execSQL, querySQL } from './db-helper';
 import {
   authAs,
@@ -39,7 +39,7 @@ test.describe('POS UI Edge Cases', () => {
     tracker.trackShift(await ensureOpenShift(request, cashier));
     // Park any leftover open cart so line-count assertions start empty.
     await holdLeftoverCart(request, cashier);
-    await page.goto('/pos');
+    await page.goto(`${FRONTEND_BASE}/pos`);
     await expect(page).toHaveURL(/\/pos/);
   });
 
@@ -265,7 +265,7 @@ test.describe('POS UI Edge Cases', () => {
 
   test('CS-F15: cashier is redirected when opening restricted routes by URL', async ({ page }) => {
     for (const path of ['/reports', '/purchase-orders', '/consignment']) {
-      await page.goto(path);
+      await page.goto(`${FRONTEND_BASE}${path}`);
       // Redirect target is the role's default route (e.g. /shifts); the
       // contract under test is only that the restricted path is never shown.
       await page.waitForURL((url) => !url.pathname.includes(path), { timeout: 10000 });

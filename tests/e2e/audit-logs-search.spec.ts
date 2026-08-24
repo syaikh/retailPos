@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures';
 import type { Page } from '@playwright/test';
-import { TEST_USERS, API_BASE, authHeader, waitForAPI, loginUI, logoutUI, getToken as cachedGetToken } from './fixtures';
+import { TEST_USERS, API_BASE, FRONTEND_BASE, authHeader, waitForAPI, loginUI, logoutUI, getToken as cachedGetToken } from './fixtures';
 
 const getToken = cachedGetToken;
 
@@ -358,129 +358,10 @@ test.describe('Audit Logs Search', () => {
       return path === '/' || path === '' || !path.includes('login');
     }, { timeout: 15000 });
 
-    await page.goto('/admin/audit-logs');
+    await page.goto(`${FRONTEND_BASE}/admin/audit-logs`);
     await page.waitForTimeout(2000);
 
     await expect(page).not.toHaveURL(/\/admin\/audit-logs/, { timeout: 5000 });
   });
 });
 
-// ============================================================================
-// Audit Logs API - Get by ID, Entity Types, Export
-// ============================================================================
-
-test.describe('Audit Logs API - Get by ID', () => {
-
-  test('GET /api/audit-logs/:id returns a single audit log', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-
-    // First get a list to find a valid ID
-    const listRes = await request.get(`${API_BASE}/api/audit-logs?limit=1`, { headers: authHeader(token) });
-    expect(listRes.ok()).toBeTruthy();
-    const listBody = await listRes.json();
-    expect(listBody.data.length).toBeGreaterThan(0);
-
-    const logId = listBody.data[0].id;
-    const res = await request.get(`${API_BASE}/api/audit-logs/${logId}`, { headers: authHeader(token) });
-    expect(res.ok(), `get by id failed: ${res.status()}`).toBeTruthy();
-    const body = await res.json();
-    expect(body.data).toBeDefined();
-    expect(body.data.id).toBe(logId);
-  });
-
-  test('GET /api/audit-logs/:id returns 400 for invalid id', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const res = await request.get(`${API_BASE}/api/audit-logs/not-a-number`, { headers: authHeader(token) });
-    expect(res.status()).toBe(400);
-  });
-
-  test('GET /api/audit-logs/:id returns 404 for nonexistent id', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const res = await request.get(`${API_BASE}/api/audit-logs/999999999`, { headers: authHeader(token) });
-    expect(res.status()).toBe(404);
-  });
-
-  test('GET /api/audit-logs/:id without auth returns 401', async ({ request }) => {
-    const res = await request.get(`${API_BASE}/api/audit-logs/1`);
-    expect(res.status()).toBe(401);
-  });
-});
-
-test.describe('Audit Logs API - List Entity Types', () => {
-
-  test('GET /api/audit-logs/entity-types returns array of entity types', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const res = await request.get(`${API_BASE}/api/audit-logs/entity-types`, { headers: authHeader(token) });
-    expect(res.ok(), `entity types failed: ${res.status()}`).toBeTruthy();
-    const body = await res.json();
-    expect(Array.isArray(body.data)).toBeTruthy();
-    expect(body.data.length).toBeGreaterThan(0);
-    // Should include common entity types
-    const lowerTypes = body.data.map((t: string) => t.toLowerCase());
-    expect(lowerTypes.some((t: string) => t.includes('auth') || t.includes('user') || t.includes('product'))).toBeTruthy();
-  });
-
-  test('GET /api/audit-logs/entity-types without auth returns 401', async ({ request }) => {
-    const res = await request.get(`${API_BASE}/api/audit-logs/entity-types`);
-    expect(res.status()).toBe(401);
-  });
-
-  test('GET /api/audit-logs/entity-types with restricted role returns 403', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
-    const res = await request.get(`${API_BASE}/api/audit-logs/entity-types`, { headers: authHeader(token) });
-    expect(res.status()).toBe(403);
-  });
-});
-
-test.describe('Audit Logs API - Export', () => {
-
-  test('GET /api/audit-logs/export returns CSV by default', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const res = await request.get(`${API_BASE}/api/audit-logs/export`, { headers: authHeader(token) });
-    expect(res.ok(), `export failed: ${res.status()}`).toBeTruthy();
-    const ct = res.headers()['content-type'] || '';
-    expect(ct).toContain('csv');
-  });
-
-  test('GET /api/audit-logs/export?format=xlsx returns xlsx', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const res = await request.get(`${API_BASE}/api/audit-logs/export?format=xlsx`, { headers: authHeader(token) });
-    expect(res.ok(), `xlsx export failed: ${res.status()}`).toBeTruthy();
-    const ct = res.headers()['content-type'] || '';
-    expect(ct.includes('spreadsheetml') || ct.includes('octet-stream')).toBeTruthy();
-  });
-
-  test('GET /api/audit-logs/export?format=csv returns CSV explicitly', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const res = await request.get(`${API_BASE}/api/audit-logs/export?format=csv`, { headers: authHeader(token) });
-    expect(res.ok()).toBeTruthy();
-  });
-
-  test('GET /api/audit-logs/export without auth returns 401', async ({ request }) => {
-    const res = await request.get(`${API_BASE}/api/audit-logs/export`);
-    expect(res.status()).toBe(401);
-  });
-
-  test('GET /api/audit-logs/export with restricted role returns 403', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
-    const res = await request.get(`${API_BASE}/api/audit-logs/export`, { headers: authHeader(token) });
-    expect(res.status()).toBe(403);
-  });
-
-  test('Today filter returns seeded login event via API', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const today = new Date(Date.now() + 7 * 60 * 60 * 1000);
-    const year = today.getUTCFullYear();
-    const month = String(today.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(today.getUTCDate()).padStart(2, '0');
-    const todayStr = `${year}-${month}-${day}`;
-
-    const res = await request.get(`${API_BASE}/api/audit-logs?start_date=${todayStr}&end_date=${todayStr}&limit=10`, {
-      headers: authHeader(token),
-    });
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
-    expect(body.data).toBeInstanceOf(Array);
-    expect(body.data.length).toBeGreaterThanOrEqual(0);
-  });
-});

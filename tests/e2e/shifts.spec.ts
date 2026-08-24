@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken } from './fixtures';
+import { TEST_USERS, API_BASE, FRONTEND_BASE, loginUI, logoutUI, getToken } from './fixtures';
 
 test.describe('Shifts Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -15,14 +15,14 @@ test.describe('Shifts Page', () => {
   });
 
   test('should load shift table without getting stuck on loading', async ({ page }) => {
-    await page.goto('/shifts');
+    await page.goto(`${FRONTEND_BASE}/shifts`);
     await expect(page).toHaveURL(/\/shifts/);
 
     await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('should show shifts table with correct columns for cashier', async ({ page }) => {
-    await page.goto('/shifts');
+    await page.goto(`${FRONTEND_BASE}/shifts`);
     await expect(page).toHaveURL(/\/shifts/);
 
     await expect(page.locator('text=Loading shifts...')).toBeHidden({ timeout: 15000 });
@@ -47,7 +47,7 @@ test.describe('Shifts Page', () => {
     });
     expect(closeRes.ok()).toBe(true);
 
-    await page.goto('/shifts');
+    await page.goto(`${FRONTEND_BASE}/shifts`);
     await expect(page).toHaveURL(/\/shifts/);
     await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 15000 });
 
@@ -65,15 +65,15 @@ test.describe('Shifts Page', () => {
   });
 
   test('loading state does not persist after navigating back to shifts page', async ({ page }) => {
-    await page.goto('/shifts');
+    await page.goto(`${FRONTEND_BASE}/shifts`);
     await expect(page).toHaveURL(/\/shifts/);
 
     const loadingSpinner = page.locator('text=Loading shifts...');
 
-    await page.goto('/customers');
+    await page.goto(`${FRONTEND_BASE}/customers`);
     await expect(page).toHaveURL(/\/customers/);
 
-    await page.goto('/shifts');
+    await page.goto(`${FRONTEND_BASE}/shifts`);
     await expect(page).toHaveURL(/\/shifts/);
     await expect(loadingSpinner).toBeHidden({ timeout: 15000 });
 
@@ -84,7 +84,7 @@ test.describe('Shifts Page', () => {
     await logoutUI(page);
     await loginUI(page, TEST_USERS.admin.username, TEST_USERS.admin.password);
 
-    await page.goto('/shifts');
+    await page.goto(`${FRONTEND_BASE}/shifts`);
     await expect(page).toHaveURL(/\/shifts/);
     await expect(page.locator('text=Loading shifts...')).toBeHidden({ timeout: 15000 });
 
@@ -95,7 +95,7 @@ test.describe('Shifts Page', () => {
     await logoutUI(page);
     await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
-    await page.goto('/shifts');
+    await page.goto(`${FRONTEND_BASE}/shifts`);
     await expect(page).toHaveURL(/\/shifts/);
     await expect(page.locator('text=Loading shifts...')).toBeHidden({ timeout: 15000 });
 

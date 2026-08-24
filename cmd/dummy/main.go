@@ -858,7 +858,10 @@ func ensureStores(ctx context.Context, db *sql.DB, numStores int) {
 	// Check if stores already exist
 	var count int
 	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM stores").Scan(&count); err == nil && count > 0 {
-		fmt.Printf("   Found %d existing stores, skipping creation\n", count)
+		fmt.Printf("   Found %d existing stores, ensuring id sequence is in sync\n", count)
+		if _, err := db.ExecContext(ctx, `SELECT setval('stores_id_seq', (SELECT COALESCE(MAX(id), 1) FROM stores))`); err != nil {
+			fmt.Printf("Warning: failed to resync stores_id_seq: %v\n", err)
+		}
 		return
 	}
 
@@ -898,6 +901,12 @@ func ensureStores(ctx context.Context, db *sql.DB, numStores int) {
 		created++
 	}
 	fmt.Printf("   🎲 Created %d stores\n", created)
+
+	// Stores are inserted with explicit ids, which does not advance the serial
+	// sequence. Resync it so subsequent DEFAULT-id inserts don't collide.
+	if _, err := db.ExecContext(ctx, `SELECT setval('stores_id_seq', (SELECT COALESCE(MAX(id), 1) FROM stores))`); err != nil {
+		fmt.Printf("Warning: failed to resync stores_id_seq: %v\n", err)
+	}
 }
 
 func ensureWarehouses(ctx context.Context, db *sql.DB, numWarehousesPerStore int) {
