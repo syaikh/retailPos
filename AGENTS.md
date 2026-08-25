@@ -471,6 +471,20 @@ All tests pass. Both previously documented pre-existing issues have been resolve
 
 **Test database setup:** Tests connect to `retail_pos_test` DB (configurable via `TEST_DB_*` env vars). The test framework auto-applies pending migrations on first run using a `schema_migrations` tracking table. If the test DB schema is out of sync, recreate it: `dropdb retail_pos_test && createdb retail_pos_test` and re-run tests.
 
+### E2E Testing Conventions (Playwright, `tests/e2e/`)
+
+The E2E suite distinguishes **behavior** tests (data, CRUD, RBAC contracts) from **UI** tests (rendering, navigation, client validation). Behavior is asserted against the API, not the DOM, so checks are fast and deterministic.
+
+- **Behavior / CRUD / RBAC checks live in `*-api.spec.ts`** and use the API driver from `api-driver.ts`. **Browser-only `*.spec.ts` keep only genuine UI behavior** (visible labels, navigation, validation messages). Do not re-assert server-side data rules through the DOM.
+- **`apiAs(request, role)`** returns an `ApiDriver` already authenticated as a seeded `TEST_USERS` role (`superadmin`/`admin`/`manager`/`cashier`). Methods: `get/post/put/patch/del/multipart(path, file, extra?)`. Every call returns `ApiResult = { status, ok, body, headers }` — treat `res.ok` as a boolean (not a method) and read `res.body` / `res.status`.
+- **Anonymous / negative auth:** `new ApiDriver(request, '')` sends no token (expect 401); `new ApiDriver(request, 'invalid-token')` exercises rejected tokens.
+- **RBAC is enforced at the endpoint, not by permission prefixes.** Assert the HTTP outcome: allowed roles get 2xx, forbidden roles get 403. Do not assert on permission-code strings.
+- **Token rule (critical):** a `request` fixture captured in `beforeAll` must NOT be reused inside `test` bodies — Playwright forbids it. Store the returned token (or `apiAs` result) and **recreate the `ApiDriver` per test via `beforeEach`** using the test's own `request`.
+- **Login is rate-limited** (5/min per IP). `fixtures.ts` caches tokens on disk (shared across workers, versioned file, deduped in-process, re-validated against the API). Use `getToken(request, role)` / `apiAs` rather than calling `/api/login` directly. Bump `TOKEN_CACHE_VERSION` in `fixtures.ts` if the backend restarts with a new `JWT_SECRET` or a fresh DB.
+- **Browser navigation:** prefer explicit `page.goto(\`${FRONTEND_BASE}/...\`)` over `page.goto('/...')`. `waitForAppReady(page)` (in `fixtures.ts`) gates on a real nav button, not `networkidle` (the SPA holds a persistent WebSocket, so `networkidle` never fires).
+- **POS/cart scenarios:** `pos-api.ts` helpers (`authAs`, `createCashier`, `ensureOpenShift`, `startFreshCart`, `addCartItem`, `holdCart`, `findProductWithStock`) accept `AuthCtx | ApiDriver` and layer on top of `apiAs`. Use them for shift/cart flows; use raw `apiAs` for entity/CRUD specs.
+- **Run the suite from the repo root** (`npx playwright test` / `npm run test:e2e`), never from `tests/e2e/` — the root `playwright.config.js` supplies `baseURL` and the `api-driver`/`fixtures`/`pos-api` module graph.
+
 ## Building
 
 ```bash

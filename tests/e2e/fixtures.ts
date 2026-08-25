@@ -132,13 +132,32 @@ export const API_ENDPOINTS = {
 // process reuses the same tokens. The entire suite therefore makes at most one
 // /api/login call per user (~4 total), which keeps us well under the per-IP
 // login rate limiter (5 req/min, burst 5) and removes cross-spec auth flakiness.
+//
+// Hardening:
+//  - TOKEN_CACHE_VERSION is baked into the cache filename; bump it (or delete
+//    the file) to invalidate every cached token at once — e.g. after the
+//    backend is restarted with a new JWT_SECRET or a fresh DB, since a token
+//    cached <10 min earlier would otherwise be reused blindly and rejected.
+//  - An in-memory, per-process promise map dedupes concurrent logins for the
+//    same user (multiple specs starting up at once), so we never fire several
+//    parallel /api/login calls that trip the rate limiter.
+//  - Cached tokens are verified against the API at most once per process per
+//    user; if the server rejects the token (stale secret, reseed, expiry
+//    drift), we transparently re-login instead of failing later.
 // ============================================================================
 
+const TOKEN_CACHE_VERSION = 1;
 const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes (JWT expires in 15 min)
-const TOKEN_CACHE_FILE = join(tmpdir(), 'retail-pos-e2e-tokens.json');
+const TOKEN_CACHE_FILE = join(tmpdir(), `retail-pos-e2e-tokens.v${TOKEN_CACHE_VERSION}.json`);
 
 type CachedToken = { token: string; refreshToken: string; expiresAt: number };
 type TokenStore = Record<string, CachedToken>;
+
+// In-flight login promises, keyed by cacheKey, so concurrent callers for the
+// same user share a single /api/login instead of racing it.
+const inFlight: Map<string, Promise<CachedToken>> = new Map();
+// Users whose cached token has already been verified against the API this run.
+const validatedKeys = new Set<string>();
 
 function readTokenStore(): TokenStore {
   try {
@@ -159,6 +178,16 @@ function writeTokenStore(store: TokenStore): void {
   }
 }
 
+/** Best-effort check that a token is still accepted by the API. */
+async function isTokenValid(request: any, token: string): Promise<boolean> {
+  try {
+    const res = await request.get(`${API_BASE}/api/products?limit=1`, { headers: authHeader(token) });
+    return res.ok();
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Login via API and cache both tokens on disk, shared across all workers.
  */
@@ -172,34 +201,53 @@ async function getAuthTokens(
   const store = readTokenStore();
   const cached = store[cacheKey];
   if (cached && cached.expiresAt > now) {
-    return cached;
+    if (validatedKeys.has(cacheKey)) return cached;
+    if (await isTokenValid(request, cached.token)) {
+      validatedKeys.add(cacheKey);
+      return cached;
+    }
+    // Cached token rejected by the server → fall through and re-login.
   }
 
-  let body: any;
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const res = await request.post(`${API_BASE}/api/login`, {
-      data: { username, password },
-    });
-    if (res.ok()) {
-      body = await res.json();
-      break;
+  // De-dupe concurrent logins for the same user within this process.
+  const existing = inFlight.get(cacheKey);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    let body: any;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const res = await request.post(`${API_BASE}/api/login`, {
+        data: { username, password },
+      });
+      if (res.ok()) {
+        body = await res.json();
+        break;
+      }
+      // On rate-limit (429), back off and retry; the shared cache means only
+      // the first worker to need a given user actually reaches this.
+      if (res.status() === 429 && attempt < 5) {
+        await new Promise((r) => setTimeout(r, 1500));
+        continue;
+      }
+      expect(res.ok(), `login failed for ${username}: ${res.status()}`).toBeTruthy();
     }
-    // On rate-limit (429), back off and retry; the shared cache means only the
-    // first worker to need a given user actually reaches this under normal load.
-    if (res.status() === 429 && attempt < 5) {
-      await new Promise((r) => setTimeout(r, 1500));
-      continue;
-    }
-    expect(res.ok(), `login failed for ${username}: ${res.status()}`).toBeTruthy();
+    const entry: CachedToken = {
+      token: body.access_token,
+      refreshToken: body.refresh_token,
+      expiresAt: Date.now() + TOKEN_TTL_MS,
+    };
+    const s = readTokenStore();
+    s[cacheKey] = entry;
+    writeTokenStore(s);
+    validatedKeys.add(cacheKey);
+    return entry;
+  })();
+  inFlight.set(cacheKey, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlight.delete(cacheKey);
   }
-  const entry: CachedToken = {
-    token: body.access_token,
-    refreshToken: body.refresh_token,
-    expiresAt: now + TOKEN_TTL_MS,
-  };
-  store[cacheKey] = entry;
-  writeTokenStore(store);
-  return entry;
 }
 
 /**
