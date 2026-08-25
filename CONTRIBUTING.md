@@ -37,7 +37,7 @@ Thank you for your interest in contributing to the Retail POS System! This docum
   ```
   Or use `make test` (reads from `.env.test` if present).
 - Run frontend unit tests: `cd web && npm run test:run`
-- Run E2E tests: `cd web && npx playwright test --reporter=list` (requires both backend and frontend servers running)
+- Run E2E tests: `npx playwright test --reporter=list` (run from repo root; requires both backend and frontend servers running)
 - Use targeted testing: `go test -p 1 -count=1 ./internal/<package>/...` for backend, `cd web && npx vitest run <path>` for frontend
 - Maintain test coverage
 

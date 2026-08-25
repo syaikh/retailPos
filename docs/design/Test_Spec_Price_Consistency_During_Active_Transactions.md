@@ -335,5 +335,5 @@ Konfigurasi: `playwright.config.js` yang ada (baseURL `http://localhost:5173`, A
 - Seluruh integration test §3 hijau dengan `-p 1` (mengikuti AGENTS.md).
 - Seluruh E2E §4 hijau di Chromium (`npx playwright test tests/e2e/price-consistency.spec.ts`).
 - E2E-09 (no re-resolve) terbukti tidak ada panggilan `POST /api/pricing/resolve` setelah item ditambahkan.
-- Regresi: suite `pos-flow.spec.ts`, `hold-recall.spec.ts`, `pricing-rules.spec.ts` tetap hijau.
+- Regresi: suite `pos-flow.spec.ts`, `hold-recall.spec.ts`, `pricing-rules-ui.spec.ts`, `pricing-rules-api.spec.ts` tetap hijau.
 - Build: `go build ./...` dan `npm run build` (frontend) lulus.

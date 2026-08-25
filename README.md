@@ -743,10 +743,10 @@ cd web && npm run test:run
 ### E2E Tests (Playwright)
 
 ```bash
-cd web && npx playwright test --reporter=list
+npx playwright test --reporter=list
 ```
 
-> E2E membutuhkan server backend + frontend yang berjalan (`./run-dev.sh` dan `npm run dev`).
+> Jalankan dari root repositori (di mana `playwright.config.js` berada). E2E membutuhkan server backend + frontend yang berjalan (`./run-dev.sh` dan `npm run dev`).
 
 ### Test Database
 
