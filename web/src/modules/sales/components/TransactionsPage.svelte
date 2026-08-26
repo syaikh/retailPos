@@ -186,24 +186,34 @@
     const id = Number(txn);
     if (!txn || !Number.isInteger(id) || id <= 0) return;
 
+    let opened = false;
     const existing = store.salesData.find((t: any) => t.id === id);
     if (existing) {
       drawerMode = 'history';
       openTransactionDetails(existing);
-      return;
+      opened = true;
+    } else {
+      const sale = await getSaleById(id);
+      if (sale) {
+        drawerMode = 'history';
+        openTransactionDetails(sale);
+        opened = true;
+      } else {
+        const lookup = await getSaleLookupDetail(id);
+        if (lookup) {
+          drawerMode = 'lookup';
+          openTransactionDetails(lookup);
+          opened = true;
+        }
+      }
     }
 
-    const sale = await getSaleById(id);
-    if (sale) {
-      drawerMode = 'history';
-      openTransactionDetails(sale);
-      return;
-    }
-
-    const lookup = await getSaleLookupDetail(id);
-    if (lookup) {
-      drawerMode = 'lookup';
-      openTransactionDetails(lookup);
+    // On the manager all-sales view, opening a "new transaction" notification
+    // must reconcile the banner + table: viewing the sale marks it as seen, so
+    // reload the list (pulling the sale in) and clear the "N new" banner.
+    // The cashier own-scope tab has no banner, so it is left untouched.
+    if (opened && canAccessAll) {
+      refresh();
     }
   }
 

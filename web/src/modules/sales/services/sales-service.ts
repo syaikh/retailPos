@@ -51,7 +51,8 @@ export async function getSaleById(id: number): Promise<Sale | null> {
   try {
     const res = await apiFetch(`/api/sales/${id}`);
     if (res.ok) {
-      return await res.json();
+      const data = await res.json();
+      return data.data ?? null;
     }
     return null;
   } catch {

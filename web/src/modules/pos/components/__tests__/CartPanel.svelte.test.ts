@@ -57,6 +57,10 @@ describe('CartPanel.svelte source-structure guards', () => {
     expect(src).toContain('aria-label={labels.increaseQuantity}');
   });
 
+  it('selects quantity input text on focus for quick editing', () => {
+    expect(src).toContain('onfocus={(e) => e.currentTarget.select()}');
+  });
+
   it('renders checkout button with Wallet icon', () => {
     expect(src).toContain('<Wallet size={16} />');
     expect(src).toContain("t('payWithAmount'");

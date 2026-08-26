@@ -164,4 +164,20 @@ describe('TransactionsPage.svelte source-structure guards', () => {
     expect(src).toContain('labels.newTransactionsSince');
     expect(src).toContain('onclick={viewNew}');
   });
+
+  it('openTransaction reconciles the manager banner+table after opening', () => {
+    // openTransaction must track whether a drawer was opened and, on the
+    // all-sales (manager) view, reload the list to reconcile the banner
+    // ("N new") and pull the viewed sale into the table.
+    expect(src).toContain('let opened = false');
+    expect(src).toContain('opened = true');
+    expect(src).toContain('if (opened && canAccessAll)');
+    expect(src).toContain('refresh();');
+  });
+
+  it('openTransaction tries store, then getSaleById, then lookup', () => {
+    expect(src).toContain('store.salesData.find(');
+    expect(src).toContain('const sale = await getSaleById(id)');
+    expect(src).toContain('const lookup = await getSaleLookupDetail(id)');
+  });
 });

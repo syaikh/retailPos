@@ -187,7 +187,7 @@ describe('sales-service', () => {
   it('getSaleById returns sale data', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({ id: 1, invoice_number: 'INV-001', total_amount: 100000 }),
+      json: () => Promise.resolve({ data: { id: 1, invoice_number: 'INV-001', total_amount: 100000 } }),
     });
 
     const { getSaleById } = await import('../sales-service');
@@ -208,6 +208,32 @@ describe('sales-service', () => {
 
   it('getSaleById returns null on non-ok', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false });
+
+    const { getSaleById } = await import('../sales-service');
+    const result = await getSaleById(1);
+
+    expect(result).toBeNull();
+  });
+
+  it('getSaleById unwraps the data envelope and returns the sale', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { id: 42, invoice_number: 'INV-042', total_amount: 75000 } }),
+    });
+
+    const { getSaleById } = await import('../sales-service');
+    const result = await getSaleById(42);
+
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe(42);
+    expect(result?.invoice_number).toBe('INV-042');
+  });
+
+  it('getSaleById returns null when the data envelope is missing', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ status: 'ok' }),
+    });
 
     const { getSaleById } = await import('../sales-service');
     const result = await getSaleById(1);

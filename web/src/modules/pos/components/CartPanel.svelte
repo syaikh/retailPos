@@ -137,6 +137,7 @@
               min="1"
               max={item.stock || 999}
               value={item.quantity}
+              onfocus={(e) => e.currentTarget.select()}
               onchange={(e) => {
                 const parsed = Math.max(1, Math.min(item.stock || 999, Number(e.currentTarget.value) || 1));
                 const delta = parsed - item.quantity;
