@@ -23,8 +23,8 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain("import { toast } from '$shared/stores/toast.svelte'");
   });
 
-  it('imports printReceipt store', () => {
-    expect(src).toContain("import { printReceipt as printReceiptStore } from '$shared/stores/printReceipt.svelte'");
+  it('imports printReceipt service', () => {
+    expect(src).toContain("import { printReceipt as printReceiptService } from '$shared/services/print-service'");
   });
 
   it('imports auth store and shift store', () => {

@@ -27,8 +27,8 @@ describe('TransactionDrawer.svelte source-structure guards', () => {
     expect(src).toContain("import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime'");
   });
 
-  it('imports printReceipt store', () => {
-    expect(src).toContain("import { printReceipt as printReceiptStore } from '$shared/stores/printReceipt.svelte'");
+  it('imports printReceipt service', () => {
+    expect(src).toContain("import { printReceipt as printReceiptService } from '$shared/services/print-service'");
   });
 
   it('imports downloadInvoice', () => {

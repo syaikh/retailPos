@@ -256,7 +256,7 @@ You can park a sale and resume it later — stock is **not** reduced while held.
 4. Press **Enter** or click **Selesai** to complete the sale. This button is only enabled when the allocations equal the total.
 5. Press **Esc** (or click **Batal**) to cancel the checkout and return to the cart.
 
-On success you'll see *"Sale completed"*, the cart clears, and a receipt is printed automatically on the thermal receipt overlay.
+On success you'll see *"Sale completed"*, the cart clears, and a receipt is printed automatically according to the selected **print mode** (see below).
 
 ### Customer Selection
 
@@ -269,6 +269,24 @@ By default the sale is to **Walk-in / General**. To attach a customer:
 ### Reprinting a Receipt
 
 After a sale, the cart footer shows **Print · {invoice number}**. Click it to reprint the last sale's receipt.
+
+### Receipt Printing Modes
+
+The POS prints receipts in one of two modes, chosen with the **Print** toggle in the cart (the gear icon opens a field to set the print-agent URL and a *Test* button):
+
+- **Preview** (default) — renders the 58mm receipt overlay and opens the browser print dialog, which you confirm as before.
+- **Silent** — sends the receipt straight to the local **print agent** (`tools/print-agent`), which routes it to a 58mm thermal printer (or, with no printer attached, to a file). No browser dialog appears, so the cashier never confirms a preview — the way real high-volume retail prints.
+
+The mode is stored per browser. If the agent is unreachable in Silent mode, the POS automatically falls back to Preview so a receipt is always produced.
+
+Run the agent during development or testing:
+
+```bash
+cd tools/print-agent
+PRINT_TARGET=file node index.js   # writes an openable 58mm HTML receipt to /tmp
+```
+
+Use `PRINT_TARGET=thermal` to emit ESC/POS bytes for a real thermal printer, or `pdf` to spool via CUPS. The default agent URL and mode can also be set globally with `VITE_PRINT_AGENT_URL` / `VITE_PRINT_MODE` in `.env`.
 
 ### Keyboard Shortcuts
 

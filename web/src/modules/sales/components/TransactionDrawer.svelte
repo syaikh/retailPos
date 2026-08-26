@@ -2,8 +2,8 @@
   import { Badge, Button, Drawer } from '$shared/ui';
   import { Printer, Download } from 'lucide-svelte';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
-  import { printReceipt as printReceiptStore } from '$shared/stores/printReceipt.svelte';
-  import { downloadInvoice } from '$modules/sales/lib/invoicePdf';
+   import { printReceipt as printReceiptService } from '$shared/services/print-service';
+   import { downloadInvoice } from '$modules/sales/lib/invoicePdf';
   import { toast } from '$shared/stores/toast.svelte';
   import apiClient from '$shared/api/http-client';
   import { labels } from '$shared/i18n';
@@ -72,14 +72,14 @@
     return formatDateTimeInJakarta(d.toISOString());
   };
 
-  function printTransactionReceipt() {
+  async function printTransactionReceipt() {
     if (!displayTransaction || !displayTransaction.items) return;
     const taxAmount = displayTransaction.tax || 0;
     const paymentLines = displayTransaction.payments && displayTransaction.payments.length > 0
       ? displayTransaction.payments.map((p: any) => `${p.payment_method_code}: ${labels.currencySymbol} ${(p.amount || 0).toLocaleString('id-ID')}`).join(', ')
       : (displayTransaction.payment_method || '—');
     const cashReceived = displayTransaction.payments?.find((p: any) => p.payment_method_code === 'CASH')?.amount || displayTransaction.total_amount;
-    printReceiptStore.set({
+    const payload = {
       invoice_number: displayTransaction.invoice_number,
       created_at: displayTransaction.created_at,
       items: displayTransaction.items.map((item: any) => ({
@@ -108,8 +108,8 @@
         }
         return sum;
       }, 0),
-    });
-    setTimeout(() => window.print(), 300);
+    };
+    await printReceiptService(payload);
   }
 
   async function downloadInvoiceHandler() {

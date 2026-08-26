@@ -19,6 +19,14 @@ describe('CartPanel.svelte source-structure guards', () => {
     expect(src).toContain("import { labels, t } from '$shared/i18n'");
   });
 
+  it('imports PrintModeToggle for per-register print mode', () => {
+    expect(src).toContain("import PrintModeToggle from '$app/components/PrintModeToggle.svelte'");
+  });
+
+  it('renders the PrintModeToggle in the cart footer', () => {
+    expect(src).toContain('<PrintModeToggle />');
+  });
+
   it('uses svelte transitions', () => {
     expect(src).toContain("import { slide } from 'svelte/transition'");
     expect(src).toContain("import { flip } from 'svelte/animate'");

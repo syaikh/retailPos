@@ -4,7 +4,9 @@
   import { tick } from 'svelte';
   import { Badge, Button } from '$shared/ui';
   import { ShoppingCart, X, Minus, Plus, Wallet, Printer, Hand, RotateCcw } from 'lucide-svelte';
-  import { labels, t } from '$shared/i18n';
+   import { labels, t } from '$shared/i18n';
+   import PrintModeToggle from '$app/components/PrintModeToggle.svelte';
+
 
   let scrollEl: HTMLDivElement | undefined = $state();
 
@@ -201,6 +203,8 @@
         {t('payWithAmount', { amount: `${labels.currencySymbol} ${totalAmount.toLocaleString('id-ID')}` })}
       {/if}
     </Button>
+
+    <PrintModeToggle />
 
     <div class="flex items-center gap-2">
       <button
