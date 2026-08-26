@@ -26,7 +26,7 @@ while [ $# -gt 0 ]; do
     --token)            PRINT_TOKEN="$2"; shift 2;;
     --allowed-origins)  ALLOWED_ORIGINS="$2"; shift 2;;
     -b|--build)         BUILD=1; shift;;
-    -h|--help)          sed -n '2,13p' "$0"; exit 0;;
+    -h|--help)          sed -n '2,13p' "$SCRIPT_DIR/print-agent.sh"; exit 0;;
     *)                  echo "Unknown flag: $1" >&2; exit 1;;
   esac
 done
