@@ -23,8 +23,13 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain("import { toast } from '$shared/stores/toast.svelte'");
   });
 
-  it('imports printReceipt service', () => {
-    expect(src).toContain("import { printReceipt as printReceiptService } from '$shared/services/print-service'");
+  it('imports printReceipt toast helper from shared service', () => {
+    expect(src).toContain("import { printReceiptWithToast } from '$shared/services/print-service'");
+  });
+
+  it('delegates silent print + failure toast to printReceiptWithToast (no fallback to preview)', () => {
+    expect(src).toContain('printReceiptWithToast(');
+    expect(src).not.toContain('toast.error(labels.printAgentUnavailable)');
   });
 
   it('imports auth store and shift store', () => {

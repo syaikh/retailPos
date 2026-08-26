@@ -497,6 +497,15 @@ go build ./...
 go run cmd/server/main.go
 ```
 
+## Utilities
+
+- `scripts/kill-port.sh <port>` — force-kill whichever process is holding a TCP
+  port (uses `lsof -ti :<port>` + `kill -9`). Useful when a leftover dev server,
+  the Go print agent (`tools/print-agent`), or a Playwright-driven `go run`
+  child binary keeps a port (e.g. `9123`/`9124`/`9095`) occupied after a crashed
+  or backgrounded process. Note: `go run` spawns a temp-path binary, so killing
+  the parent `go run` PID does NOT free the port — use this script instead.
+
 ## Seeding Dummy Data
 
 Never auto-commit. Changes must be committed manually.

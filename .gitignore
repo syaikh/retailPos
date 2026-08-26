@@ -18,6 +18,7 @@ retail-pos-server
 backfill-audit-description
 /main
 /bin/
+tools/print-agent/print-agent-bin
 
 # Local development certificates
 /cert/

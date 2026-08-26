@@ -28,7 +28,7 @@ describe('TransactionDrawer.svelte source-structure guards', () => {
   });
 
   it('imports printReceipt service', () => {
-    expect(src).toContain("import { printReceipt as printReceiptService } from '$shared/services/print-service'");
+    expect(src).toContain("import { printReceiptWithToast } from '$shared/services/print-service'");
   });
 
   it('imports downloadInvoice', () => {
@@ -124,6 +124,11 @@ describe('TransactionDrawer.svelte source-structure guards', () => {
   it('localizes download toast messages', () => {
     expect(src).toContain('labels.toastInvoiceDownloaded');
     expect(src).toContain('labels.toastFailedToDownloadInvoice');
+  });
+
+  it('delegates silent print + failure toast to printReceiptWithToast (no fallback to preview)', () => {
+    expect(src).toContain('printReceiptWithToast(');
+    expect(src).not.toContain('toast.error(labels.printAgentUnavailable)');
   });
 
 });

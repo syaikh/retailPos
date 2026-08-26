@@ -29,11 +29,10 @@ default, so the system is fully usable without any printer hardware.
                           ┌─────────────┴──────────────┐
                     preview (default)            silent
                           │                            │
-               set printReceipt store +       POST /print  ─────▶  local print agent
-               window.print() (dialog)                     (tools/print-agent)
-                                                                 │ routes by
-                                                                 │ PRINT_TARGET
-                                                          file │ pdf │ thermal
+                set printReceipt store +       POST /print  ─────▶  local print agent
+                window.print() (dialog)                     (tools/print-agent, Go)
+                                                                  │ transport
+                                                           file │ tcp │ serial
 ```
 
 ### Frontend
@@ -42,10 +41,10 @@ default, so the system is fully usable without any printer hardware.
   `agentUrl`, persisted to `localStorage`, seeded from `VITE_PRINT_MODE` /
   `VITE_PRINT_AGENT_URL`. Per-browser config.
 - **`shared/services/print-service.ts`** — single `printReceipt(data)` entry
-  point. In `silent` mode it `POST`s the payload to the agent; in `preview`
-  mode it renders the 58mm overlay and calls `window.print()`. If the agent is
-  unreachable in `silent` mode, it **falls back to preview** so a receipt is
-  always produced.
+  point returning a `PrintResult`. In `silent` mode it `POST`s the payload to the
+  agent and, if the agent is unreachable, returns `{ ok: false }` (the caller
+  surfaces a Retry/Dismiss toast). It never falls back to the browser dialog.
+  In `preview` mode it renders the 58mm overlay and calls `window.print()`.
 - **`app/components/PrintModeToggle.svelte`** — cart UI (Preview/Silent
   segmented control + gear editor for the agent URL with a `/health` test).
 - Wiring: POS auto-print, POS manual print, and `TransactionDrawer` reprint all
@@ -53,16 +52,21 @@ default, so the system is fully usable without any printer hardware.
 
 ### Print agent (`tools/print-agent/`)
 
-Zero-dependency Node service (runs on a bare `node` install):
+Dependency-free Go service (single binary; `go run ./cmd/print-agent`):
 
-- `GET /health` → `{ ok, target }` (used by the UI Test button; CORS-enabled).
-- `POST /print` → body `{ invoice, data, branding }`; routes by `PRINT_TARGET`:
-  - `file` — writes a self-contained 58mm HTML receipt to disk (openable in a
-    browser). **Primary no-hardware test path.**
-  - `pdf` — same HTML into a `pdf/` dir; if `PRINT_PDF_PRINTER` is set, also
-    spools via CUPS `lp`.
-  - `thermal` — builds an ESC/POS byte stream; writes a `.bin` file by default,
-    or writes straight to `PRINT_SERIAL_PORT` (e.g. `/dev/ttyUSB0`) when set.
+- `GET /health` → `{ ok, printer: { connected, type } }` (used by the UI Test
+  button; CORS-enabled).
+- `GET /printer` → configured printer + connection status.
+- `POST /print` → body `{ invoice, data, branding }`; creates an idempotent job
+  (by `job_id`) and returns `202 { job_id, status: "queued" }`. Renders ESC/POS
+  and dispatches via the configured transport:
+  - `file` (default) — writes the ESC/POS byte stream to a `receipt-<job>.bin`
+    file. **Primary no-hardware test path.**
+  - `tcp` — sends ESC/POS bytes to a network thermal printer (`PRINT_TCP_ADDR`).
+  - `serial` — writes ESC/POS bytes to a USB-serial device
+    (`PRINT_SERIAL_DEVICE`, e.g. `/dev/ttyUSB0`).
+- `GET /print/jobs/{id}` → job status; `POST /print/jobs/{id}/retry` → retry a
+  failed job.
 
 ## Agent contract
 
@@ -75,20 +79,22 @@ Zero-dependency Node service (runs on a bare `node` install):
                 "receiptHeader": "...", "receiptFooter": "..." }
 }
 ```
-Response: `{ "ok": true, "target": "file", "path": "/tmp/receipt-INV-000123.html" }`.
+Response: `202 { "job_id": "print-...", "status": "queued" }`.
 
 ## Testing without a 58mm printer
 
-1. Start the agent: `cd tools/print-agent && PRINT_TARGET=file node index.js`.
+1. Start the agent: `cd tools/print-agent && go run ./cmd/print-agent` (default
+   `file` transport).
 2. In the POS cart, flip **Print** → **Silent** (gear → Test shows "connected").
-3. Complete a sale: no dialog appears; `cat /tmp/receipt-<INV>.html` (or open it)
-   shows the formatted 58mm receipt. This validates the whole web→agent→output
-   pipeline. `thermal` additionally dumps a `escpos-<INV>.bin` for inspection.
+3. Complete a sale: no dialog appears; the agent writes `receipt-<job>.bin` to the
+   temp dir — inspect it (or feed it to a printer later) to validate the ESC/POS
+   output. `tcp` / `serial` target real printers.
 
 Automated coverage:
-- Agent: `node --test` (HTML render, ESC/POS bytes, file/thermal write).
+- Agent: `go test ./...` (ESC/POS renderer, queue/idempotency, API, transports).
 - Frontend: `print-service.test.ts` (preview opens dialog; silent POSTs + skips
-  dialog; silent falls back on agent failure) and `printConfig.test.ts`.
+  dialog; silent reports failure and does NOT fall back on agent failure) and
+  `printConfig.test.ts`.
 
 ## Out of scope / future
 
@@ -98,6 +104,7 @@ Automated coverage:
   cashiers on the same terminal.
 - **WebUSB direct-to-printer:** an alternative to the agent that talks to a USB
   thermal printer from the browser, but with USB-permission friction per print.
-- **Silent-mode E2E:** would require a harnessed `tools/print-agent` instance
-  and different assertions than the existing `print-receipt.spec.ts` (preview
-  only). Intentionally not covered by E2E yet.
+- **Silent-mode E2E:** covered by `tests/e2e/silent-print.spec.ts`, which boots
+  the real Go print agent (`file` transport) and drives a POS sale in silent mode,
+  asserting the job reaches the agent, renders to a `.bin`, and that no browser
+  print dialog opens (no preview fallback).

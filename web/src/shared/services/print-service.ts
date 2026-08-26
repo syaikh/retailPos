@@ -3,15 +3,21 @@
 // Single entry point used by the POS and sales screens. It dispatches a
 // ReceiptData payload to the appropriate sink:
 //   - "preview" mode: show the on-screen 58mm overlay and trigger the browser
-//     print dialog (window.print) — the current behaviour.
+//     print dialog (window.print) — the explicit/manual preview path.
 //   - "silent"  mode: POST the payload to the local print agent. No overlay, no
 //     dialog — the agent prints to a thermal / virtual printer (or, in dev, a
-//     file). If the agent is unreachable the call falls back to preview mode so
-//     the cashier always gets a receipt.
+//     file).
+//
+// Silent mode NEVER falls back to the browser print dialog. If the agent is
+// unreachable the call resolves with { ok: false } so the caller can surface a
+// Retry/Dismiss notification. This matches the design doc: printing is a side
+// effect of a completed sale, not part of transaction success.
 
 import { printReceipt as printReceiptStore, type ReceiptData } from '$shared/stores/printReceipt.svelte';
 import { printConfig } from '$shared/stores/printConfig.svelte';
 import { settingsStore } from '$shared/stores/settings.svelte';
+import { toast } from '$shared/stores/toast.svelte';
+import { labels } from '$shared/i18n';
 
 export interface ReceiptBranding {
   storeName: string;
@@ -65,19 +71,50 @@ function previewPrint(data: ReceiptData) {
   }, 300);
 }
 
+export interface PrintResult {
+  ok: boolean;
+  mode: 'preview' | 'silent';
+  /** i18n key describing the failure, when ok is false. */
+  error?: string;
+}
+
 /**
- * Print a receipt. Resolves once the receipt has been dispatched (to the agent
- * in silent mode, or after the preview dialog is requested). Failures in silent
- * mode fall back to the preview dialog.
+ * Print a receipt.
+ *
+ * - preview mode: opens the on-screen receipt overlay and the browser print
+ *   dialog.
+ * - silent mode: submits the job to the local print agent and resolves once the
+ *   job is accepted. If the agent cannot be reached it resolves with
+ *   `{ ok: false }` and does NOT fall back to the browser dialog.
+ *
+ * Callers should check `result.ok` and, on failure, surface a non-blocking
+ * Retry/Dismiss notification. The manual "Print Receipt" action is the retry
+ * path; the notification itself is the Dismiss path.
  */
-export async function printReceipt(data: ReceiptData): Promise<void> {
-  if (printConfig.mode === 'silent') {
-    try {
-      await sendToAgent(buildAgentPayload(data));
-      return;
-    } catch (err) {
-      console.warn('[print] silent print failed, falling back to preview', err);
-    }
+export async function printReceipt(data: ReceiptData): Promise<PrintResult> {
+  if (printConfig.mode !== 'silent') {
+    previewPrint(data);
+    return { ok: true, mode: 'preview' };
   }
-  previewPrint(data);
+  try {
+    await sendToAgent(buildAgentPayload(data));
+    return { ok: true, mode: 'silent' };
+  } catch (err) {
+    console.warn('[print] silent print failed', err);
+    return { ok: false, mode: 'silent', error: 'printAgentUnavailable' };
+  }
+}
+
+/**
+ * Print a receipt and surface a non-blocking Retry/Dismiss notification when the
+ * silent print agent is unreachable. This centralizes the toast-on-failure
+ * behaviour shared by the POS screen and the transaction drawer so callers do
+ * not each re-implement the same `!res.ok` check.
+ */
+export async function printReceiptWithToast(data: ReceiptData): Promise<PrintResult> {
+  const res = await printReceipt(data);
+  if (!res.ok) {
+    toast.error(labels.printAgentUnavailable);
+  }
+  return res;
 }

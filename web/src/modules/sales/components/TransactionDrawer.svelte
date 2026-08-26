@@ -2,7 +2,7 @@
   import { Badge, Button, Drawer } from '$shared/ui';
   import { Printer, Download } from 'lucide-svelte';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
-   import { printReceipt as printReceiptService } from '$shared/services/print-service';
+   import { printReceiptWithToast } from '$shared/services/print-service';
    import { downloadInvoice } from '$modules/sales/lib/invoicePdf';
   import { toast } from '$shared/stores/toast.svelte';
   import apiClient from '$shared/api/http-client';
@@ -109,7 +109,7 @@
         return sum;
       }, 0),
     };
-    await printReceiptService(payload);
+    await printReceiptWithToast(payload);
   }
 
   async function downloadInvoiceHandler() {

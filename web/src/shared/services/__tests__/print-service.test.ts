@@ -41,38 +41,49 @@ describe('printReceipt service', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     (globalThis as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
 
-    await printReceipt(sample);
+    const result = await printReceipt(sample);
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:9123/print',
       expect.objectContaining({ method: 'POST' })
     );
+    expect(result.ok).toBe(true);
     expect((window as unknown as { print: () => void }).print).not.toHaveBeenCalled();
     // overlay must stay empty in silent mode
     expect(get(printReceiptStore)).toBeNull();
   });
 
-  it('silent mode falls back to preview when the agent is unreachable', async () => {
+  it('silent mode reports failure and does NOT fall back to preview when the agent is unreachable', async () => {
     printConfig.setMode('silent');
     (globalThis as unknown as { fetch: typeof fetch }).fetch = vi
       .fn()
       .mockRejectedValue(new Error('conn refused')) as unknown as typeof fetch;
 
-    await printReceipt(sample);
+    const result = await printReceipt(sample);
+
+    expect(result.ok).toBe(false);
+    expect(result.mode).toBe('silent');
+    expect(result.error).toBe('printAgentUnavailable');
     await wait(400);
-    expect((window as unknown as { print: () => void }).print).toHaveBeenCalledTimes(1);
+    expect((window as unknown as { print: () => void }).print).not.toHaveBeenCalled();
+    // overlay must stay empty in silent mode
+    expect(get(printReceiptStore)).toBeNull();
   });
 
-  it('silent mode falls back to preview when the agent returns a non-ok status', async () => {
+  it('silent mode reports failure and does NOT fall back to preview when the agent returns a non-ok status', async () => {
     printConfig.setMode('silent');
     (globalThis as unknown as { fetch: typeof fetch }).fetch = vi
       .fn()
-      .mockResolvedValue({ ok: false, status: 500 }) as unknown as Response;
+      .mockResolvedValue({ ok: false, status: 500 }) as unknown as typeof fetch;
 
-    await printReceipt(sample);
+    const result = await printReceipt(sample);
+
+    expect(result.ok).toBe(false);
+    expect(result.mode).toBe('silent');
+    expect(result.error).toBe('printAgentUnavailable');
     await wait(400);
-    expect((window as unknown as { print: () => void }).print).toHaveBeenCalledTimes(1);
-    expect(get(printReceiptStore)?.invoice_number).toBe('INV-1');
+    expect((window as unknown as { print: () => void }).print).not.toHaveBeenCalled();
+    expect(get(printReceiptStore)).toBeNull();
   });
 
   it('silent mode sends the receipt payload with settings branding to the agent', async () => {

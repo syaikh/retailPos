@@ -5,7 +5,7 @@
    import { toast } from '$shared/stores/toast.svelte';
    import { debounce } from '$shared/utils/debounce';
    import { useWebSocket } from '$shared/api/websocket';
-   import { printReceipt as printReceiptService } from '$shared/services/print-service';
+   import { printReceiptWithToast } from '$shared/services/print-service';
    import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$shared/utils/jakartaTime';
    import {
      createCart, getOpenCart, getHeldCarts,
@@ -471,7 +471,7 @@ let selectedProductIndex = $state(-1);
     }
     if (!sale || !sale.items || sale.items.length === 0) return;
     const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : undefined;
-    await printReceiptService(buildReceiptPayload(sale, paymentsListFromSale(sale), customer));
+    await printReceiptWithToast(buildReceiptPayload(sale, paymentsListFromSale(sale), customer));
    }
 
   function paymentsListFromSale(sale: Sale): PaymentAllocation[] {
@@ -509,10 +509,10 @@ let selectedProductIndex = $state(-1);
      capturedPayments = payments;
      closeCheckoutModal();
       processCheckout(payments).then(async () => {
-        if (lastSale && lastSale.items) {
-          await printReceiptService(buildReceiptPayload(lastSale, payments, customer));
-        }
-       }).catch((err: any) => {
+         if (lastSale && lastSale.items) {
+            await printReceiptWithToast(buildReceiptPayload(lastSale, payments, customer));
+          }
+        }).catch((err: any) => {
         // processCheckout already surfaced the specific server error toast;
         // avoid a second generic toast for the same failure.
         console.error('Checkout failed:', err);

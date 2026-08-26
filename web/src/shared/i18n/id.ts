@@ -1598,6 +1598,7 @@ export const id = {
   silent: 'Diam',
   agentConnected: 'Agen terhubung',
   agentUnreachable: 'Agen tidak dapat dihubungi',
+  printAgentUnavailable: 'Printer struk tidak tersedia — transaksi selesai. Gunakan Cetak Struk untuk mencoba lagi.',
   selesai: 'Selesai',
   newTransaction: 'Transaksi Baru',
   holdReceipt: 'Tahan Struk',

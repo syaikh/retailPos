@@ -1598,6 +1598,7 @@ export const en: Labels = {
   silent: 'Silent',
   agentConnected: 'Agent connected',
   agentUnreachable: 'Agent unreachable',
+  printAgentUnavailable: 'Receipt printer unavailable — transaction completed. Use Print Receipt to retry.',
   selesai: 'Done',
   newTransaction: 'New Transaction',
   holdReceipt: 'Hold Receipt',

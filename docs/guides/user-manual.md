@@ -277,16 +277,18 @@ The POS prints receipts in one of two modes, chosen with the **Print** toggle in
 - **Preview** (default) — renders the 58mm receipt overlay and opens the browser print dialog, which you confirm as before.
 - **Silent** — sends the receipt straight to the local **print agent** (`tools/print-agent`), which routes it to a 58mm thermal printer (or, with no printer attached, to a file). No browser dialog appears, so the cashier never confirms a preview — the way real high-volume retail prints.
 
-The mode is stored per browser. If the agent is unreachable in Silent mode, the POS automatically falls back to Preview so a receipt is always produced.
+The mode is stored per browser. If the agent is unreachable in Silent mode, the POS shows a Retry / Dismiss message and does **not** fall back to the browser dialog — the cashier can reprint the receipt later from the transaction.
 
-Run the agent during development or testing:
+Run the agent during development or testing (Go binary, no Node required):
 
 ```bash
 cd tools/print-agent
-PRINT_TARGET=file node index.js   # writes an openable 58mm HTML receipt to /tmp
+PRINT_TRANSPORT=file go run ./cmd/print-agent   # writes the ESC/POS .bin stream to the temp dir
+# or use the flag-driven launcher:
+./print-agent.sh -t file -p 9123 -o /tmp/receipt-out
 ```
 
-Use `PRINT_TARGET=thermal` to emit ESC/POS bytes for a real thermal printer, or `pdf` to spool via CUPS. The default agent URL and mode can also be set globally with `VITE_PRINT_AGENT_URL` / `VITE_PRINT_MODE` in `.env`.
+Use `PRINT_TRANSPORT=tcp` with `PRINT_TCP_ADDR=192.168.x.x:9100` for a network thermal printer, or `PRINT_TRANSPORT=serial` with `PRINT_SERIAL_DEVICE=/dev/ttyUSB0` for a USB-serial printer. The default agent URL and mode can also be set globally with `VITE_PRINT_AGENT_URL` / `VITE_PRINT_MODE` in `.env`.
 
 ### Keyboard Shortcuts
 
