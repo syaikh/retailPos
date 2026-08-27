@@ -33,14 +33,31 @@ func NewWorker(store *Store, trans transport.Transport) *Worker {
 // hard-depend on the receipt package at construction time).
 func (w *Worker) SetRenderer(fn RenderFunc) { w.render = fn }
 
-// Run processes jobs until the context is cancelled.
+// Run processes jobs until the context is cancelled, then drains any remaining
+// queued jobs before returning so in-flight and pending prints are not lost on
+// shutdown.
 func (w *Worker) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			w.drain()
 			return
 		case id := <-w.store.Channel():
 			w.process(id)
+		}
+	}
+}
+
+// drain processes any jobs still buffered on the channel. It returns once the
+// channel is empty; the caller must have already stopped accepting new network
+// requests so no further Enqueue can occur.
+func (w *Worker) drain() {
+	for {
+		select {
+		case id := <-w.store.Channel():
+			w.process(id)
+		default:
+			return
 		}
 	}
 }

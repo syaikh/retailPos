@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -38,9 +39,18 @@ func main() {
 	store := queue.NewStore()
 	pm := printer.New(trans)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	worker := queue.NewWorker(store, trans)
 	worker.SetRenderer(receipt.Render)
-	go worker.Run(context.Background())
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		worker.Run(ctx)
+	}()
 
 	mux := http.NewServeMux()
 	h := api.NewHandler(store, pm, cfg)
@@ -62,5 +72,31 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
-	log.Println("[print-agent] shutting down")
+	log.Println("[print-agent] shutting down, draining queued jobs")
+
+	// Stop accepting new HTTP requests. In-flight requests are allowed to finish
+	// (and may still enqueue jobs), so wait for them before draining.
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("[print-agent] server shutdown error: %v", err)
+	}
+	shutdownCancel()
+
+	// No new jobs can arrive now; let the worker drain the queue (including any
+	// job currently printing) before exiting. Bound the wait so a hung transport
+	// cannot block shutdown forever.
+	cancel()
+
+	drainDone := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(drainDone)
+	}()
+	select {
+	case <-drainDone:
+	case <-time.After(15 * time.Second):
+		log.Println("[print-agent] drain timed out; forcing exit")
+	}
+
+	log.Println("[print-agent] stopped")
 }
