@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button, Badge, Skeleton, SortableHeader, Dropdown } from '$shared/ui';
   import { labels, t, formatLocaleDate } from '$shared/i18n';
+  import { formatLocaleDateInJakarta } from '$shared/utils/jakartaTime';
   import { MoreVertical, Eye, Pencil, Package, Check, XCircle, Copy } from 'lucide-svelte';
   import type { PurchaseOrder } from '../types';
 
@@ -66,7 +67,7 @@
 
   function formatDate(dateStr: string | undefined): string {
     if (!dateStr) return '-';
-    return formatLocaleDate(new Date(dateStr), {
+    return formatLocaleDateInJakarta(dateStr, {
       day: 'numeric',
       month: 'short',
       year: 'numeric',

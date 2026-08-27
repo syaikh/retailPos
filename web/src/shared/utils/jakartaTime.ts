@@ -255,6 +255,22 @@ export function getCurrentJakartaDateDisplay(): { day: number; month: string; ye
 }
 
 /**
+ * Format an absolute timestamp ISO string (with or without offset) to a
+ * Jakarta wall-clock representation while preserving the caller's Intl options
+ * and locale. Unlike `formatLocaleDate`, this never renders in the browser's
+ * local timezone, so it is correct in any browser.
+ *
+ * The date is shifted by +7h and then rendered with `timeZone: 'UTC'`, so the
+ * UTC fields *are* the Jakarta calendar values.
+ */
+export function formatLocaleDateInJakarta(isoString: string, options?: Intl.DateTimeFormatOptions): string {
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return '—';
+  const jakartaDate = new Date(date.getTime() + JAKARTA_OFFSET_MS);
+  return formatLocaleDate(jakartaDate, { ...options, timeZone: 'UTC' });
+}
+
+/**
  * Format a YYYY-MM-DD Jakarta date string (e.g. "2026-01-25") to DD Mon YYYY
  * (e.g. "25 Jan 2026").
  */

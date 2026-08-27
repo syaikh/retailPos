@@ -80,7 +80,7 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
 
   it('has formatDateTime function', () => {
     expect(src).toContain('function formatDateTime(dateStr: string | undefined): string');
-    expect(src).toContain('formatLocaleDate(');
+    expect(src).toContain('formatLocaleDateInJakarta(');
   });
 
   it('has formatPrice function', () => {

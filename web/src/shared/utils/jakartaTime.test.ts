@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { setLocale, formatLocaleDate } from '$shared/i18n';
 import {
   getTodayInJakarta,
   getDateNDaysAgoInJakarta,
@@ -15,6 +16,7 @@ import {
   getCurrentJakartaClock,
   getCurrentJakartaDateDisplay,
   formatJakartaDateStr,
+  formatLocaleDateInJakarta,
   JAKARTA_OFFSET_MS,
 } from '$shared/utils/jakartaTime';
 
@@ -258,5 +260,85 @@ describe('jakartaTime utilities', () => {
   it('formatJakartaDateStr returns original for malformed input', () => {
     expect(formatJakartaDateStr('hello')).toBe('hello');
     expect(formatJakartaDateStr('not-a-date')).toBe('not-a-date');
+  });
+
+  describe('formatLocaleDateInJakarta', () => {
+    beforeAll(() => setLocale('en'));
+    afterAll(() => setLocale('id'));
+
+    it('renders the Jakarta wall-clock for an absolute UTC timestamp', () => {
+      // 2026-06-15T17:00:00Z + 7h = 2026-06-16 00:00 WIB
+      expect(
+        formatLocaleDateInJakarta('2026-06-15T17:00:00Z', { day: 'numeric', month: 'short', year: 'numeric' }),
+      ).toBe('Jun 16, 2026');
+    });
+
+    it('renders date and time options in Jakarta time', () => {
+      // 2026-06-15T00:00:00Z + 7h = 2026-06-15 07:00 WIB
+      expect(
+        formatLocaleDateInJakarta('2026-06-15T00:00:00Z', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }),
+      ).toBe('Jun 15, 2026, 07:00');
+    });
+
+    it('shifts across a day boundary to the Jakarta calendar value', () => {
+      // 2026-06-15T17:00:00Z + 7h = 2026-06-16 00:00 WIB
+      expect(
+        formatLocaleDateInJakarta('2026-06-15T17:00:00Z', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }),
+      ).toBe('Jun 16, 2026, 00:00');
+    });
+
+    it('honours an explicit offset in the input string without double-shifting', () => {
+      // 2026-06-16T05:30:00+07:00 is already 05:30 WIB; the absolute instant is
+      // 2026-06-15T22:30:00Z, +7h = 2026-06-16T05:30:00Z, rendered in UTC fields.
+      expect(
+        formatLocaleDateInJakarta('2026-06-16T05:30:00+07:00', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }),
+      ).toBe('Jun 16, 2026, 05:30');
+    });
+
+    it('returns an em dash for an invalid date string', () => {
+      expect(formatLocaleDateInJakarta('not-a-date')).toBe('—');
+    });
+
+    it('returns an em dash when passed undefined', () => {
+      // callers normally guard with `if (!value)`, but the helper must not throw
+      expect(formatLocaleDateInJakarta(undefined as unknown as string)).toBe('—');
+    });
+
+    it('returns an em dash when passed an empty string', () => {
+      expect(formatLocaleDateInJakarta('')).toBe('—');
+    });
+
+    it('forwards custom Intl options to the formatter', () => {
+      // 2026-06-15T17:00:00Z + 7h = Tuesday 2026-06-16 WIB
+      expect(
+        formatLocaleDateInJakarta('2026-06-15T17:00:00Z', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        }),
+      ).toBe('Tuesday, June 16, 2026');
+    });
   });
 });

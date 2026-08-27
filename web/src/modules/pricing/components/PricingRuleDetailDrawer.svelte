@@ -2,6 +2,7 @@
   import { Drawer, Button, Badge } from '$shared/ui';
   import { Pencil, Trash2, DollarSign, Target, Hash, Clock, Settings, CalendarDays } from 'lucide-svelte';
   import { labels, t, formatLocaleDate } from '$shared/i18n';
+  import { formatLocaleDateInJakarta } from '$shared/utils/jakartaTime';
   import type { PricingRule } from '../types';
 
   let {
@@ -51,7 +52,7 @@
   function formatDateTime(dateStr: string | undefined): string {
     if (!dateStr) return '-';
     try {
-      return formatLocaleDate(new Date(dateStr), { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return formatLocaleDateInJakarta(dateStr, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     } catch { return dateStr; }
   }
 

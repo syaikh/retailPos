@@ -3,6 +3,7 @@
   import { getPurchaseOrderById, getReceipts } from '../services/po-service';
   import type { PurchaseOrder, GoodsReceipt } from '../types';
   import { labels, t, formatLocaleDate } from '$shared/i18n';
+  import { formatLocaleDateInJakarta } from '$shared/utils/jakartaTime';
   import { Package, Printer, Pencil, Check, XCircle, Copy, Truck } from 'lucide-svelte';
 
   let {
@@ -76,7 +77,7 @@
 
   function formatDate(dateStr: string | undefined): string {
     if (!dateStr) return '-';
-    return formatLocaleDate(new Date(dateStr), { day: 'numeric', month: 'short', year: 'numeric' });
+    return formatLocaleDateInJakarta(dateStr, { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   function formatCurrency(value: number): string {

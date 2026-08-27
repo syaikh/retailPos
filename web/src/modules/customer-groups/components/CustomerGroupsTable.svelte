@@ -3,6 +3,7 @@
   import { Search, MoreVertical, Users, Pencil, Trash2, Copy, Power, PowerOff } from 'lucide-svelte';
   import type { CustomerGroup } from '../types';
   import { labels, t, formatLocaleDate } from '$shared/i18n';
+  import { formatLocaleDateInJakarta } from '$shared/utils/jakartaTime';
 
   let {
     groups = [],
@@ -86,7 +87,7 @@
   function formatDateTime(dateStr: string | undefined): string {
     if (!dateStr) return '';
     try {
-      return formatLocaleDate(new Date(dateStr), { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return formatLocaleDateInJakarta(dateStr, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     } catch { return dateStr; }
   }
 </script>
