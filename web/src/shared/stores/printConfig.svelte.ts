@@ -34,6 +34,8 @@ function safeParse(raw: string | null): Partial<PrintConfigShape> {
 class PrintConfigStore {
   mode = $state<PrintMode>('preview');
   agentUrl = $state<string>(DEFAULT_AGENT_URL);
+  /** When true, the build-time mode is enforced and the mode toggle (preview/silent) is disabled. The agent-URL gear remains available so a register can still be pointed at its local agent. */
+  locked = $state(false);
 
   constructor() {
     const envMode = (import.meta.env.VITE_PRINT_MODE as string | undefined) || '';
@@ -41,7 +43,11 @@ class PrintConfigStore {
     const stored = safeParse(this.readStorage());
 
     const validMode: PrintMode = envMode === 'silent' ? 'silent' : 'preview';
-    this.mode = (stored.mode as PrintMode) || validMode;
+    const forcedSilent = envMode === 'silent';
+    this.locked = forcedSilent;
+    // A `silent` build locks the mode so a stored preference or the UI toggle
+    // can never revert a register back to preview.
+    this.mode = forcedSilent ? 'silent' : (stored.mode as PrintMode) || validMode;
     this.agentUrl = stored.agentUrl || envUrl || DEFAULT_AGENT_URL;
   }
 
@@ -62,6 +68,7 @@ class PrintConfigStore {
   }
 
   setMode(mode: PrintMode) {
+    if (this.locked) return;
     this.mode = mode;
     this.persist();
   }

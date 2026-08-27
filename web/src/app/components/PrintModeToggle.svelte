@@ -33,20 +33,24 @@
 
 <div class="flex items-center justify-between gap-2 px-1">
   <span class="text-text-muted text-[11px]">{labels.print}</span>
-  <div class="flex items-center rounded-md border border-border overflow-hidden">
-    <button
-      type="button"
-      class="{segBase} {printConfig.mode === 'preview' ? 'bg-primary-subtle text-primary-light' : 'text-text-muted hover:text-text-secondary'}"
-      onclick={() => printConfig.setMode('preview')}
-      title="Show 58mm preview and browser print dialog"
-    >{labels.preview}</button>
-    <button
-      type="button"
-      class="{segBase} {printConfig.mode === 'silent' ? 'bg-primary-subtle text-primary-light' : 'text-text-muted hover:text-text-secondary'}"
-      onclick={() => printConfig.setMode('silent')}
-      title="Send silently to the local print agent (no dialog)"
-    >{labels.silent}</button>
-  </div>
+  {#if !printConfig.locked}
+    <div class="flex items-center rounded-md border border-border overflow-hidden">
+      <button
+        type="button"
+        class="{segBase} {printConfig.mode === 'preview' ? 'bg-primary-subtle text-primary-light' : 'text-text-muted hover:text-text-secondary'}"
+        onclick={() => printConfig.setMode('preview')}
+        title="Show 58mm preview and browser print dialog"
+      >{labels.preview}</button>
+      <button
+        type="button"
+        class="{segBase} {printConfig.mode === 'silent' ? 'bg-primary-subtle text-primary-light' : 'text-text-muted hover:text-text-secondary'}"
+        onclick={() => printConfig.setMode('silent')}
+        title="Send silently to the local print agent (no dialog)"
+      >{labels.silent}</button>
+    </div>
+  {:else}
+    <span class="text-[11px] px-1.5 py-0.5 rounded bg-primary-subtle text-primary-light">{labels.silent}</span>
+  {/if}
   <button
     type="button"
     class="text-text-muted hover:text-text-secondary text-[11px] px-1"

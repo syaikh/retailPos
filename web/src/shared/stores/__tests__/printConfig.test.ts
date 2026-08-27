@@ -66,4 +66,33 @@ describe('PrintConfigStore', () => {
     const { printConfig } = await freshImport();
     expect(printConfig.mode).toBe('silent');
   });
+
+  it('locks mode to silent when VITE_PRINT_MODE=silent and ignores a stored preview preference', async () => {
+    localStorage.setItem('pos.printConfig', JSON.stringify({ mode: 'preview', agentUrl: 'http://shop:1234' }));
+    vi.stubEnv('VITE_PRINT_MODE', 'silent');
+    const { printConfig } = await freshImport();
+    expect(printConfig.locked).toBe(true);
+    expect(printConfig.mode).toBe('silent');
+  });
+
+  it('does not lock when VITE_PRINT_MODE is not silent', async () => {
+    vi.stubEnv('VITE_PRINT_MODE', 'preview');
+    const { printConfig } = await freshImport();
+    expect(printConfig.locked).toBe(false);
+    expect(printConfig.mode).toBe('preview');
+  });
+
+  it('setMode is a no-op while locked (cannot revert to preview)', async () => {
+    vi.stubEnv('VITE_PRINT_MODE', 'silent');
+    const { printConfig } = await freshImport();
+    printConfig.setMode('preview');
+    expect(printConfig.mode).toBe('silent');
+  });
+
+  it('toggleMode is a no-op while locked', async () => {
+    vi.stubEnv('VITE_PRINT_MODE', 'silent');
+    const { printConfig } = await freshImport();
+    printConfig.toggleMode();
+    expect(printConfig.mode).toBe('silent');
+  });
 });

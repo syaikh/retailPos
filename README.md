@@ -1165,6 +1165,14 @@ The POS prints receipts in one of two modes, chosen with the **Print** toggle in
 
 The mode is stored per browser. If the agent is unreachable in Silent mode, the POS shows a Retry / Dismiss message and does **not** fall back to the browser dialog — the cashier can reprint the receipt later from the transaction.
 
+**Enforcing silent on registers (production).** Building the frontend with `VITE_PRINT_MODE=silent` makes silent the *locked* default: the mode toggle is hidden (a `Silent` badge is shown instead) and a previously stored `preview` preference in `localStorage` is ignored, so cashiers cannot revert a register back to preview. The agent-URL gear remains available so each register can still be pointed at its own local agent. Build with:
+
+```bash
+cd web && VITE_PRINT_MODE=silent npm run build
+```
+
+Use a non-`silent` build for development/back-office terminals where the preview dialog is still wanted.
+
 Run the agent during development or testing (Go binary, no Node required):
 
 ```bash

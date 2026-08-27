@@ -24,6 +24,11 @@ describe('PrintModeToggle.svelte source-structure guards', () => {
     expect(src).toContain('{labels.silent}');
   });
 
+  it('hides the segmented controls when printConfig.locked and shows a silent badge', () => {
+    expect(src).toContain('{#if !printConfig.locked}');
+    expect(src).toContain('{:else}');
+  });
+
   it('binds preview mode to setMode("preview")', () => {
     expect(src).toContain("printConfig.setMode('preview')");
   });

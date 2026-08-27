@@ -39,7 +39,9 @@ default, so the system is fully usable without any printer hardware.
 
 - **`shared/stores/printConfig.svelte.ts`** — `mode` (`preview` | `silent`) and
   `agentUrl`, persisted to `localStorage`, seeded from `VITE_PRINT_MODE` /
-  `VITE_PRINT_AGENT_URL`. Per-browser config.
+  `VITE_PRINT_AGENT_URL`. Per-browser config. When built with
+  `VITE_PRINT_MODE=silent`, the mode is **locked**: `localStorage` and the UI
+  toggle cannot revert it to `preview`, and the store exposes a `locked` flag.
 - **`shared/services/print-service.ts`** — single `printReceipt(data)` entry
   point returning a `PrintResult`. In `silent` mode it `POST`s the payload to the
   agent and, if the agent is unreachable, returns `{ ok: false }` (the caller
@@ -47,6 +49,8 @@ default, so the system is fully usable without any printer hardware.
   In `preview` mode it renders the 58mm overlay and calls `window.print()`.
 - **`app/components/PrintModeToggle.svelte`** — cart UI (Preview/Silent
   segmented control + gear editor for the agent URL with a `/health` test).
+  When `printConfig.locked` is true the segmented control is replaced by a
+  `Silent` badge; the gear editor stays available.
 - Wiring: POS auto-print, POS manual print, and `TransactionDrawer` reprint all
   call `print-service` instead of setting the store + `window.print()` directly.
 
