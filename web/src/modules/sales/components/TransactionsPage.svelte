@@ -190,18 +190,26 @@
     const existing = store.salesData.find((t: any) => t.id === id);
     if (existing) {
       drawerMode = 'history';
+      activeTab = 'mine';
       openTransactionDetails(existing);
       opened = true;
     } else {
       const sale = await getSaleById(id);
       if (sale) {
         drawerMode = 'history';
+        activeTab = 'mine';
         openTransactionDetails(sale);
         opened = true;
       } else {
         const lookup = await getSaleLookupDetail(id);
         if (lookup) {
           drawerMode = 'lookup';
+          // A cross-cashier (foreign) sale belongs in the Find Transaction
+          // context, not "My Transactions". Switch to that tab when the
+          // caller holds sale.lookup; otherwise fall back to the default
+          // "mine" tab (the drawer simply will not open without the
+          // permission, matching prior behaviour).
+          if (canLookup) activeTab = 'lookup';
           openTransactionDetails(lookup);
           opened = true;
         }
@@ -318,16 +326,19 @@
       onpagechange={handlePageChange}
       onrowclick={openTransactionDetails}
     />
-
-    <TransactionDrawer
-      {selectedTransaction}
-      mode={drawerMode}
-      bind:showTransactionDrawer
-      onclose={closeTransactionDrawer}
-    />
   {:else}
     <FindTransaction />
   {/if}
+
+  <!-- Deep-link drawer (notification "?txn=<id>") is mounted regardless of the
+       active tab: a foreign sale resolves to lookup mode and switches to the
+       Find Transaction tab, while an own sale stays on "My Transactions". -->
+  <TransactionDrawer
+    {selectedTransaction}
+    mode={drawerMode}
+    bind:showTransactionDrawer
+    onclose={closeTransactionDrawer}
+  />
 </div>
 
 <style>

@@ -105,6 +105,13 @@ describe('TransactionDrawer.svelte source-structure guards', () => {
     expect(src).toContain('labels.walkInGeneral');
   });
 
+  it('hides the customer field in cross-cashier lookup (redacted) mode', () => {
+    // In lookup (foreign-sale) mode the drawer renders a redacted summary, so
+    // the customer row must be wrapped and only shown outside lookup mode.
+    expect(src).toContain("{#if mode !== 'lookup'}");
+    expect(src).toContain('{labels.customer}');
+  });
+
   it('renders items table with localized headers', () => {
     expect(src).toContain('{labels.description}');
     expect(src).toContain('{labels.qty}');

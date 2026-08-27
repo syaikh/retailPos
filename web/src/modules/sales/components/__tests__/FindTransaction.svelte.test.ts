@@ -43,10 +43,30 @@ describe('FindTransaction.svelte source-structure guards', () => {
     expect(src).not.toContain('getDateNDaysAgoInJakarta');
   });
 
+  it('tracks an explicit-search flag to avoid flashing no-results while typing', () => {
+    // The "no results" empty state must only appear after a real search ran,
+    // not the instant the cashier starts typing/pasting a receipt number.
+    expect(src).toContain("let hasSearched = $state(false)");
+    expect(src).toContain('data.length === 0 && hasSearched');
+  });
+
   it('shows a search hint before a query and a no-results state after', () => {
     expect(src).toContain('labels.findTransactionHint');
     expect(src).toContain('noResultsFor');
     expect(src).toContain('!searchQuery.trim()');
+  });
+
+  it('sets hasSearched only after a successful lookup (and clears it on empty query)', () => {
+    expect(src).toContain('function runSearch');
+    expect(src).toContain('hasSearched = true');
+    expect(src).toContain('if (!searchQuery.trim()) { hasSearched = false; return; }');
+  });
+
+  it('resets hasSearched whenever the query text changes', () => {
+    // Typing/pasting resets the searched flag so the no-results message stays
+    // hidden until the next explicit submit.
+    expect(src).toContain('$effect(() => {');
+    expect(src).toContain('hasSearched = false');
   });
 
   it('re-runs the lookup when a column is sorted (no auto-load effect)', () => {

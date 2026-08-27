@@ -51,6 +51,13 @@
   let loading = $state(false);
   let total = $state(0);
   let data = $state<SaleLookupSummary[]>([]);
+  // True only after an explicit search has actually run (on submit). Prevents
+  // the "no results" empty state from flashing the instant a cashier starts
+  // typing/pasting a receipt number, before any lookup is performed.
+  let hasSearched = $state(false);
+  // Monotonic token to discard stale in-flight lookup responses when a newer
+  // search is submitted before the previous one resolves.
+  let reqToken = 0;
 
   // Invoice lookup is date-independent: when a search term is present we widen
   // the window to the epoch so old receipts can still be found (the receipt
@@ -70,22 +77,34 @@
 
   async function load() {
     loading = true;
+    const token = ++reqToken;
     try {
       const res = await getSalesLookup(buildFilters());
+      if (token !== reqToken) return;
       data = res.data;
       total = res.total;
     } catch {
+      if (token !== reqToken) return;
       data = [];
       total = 0;
     } finally {
-      loading = false;
+      if (token === reqToken) loading = false;
     }
   }
 
   async function runSearch() {
-    if (!searchQuery.trim()) return;
+    if (!searchQuery.trim()) { hasSearched = false; return; }
     page = 0;
     await load();
+    hasSearched = true;
+  }
+
+  // Clear stale results whenever the query text is edited (including when the
+  // SearchBar's X button empties it) so the table never shows a previous
+  // lookup while the cashier is entering a new receipt number.
+  function handleSearchInput() {
+    data = [];
+    total = 0;
   }
 
   function toggleSort(col: string) {
@@ -105,6 +124,14 @@
     return formatDateTimeInJakarta(dateStr);
   }
 
+  // Reset the searched flag whenever the query text changes, so the "no
+  // results" message only appears after a real search, not while the cashier is
+  // still typing/pasting the receipt number.
+  $effect(() => {
+    searchQuery;
+    hasSearched = false;
+  });
+
   onMount(() => {
     store.loadPaymentMethods();
   });
@@ -116,6 +143,7 @@
       bind:value={searchQuery}
       placeholder={labels.searchByInvoiceNumber}
       onsubmit={runSearch}
+      oninput={handleSearchInput}
       class="flex-1"
     />
     <Button onclick={runSearch} disabled={!searchQuery.trim()}>{labels.search}</Button>
@@ -139,19 +167,19 @@
         {/each}
         </div>
       </div>
-    {:else if !searchQuery.trim()}
+    {:else if data.length === 0 && hasSearched}
       <div class="px-4 py-12 text-center" role="status">
         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
           <User size={32} class="text-text-muted" />
         </div>
-        <p class="text-text-primary font-semibold mt-4">{labels.findTransactionHint}</p>
+        <p class="text-text-primary font-semibold mt-4">{t('noResultsFor', { query: searchQuery.trim() })}</p>
       </div>
     {:else if data.length === 0}
       <div class="px-4 py-12 text-center" role="status">
         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
           <User size={32} class="text-text-muted" />
         </div>
-        <p class="text-text-primary font-semibold mt-4">{t('noResultsFor', { query: searchQuery.trim() })}</p>
+        <p class="text-text-primary font-semibold mt-4">{labels.findTransactionHint}</p>
       </div>
     {:else}
       <div class="overflow-x-auto">

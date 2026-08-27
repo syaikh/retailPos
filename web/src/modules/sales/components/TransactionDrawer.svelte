@@ -161,10 +161,12 @@
           <p class="text-xs font-medium text-text-muted uppercase tracking-wide">{labels.dateAndTime}</p>
           <p class="text-sm text-text-primary">{formatDateTime(new Date(displayTransaction.created_at))}</p>
         </div>
-        <div>
-          <p class="text-xs font-medium text-text-muted uppercase tracking-wide">{labels.customer}</p>
-          <p class="text-sm text-text-primary">{displayTransaction.customer_name || labels.walkInGeneral}</p>
-        </div>
+        {#if mode !== 'lookup'}
+          <div>
+            <p class="text-xs font-medium text-text-muted uppercase tracking-wide">{labels.customer}</p>
+            <p class="text-sm text-text-primary">{displayTransaction.customer_name || labels.walkInGeneral}</p>
+          </div>
+        {/if}
       </div>
       <div class="space-y-3">
         <div>
@@ -193,7 +195,7 @@
     </div>
 
     {#if displayTransaction.items && displayTransaction.items.length > 0}
-      <div>
+      <div class="mt-5">
         <p class="text-sm font-semibold text-text-secondary mb-3">{labels.items}</p>
         <div class="border border-border rounded-lg">
           <div class="max-h-80 overflow-y-auto">

@@ -180,4 +180,28 @@ describe('TransactionsPage.svelte source-structure guards', () => {
     expect(src).toContain('const sale = await getSaleById(id)');
     expect(src).toContain('const lookup = await getSaleLookupDetail(id)');
   });
+
+  it('routes an own/history deep-linked sale to the My Transactions tab', () => {
+    // Both the in-list and owner-scoped detail paths select the cashier's own
+    // context before opening the drawer.
+    expect(src).toContain("drawerMode = 'history'");
+    expect(src).toContain("activeTab = 'mine'");
+  });
+
+  it('routes a cross-cashier deep-linked sale to the Find Transaction tab (lookup holders only)', () => {
+    // A foreign sale resolves to lookup mode; switch to that tab only when the
+    // caller actually holds sale.lookup (otherwise the drawer just won't open,
+    // matching prior behaviour for roles without the permission).
+    expect(src).toContain("drawerMode = 'lookup'");
+    expect(src).toContain("if (canLookup) activeTab = 'lookup'");
+  });
+
+  it('mounts the detail drawer regardless of the active tab (deep-link support)', () => {
+    // The drawer must live outside the {#if activeTab === 'mine'} block so a
+    // foreign sale (lookup mode) can open it even while the Find Transaction
+    // tab is active.
+    expect(src).toContain('<TransactionDrawer');
+    expect(src).toContain('mode={drawerMode}');
+    expect(src).toContain('<!-- Deep-link drawer');
+  });
 });
