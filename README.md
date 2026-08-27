@@ -1184,6 +1184,27 @@ PRINT_TRANSPORT=file go run ./cmd/print-agent   # writes the ESC/POS .bin stream
 
 Use `PRINT_TRANSPORT=tcp` with `PRINT_TCP_ADDR=192.168.x.x:9100` for a network thermal printer, or `PRINT_TRANSPORT=serial` with `PRINT_SERIAL_DEVICE=/dev/ttyUSB0` for a USB-serial printer. The default agent URL and mode can also be set globally with `VITE_PRINT_AGENT_URL` / `VITE_PRINT_MODE` in `.env`.
 
+#### Setting up a register
+
+A register is a self-contained terminal: one machine running the built frontend, its own local print agent on `localhost:9123`, and its own physical printer. Printing is decentralised — the browser talks to `localhost`, so each register prints to *its* printer and never crosses to another. To bring up a register:
+
+```bash
+# 1. Build the frontend with silent printing locked on (do this once per register build)
+cd web && VITE_PRINT_MODE=silent npm run build
+
+# 2. Start the print agent on the register machine (one per register)
+cd tools/print-agent
+./print-agent.sh -t tcp --tcp-addr 192.168.x.x:9100   # network 58mm thermal printer
+# ./print-agent.sh -t serial --serial-device /dev/ttyUSB0   # USB-serial printer
+# ./print-agent.sh -t file -p 9123 -o /tmp/receipt-out      # dev / no printer (writes .bin)
+
+# 3. Start the app
+./run-dev.sh                                   # backend (port 9095) — use your prod server in deployment
+cd web && npm run preview                      # serve the built frontend (port 4173)
+```
+
+Repeat steps 2–3 on every register terminal. No central print configuration is needed; each agent is independent and the backend is not in the print path. Use a non-`silent` build (`npm run dev` or a plain `npm run build`) only for development/back-office terminals where the preview dialog is still wanted.
+
 #### Keyboard Shortcuts
 
 | Key | Action |
