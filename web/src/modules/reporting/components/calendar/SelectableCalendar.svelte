@@ -2,7 +2,7 @@
   import { type DateValue, CalendarDate } from "@internationalized/date";
   import { cn, getThemeStyle, type Theme } from "./utils";
   import { getTodayJakartaDate } from '$shared/utils/jakartaTime';
-  import { formatLocaleDate } from '$shared/i18n';
+  import { formatLocaleDate, labels } from '$shared/i18n';
 
   type SelectionMode = "day" | "week";
 
@@ -40,7 +40,15 @@
     getTodayJakartaDate().day
   );
 
-  const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const daysOfWeek = $derived([
+    labels.dayMonShort,
+    labels.dayTueShort,
+    labels.dayWedShort,
+    labels.dayThuShort,
+    labels.dayFriShort,
+    labels.daySatShort,
+    labels.daySunShort,
+  ]);
 
   const getWeekRange = (date: DateValue): { start: DateValue; end: DateValue } => {
     const jsDate = new Date(date.year, date.month - 1, date.day);
@@ -92,13 +100,15 @@
     const isHoverEnd = hoverRange.end && date.compare(hoverRange.end) === 0;
 
     return cn(
-      "relative w-11 h-11 text-center text-sm",
-      selected && "bg-[var(--calendar-selected)] text-[var(--calendar-selected-text)] rounded-none",
-      selected && isSelectedStartDate(date) && "rounded-l-md",
-      selected && isSelectedEndDate(date) && "rounded-r-md",
-      hover && !selected && !disabled && "bg-[var(--calendar-hover)] text-[var(--calendar-text)] rounded-none",
-      isHoverStart && !selected && !disabled && "rounded-l-md",
-      isHoverEnd && !selected && !disabled && "rounded-r-md",
+      "relative w-full h-11 text-center text-sm",
+      selected && "bg-[var(--calendar-selected)] text-[var(--calendar-selected-text)]",
+      selected && isSelectedStartDate(date) && isSelectedEndDate(date) && "rounded-md",
+      selected && isSelectedStartDate(date) && !isSelectedEndDate(date) && "rounded-l-md",
+      selected && isSelectedEndDate(date) && !isSelectedStartDate(date) && "rounded-r-md",
+      hover && !selected && !disabled && "bg-[var(--calendar-hover)] text-[var(--calendar-text)]",
+      hover && isHoverStart && !isHoverEnd && !selected && !disabled && "rounded-l-md",
+      hover && isHoverEnd && !isHoverStart && !selected && !disabled && "rounded-r-md",
+      hover && isHoverStart && isHoverEnd && !selected && !disabled && "rounded-md",
       disabled && "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed rounded-md bg-[var(--calendar-disabled-bg)]",
       todayFlag && mode === "week" && !selected && !disabled && "text-[var(--calendar-text)]",
       // Today flag styling: only apply if NOT disabled (to avoid overriding disabled styling)
@@ -187,6 +197,72 @@
     hoverDate = null;
   };
 
+  // A week row is "selected" when its Monday matches the selected range start.
+  const isWeekSelected = (weekStart: DateValue): boolean => {
+    if (!value) return false;
+    const rangeStart = value.start ?? value;
+    const wk = getWeekRange(weekStart);
+    return wk.start.compare(rangeStart) === 0;
+  };
+
+  const isWeekHovered = (weekStart: DateValue): boolean => {
+    if (!hoverDate) return false;
+    const wk = getWeekRange(weekStart);
+    const hk = getWeekRange(hoverDate);
+    return wk.start.compare(hk.start) === 0;
+  };
+
+  // Constrain a [start, end] range to the selectable window [minValue, maxValue].
+  const getActiveRange = (base: { start: DateValue; end: DateValue } | null) => {
+    if (!base) return null;
+    let rs = base.start;
+    let re = base.end;
+    if (minValue && rs.compare(minValue) < 0) rs = minValue;
+    if (maxValue && re.compare(maxValue) > 0) re = maxValue;
+    return { start: rs, end: re };
+  };
+
+  const getSelectedActiveRange = () => {
+    if (!value) return null;
+    return getActiveRange({ start: value.start ?? value, end: value.end ?? value });
+  };
+
+  const getHoveredActiveRange = () => {
+    if (!hoverDate) return null;
+    const wk = getWeekRange(hoverDate);
+    return getActiveRange({ start: wk.start, end: wk.end });
+  };
+
+  // Week cell: highlight only active (selectable) dates. Highlighted cells are
+  // flush (gap-0) so they form one continuous block with rounded ends at the
+  // first/last active date — never an overlap.
+  const getWeekCellClass = (
+    date: DateValue,
+    rangeStart: DateValue | null,
+    rangeEnd: DateValue | null,
+    selected: boolean,
+    disabled: boolean
+  ) => {
+    const inCurrentMonth = date.year === displayMonth.year && date.month === displayMonth.month;
+    const inRange = !!rangeStart && !!rangeEnd && date.compare(rangeStart) >= 0 && date.compare(rangeEnd) <= 0;
+    const isFirst = inRange && date.compare(rangeStart!) === 0;
+    const isLast = inRange && date.compare(rangeEnd!) === 0;
+    return cn(
+      "relative w-full h-11 text-center text-sm flex items-center justify-center transition-colors",
+      inRange &&
+        cn(
+          selected ? 'bg-[var(--calendar-selected)] text-[var(--calendar-selected-text)]'
+                   : 'bg-[var(--calendar-hover)] text-[var(--calendar-text)]',
+          isFirst && isLast && 'rounded-md',
+          isFirst && !isLast && 'rounded-l-md',
+          isLast && !isFirst && 'rounded-r-md',
+        ),
+      !inRange && disabled && "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed rounded-md bg-[var(--calendar-disabled-bg)]",
+      !inRange && !disabled && !inCurrentMonth && "text-[var(--calendar-muted)] opacity-60",
+      !inRange && !disabled && inCurrentMonth && "text-[var(--calendar-text)]",
+    );
+  };
+
   // Get current month dates with padding (max 5 rows = 35 days)
   function getMonthDates(year: number, month: number) {
     const firstDay = new Date(year, month - 1, 1);
@@ -218,13 +294,20 @@
 
   const monthDates = $derived(getMonthDates(displayMonth.year, displayMonth.month));
 
+  // Group the flat 35-day grid into week rows for row-level highlighting.
+  const weeks = $derived(
+    Array.from({ length: Math.ceil(monthDates.length / 7) }, (_, i) =>
+      monthDates.slice(i * 7, i * 7 + 7)
+    )
+  );
+
   // Check if there are any selectable dates in the current month view
   const hasSelectableDates = $derived(
     monthDates.some(date => !isDateDisabled(date))
   );
 </script>
 
-<div class={cn("inline-block w-72", className)}>
+<div class={cn("inline-block w-full", className)}>
   <div
     class="p-4 rounded-lg w-full min-h-80"
     style={getThemeStyle(theme)}
@@ -251,9 +334,9 @@ onclick={(e) => { e.stopPropagation(); const next = displayMonth.add({ months: 1
       </button>
     </div>
 
-    <div class="grid grid-cols-7 gap-0.5 mb-2">
+    <div class="grid grid-cols-7 gap-0 mb-2">
       {#each daysOfWeek as day}
-        <div class="w-11 h-11 text-center text-xs font-medium text-[var(--calendar-muted)]">
+        <div class="h-11 w-full text-center text-xs font-medium text-[var(--calendar-muted)]">
           {day}
         </div>
       {/each}
@@ -263,8 +346,32 @@ onclick={(e) => { e.stopPropagation(); const next = displayMonth.add({ months: 1
       <div class="text-xs text-center py-4 text-[var(--calendar-muted)]">
         No selectable dates in this month.<br/>Click ‹ to view previous months.
       </div>
+    {:else if mode === 'week'}
+      <div class="flex flex-col gap-0" role="group" aria-label="Date grid" onmouseleave={handleMouseLeave}>
+        {#each weeks as week}
+          {@const weekStart = week[0]}
+          {@const weekSelected = isWeekSelected(weekStart)}
+          {@const weekHovered = isWeekHovered(weekStart)}
+          {@const activeRange = weekSelected ? getSelectedActiveRange() : weekHovered ? getHoveredActiveRange() : null}
+          <div class="grid grid-cols-7 gap-0">
+            {#each week as date}
+              {@const todayFlag = isToday(date)}
+              {@const disabledFlag = isDateDisabled(date)}
+              <button
+                type="button"
+                class={getWeekCellClass(date, activeRange?.start ?? null, activeRange?.end ?? null, weekSelected, disabledFlag)}
+                disabled={disabledFlag}
+                onmouseenter={() => handleMouseEnter(date)}
+                onclick={(e) => { e.stopPropagation(); handleDayClick(date); }}
+              >
+                <span class={cn(todayFlag && !disabledFlag && "font-bold")}>{date.day}</span>
+              </button>
+            {/each}
+          </div>
+        {/each}
+      </div>
     {:else}
-      <div class="grid grid-cols-7 gap-0.5" role="group" aria-label="Date grid" onmouseleave={handleMouseLeave}>
+      <div class="grid grid-cols-7 gap-0" role="group" aria-label="Date grid" onmouseleave={handleMouseLeave}>
         {#each monthDates as date}
           {@const todayFlag = isToday(date)}
           {@const disabledFlag = isDateDisabled(date)}

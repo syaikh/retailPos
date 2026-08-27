@@ -42,7 +42,19 @@
 
   let selectedYear = $state(parseInt(getTodayInJakarta().split('-')[0]));
 
-  const periodOptions = [
+  const calendarTheme = {
+    bg: 'transparent',
+    text: 'var(--color-text-primary)',
+    muted: 'var(--color-text-muted)',
+    border: 'var(--color-border-strong)',
+    hover: 'var(--color-primary-subtle)',
+    selected: 'var(--color-primary)',
+    selectedText: 'var(--color-text-inverted)',
+    todayBorder: 'var(--color-info-default)',
+    radius: '8px'
+  };
+
+  const periodOptions = $derived([
     { value: 'realtime', label: labels.periodRealtime, icon: Clock, description: labels.descRealtime },
     { value: 'yesterday', label: labels.yesterday, icon: CalendarDays, description: labels.descYesterday },
     { value: '7days', label: labels.period7Days, icon: CalendarDays, description: labels.desc7Days },
@@ -53,7 +65,7 @@
     { value: 'weekly', label: labels.periodWeekly, icon: CalendarDays, description: labels.descWeekly },
     { value: 'monthly', label: labels.periodMonthly, icon: CalendarDays, description: labels.descMonthly },
     { value: 'yearly', label: labels.periodYearly, icon: CalendarDays, description: labels.descYearly },
-  ];
+  ]);
 
   function getPeriodDateRange(periodType) {
     const today = getTodayInJakarta();
@@ -267,7 +279,7 @@
               {@const isCalendarOption = ['daily', 'weekly', 'monthly', 'yearly'].includes(option.value)}
               <button type="button"
                 role="menuitem"
-                class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors {selectedPeriodType === option.value ? 'bg-primary/20 text-primary-light' : 'text-text-secondary hover:bg-surface-hover'}"
+                class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors {selectedPeriodType === option.value ? 'bg-primary/20 text-primary-light' : 'text-text-secondary hover:bg-primary/10 hover:text-primary-light'}"
                 onclick={() => { if (!isCalendarOption) setPeriod(option.value); }}
                 onmouseenter={() => hoveredOption = option}
               >
@@ -301,17 +313,7 @@
                 bind:value={selectedDailyDate}
                 minValue={new CalendarDate(2023, 6, 16)}
                 maxValue={yesterdayDate}
-                theme={{
-                  bg: 'transparent',
-                  text: '#e2e8f0',
-                  muted: '#64748b',
-                  border: '#334155',
-                  hover: '#334155',
-                  selected: '#7c3aed',
-                  selectedText: '#ffffff',
-                  todayBorder: '#0ea5e9',
-                  radius: '8px'
-                }}
+                theme={calendarTheme}
                 onValueChange={(val) => {
                   if (val) {
                     selectedDailyDate = val;
@@ -338,16 +340,7 @@
                 bind:value={selectedWeeklyRange}
                 minValue={new CalendarDate(2023, 6, 16)}
                 maxValue={yesterdayDate}
-                theme={{
-                  bg: 'transparent',
-                  text: '#e2e8f0',
-                  muted: '#64748b',
-                  border: '#334155',
-                  hover: '#334155',
-                  selected: '#7c3aed',
-                  selectedText: '#ffffff',
-                  radius: '8px'
-                }}
+                theme={calendarTheme}
                 onValueChange={(val) => {
                   if (val) {
                     selectedWeeklyRange = val;
@@ -379,16 +372,7 @@
                 bind:value={selectedMonthlyRange}
                 minValue={new CalendarDate(2023, 6, 1)}
                 maxValue={yesterdayDate}
-                theme={{
-                  bg: 'transparent',
-                  text: '#e2e8f0',
-                  muted: '#64748b',
-                  border: '#334155',
-                  hover: '#334155',
-                  selected: '#7c3aed',
-                  selectedText: '#ffffff',
-                  radius: '8px'
-                }}
+                theme={calendarTheme}
                 onValueChange={(val) => {
                   if (val) {
                     selectedMonthlyRange = val;
@@ -420,16 +404,7 @@
                 minValue={availableYears.length > 0 ? new CalendarDate(Math.min(...availableYears), 1, 1) : new CalendarDate(2023, 6, 16)}
                 maxValue={yesterdayDate}
                 {availableYears}
-                theme={{
-                  bg: 'transparent',
-                  text: '#e2e8f0',
-                  muted: '#64748b',
-                  border: '#334155',
-                  hover: '#334155',
-                  selected: '#7c3aed',
-                  selectedText: '#ffffff',
-                  radius: '8px'
-                }}
+                theme={calendarTheme}
                 onValueChange={(val) => {
                   if (val) {
                     selectedYearlyRange = val;
