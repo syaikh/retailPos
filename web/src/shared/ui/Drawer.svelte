@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Button } from '$shared/ui';
   import type { Snippet } from 'svelte';
-  import { fly } from 'svelte/transition';
+  import { fly, fade } from 'svelte/transition';
   import { X } from 'lucide-svelte';
 
   let {
@@ -83,13 +83,13 @@
   <div
     class="fixed inset-0 z-50 bg-black/60"
     onclick={handleBackdropClick}
-    transition:fly={{ duration: 200 }}
+    transition:fade={{ duration: 200 }}
     aria-hidden="true"
   ></div>
 
   <div
     bind:this={panelEl}
-    class="fixed inset-y-0 right-0 z-[55] bg-surface-default border-l border-border shadow-2xl flex flex-col transition-transform duration-300 ease-out"
+    class="fixed inset-y-0 right-0 z-[55] bg-surface-default border-l border-border shadow-2xl flex flex-col [transform:translateZ(0)] [backface-visibility:hidden] [will-change:transform]"
     style="width: {width}px; max-width: 100%;"
     transition:fly={{ x: width, duration: 300, easing: t => t * (2 - t) }}
     role="dialog"
