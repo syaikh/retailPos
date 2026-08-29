@@ -1034,7 +1034,7 @@ func backfillRackStock(ctx context.Context, db *sql.DB) {
 
 	// Get location IDs per warehouse
 	type whLocations struct {
-		id       int
+		id          int
 		locationIDs []int
 	}
 	var whList []whLocations
@@ -1605,7 +1605,6 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 			fmt.Printf("Warning: worker %d failed to insert product %d: %v\n", job.workerID, i, err)
 			continue
 		}
-
 
 		// Insert into product_stock so v_products_full view returns correct stock
 		if _, err := stockStmt.ExecContext(ctx, id, stock); err != nil {
@@ -2685,15 +2684,40 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 	}
 
 	rows := make([]string, 0, 500)
+
+	// Resolve seeded stores so audit entries can be attributed to a store
+	// (P0.1: every audit log carries store_id).
+	var storeIDs []int
+	if sRows, err := db.QueryContext(ctx, "SELECT id FROM stores ORDER BY id"); err == nil {
+		for sRows.Next() {
+			var sid int
+			if err := sRows.Scan(&sid); err == nil {
+				storeIDs = append(storeIDs, sid)
+			}
+		}
+		_ = sRows.Close()
+	}
+	pickStore := func() *int {
+		if len(storeIDs) == 0 {
+			return nil
+		}
+		s := storeIDs[rand.Intn(len(storeIDs))]
+		return &s
+	}
+
 	addRow := func(userID int, role, action, entityType string, entityID *int, description string, createdAt time.Time) {
 		var eid any = "NULL"
 		if entityID != nil {
 			eid = *entityID
 		}
+		var sid any = "NULL"
+		if s := pickStore(); s != nil {
+			sid = *s
+		}
 		ip := randomPrivateIP()
 		rows = append(rows, fmt.Sprintf(
-			"(%d, '%s', '%s', '%s', %v, NULL, NULL, '%s', NULL, '%s', '%s')",
-			userID, escapeSQL(role), escapeSQL(action), escapeSQL(entityType),
+			"(%d, %v, '%s', '%s', '%s', %v, NULL, NULL, '%s', NULL, '%s', '%s')",
+			userID, sid, escapeSQL(role), escapeSQL(action), escapeSQL(entityType),
 			eid, ip, escapeSQL(description),
 			createdAt.Format("2006-01-02 15:04:05-07"),
 		))
@@ -2791,23 +2815,28 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 
 	// Sale creation audit logs — generated from sales table
 	saleRows, err := db.QueryContext(ctx,
-		`SELECT id, cashier_id, customer_id, invoice_number, total_amount, payment_method, created_at
+		`SELECT id, cashier_id, customer_id, invoice_number, total_amount, payment_method, store_id, created_at
 		 FROM sales ORDER BY id`)
 	if err == nil {
 		defer func() { _ = saleRows.Close() }()
 		for saleRows.Next() {
 			var sid, cid, custID, total int
 			var inv, pm string
+			var storeID sql.NullInt64
 			var ct time.Time
-			if err := saleRows.Scan(&sid, &cid, &custID, &inv, &total, &pm, &ct); err != nil {
+			if err := saleRows.Scan(&sid, &cid, &custID, &inv, &total, &pm, &storeID, &ct); err != nil {
 				continue
 			}
 			nv := fmt.Sprintf(`{"invoice_number":"%s","cashier_id":%d,"customer_id":%d,"total_amount":%d,"payment_method":"%s","status":"completed"}`,
 				inv, cid, custID, total, pm)
 			ip := randomPrivateIP()
+			var saleStore any = "NULL"
+			if storeID.Valid {
+				saleStore = storeID.Int64
+			}
 			rows = append(rows, fmt.Sprintf(
-				"(%d, 'cashier', 'create', 'sale', %d, NULL, '%s'::jsonb, '%s', NULL, 'Created sale #%d', '%s')",
-				cid, sid, escapeSQL(nv), ip, sid, ct.Format("2006-01-02 15:04:05-07"),
+				"(%d, %v, 'cashier', 'create', 'sale', %d, NULL, '%s'::jsonb, '%s', NULL, 'Created sale #%d', '%s')",
+				cid, saleStore, sid, escapeSQL(nv), ip, sid, ct.Format("2006-01-02 15:04:05-07"),
 			))
 		}
 	}
@@ -2824,7 +2853,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 			end = len(rows)
 		}
 		batch := rows[i:end]
-		query := `INSERT INTO audit_logs (user_id, role, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent, description, created_at) VALUES `
+		query := `INSERT INTO audit_logs (user_id, store_id, role, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent, description, created_at) VALUES `
 		query += strings.Join(batch, ", ")
 		if _, err := db.ExecContext(ctx, query); err != nil {
 			return fmt.Errorf("failed to insert audit logs batch %d: %w", i/batchSize, err)
@@ -2932,11 +2961,11 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 	grInserted := 0
 
 	type poResult struct {
-		poID       int
-		status     string
-		createdAt  time.Time
+		poID        int
+		status      string
+		createdAt   time.Time
 		confirmedAt *time.Time
-		items      []struct {
+		items       []struct {
 			poItemID   int
 			qtyOrdered int
 			unitCost   int
@@ -3177,10 +3206,10 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 		productID  int
 	}
 	type poInfo struct {
-		poID       int
-		status     string
-		items      []poItemInfo
-		createdAt  time.Time
+		poID        int
+		status      string
+		items       []poItemInfo
+		createdAt   time.Time
 		confirmedAt *time.Time
 	}
 	var confirmedPOs []poInfo
@@ -3188,11 +3217,11 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 	for poRes := range results {
 		poInserted++
 		info := poInfo{
-			poID:       poRes.poID,
-			status:     poRes.status,
-			createdAt:  poRes.createdAt,
+			poID:        poRes.poID,
+			status:      poRes.status,
+			createdAt:   poRes.createdAt,
 			confirmedAt: poRes.confirmedAt,
-			items:      make([]poItemInfo, len(poRes.items)),
+			items:       make([]poItemInfo, len(poRes.items)),
 		}
 		for j, item := range poRes.items {
 			info.items[j] = poItemInfo{
