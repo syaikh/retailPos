@@ -222,7 +222,7 @@ func TestShiftHandler_CloseAll_Success(t *testing.T) {
 	auditSvc := &mockAudit{
 		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
-			assert.Equal(t, "update", log.Action)
+			assert.Equal(t, "shift_close_all", log.Action)
 			assert.Equal(t, "shift", log.EntityType)
 			assert.Contains(t, log.Description, "1, 2")
 			return nil

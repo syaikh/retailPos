@@ -206,7 +206,7 @@ func (h *Handler) CloseAll(c *gin.Context) {
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
-			Action:      "update",
+			Action:      "shift_close_all",
 			EntityType:  "shift",
 			Description: desc,
 			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),

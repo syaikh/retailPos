@@ -50,6 +50,7 @@
     if (v === 'LOGOUT') return labels.logout;
     if (v === 'SHIFT_OPENED') return 'Shift Opened';
     if (v === 'SHIFT_CLOSED') return 'Shift Closed';
+    if (v === 'SHIFT_CLOSE_ALL') return 'Shift Close All';
     if (v === 'PAYMENT.CREATED') return 'Payment Created';
     return action;
   }

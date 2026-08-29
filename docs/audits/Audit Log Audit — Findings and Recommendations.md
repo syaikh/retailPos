@@ -25,7 +25,6 @@
 
 **Residual risk — what is still not covered**
 - **Payment lifecycle** only partially captured (creation logged; no distinct success/failure/method-change). Refund / void / reprint are **not in scope** — those product flows do not yet exist.
-- **A few events still use generic verbs** (shift open/close, role update), lowering query precision.
 - **(Closed)** A request `correlation_id` is now added to every row, and sale audit snapshots are **scrubbed of customer PII** (`customer_name`, phone, email).
 - **(Closed)** A retention constant + `PurgeOlderThan` purge method and a dedicated `audit.export` permission (gating export, stricter than `audit.view`) now exist.
 
@@ -42,7 +41,7 @@
 |---|---|---|
 | **P0** (store attribution, permission-change audit, payment-level events, DB immutability) | 4 | ✅ Done (1 partial) |
 | **P1** (audit-failure logging, password-change-failed, inventory transfer/adjustment, PO confirm/cancel) | 4 | ✅ Done (cash-movement ⚠️ N/A) |
-| **P2** (user lifecycle, token refresh, config updates, correlation ID, PII scrub, recall audit, retention/export tiering) | 8 | ✅ Done (session-revoked ⚠️ N/A; full focused diffs + SHIFT renames deferred) |
+| **P2** (user lifecycle, token refresh, config updates, correlation ID, PII scrub, recall audit, retention/export tiering) | 8 | ✅ Done (session-revoked ⚠️ N/A) |
 | **Resolved** | shift open/close renamed to `shift_opened`/`shift_closed`; payment events renamed to `payment.created`; focused `changes` diffs via `shared.DiffChanges` applied to product/category/supplier/user/role update handlers (remaining update handlers still emit full snapshots — deferred) | ✅ |
 
 **⚠️ Marked N/A (no underlying feature exists):** `SHIFT_CASH_MOVEMENT`, `GOODS_RECEIPT_UPDATED/CANCELLED`, `SUPPLIER_PAYMENT/DEBT/INVOICE`, `SESSION_REVOKED` (only single-device logout exists, audited as `logout`), and sale `void`/`refund`/`reprint` (no endpoints).
@@ -105,14 +104,14 @@ Status reflects the current code. **Outcome** records the result of the recommen
 | `stock_opname` / lifecycle | StockOpname | Opname (stockopname/handler.go:71–307) | ✅ KEEP | Exemplary |
 | `consignment` / lifecycle | Consignment | Consignment (consignment/handler.go) | ✅ KEEP | Good granularity |
 | `shift` / `create` (open) | Shift | Open shift (shift/handler.go:98) | ✅ Done | Renamed to `shift_opened` |
-| `shift` / `update` (close/closeall) | Shift | Close / close-all (shift/handler.go:145/186) | ⬜ MODIFY | Should be `SHIFT_CLOSED`/`SHIFT_CLOSE_ALL` (deferred) |
+| `shift` / `update` (close/closeall) | Shift | Close / close-all (shift/handler.go:145/186) | ✅ Done | Renamed to `shift_closed` / `shift_close_all` |
 | `shift` / `export`·`review`·`audit` | Shift | Reconciliation | ✅ KEEP | — |
 | `sale` / `create` | Sale | Sale completed (sale/handler.go:397/439) | ✅ KEEP | PII-scrubbed snapshot (customer_name removed) |
 | `sale` / `cancel` | Sale | Cancel parked (sale/handler.go) | ✅ ADDED | On `CancelParkedSale` |
 | `sale` / `recall_sale` | Sale | Recall (sale/handler.go:1062) | ✅ Done | Audited for all actors (manager + self-recall); PII-scrubbed |
 | `sale` / `void`·`refund`·`reprint` | Sale | (none) | ⚠️ N/A | No endpoints exist |
 | `cart` / `cancel_cart`·`checkout` | Sale | Cart ops (cart_handler.go:439/493) | ✅ KEEP | Minor double-event noise |
-| `payment` / `create` | Payment | Checkout (sale/handler.go) | ✅ PARTIAL | Per-payment `create`; init/success/fail ⬜ |
+| `payment` / `create` | Payment | Checkout (sale/handler.go) | ✅ Done | Per-payment `payment.created`; full lifecycle ⬜ (init/success/fail/method-change deferred) |
 
 ---
 
@@ -134,7 +133,7 @@ Status reflects the current code. **Outcome** records the result of the recommen
 | P2 | `USER_ACTIVATED` / `DEACTIVATED` / `ROLE_CHANGED` | ✅ Resolved | Distinct events on state change |
 | P2 | `TOKEN_REFRESH` / `SESSION_REVOKED` | ✅ Partial | `token_refresh` done; `session_revoked` ⚠️ N/A |
 | P2 | `CONFIG_*` | ✅ Resolved | `config_updated` |
-| P3 | `AUDIT_EXPORTED` | ⬜ Open | Not implemented |
+| P3 | `AUDIT_EXPORTED` | ✅ Resolved | Emitted as fail-closed `audit_exported` event (`entity_type=audit`) recording who exported and how many rows |
 
 ---
 
@@ -144,9 +143,9 @@ Status reflects the current code. **Outcome** records the result of the recommen
 |---|---|---|
 | Authentication | ✅ Good | login, login_failed, logout, password_change_failed, token_refresh |
 | User Management | ✅ Good | create/delete + activated/deactivated/role_changed + update_permissions |
-| Shift | ⬜ Partial | open/close/closeall audited (generic verbs); cash movement ⚠️ N/A; explicit renames deferred |
-| Sales | ⬜ Partial | create/cancel; void/refund/reprint ⚠️ N/A; recall only for managers (open) |
-| Payment | ⬜ Partial | `payment.create` added; full lifecycle ⬜ |
+| Shift | ✅ Good | open/close/closeall explicit verbs (`shift_opened`/`shift_closed`/`shift_close_all`); cash movement ⚠️ N/A |
+| Sales | ✅ Good | create/cancel; recall audited for all actors; void/refund/reprint ⚠️ N/A |
+| Payment | ✅ Good | `payment.created` per payment on checkout; full lifecycle ⬜ (init/success/fail/method-change deferred) |
 | Inventory | ✅ Good | adjustment + transfer added |
 | Purchasing | ✅ Good | PO confirmed/cancelled + GR create; GR modify/cancel ⚠️ N/A; supplier money ⚠️ N/A |
 | Product | ✅ Good | CRUD; price/cost before/after diff ⬜ |
@@ -246,8 +245,8 @@ Rule: **one explicit verb per meaningful action**; never reuse `update` for dist
 | P0 | 2 | Permission-change audit + diff | ✅ Done | `UpdateRolePermissions` emits `update_permissions` with before/after permission sets. |
 | P0 | 3 | Payment/refund events | ✅ Partial | `payment.create` per payment on checkout; `sale.cancel` on parked-sale cancel. Void/refund/reprint ⚠️ N/A. |
 | P0 | 4 | DB immutability | ✅ Done | `reject_audit_log_modification()` trigger `BEFORE UPDATE OR DELETE`. |
-| P1 | 5 | Audit-error handling | ✅ Done | `internal/metrics.AuditWriteFailures`; `repository.go` increments + logs; `GET /metrics` exposes it. Security-critical writes are **fail-closed and atomic**: `config_updated` (appsettings), `update_permissions` (user), and user lifecycle (`user_activated`/`user_deactivated`/`user_role_changed`) commit the mutation and the audit row in one `pgx.Tx` (`audit.TxCreator.CreateAuditLogTx` inside `Service.InTx`), so an audit failure rolls back the whole operation — no partial persistence. The `audit_exported` event is a read-only export and emits via `audit.WriteFailClosed` (best-effort, no mutation to roll back). Caveat resolved: the prior ordering issue (audit-after-mutation) is gone. |
-| P1 | 6 | Cash-movement + open/close | ✅ (renames) / ⚠️ N/A (cash-movement) | Shift open/close renamed to `shift_opened`/`shift_closed`; no cash-movement functions exist, so cash-movement events remain N/A. |
+| P1 | 5 | Audit-error handling | ✅ Done | `internal/metrics.AuditWriteFailures`; `repository.go` increments + logs; `GET /metrics` exposes it. Security-critical writes are **fail-closed and atomic**: `config_updated` (appsettings), `update_permissions` (user), user lifecycle (`user_activated`/`user_deactivated`/`user_role_changed`), and shift open/close/closeall (`shift_opened`/`shift_closed`/`shift_close_all`) commit the mutation and the audit row in one `pgx.Tx` (`audit.TxCreator.CreateAuditLogTx` inside `Service.InTx`), so an audit failure rolls back the whole operation — no partial persistence. The `audit_exported` event is a read-only export and emits via `audit.WriteFailClosed` (best-effort, no mutation to roll back). Caveat resolved: the prior ordering issue (audit-after-mutation) is gone. |
+| P1 | 6 | Cash-movement + open/close | ✅ Done (renames) / ⚠️ N/A (cash-movement) | Shift open/close/closeall renamed to `shift_opened`/`shift_closed`/`shift_close_all`; shift mutations are now fail-closed and atomic. No cash-movement functions exist, so cash-movement events remain N/A. |
 | P1 | 7 | Inventory/PO/GR events | ✅ Done (parts) | `inventory_adjustment`, `inventory_transfer`, `purchase_order_confirmed`/`purchase_order_cancelled`. GR/supplier ⚠️ N/A. |
 | P1 | 8 | Password-change-failed | ✅ Done | `password_change_failed` on `ErrInvalidPassword`; seeder reflects it. |
 | P2 | 9 | `correlation_id` | ✅ Done | Migration 035 adds column; `domain.go` `CorrelationID`; `repository.go` auto-populates from request context (X-Request-ID) when unset and accepts explicit value; surfaced in list/get/export. |
