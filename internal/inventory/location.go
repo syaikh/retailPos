@@ -104,9 +104,21 @@ func (h *Handler) TransferLocationStock(c *gin.Context) {
 		badRequestOrInternal(c, err)
 		return
 	}
-	h.auditLocation(c, "Transfer rack stock", req.ProductID, map[string]interface{}{
-		"from_location_id": req.FromLocationID, "to_location_id": req.ToLocationID, "quantity": req.Quantity,
-	})
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "inventory_transfer",
+			EntityType:  "inventory",
+			EntityID:    &req.ProductID,
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"product_id": req.ProductID, "from_location_id": req.FromLocationID, "to_location_id": req.ToLocationID, "quantity": req.Quantity}),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Transferred stock for product #%d from location %d to %d (qty %d)", req.ProductID, req.FromLocationID, req.ToLocationID, req.Quantity),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
+		})
+	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 

@@ -187,6 +187,45 @@ func TestAuditHandler_Logout(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestAuditHandler_RefreshToken_WritesAudit(t *testing.T) {
+	var captured *audit.Log
+	svc := &mockAuthLoginService{
+		refreshTokenFn: func(ctx context.Context, oldRefreshToken string) (string, string, *User, error) {
+			return "new-access-token", "new-refresh-token", &User{ID: 7, Username: "jdoe", Role: Role{Name: "cashier"}}, nil
+		},
+	}
+	auditSvc := &mockAuditCreator{
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+			captured = log
+			return nil
+		},
+	}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 7)
+		c.Set("username", "jdoe")
+		c.Set("role", "cashier")
+		c.Next()
+	})
+	h := NewAuthHandler(svc, auditSvc)
+	h.RegisterRefreshRoute(r.Group("/"), func(c *gin.Context) { c.Next() })
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/refresh", nil)
+	req.Header.Set("X-Refresh-Token", "old-refresh-token")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, captured, "an audit log should be written for a successful token refresh")
+	assert.Equal(t, "token_refresh", captured.Action)
+	assert.Equal(t, "auth", captured.EntityType)
+	require.NotNil(t, captured.UserID)
+	assert.Equal(t, 7, *captured.UserID)
+	assert.Equal(t, "jdoe", captured.Username)
+	assert.Equal(t, "cashier", captured.Role)
+	assert.Contains(t, captured.Description, "refreshed access token")
+}
+
 func TestAuditHandler_Logout_EmptyRefreshToken(t *testing.T) {
 	svc := &mockAuthLoginService{
 		logoutFn: func(ctx context.Context, userID int, refreshToken string) error {
@@ -537,4 +576,133 @@ func TestAuditHandler_DeleteRole_GetRoleError(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/admin/roles/5", nil))
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestAuditHandler_UpdateUser_Deactivated_WritesAudit(t *testing.T) {
+	var captured *audit.Log
+	svc := &mockUserService{
+		getByIDFn: func(ctx context.Context, id int) (*User, error) {
+			return &User{ID: 2, Username: "old", RoleID: 1, IsActive: true}, nil
+		},
+		updateUserFn: func(ctx context.Context, user *User) error {
+			return nil
+		},
+	}
+	auditSvc := &mockAuditCreator{
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+			captured = log
+			return nil
+		},
+	}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "admin")
+		c.Set("role", "superadmin")
+		c.Next()
+	})
+	h := NewHandler(svc, auditSvc)
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	body := `{"is_active":false}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/admin/users/2", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, captured, "an audit log should be written for deactivation")
+	assert.Equal(t, "user_deactivated", captured.Action)
+	assert.Equal(t, "user", captured.EntityType)
+	require.NotNil(t, captured.EntityID)
+	assert.Equal(t, 2, *captured.EntityID)
+	assert.Contains(t, captured.Description, "Deactivated user")
+}
+
+func TestAuditHandler_UpdateUser_Activated_WritesAudit(t *testing.T) {
+	var captured *audit.Log
+	svc := &mockUserService{
+		getByIDFn: func(ctx context.Context, id int) (*User, error) {
+			return &User{ID: 3, Username: "inactive", RoleID: 1, IsActive: false}, nil
+		},
+		updateUserFn: func(ctx context.Context, user *User) error {
+			return nil
+		},
+	}
+	auditSvc := &mockAuditCreator{
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+			captured = log
+			return nil
+		},
+	}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "admin")
+		c.Set("role", "superadmin")
+		c.Next()
+	})
+	h := NewHandler(svc, auditSvc)
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	body := `{"is_active":true}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/admin/users/3", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, captured, "an audit log should be written for activation")
+	assert.Equal(t, "user_activated", captured.Action)
+	assert.Equal(t, "user", captured.EntityType)
+	require.NotNil(t, captured.EntityID)
+	assert.Equal(t, 3, *captured.EntityID)
+	assert.Contains(t, captured.Description, "Activated user")
+}
+
+func TestAuditHandler_UpdateUser_RoleChanged_WritesAudit(t *testing.T) {
+	var captured *audit.Log
+	svc := &mockUserService{
+		getByIDFn: func(ctx context.Context, id int) (*User, error) {
+			return &User{ID: 4, Username: "someone", RoleID: 1, IsActive: true}, nil
+		},
+		updateUserFn: func(ctx context.Context, user *User) error {
+			return nil
+		},
+	}
+	auditSvc := &mockAuditCreator{
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+			captured = log
+			return nil
+		},
+	}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "admin")
+		c.Set("role", "superadmin")
+		c.Next()
+	})
+	h := NewHandler(svc, auditSvc)
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	body := `{"role_id":5}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/admin/users/4", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, captured, "an audit log should be written for role change")
+	assert.Equal(t, "user_role_changed", captured.Action)
+	assert.Equal(t, "user", captured.EntityType)
+	require.NotNil(t, captured.EntityID)
+	assert.Equal(t, 4, *captured.EntityID)
+	assert.Contains(t, captured.Description, "Changed role of user")
 }

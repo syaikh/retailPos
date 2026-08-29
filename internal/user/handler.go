@@ -270,6 +270,9 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 
+	oldRoleID := existing.RoleID
+	oldIsActive := existing.IsActive
+
 	var oldValues map[string]interface{}
 	if h.auditSvc != nil {
 		oldValues = shared.ToJSONMap(map[string]interface{}{
@@ -331,20 +334,79 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		actorID, actorUsername, actorRole := auditContextFromGin(c)
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
-			UserID:      actorID,
-			Username:    actorUsername,
-			Role:        actorRole,
-			Action:      "update",
-			EntityType:  "user",
-			EntityID:    &existing.ID,
-			OldValues:   oldValues,
-			NewValues:   shared.ToJSONMap(map[string]interface{}{"username": existing.Username, "email": existing.Email, "role_id": existing.RoleID, "reports_to": existing.ReportsToID, "is_active": existing.IsActive}),
-			IPAddress:   shared.GetIPAddress(c),
-			UserAgent:   shared.GetUserAgent(c),
-			Description: fmt.Sprintf("Updated user %s", existing.Username),
-			StoreID:     storeIDFromGin(c),
-		})
+		storeID := storeIDFromGin(c)
+		ip := shared.GetIPAddress(c)
+		ua := shared.GetUserAgent(c)
+
+		activated := !oldIsActive && existing.IsActive
+		deactivated := oldIsActive && !existing.IsActive
+		roleChanged := oldRoleID != existing.RoleID
+
+		if activated || deactivated || roleChanged {
+			if activated {
+				_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+					UserID:      actorID,
+					Username:    actorUsername,
+					Role:        actorRole,
+					Action:      "user_activated",
+					EntityType:  "user",
+					EntityID:    &existing.ID,
+					OldValues:   shared.ToJSONMap(map[string]interface{}{"id": existing.ID, "is_active": oldIsActive}),
+					NewValues:   shared.ToJSONMap(map[string]interface{}{"id": existing.ID, "is_active": existing.IsActive}),
+					IPAddress:   ip,
+					UserAgent:   ua,
+					Description: fmt.Sprintf("Activated user %s (#%d)", existing.Username, existing.ID),
+					StoreID:     storeID,
+				})
+			}
+			if deactivated {
+				_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+					UserID:      actorID,
+					Username:    actorUsername,
+					Role:        actorRole,
+					Action:      "user_deactivated",
+					EntityType:  "user",
+					EntityID:    &existing.ID,
+					OldValues:   shared.ToJSONMap(map[string]interface{}{"id": existing.ID, "is_active": oldIsActive}),
+					NewValues:   shared.ToJSONMap(map[string]interface{}{"id": existing.ID, "is_active": existing.IsActive}),
+					IPAddress:   ip,
+					UserAgent:   ua,
+					Description: fmt.Sprintf("Deactivated user %s (#%d)", existing.Username, existing.ID),
+					StoreID:     storeID,
+				})
+			}
+			if roleChanged {
+				_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+					UserID:      actorID,
+					Username:    actorUsername,
+					Role:        actorRole,
+					Action:      "user_role_changed",
+					EntityType:  "user",
+					EntityID:    &existing.ID,
+					OldValues:   shared.ToJSONMap(map[string]interface{}{"id": existing.ID, "role_id": oldRoleID}),
+					NewValues:   shared.ToJSONMap(map[string]interface{}{"id": existing.ID, "role_id": existing.RoleID}),
+					IPAddress:   ip,
+					UserAgent:   ua,
+					Description: fmt.Sprintf("Changed role of user %s (#%d) from %d to %d", existing.Username, existing.ID, oldRoleID, existing.RoleID),
+					StoreID:     storeID,
+				})
+			}
+		} else {
+			_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+				UserID:      actorID,
+				Username:    actorUsername,
+				Role:        actorRole,
+				Action:      "update",
+				EntityType:  "user",
+				EntityID:    &existing.ID,
+				OldValues:   oldValues,
+				NewValues:   shared.ToJSONMap(map[string]interface{}{"username": existing.Username, "email": existing.Email, "role_id": existing.RoleID, "reports_to": existing.ReportsToID, "is_active": existing.IsActive}),
+				IPAddress:   ip,
+				UserAgent:   ua,
+				Description: fmt.Sprintf("Updated user %s", existing.Username),
+				StoreID:     storeID,
+			})
+		}
 	}
 	existing.Password = ""
 	c.JSON(http.StatusOK, gin.H{"data": existing})

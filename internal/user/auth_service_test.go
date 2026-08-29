@@ -343,12 +343,12 @@ func TestAuthService_FullLifecycle(t *testing.T) {
 	assert.Equal(t, resp.User.ID, claims.ID)
 	assert.Equal(t, "lifecycle_test", claims.Username)
 
-	newAccess, newRefresh, err := svc.RefreshToken(ctx, resp.RefreshToken)
+	newAccess, newRefresh, _, err := svc.RefreshToken(ctx, resp.RefreshToken)
 	require.NoError(t, err)
 	assert.NotEmpty(t, newAccess)
 	assert.NotEmpty(t, newRefresh)
 
-	_, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
+	_, _, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
 	assert.Error(t, err, "old refresh token should be invalidated after rotation")
 
 	claims, err = svc.ValidateToken(newAccess)
@@ -358,7 +358,7 @@ func TestAuthService_FullLifecycle(t *testing.T) {
 	err = svc.ChangePassword(ctx, user.ID, "password", "newlifecyclepw")
 	require.NoError(t, err)
 
-	_, _, err = svc.RefreshToken(ctx, newRefresh)
+	_, _, _, err = svc.RefreshToken(ctx, newRefresh)
 	assert.Error(t, err, "refresh token should be invalidated after password change")
 
 	resp2, err := svc.Login(ctx, "lifecycle_test", "newlifecyclepw")
@@ -367,7 +367,7 @@ func TestAuthService_FullLifecycle(t *testing.T) {
 	err = svc.Logout(ctx, resp2.User.ID, resp2.RefreshToken)
 	require.NoError(t, err)
 
-	_, _, err = svc.RefreshToken(ctx, resp2.RefreshToken)
+	_, _, _, err = svc.RefreshToken(ctx, resp2.RefreshToken)
 	assert.Error(t, err, "refresh token should be invalidated after logout")
 }
 
@@ -452,12 +452,12 @@ func TestAuthService_RefreshToken_Success(t *testing.T) {
 	resp, err := svc.Login(ctx, "refresh_success_test", "password")
 	require.NoError(t, err)
 
-	newAccess, newRefresh, err := svc.RefreshToken(ctx, resp.RefreshToken)
+	newAccess, newRefresh, _, err := svc.RefreshToken(ctx, resp.RefreshToken)
 	require.NoError(t, err)
 	assert.NotEmpty(t, newAccess)
 	assert.NotEmpty(t, newRefresh)
 
-	_, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
+	_, _, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
 	assert.Error(t, err)
 }
 
@@ -483,10 +483,10 @@ func TestAuthService_RefreshToken_InactiveUser(t *testing.T) {
 	err = NewRepository(dbPool).UpdateUser(ctx, user)
 	require.NoError(t, err)
 
-	_, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
+	_, _, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
 	assert.ErrorIs(t, err, ErrInvalidCredentials)
 
-	_, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
+	_, _, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
 	assert.Error(t, err, "refresh token must not be reusable after the inactive rejection")
 }
 
@@ -494,7 +494,7 @@ func TestAuthService_RefreshToken_InvalidToken(t *testing.T) {
 	svc := newAuthServiceWithDB(t)
 	ctx := context.Background()
 
-	_, _, err := svc.RefreshToken(ctx, "not-a-jwt-token")
+	_, _, _, err := svc.RefreshToken(ctx, "not-a-jwt-token")
 	assert.Error(t, err)
 }
 
@@ -506,7 +506,7 @@ func TestAuthService_RefreshToken_TokenNotFound(t *testing.T) {
 	token, err := svc.generateRefreshToken(user)
 	require.NoError(t, err)
 
-	_, _, err = svc.RefreshToken(ctx, token)
+	_, _, _, err = svc.RefreshToken(ctx, token)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid refresh token")
 }
@@ -532,7 +532,7 @@ func TestAuthService_Logout_Success(t *testing.T) {
 	err = svc.Logout(ctx, resp.User.ID, resp.RefreshToken)
 	require.NoError(t, err)
 
-	_, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
+	_, _, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
 	assert.Error(t, err)
 }
 
@@ -557,7 +557,7 @@ func TestAuthService_ChangePassword_Success(t *testing.T) {
 	err = svc.ChangePassword(ctx, user.ID, "password", "newpassword456")
 	require.NoError(t, err)
 
-	_, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
+	_, _, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
 	assert.Error(t, err)
 
 	resp2, err := svc.Login(ctx, "changepw_success", "newpassword456")

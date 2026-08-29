@@ -145,15 +145,15 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*Lo
 	}, nil
 }
 
-func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) (string, string, error) {
+func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) (string, string, *User, error) {
 	claims, err := s.parseRefreshToken(oldRefreshToken)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 
 	tx, err := s.dbPool.Begin(ctx)
 	if err != nil {
-		return "", "", fmt.Errorf("begin transaction: %w", err)
+		return "", "", nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
@@ -164,22 +164,22 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 	`, claims.ID, tokenHash).Scan(&deletedID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", "", errors.New("invalid refresh token")
+			return "", "", nil, errors.New("invalid refresh token")
 		}
-		return "", "", fmt.Errorf("failed to invalidate old refresh token: %w", err)
+		return "", "", nil, fmt.Errorf("failed to invalidate old refresh token: %w", err)
 	}
 
 	user, err := s.repo.GetByID(ctx, claims.ID)
 	if err != nil {
-		return "", "", ErrUserNotFound
+		return "", "", nil, ErrUserNotFound
 	}
 	if !user.IsActive {
-		return "", "", ErrInvalidCredentials
+		return "", "", nil, ErrInvalidCredentials
 	}
 
 	permissions, err := s.repo.GetRolePermissions(ctx, user.RoleID)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get role permissions: %w", err)
+		return "", "", nil, fmt.Errorf("failed to get role permissions: %w", err)
 	}
 	perms := make([]string, len(permissions))
 	for i, p := range permissions {
@@ -188,26 +188,26 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 
 	newAccessToken, err := s.generateToken(user, perms, s.accessTTL)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate new access token: %w", err)
+		return "", "", nil, fmt.Errorf("failed to generate new access token: %w", err)
 	}
 
 	newRefreshToken, err := s.generateRefreshToken(user)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate new refresh token: %w", err)
+		return "", "", nil, fmt.Errorf("failed to generate new refresh token: %w", err)
 	}
 
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
 		VALUES ($1, $2, $3)
 	`, user.ID, hashToken(newRefreshToken), time.Now().Add(s.refreshTTL)); err != nil {
-		return "", "", fmt.Errorf("failed to store new refresh token: %w", err)
+		return "", "", nil, fmt.Errorf("failed to store new refresh token: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return "", "", fmt.Errorf("commit refresh token rotation: %w", err)
+		return "", "", nil, fmt.Errorf("commit refresh token rotation: %w", err)
 	}
 
-	return newAccessToken, newRefreshToken, nil
+	return newAccessToken, newRefreshToken, user, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, userID int, refreshToken string) error {

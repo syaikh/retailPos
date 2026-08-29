@@ -264,7 +264,7 @@ func (h *Handler) UpdateAll(c *gin.Context) {
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
-			Action:      "update",
+			Action:      "config_updated",
 			EntityType:  "app_settings",
 			NewValues:   auditValues,
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),

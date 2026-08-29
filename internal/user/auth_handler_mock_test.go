@@ -16,7 +16,7 @@ import (
 
 type mockAuthLoginService struct {
 	loginFn          func(ctx context.Context, username, password string) (*LoginResponse, error)
-	refreshTokenFn   func(ctx context.Context, oldRefreshToken string) (string, string, error)
+	refreshTokenFn   func(ctx context.Context, oldRefreshToken string) (string, string, *User, error)
 	validateTokenFn  func(tokenString string) (*AuthClaims, error)
 	changePasswordFn func(ctx context.Context, userID int, currentPassword, newPassword string) error
 	logoutFn         func(ctx context.Context, userID int, refreshToken string) error
@@ -27,7 +27,7 @@ type mockAuthLoginService struct {
 func (m *mockAuthLoginService) Login(ctx context.Context, username, password string) (*LoginResponse, error) {
 	return m.loginFn(ctx, username, password)
 }
-func (m *mockAuthLoginService) RefreshToken(ctx context.Context, oldRefreshToken string) (string, string, error) {
+func (m *mockAuthLoginService) RefreshToken(ctx context.Context, oldRefreshToken string) (string, string, *User, error) {
 	return m.refreshTokenFn(ctx, oldRefreshToken)
 }
 func (m *mockAuthLoginService) ValidateToken(tokenString string) (*AuthClaims, error) {
@@ -148,9 +148,9 @@ func TestAuthHandler_Login_PasswordEmpty(t *testing.T) {
 
 func TestAuthHandler_RefreshToken_Success(t *testing.T) {
 	svc := &mockAuthLoginService{
-		refreshTokenFn: func(ctx context.Context, oldRefreshToken string) (string, string, error) {
+		refreshTokenFn: func(ctx context.Context, oldRefreshToken string) (string, string, *User, error) {
 			assert.Equal(t, "old-refresh-token", oldRefreshToken)
-			return "new-access-token", "new-refresh-token", nil
+			return "new-access-token", "new-refresh-token", &User{ID: 1, Username: "admin"}, nil
 		},
 	}
 	r := setupMockAuthRouter(svc)
@@ -168,9 +168,9 @@ func TestAuthHandler_RefreshToken_Success(t *testing.T) {
 
 func TestAuthHandler_RefreshToken_FromCookie(t *testing.T) {
 	svc := &mockAuthLoginService{
-		refreshTokenFn: func(ctx context.Context, oldRefreshToken string) (string, string, error) {
+		refreshTokenFn: func(ctx context.Context, oldRefreshToken string) (string, string, *User, error) {
 			assert.Equal(t, "cookie-token", oldRefreshToken)
-			return "new-access", "new-refresh", nil
+			return "new-access", "new-refresh", &User{ID: 1, Username: "admin"}, nil
 		},
 	}
 	r := setupMockAuthRouter(svc)
@@ -192,8 +192,8 @@ func TestAuthHandler_RefreshToken_Missing(t *testing.T) {
 
 func TestAuthHandler_RefreshToken_ServiceError(t *testing.T) {
 	svc := &mockAuthLoginService{
-		refreshTokenFn: func(ctx context.Context, oldRefreshToken string) (string, string, error) {
-			return "", "", errors.New("token expired")
+		refreshTokenFn: func(ctx context.Context, oldRefreshToken string) (string, string, *User, error) {
+			return "", "", nil, errors.New("token expired")
 		},
 	}
 	r := setupMockAuthRouter(svc)

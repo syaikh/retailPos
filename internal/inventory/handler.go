@@ -80,13 +80,13 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 			UserID:      actorID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
-			Action:      "update",
+			Action:      "inventory_adjustment",
 			EntityType:  "inventory",
 			EntityID:    &req.ProductID,
 			NewValues:   shared.ToJSONMap(map[string]interface{}{"product_id": req.ProductID, "quantity_change": req.QuantityChange, "notes": req.Notes}),
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
-			Description: fmt.Sprintf("Adjusted stock for product #%d by %d", req.ProductID, req.QuantityChange),
+			Description: fmt.Sprintf("Adjusted stock for product #%d by %d: %s", req.ProductID, req.QuantityChange, req.Notes),
 			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}

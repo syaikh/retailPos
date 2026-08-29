@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -498,4 +499,39 @@ func TestHandler_UpdateAll_ClearsStoreFields(t *testing.T) {
 	assert.True(t, providerCalled, "UpdateStoreAddress should be called even with empty values")
 	assert.Equal(t, "", capturedAddr)
 	assert.Equal(t, "", capturedPhone)
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// UpdateAll — audit emission
+// ──────────────────────────────────────────────────────────────────────
+
+type mockAuditCreator struct {
+	captured *audit.Log
+}
+
+func (m *mockAuditCreator) CreateAuditLog(_ context.Context, log *audit.Log) error {
+	m.captured = log
+	return nil
+}
+
+func TestHandler_UpdateAll_EmitsConfigUpdatedAudit(t *testing.T) {
+	svc := &mockService{
+		upsertFn: func(_ context.Context, _ map[string]string) error { return nil },
+	}
+	auditSvc := &mockAuditCreator{}
+	h := NewHandler(svc, auditSvc, nil)
+
+	r := gin.New()
+	r.PUT("/api/settings", h.UpdateAll)
+
+	body := `{"settings":{"store_name":"New Name"}}`
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/settings", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, auditSvc.captured, "audit log should be emitted")
+	assert.Equal(t, "config_updated", auditSvc.captured.Action)
+	assert.Equal(t, "app_settings", auditSvc.captured.EntityType)
 }

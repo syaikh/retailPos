@@ -17,7 +17,7 @@ import (
 
 type AuthLoginService interface {
 	Login(ctx context.Context, username, password string) (*LoginResponse, error)
-	RefreshToken(ctx context.Context, oldRefreshToken string) (string, string, error)
+	RefreshToken(ctx context.Context, oldRefreshToken string) (string, string, *User, error)
 	ValidateToken(tokenString string) (*AuthClaims, error)
 	ChangePassword(ctx context.Context, userID int, currentPassword, newPassword string) error
 	Logout(ctx context.Context, userID int, refreshToken string) error
@@ -130,7 +130,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	accessToken, newRefreshToken, err := h.svc.RefreshToken(c.Request.Context(), token)
+	accessToken, newRefreshToken, user, err := h.svc.RefreshToken(c.Request.Context(), token)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
@@ -140,6 +140,21 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	secure := os.Getenv("COOKIE_SECURE") == "true"
 	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("refresh_token", newRefreshToken, int(7*24*time.Hour/time.Second), "/", domain, secure, true)
+
+	if h.auditSvc != nil && user != nil {
+		uid := user.ID
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+			UserID:      &uid,
+			Username:    user.Username,
+			Role:        user.Role.Name,
+			Action:      "token_refresh",
+			EntityType:  "auth",
+			IPAddress:   shared.GetIPAddress(c),
+			UserAgent:   shared.GetUserAgent(c),
+			Description: fmt.Sprintf("User %s refreshed access token", user.Username),
+			StoreID:     storeIDFromGin(c),
+		})
+	}
 
 	c.JSON(http.StatusOK, gin.H{"access_token": accessToken})
 }
