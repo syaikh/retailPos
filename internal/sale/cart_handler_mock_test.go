@@ -246,11 +246,10 @@ func TestSaleCartHandler_AddCartItem(t *testing.T) {
 		assert.Contains(t, w.Body.String(), `"id":7`)
 	})
 
-	t.Run("success with audit log", func(t *testing.T) {
+	t.Run("success does not write audit log", func(t *testing.T) {
 		auditCalls := 0
 		auditSvc := &mockAuditCreator{createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalls++
-			assert.Equal(t, "add", log.Action)
 			return nil
 		}}
 		r := setupSaleCartHandler(mockCartFixture(), auditSvc, true, nil)
@@ -259,7 +258,7 @@ func TestSaleCartHandler_AddCartItem(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, 1, auditCalls)
+		assert.Equal(t, 0, auditCalls)
 	})
 
 	t.Run("invalid json", func(t *testing.T) {

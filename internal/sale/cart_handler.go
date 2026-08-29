@@ -239,7 +239,6 @@ func (h *Handler) AddCartItem(c *gin.Context) {
 		return
 	}
 
-	h.auditCart(c, "add", "cart_item", "Added product #%d x%d to cart", req.ProductID, req.Quantity)
 	c.JSON(http.StatusOK, gin.H{"data": presentCart(cart, canViewCost(c))})
 }
 
@@ -507,22 +506,4 @@ func (h *Handler) CheckoutCart(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": presentSale(sale, canViewCost)})
-}
-
-func (h *Handler) auditCart(c *gin.Context, action, entityType, format string, args ...interface{}) {
-	if h.auditSvc == nil {
-		return
-	}
-	ctx := c.Request.Context()
-	actorID := middleware.UserIDFromContext(ctx)
-	_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
-		UserID:      actorID,
-		Username:    middleware.UsernameFromContext(ctx),
-		Role:        middleware.RoleFromContext(ctx),
-		Action:      action,
-		EntityType:  entityType,
-		IPAddress:   middleware.IPAddressFromContext(ctx),
-		UserAgent:   middleware.UserAgentFromContext(ctx),
-		Description: fmt.Sprintf(format, args...),
-	})
 }
