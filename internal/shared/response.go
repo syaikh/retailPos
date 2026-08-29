@@ -134,10 +134,13 @@ func valuesEqual(a, b interface{}) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
 	}
+	if reflect.DeepEqual(a, b) {
+		return true
+	}
 	ab, errA := json.Marshal(a)
 	bb, errB := json.Marshal(b)
 	if errA != nil || errB != nil {
-		return reflect.DeepEqual(a, b)
+		return false
 	}
 	return bytes.Equal(ab, bb)
 }

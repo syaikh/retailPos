@@ -62,8 +62,20 @@ func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, op
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	shift, err := r.OpenShiftTx(ctx, tx, userID, storeID, openingBalance)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit shift: %w", err)
+	}
+	return shift, nil
+}
+
+// OpenShiftTx opens a shift within an existing transaction.
+func (r *Repository) OpenShiftTx(ctx context.Context, tx pgx.Tx, userID int, storeID *int, openingBalance int) (*Shift, error) {
 	var existingID int
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		SELECT id FROM shifts
 		WHERE user_id = $1 AND status = 'open'
 		LIMIT 1
@@ -101,10 +113,6 @@ func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, op
 	if storeIDVal.Valid {
 		v := int(storeIDVal.Int64)
 		shift.StoreID = &v
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit shift: %w", err)
 	}
 
 	shift.OpenedAt = openedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -148,11 +156,23 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	shift, err := r.CloseShiftTx(ctx, tx, shiftID, userID, closingBalance, notes)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit shift close: %w", err)
+	}
+	return shift, nil
+}
+
+// CloseShiftTx closes a shift within an existing transaction.
+func (r *Repository) CloseShiftTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, closingBalance int, notes *string) (*Shift, error) {
 	var shift Shift
 	var storeID sql.NullInt64
 	var openedAt, createdAt time.Time
 
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		SELECT s.id, s.user_id, s.store_id, s.status, s.opening_balance, s.opened_at, s.created_at
 		FROM shifts s
 		WHERE s.id = $1 AND s.user_id = $2 AND s.status = 'open'
@@ -219,10 +239,6 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to close shift: %w", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit shift close: %w", err)
 	}
 
 	shift.ClosingBalance = &closingBalance

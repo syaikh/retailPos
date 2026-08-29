@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -65,6 +66,18 @@ func (m *mockShiftService) ExportShifts(ctx context.Context, scope ownership.Sco
 	return nil, nil
 }
 
+func (m *mockShiftService) OpenShiftTx(ctx context.Context, tx pgx.Tx, userID int, storeID *int, openingBalance int) (*Shift, error) {
+	return m.openShiftFn(ctx, userID, storeID, openingBalance)
+}
+
+func (m *mockShiftService) CloseShiftTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, closingBalance int, notes *string) (*Shift, error) {
+	return m.closeShiftFn(ctx, shiftID, userID, closingBalance, notes)
+}
+
+func (m *mockShiftService) InTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	return fn(nil)
+}
+
 type mockAudit struct {
 	createAuditLogFn func(ctx context.Context, log *audit.Log) error
 }
@@ -76,11 +89,18 @@ func (m *mockAudit) CreateAuditLog(ctx context.Context, log *audit.Log) error {
 	return nil
 }
 
-func setupShiftHandler(svc Service, auditSvc audit.Creator) *gin.Engine {
+func (m *mockAudit) CreateAuditLogTx(ctx context.Context, tx pgx.Tx, log *audit.Log) error {
+	if m.createAuditLogFn != nil {
+		return m.createAuditLogFn(ctx, log)
+	}
+	return nil
+}
+
+func setupShiftHandler(svc Service, auditSvc audit.TxCreator) *gin.Engine {
 	return setupShiftHandlerWithCtx(svc, auditSvc, 1, "superadmin", nil)
 }
 
-func setupShiftHandlerWithCtx(svc Service, auditSvc audit.Creator, userID int, role string, perms []string) *gin.Engine {
+func setupShiftHandlerWithCtx(svc Service, auditSvc audit.TxCreator, userID int, role string, perms []string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

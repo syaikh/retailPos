@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+
 	"retail-pos-system/internal/ownership"
 )
 
@@ -19,11 +21,42 @@ type Repo interface {
 }
 
 type service struct {
-	repo Repo
+	repo *Repository
 }
 
-func NewService(repo Repo) Service {
+func NewService(repo *Repository) Service {
 	return &service{repo: repo}
+}
+
+// InTx runs fn inside a single transaction on the shift database, committing on
+// success and rolling back on error. Used to make a shift mutation and its
+// audit log atomic.
+func (s *service) InTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	tx, err := s.repo.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// OpenShiftTx opens a shift within an existing transaction.
+func (s *service) OpenShiftTx(ctx context.Context, tx pgx.Tx, userID int, storeID *int, openingBalance int) (*Shift, error) {
+	if openingBalance <= 0 {
+		return nil, fmt.Errorf("opening balance must be greater than zero")
+	}
+	return s.repo.OpenShiftTx(ctx, tx, userID, storeID, openingBalance)
+}
+
+// CloseShiftTx closes a shift within an existing transaction.
+func (s *service) CloseShiftTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, closingBalance int, notes *string) (*Shift, error) {
+	if closingBalance < 0 {
+		return nil, fmt.Errorf("closing balance must not be negative")
+	}
+	return s.repo.CloseShiftTx(ctx, tx, shiftID, userID, closingBalance, notes)
 }
 
 func (s *service) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {

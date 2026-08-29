@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/xuri/excelize/v2"
 
 	"retail-pos-system/internal/audit"
@@ -22,7 +23,9 @@ import (
 
 type Service interface {
 	OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
+	OpenShiftTx(ctx context.Context, tx pgx.Tx, userID int, storeID *int, openingBalance int) (*Shift, error)
 	CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
+	CloseShiftTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
 	CloseAll(ctx context.Context, userID int) ([]int, error)
 	GetActiveShift(ctx context.Context, userID int) (*Shift, error)
 	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
@@ -30,14 +33,15 @@ type Service interface {
 	ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
 	AuditShift(ctx context.Context, shiftID int) (*Shift, int, error)
 	ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
+	InTx(ctx context.Context, fn func(tx pgx.Tx) error) error
 }
 
 type Handler struct {
 	svc      Service
-	auditSvc audit.Creator
+	auditSvc audit.TxCreator
 }
 
-func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
+func NewHandler(svc Service, auditSvc audit.TxCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -84,26 +88,35 @@ func (h *Handler) OpenShift(c *gin.Context) {
 		return
 	}
 
-	shift, err := h.svc.OpenShift(c.Request.Context(), uid, req.StoreID, req.OpeningBalance)
+	var shift *Shift
+	var err error
+	if h.auditSvc != nil {
+		err = h.svc.InTx(c.Request.Context(), func(tx pgx.Tx) error {
+			var e error
+			shift, e = h.svc.OpenShiftTx(c.Request.Context(), tx, uid, req.StoreID, req.OpeningBalance)
+			if e != nil {
+				return e
+			}
+			return h.auditSvc.CreateAuditLogTx(c.Request.Context(), tx, &audit.Log{
+				UserID:      middleware.UserIDFromContext(c.Request.Context()),
+				Username:    middleware.UsernameFromContext(c.Request.Context()),
+				Role:        middleware.RoleFromContext(c.Request.Context()),
+				Action:      "shift_opened",
+				EntityType:  "shift",
+				EntityID:    &shift.ID,
+				NewValues:   shared.ToJSONMap(map[string]interface{}{"opening_balance": req.OpeningBalance, "store_id": req.StoreID}),
+				IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+				UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+				Description: "Opened shift",
+				StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
+			})
+		})
+	} else {
+		shift, err = h.svc.OpenShift(c.Request.Context(), uid, req.StoreID, req.OpeningBalance)
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
-	}
-
-	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
-			UserID:      middleware.UserIDFromContext(c.Request.Context()),
-			Username:    middleware.UsernameFromContext(c.Request.Context()),
-			Role:        middleware.RoleFromContext(c.Request.Context()),
-			Action:      "shift_opened",
-			EntityType:  "shift",
-			EntityID:    &shift.ID,
-			NewValues:   shared.ToJSONMap(map[string]interface{}{"opening_balance": req.OpeningBalance, "store_id": req.StoreID}),
-			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
-			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
-			Description: "Opened shift",
-			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
-		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": shift})
@@ -132,26 +145,34 @@ func (h *Handler) CloseShift(c *gin.Context) {
 		return
 	}
 
-	shift, err := h.svc.CloseShift(c.Request.Context(), shiftID, uid, req.ClosingBalance, req.Notes)
+	var shift *Shift
+	if h.auditSvc != nil {
+		err = h.svc.InTx(c.Request.Context(), func(tx pgx.Tx) error {
+			var e error
+			shift, e = h.svc.CloseShiftTx(c.Request.Context(), tx, shiftID, uid, req.ClosingBalance, req.Notes)
+			if e != nil {
+				return e
+			}
+			return h.auditSvc.CreateAuditLogTx(c.Request.Context(), tx, &audit.Log{
+				UserID:      middleware.UserIDFromContext(c.Request.Context()),
+				Username:    middleware.UsernameFromContext(c.Request.Context()),
+				Role:        middleware.RoleFromContext(c.Request.Context()),
+				Action:      "shift_closed",
+				EntityType:  "shift",
+				EntityID:    &shift.ID,
+				NewValues:   shared.ToJSONMap(map[string]interface{}{"closing_balance": req.ClosingBalance, "notes": req.Notes}),
+				IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+				UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+				Description: "Closed shift",
+				StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
+			})
+		})
+	} else {
+		shift, err = h.svc.CloseShift(c.Request.Context(), shiftID, uid, req.ClosingBalance, req.Notes)
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
-	}
-
-	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
-			UserID:      middleware.UserIDFromContext(c.Request.Context()),
-			Username:    middleware.UsernameFromContext(c.Request.Context()),
-			Role:        middleware.RoleFromContext(c.Request.Context()),
-			Action:      "shift_closed",
-			EntityType:  "shift",
-			EntityID:    &shift.ID,
-			NewValues:   shared.ToJSONMap(map[string]interface{}{"closing_balance": req.ClosingBalance, "notes": req.Notes}),
-			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
-			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
-			Description: "Closed shift",
-			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
-		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": shift})

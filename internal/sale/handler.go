@@ -469,7 +469,7 @@ func (h *Handler) respondSaleFromCart(ctx context.Context, c *gin.Context, sale 
 	c.JSON(http.StatusCreated, gin.H{"data": sale})
 }
 
-// auditSalePayments emits one "create" audit row per payment on a completed
+// auditSalePayments emits one "payment.created" audit row per payment on a completed
 // sale. It is shared by every sale-creation entry point (cart checkout,
 // single-payment-method checkout, and manual parked-sale completion) so payment
 // activity is attributed consistently regardless of which endpoint was used.
