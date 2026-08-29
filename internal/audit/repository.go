@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"retail-pos-system/internal/metrics"
 	"retail-pos-system/internal/shared"
 )
 
@@ -28,11 +29,14 @@ func (r *Repository) CreateAuditLog(ctx context.Context, log *Log) error {
 		RETURNING id
 	`, log.UserID, log.StoreID, log.Role, log.Action, log.EntityType, log.EntityID, ipAddr, log.UserAgent, log.OldValues, log.NewValues, log.Description).Scan(&log.ID)
 	if err != nil {
+		metrics.AuditWriteFailures.Inc()
 		shared.LogError(ctx, "failed to write audit log",
 			err,
 			"action", log.Action,
 			"entity_type", log.EntityType,
 			"entity_id", log.EntityID,
+			"user_id", log.UserID,
+			"store_id", log.StoreID,
 			"username", log.Username,
 		)
 	}

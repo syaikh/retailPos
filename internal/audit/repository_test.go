@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/metrics"
 	"retail-pos-system/internal/shared"
 )
 
@@ -332,4 +334,24 @@ func TestAuditRepository_GetAuditLogByID_CreatedAtJakartaTimezone(t *testing.T) 
 
 func intPtr(i int) *int {
 	return &i
+}
+
+func TestAuditRepository_CreateAuditLog_FailureIncrementsMetric(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	before := metrics.AuditWriteFailures.Value()
+
+	// action is varchar(100) NOT NULL; an over-length value forces a
+	// deterministic DB write failure unrelated to fixture data.
+	al := &Log{
+		Role:       "system",
+		Action:     strings.Repeat("x", 200),
+		EntityType: "product",
+	}
+	err := repo.CreateAuditLog(ctx, al)
+	require.Error(t, err)
+
+	after := metrics.AuditWriteFailures.Value()
+	assert.Equal(t, before+1, after, "a failed audit write must increment the failure metric")
 }

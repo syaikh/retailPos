@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"retail-pos-system/internal/config"
+	"retail-pos-system/internal/metrics"
 	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/wiring"
@@ -171,6 +172,13 @@ func main() {
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "timestamp": time.Now().In(shared.JakartaLocation()).Format(time.RFC3339)})
+	})
+
+	router.GET("/metrics", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"metrics":   metrics.Snapshot(),
+			"timestamp": time.Now().In(shared.JakartaLocation()).Format(time.RFC3339),
+		})
 	})
 
 	docs.SwaggerInfo.BasePath = "/api"
