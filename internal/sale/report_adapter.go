@@ -15,7 +15,20 @@ func NewReportAdapter() *reportAdapter {
 }
 
 func (reportAdapter) GetCompletedSalesStats(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (revenue int, orders int, err error) {
-	query := `SELECT COALESCE(SUM(total_revenue), 0), COALESCE(SUM(transaction_count), 0) FROM mv_hourly_sales WHERE sale_hour >= $1::timestamptz AT TIME ZONE 'Asia/Jakarta' AND sale_hour < $2::timestamptz AT TIME ZONE 'Asia/Jakarta'`
+	// Read from the real-time `sales` table rather than mv_hourly_sales. The
+	// materialized views are only refreshed at each Jakarta :00 boundary and
+	// intentionally exclude the in-progress hour, which made same-day
+	// transactions invisible on the dashboard until the next hourly refresh.
+	//
+	// Contract: start/end MUST be located in Asia/Jakarta (see callers in
+	// repository.go). The predicate compares created_at against these bounds
+	// directly as instants, so passing UTC-located times would silently shift
+	// the window by 7 hours.
+	query := `SELECT COALESCE(SUM(total_amount), 0), COUNT(*)
+		FROM sales
+		WHERE status = 'completed'
+		  AND created_at >= $1
+		  AND created_at < $2`
 	args := []interface{}{start, end}
 	if storeID != nil {
 		query += ` AND store_id = $3`
