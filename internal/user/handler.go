@@ -33,6 +33,15 @@ func auditContextFromGin(c *gin.Context) (userID *int, username, role string) {
 	return
 }
 
+func storeIDFromGin(c *gin.Context) *int {
+	if v, ok := c.Get("storeID"); ok {
+		if id, ok := v.(*int); ok {
+			return id
+		}
+	}
+	return nil
+}
+
 type Service interface {
 	GetUserByID(ctx context.Context, id int) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
@@ -213,6 +222,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 			IPAddress:   shared.GetIPAddress(c),
 			UserAgent:   shared.GetUserAgent(c),
 			Description: fmt.Sprintf("Created user %s", user.Username),
+			StoreID:     storeIDFromGin(c),
 		})
 	}
 	user.Password = ""
@@ -333,6 +343,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 			IPAddress:   shared.GetIPAddress(c),
 			UserAgent:   shared.GetUserAgent(c),
 			Description: fmt.Sprintf("Updated user %s", existing.Username),
+			StoreID:     storeIDFromGin(c),
 		})
 	}
 	existing.Password = ""
@@ -376,6 +387,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 			IPAddress:   shared.GetIPAddress(c),
 			UserAgent:   shared.GetUserAgent(c),
 			Description: description,
+			StoreID:     storeIDFromGin(c),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
@@ -496,6 +508,7 @@ func (h *Handler) CreateRole(c *gin.Context) {
 			IPAddress:   shared.GetIPAddress(c),
 			UserAgent:   shared.GetUserAgent(c),
 			Description: fmt.Sprintf("Created role %s", role.Name),
+			StoreID:     storeIDFromGin(c),
 		})
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": role})
@@ -543,6 +556,7 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 			IPAddress:   shared.GetIPAddress(c),
 			UserAgent:   shared.GetUserAgent(c),
 			Description: fmt.Sprintf("Updated role %s", existing.Name),
+			StoreID:     storeIDFromGin(c),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": existing})
@@ -559,6 +573,11 @@ func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	var oldPerms []Permission
+	if h.auditSvc != nil {
+		oldPerms, _ = h.svc.GetRolePermissions(c.Request.Context(), id)
+	}
 	if err := h.svc.UpdateRolePermissions(c.Request.Context(), id, req.PermissionIDs); err != nil {
 		shared.InternalError(c, err)
 		return
@@ -568,6 +587,64 @@ func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
+
+	if h.auditSvc != nil {
+		actorID, actorUsername, actorRole := auditContextFromGin(c)
+		newPerms, _ := h.svc.GetRolePermissions(c.Request.Context(), id)
+		oldCodes := make([]string, 0, len(oldPerms))
+		for _, p := range oldPerms {
+			oldCodes = append(oldCodes, p.Code)
+		}
+		newCodes := make([]string, 0, len(newPerms))
+		for _, p := range newPerms {
+			newCodes = append(newCodes, p.Code)
+		}
+		oldSet := make(map[string]bool, len(oldCodes))
+		for _, code := range oldCodes {
+			oldSet[code] = true
+		}
+		added := make([]string, 0)
+		for _, code := range newCodes {
+			if !oldSet[code] {
+				added = append(added, code)
+			}
+		}
+		removed := make([]string, 0)
+		for _, code := range oldCodes {
+			found := false
+			for _, nc := range newCodes {
+				if nc == code {
+					found = true
+					break
+				}
+			}
+			if !found {
+				removed = append(removed, code)
+			}
+		}
+		summary := fmt.Sprintf("Updated permissions for role %s", role.Name)
+		if len(added) > 0 {
+			summary += "; added: " + strings.Join(added, ", ")
+		}
+		if len(removed) > 0 {
+			summary += "; removed: " + strings.Join(removed, ", ")
+		}
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+			UserID:      actorID,
+			Username:    actorUsername,
+			Role:        actorRole,
+			Action:      "update_permissions",
+			EntityType:  "role",
+			EntityID:    &id,
+			OldValues:   shared.ToJSONMap(map[string]interface{}{"permissions": oldCodes}),
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"permissions": newCodes}),
+			IPAddress:   shared.GetIPAddress(c),
+			UserAgent:   shared.GetUserAgent(c),
+			Description: summary,
+			StoreID:     storeIDFromGin(c),
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{"data": role})
 }
 
@@ -616,6 +693,7 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 			IPAddress:   shared.GetIPAddress(c),
 			UserAgent:   shared.GetUserAgent(c),
 			Description: description,
+			StoreID:     storeIDFromGin(c),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})

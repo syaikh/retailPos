@@ -143,7 +143,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 		sheet := "Audit Logs"
 		_ = wb.SetSheetName("Sheet1", sheet)
 
-		headers := []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Entity ID", "Description", "Changes", "IP Address", "User Agent"}
+		headers := []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Entity ID", "Description", "Changes", "IP Address", "User Agent", "Store"}
 		for i, hdr := range headers {
 			col, _ := excelize.ColumnNumberToName(i + 1)
 			_ = wb.SetCellValue(sheet, col+"1", hdr)
@@ -170,9 +170,10 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 			_ = wb.SetCellValue(sheet, fmt.Sprintf("H%d", r), formatChanges(log.OldValues, log.NewValues))
 			_ = wb.SetCellValue(sheet, fmt.Sprintf("I%d", r), log.IPAddress)
 			_ = wb.SetCellValue(sheet, fmt.Sprintf("J%d", r), log.UserAgent)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("K%d", r), storeLabel(log))
 		}
 
-		colWidths := []float64{22, 20, 15, 12, 15, 10, 50, 50, 18, 30}
+		colWidths := []float64{22, 20, 15, 12, 15, 10, 50, 50, 18, 30, 10}
 		for i, w := range colWidths {
 			col, _ := excelize.ColumnNumberToName(i + 1)
 			_ = wb.SetColWidth(sheet, col, col, w)
@@ -192,7 +193,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 		_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 		writer := csv.NewWriter(c.Writer)
-		_ = shared.WriteCSVRow(writer, []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Entity ID", "Description", "Changes", "IP Address", "User Agent"})
+		_ = shared.WriteCSVRow(writer, []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Entity ID", "Description", "Changes", "IP Address", "User Agent", "Store"})
 		for _, log := range logs {
 			t := log.CreatedAt
 			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
@@ -209,10 +210,21 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 				formatChanges(log.OldValues, log.NewValues),
 				log.IPAddress,
 				log.UserAgent,
+				storeLabel(log),
 			})
 		}
 		writer.Flush()
 	}
+}
+
+func storeLabel(log LogListItem) string {
+	if log.StoreName != "" {
+		return log.StoreName
+	}
+	if log.StoreID != nil {
+		return fmt.Sprintf("%d", *log.StoreID)
+	}
+	return ""
 }
 
 func GenerateAuditDescription(log *Log) string {

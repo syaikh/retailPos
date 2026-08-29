@@ -11,7 +11,7 @@ CREATE SEQUENCE IF NOT EXISTS supplier_seq START 1 INCREMENT 1;
 
 SELECT setval('supplier_seq',
   GREATEST(COALESCE((SELECT MAX(CAST(substring(code FROM 'SUP-([0-9]+)') AS bigint))
-                     FROM suppliers WHERE code ~ '^SUP-[0-9]+$'), 0), 0));
+                     FROM suppliers WHERE code ~ '^SUP-[0-9]+$'), 1), 1));
 
 INSERT INTO schema_migrations (filename) VALUES ('004_supplier_code_sequence.sql')
 ON CONFLICT (filename) DO NOTHING;

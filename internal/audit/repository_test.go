@@ -169,6 +169,114 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 	})
 }
 
+func TestAuditRepository_StoreAttribution(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	var storeID int
+	err := dbPool.QueryRow(ctx, `INSERT INTO stores (name, is_active) VALUES ('audit_store', true) RETURNING id`).Scan(&storeID)
+	require.NoError(t, err)
+	storeIDPtr := storeID
+
+	var userID int
+	err = dbPool.QueryRow(ctx, `INSERT INTO users (username, email, password_hash, role_id) VALUES ('audit_store_user', 'audit_store@test.com', 'hash', 1) ON CONFLICT (username) DO UPDATE SET email = excluded.email RETURNING id`).Scan(&userID)
+	require.NoError(t, err)
+
+	t.Run("Create and GetAuditLogs returns store_id and joined store_name", func(t *testing.T) {
+		al := &Log{
+			UserID:     &userID,
+			StoreID:    &storeIDPtr,
+			Role:       "admin",
+			Action:     "test_action_store_attr",
+			EntityType: "product",
+			EntityID:   intPtr(321),
+		}
+		err := repo.CreateAuditLog(ctx, al)
+		require.NoError(t, err)
+		require.Greater(t, al.ID, 0)
+
+		logs, total, err := repo.GetAuditLogs(ctx, 10, 0, nil, "", "test_action_store_attr", "", nil, nil, nil)
+		require.NoError(t, err)
+		require.Equal(t, 1, total)
+		require.Len(t, logs, 1)
+		require.NotNil(t, logs[0].StoreID)
+		assert.Equal(t, storeID, *logs[0].StoreID)
+		assert.Equal(t, "audit_store", logs[0].StoreName)
+	})
+
+	t.Run("GetAuditLogByID returns store_id and joined store_name", func(t *testing.T) {
+		al := &Log{
+			UserID:     &userID,
+			StoreID:    &storeIDPtr,
+			Role:       "admin",
+			Action:     "test_action_store_attr_byid",
+			EntityType: "product",
+		}
+		require.NoError(t, repo.CreateAuditLog(ctx, al))
+
+		got, err := repo.GetAuditLogByID(ctx, al.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got.StoreID)
+		assert.Equal(t, storeID, *got.StoreID)
+		assert.Equal(t, "audit_store", got.StoreName)
+	})
+
+	t.Run("Log without store_id has nil store and empty store_name", func(t *testing.T) {
+		al := &Log{
+			UserID:     &userID,
+			Role:       "system",
+			Action:     "test_action_no_store",
+			EntityType: "settings",
+		}
+		require.NoError(t, repo.CreateAuditLog(ctx, al))
+
+		got, err := repo.GetAuditLogByID(ctx, al.ID)
+		require.NoError(t, err)
+		assert.Nil(t, got.StoreID)
+		assert.Empty(t, got.StoreName)
+	})
+}
+
+func TestAuditRepository_AppendOnly(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	var userID int
+	err := dbPool.QueryRow(ctx, `INSERT INTO users (username, email, password_hash, role_id) VALUES ('audit_immutable_user', 'audit_immutable@test.com', 'hash', 1) ON CONFLICT (username) DO UPDATE SET email = excluded.email RETURNING id`).Scan(&userID)
+	require.NoError(t, err)
+
+	al := &Log{
+		UserID:     &userID,
+		Role:       "admin",
+		Action:     "test_action_immutable",
+		EntityType: "product",
+	}
+	require.NoError(t, repo.CreateAuditLog(ctx, al))
+	require.Greater(t, al.ID, 0)
+
+	t.Run("UPDATE is rejected by the append-only trigger", func(t *testing.T) {
+		_, err := dbPool.Exec(ctx, `UPDATE audit_logs SET description = 'mutated' WHERE id = $1`, al.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "append-only")
+	})
+
+	t.Run("DELETE is rejected by the append-only trigger", func(t *testing.T) {
+		_, err := dbPool.Exec(ctx, `DELETE FROM audit_logs WHERE id = $1`, al.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "append-only")
+	})
+
+	t.Run("bypass allowed when maintenance GUC is set", func(t *testing.T) {
+		conn, err := dbPool.Acquire(ctx)
+		require.NoError(t, err)
+		defer conn.Release()
+		_, err = conn.Exec(ctx, `SET app.allow_audit_mod = 'on'`)
+		require.NoError(t, err)
+		_, err = conn.Exec(ctx, `UPDATE audit_logs SET description = 'backfilled' WHERE id = $1`, al.ID)
+		require.NoError(t, err)
+	})
+}
+
 func TestAuditRepository_GetAuditLogs_CreatedAtJakartaTimezone(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")

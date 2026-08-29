@@ -165,6 +165,7 @@ func (h *Handler) Create(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Created store %s", st.Name),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -213,6 +214,7 @@ func (h *Handler) Update(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated store %s", st.Name),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -252,6 +254,7 @@ func (h *Handler) Delete(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Deleted store #%d", id),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 

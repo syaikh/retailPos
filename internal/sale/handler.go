@@ -401,7 +401,9 @@ func (h *Handler) CreateSale(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Created sale %s with total %d", sale.InvoiceNumber, sale.TotalAmount),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
+		h.auditSalePayments(c.Request.Context(), actorID, sale)
 	}
 
 	if detail, err := h.svc.GetSaleByID(ctx, sale.ID, storeIDPtr); err == nil {
@@ -443,7 +445,9 @@ func (h *Handler) respondSaleFromCart(ctx context.Context, c *gin.Context, sale 
 			IPAddress:   middleware.IPAddressFromContext(ctx),
 			UserAgent:   middleware.UserAgentFromContext(ctx),
 			Description: fmt.Sprintf("Checked out cart %d as sale %s (total %d)", cartID, sale.InvoiceNumber, sale.TotalAmount),
+			StoreID:     middleware.StoreIDFromContext(ctx),
 		})
+		h.auditSalePayments(ctx, actorID, sale)
 	}
 
 	if detail, err := h.svc.GetSaleByID(ctx, sale.ID, storeIDPtr); err == nil {
@@ -451,6 +455,32 @@ func (h *Handler) respondSaleFromCart(ctx context.Context, c *gin.Context, sale 
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": sale})
+}
+
+// auditSalePayments emits one "create" audit row per payment on a completed
+// sale. It is shared by every sale-creation entry point (cart checkout,
+// single-payment-method checkout, and manual parked-sale completion) so payment
+// activity is attributed consistently regardless of which endpoint was used.
+func (h *Handler) auditSalePayments(ctx context.Context, actorID *int, sale *Sale) {
+	if h.auditSvc == nil {
+		return
+	}
+	for i := range sale.Payments {
+		p := sale.Payments[i]
+		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
+			UserID:      actorID,
+			Username:    middleware.UsernameFromContext(ctx),
+			Role:        middleware.RoleFromContext(ctx),
+			Action:      "create",
+			EntityType:  "payment",
+			EntityID:    &p.ID,
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"sale_id": p.SaleID, "payment_method": p.PaymentMethodCode, "amount": p.Amount, "reference_number": p.ReferenceNumber}),
+			IPAddress:   middleware.IPAddressFromContext(ctx),
+			UserAgent:   middleware.UserAgentFromContext(ctx),
+			Description: fmt.Sprintf("Recorded %s payment of %d for sale %s", p.PaymentMethodCode, p.Amount, sale.InvoiceNumber),
+			StoreID:     middleware.StoreIDFromContext(ctx),
+		})
+	}
 }
 
 // GetSalesHistory godoc
@@ -1042,6 +1072,7 @@ func (h *Handler) RecallParkedSale(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(ctx),
 			UserAgent:   middleware.UserAgentFromContext(ctx),
 			Description: fmt.Sprintf("Manager recalled parked sale %s (cashier %d)", sale.InvoiceNumber, sale.CashierID),
+			StoreID:     middleware.StoreIDFromContext(ctx),
 		})
 	}
 
@@ -1067,6 +1098,21 @@ func (h *Handler) CancelParkedSale(c *gin.Context) {
 		}
 		shared.InternalError(c, err)
 		return
+	}
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
+			UserID:      middleware.UserIDFromContext(ctx),
+			Username:    middleware.UsernameFromContext(ctx),
+			Role:        middleware.RoleFromContext(ctx),
+			Action:      "cancel",
+			EntityType:  "sale",
+			EntityID:    &id,
+			IPAddress:   middleware.IPAddressFromContext(ctx),
+			UserAgent:   middleware.UserAgentFromContext(ctx),
+			Description: fmt.Sprintf("Cancelled parked sale %d", id),
+			StoreID:     middleware.StoreIDFromContext(ctx),
+		})
 	}
 	c.JSON(http.StatusNoContent, nil)
 }
@@ -1275,6 +1321,7 @@ func (h *Handler) CompleteParkedSale(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(ctx),
 			UserAgent:   middleware.UserAgentFromContext(ctx),
 			Description: fmt.Sprintf("Manager completed recalled parked sale %d as sale %s (total %d)", id, sale.InvoiceNumber, sale.TotalAmount),
+			StoreID:     middleware.StoreIDFromContext(ctx),
 		})
 	}
 

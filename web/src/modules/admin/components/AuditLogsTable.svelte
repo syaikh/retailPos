@@ -82,6 +82,7 @@
               <th class="px-4 py-3 w-[120px]">{labels.action}</th>
               <th class="px-4 py-3">{labels.description}</th>
               <th class="px-4 py-3 w-[150px]">{labels.ipAddress}</th>
+              <th class="px-4 py-3 w-[140px]">{labels.store}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-border/70">
@@ -123,9 +124,12 @@
                  <td class="py-2 align-middle text-sm text-text-secondary truncate max-w-xs leading-snug" title={log.description}>
                   {log.description || '—'}
                  </td>
-                 <td class="py-2 align-middle font-mono text-[10px] text-text-muted leading-none">
-                  {log.ip_address || '—'}
-                 </td>
+                  <td class="py-2 align-middle font-mono text-[10px] text-text-muted leading-none">
+                   {log.ip_address || '—'}
+                  </td>
+                  <td class="py-2 align-middle text-sm text-text-secondary max-w-[140px] truncate">
+                   {log.store_name || (log.store_id ? String(log.store_id) : '—')}
+                  </td>
               </tr>
             {/each}
           </tbody>

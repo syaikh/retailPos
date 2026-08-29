@@ -105,6 +105,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			IPAddress:   shared.GetIPAddress(c),
 			UserAgent:   shared.GetUserAgent(c),
 			Description: fmt.Sprintf("User %s logged in", req.Username),
+			StoreID:     storeIDFromGin(c),
 		})
 	}
 }
@@ -245,6 +246,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 			IPAddress:   shared.GetIPAddress(c),
 			UserAgent:   shared.GetUserAgent(c),
 			Description: "Changed password",
+			StoreID:     storeIDFromGin(c),
 		})
 	}
 
@@ -289,6 +291,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 			IPAddress:   shared.GetIPAddress(c),
 			UserAgent:   shared.GetUserAgent(c),
 			Description: "User logged out",
+			StoreID:     storeIDFromGin(c),
 		})
 	}
 

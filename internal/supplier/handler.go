@@ -155,6 +155,7 @@ func (h *Handler) CreateSupplier(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Created supplier %s", supplier.Name),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": supplier})
@@ -215,6 +216,7 @@ func (h *Handler) UpdateSupplier(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated supplier %s", supplier.Name),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": supplier})
@@ -267,6 +269,7 @@ func (h *Handler) DeleteSupplier(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: description,
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
@@ -359,6 +362,7 @@ func (h *Handler) LinkProduct(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Linked product #%d to supplier #%d", ps.ProductID, ps.SupplierID),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": ps})
@@ -392,6 +396,7 @@ func (h *Handler) UnlinkProduct(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Unlinked product #%d from supplier #%d", productID, supplierID),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
@@ -440,6 +445,7 @@ func (h *Handler) UpdateProductSupplier(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated product-supplier link for product #%d supplier #%d", productID, supplierID),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": ps})
@@ -473,6 +479,7 @@ func (h *Handler) SetPreferredSupplier(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Set supplier #%d as preferred for product #%d", supplierID, productID),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "updated"})
@@ -514,6 +521,7 @@ func (h *Handler) BulkUpdate(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Bulk updated %d suppliers", updated),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -555,6 +563,7 @@ func (h *Handler) BulkDelete(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Bulk deleted %d suppliers", deleted),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 

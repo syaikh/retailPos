@@ -289,10 +289,10 @@ func (m *mockStoreProvider) UpdateStoreAddress(ctx context.Context, storeID int,
 }
 
 type mockService struct {
-	getAllFn     func(ctx context.Context) (map[string]string, error)
+	getAllFn      func(ctx context.Context) (map[string]string, error)
 	getMultipleFn func(ctx context.Context, keys []string) (map[string]string, error)
-	upsertFn     func(ctx context.Context, settings map[string]string) error
-	saveLogoFn   func(ctx context.Context, path string) error
+	upsertFn      func(ctx context.Context, settings map[string]string) error
+	saveLogoFn    func(ctx context.Context, path string) error
 }
 
 func (m *mockService) GetAll(ctx context.Context) (map[string]string, error) {
@@ -300,9 +300,9 @@ func (m *mockService) GetAll(ctx context.Context) (map[string]string, error) {
 		return m.getAllFn(ctx)
 	}
 	return map[string]string{
-		"store_name":    "Test Store",
-		"store_jargon":  "Jargon",
-		"logo_path":     "logo.png",
+		"store_name":     "Test Store",
+		"store_jargon":   "Jargon",
+		"logo_path":      "logo.png",
 		"receipt_header": "Header",
 		"receipt_footer": "Footer",
 	}, nil

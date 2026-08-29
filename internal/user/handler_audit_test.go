@@ -388,6 +388,63 @@ func TestAuditHandler_UpdateRolePermissions_BindError(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestAuditHandler_UpdateRolePermissions_WritesAudit(t *testing.T) {
+	var captured *audit.Log
+	currentPerms := []Permission{{ID: 1, Code: "role.view"}, {ID: 2, Code: "role.create"}}
+	svc := &mockUserService{
+		getRolePermissionsFn: func(ctx context.Context, roleID int) ([]Permission, error) {
+			return currentPerms, nil
+		},
+		updatePermsFn: func(ctx context.Context, roleID int, permissionIDs []int) error {
+			assert.Equal(t, 1, roleID)
+			assert.Equal(t, []int{2, 3}, permissionIDs) // keep b, add c
+			// Simulate the persisted change so the second GetRolePermissions
+			// reflects the new state.
+			currentPerms = []Permission{{ID: 2, Code: "role.create"}, {ID: 3, Code: "role.update"}}
+			return nil
+		},
+		getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+			return &Role{ID: 1, Name: "admin"}, nil
+		},
+	}
+	auditSvc := &mockAuditCreator{
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+			captured = log
+			return nil
+		},
+	}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "admin")
+		c.Set("role", "superadmin")
+		c.Next()
+	})
+	h := NewHandler(svc, auditSvc)
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	// Update to permissions [2,3] => keep role.create(b), add role.update(c), remove role.view(a).
+	body := `{"permission_ids":[2,3]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/admin/roles/1/permissions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, captured, "an audit log should be written for permission changes")
+	assert.Equal(t, "update_permissions", captured.Action)
+	assert.Equal(t, "role", captured.EntityType)
+	require.NotNil(t, captured.EntityID)
+	assert.Equal(t, 1, *captured.EntityID)
+	assert.Contains(t, captured.Description, "Updated permissions for role admin")
+	assert.Contains(t, captured.Description, "added")
+	assert.Contains(t, captured.Description, "removed")
+	assert.Contains(t, captured.Description, "role.update") // added code
+	assert.Contains(t, captured.Description, "role.view")   // removed code
+}
+
 func TestAuditHandler_UpdateRolePermissions_GetRoleError(t *testing.T) {
 	svc := &mockUserService{
 		updatePermsFn: func(ctx context.Context, roleID int, permissionIDs []int) error {

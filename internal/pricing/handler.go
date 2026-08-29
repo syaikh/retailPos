@@ -230,6 +230,7 @@ func (h *Handler) CreateRule(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Created pricing rule %s", rule.Name),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": rule})
@@ -284,6 +285,7 @@ func (h *Handler) UpdateRule(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated pricing rule %s", rule.Name),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": rule})
@@ -336,6 +338,7 @@ func (h *Handler) DeleteRule(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: description,
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})

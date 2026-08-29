@@ -114,7 +114,7 @@ func TestService_ValidateLogoExtension(t *testing.T) {
 		{".png", false, ".png"},
 		{".jpg", false, ".jpg"},
 		{".jpeg", false, ".jpeg"},
-		{".svg", true, ""}, // SVG no longer supported — raster only
+		{".svg", true, ""},      // SVG no longer supported — raster only
 		{".PNG", false, ".png"}, // normalised to lowercase
 		{".gif", true, ""},
 		{".webp", true, ""},

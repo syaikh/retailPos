@@ -442,6 +442,7 @@ func (h *Handler) CancelCart(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(ctx),
 			UserAgent:   middleware.UserAgentFromContext(ctx),
 			Description: fmt.Sprintf("Cancelled held cart %d", cartID),
+			StoreID:     middleware.StoreIDFromContext(ctx),
 		})
 	}
 
@@ -497,7 +498,9 @@ func (h *Handler) CheckoutCart(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(ctx),
 			UserAgent:   middleware.UserAgentFromContext(ctx),
 			Description: fmt.Sprintf("Checked out cart %d as sale %s (total %d)", cartID, sale.InvoiceNumber, sale.TotalAmount),
+			StoreID:     middleware.StoreIDFromContext(ctx),
 		})
+		h.auditSalePayments(ctx, actorID, sale)
 	}
 
 	canViewCost := canViewCost(c)

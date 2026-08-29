@@ -59,6 +59,8 @@ export interface AuditLog {
   id: number;
   user_id: number;
   username: string;
+  store_id?: number;
+  store_name?: string;
   action: string;
   entity_type: string;
   entity_id: number;

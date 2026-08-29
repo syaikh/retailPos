@@ -270,6 +270,7 @@ func (h *Handler) UpdateAll(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: "Updated application settings",
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -355,6 +356,7 @@ func (h *Handler) UploadLogo(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: "Uploaded application logo",
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -397,6 +399,7 @@ func (h *Handler) RemoveLogo(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: "Removed application logo",
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 

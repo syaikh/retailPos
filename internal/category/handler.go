@@ -91,6 +91,7 @@ func (h *Handler) CreateCategoryHandler(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Created category %s", category.Name),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": category})
@@ -134,6 +135,7 @@ func (h *Handler) UpdateCategoryHandler(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated category %s", category.Name),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": category})
@@ -176,6 +178,7 @@ func (h *Handler) DeleteCategoryHandler(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: description,
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})

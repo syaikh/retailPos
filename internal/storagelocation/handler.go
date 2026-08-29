@@ -124,6 +124,7 @@ func (h *Handler) Create(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Created storage location %s", location.Name),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -172,6 +173,7 @@ func (h *Handler) Update(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated storage location %s", location.Name),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -211,6 +213,7 @@ func (h *Handler) Delete(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Deleted storage location #%d", id),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -254,6 +257,7 @@ func (h *Handler) BulkUpdate(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Bulk updated %d storage locations", updated),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -296,6 +300,7 @@ func (h *Handler) BulkDelete(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Bulk deleted %d storage locations", deleted),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 

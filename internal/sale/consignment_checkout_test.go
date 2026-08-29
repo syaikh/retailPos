@@ -26,9 +26,9 @@ type recordingConsignmentCheckout struct {
 	consignmentProducts map[int]bool
 	resolveErr          error
 
-	resolved      []shared.ConsignmentCheckoutItem
+	resolved       []shared.ConsignmentCheckoutItem
 	recordedSaleID int
-	recorded      []shared.ConsignmentSaleRecord
+	recorded       []shared.ConsignmentSaleRecord
 }
 
 func (c *recordingConsignmentCheckout) ResolveAndDeductConsignment(ctx context.Context, tx pgx.Tx, items []shared.ConsignmentCheckoutItem) ([]shared.ConsignmentSaleRecord, error) {

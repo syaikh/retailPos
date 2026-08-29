@@ -9,6 +9,8 @@ type Creator interface {
 type Log struct {
 	ID          int         `json:"id"`
 	UserID      *int        `json:"user_id,omitempty"`
+	StoreID     *int        `json:"store_id,omitempty"`
+	StoreName   string      `json:"store_name,omitempty"`
 	Username    string      `json:"username"`
 	Role        string      `json:"role"`
 	Action      string      `json:"action"`
@@ -25,6 +27,8 @@ type Log struct {
 type LogListItem struct {
 	ID          int         `json:"id"`
 	UserID      *int        `json:"user_id,omitempty"`
+	StoreID     *int        `json:"store_id,omitempty"`
+	StoreName   string      `json:"store_name,omitempty"`
 	Username    string      `json:"username"`
 	Role        string      `json:"role"`
 	Action      string      `json:"action"`

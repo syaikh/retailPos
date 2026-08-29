@@ -102,6 +102,7 @@ func (h *Handler) OpenShift(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: "Opened shift",
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -149,6 +150,7 @@ func (h *Handler) CloseShift(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: "Closed shift",
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -186,6 +188,7 @@ func (h *Handler) CloseAll(c *gin.Context) {
 			Action:      "update",
 			EntityType:  "shift",
 			Description: desc,
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -388,6 +391,7 @@ func (h *Handler) ExportShifts(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Exported %d shifts as %s", rowCount, format),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 }
@@ -448,6 +452,7 @@ func (h *Handler) ReviewShift(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: "Reviewed shift discrepancy",
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 
@@ -490,6 +495,7 @@ func (h *Handler) AuditShift(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: "Audited shift cash balance",
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 

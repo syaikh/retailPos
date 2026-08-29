@@ -151,6 +151,7 @@ func (h *Handler) CreateDraft(c *gin.Context) {
 		EntityType:  "purchase_order",
 		EntityID:    &po.ID,
 		Description: fmt.Sprintf("Created purchase order %s", po.PONumber),
+		StoreID:     middleware.StoreIDFromContext(c),
 	})
 
 	c.JSON(http.StatusCreated, gin.H{"data": po})
@@ -218,6 +219,7 @@ func (h *Handler) UpdateDraft(c *gin.Context) {
 		EntityType:  "purchase_order",
 		EntityID:    &id,
 		Description: fmt.Sprintf("Updated purchase order %s", po.PONumber),
+		StoreID:     middleware.StoreIDFromContext(c),
 	})
 
 	shared.JSONSuccess(c, po)
@@ -254,6 +256,7 @@ func (h *Handler) DeleteDraft(c *gin.Context) {
 		EntityType:  "purchase_order",
 		EntityID:    &id,
 		Description: fmt.Sprintf("Deleted purchase order id=%d", id),
+		StoreID:     middleware.StoreIDFromContext(c),
 	})
 
 	shared.JSONSuccess(c, gin.H{"deleted": true})
@@ -303,6 +306,7 @@ func (h *Handler) ConfirmPO(c *gin.Context) {
 		EntityType:  "purchase_order",
 		EntityID:    &id,
 		Description: fmt.Sprintf("Confirmed purchase order %s", po.PONumber),
+		StoreID:     middleware.StoreIDFromContext(c),
 	})
 
 	shared.JSONSuccess(c, gin.H{"status": StatusConfirmed})
@@ -352,6 +356,7 @@ func (h *Handler) CancelPO(c *gin.Context) {
 		EntityType:  "purchase_order",
 		EntityID:    &id,
 		Description: fmt.Sprintf("Cancelled purchase order %s", po.PONumber),
+		StoreID:     middleware.StoreIDFromContext(c),
 	})
 
 	shared.JSONSuccess(c, gin.H{"status": StatusCancelled})
@@ -469,6 +474,7 @@ func (h *Handler) CreateGoodsReceipt(c *gin.Context) {
 		EntityType:  "goods_receipt",
 		EntityID:    &gr.ID,
 		Description: fmt.Sprintf("Created goods receipt %s for PO id=%d", gr.GRNumber, req.PurchaseOrderID),
+		StoreID:     middleware.StoreIDFromContext(c),
 	})
 
 	c.JSON(http.StatusCreated, gin.H{"data": gr})

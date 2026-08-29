@@ -261,6 +261,10 @@
             <p class="text-xs text-text-secondary font-mono mt-0.5">ID: {selectedLog.entity_id}</p>
           {/if}
         </div>
+        <div class="bg-surface-default rounded-lg p-3 border border-border/50">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">{labels.store}</p>
+          <p class="text-sm text-text-primary">{selectedLog.store_name || (selectedLog.store_id ? String(selectedLog.store_id) : '—')}</p>
+        </div>
       </div>
 
       <!-- User Agent -->

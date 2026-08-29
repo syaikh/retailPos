@@ -33,7 +33,19 @@ func main() {
 
 	ctx := context.Background()
 
-	rows, err := pool.Query(ctx, `SELECT al.id, al.action, al.entity_type, al.entity_id, al.old_values, al.new_values, COALESCE(u.username, '') FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id WHERE al.description IS NULL ORDER BY al.id`)
+	// Run the whole backfill on a single connection and opt out of the
+	// append-only trigger via a session GUC. Normal runtime never sets this,
+	// so audit_logs remains append-only for application traffic.
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		log.Fatalf("Unable to acquire connection: %v", err)
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(ctx, `SET app.allow_audit_mod = 'on'`); err != nil {
+		log.Fatalf("Unable to enable audit modification bypass: %v", err)
+	}
+
+	rows, err := conn.Query(ctx, `SELECT al.id, al.action, al.entity_type, al.entity_id, al.old_values, al.new_values, COALESCE(u.username, '') FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id WHERE al.description IS NULL ORDER BY al.id`)
 	if err != nil {
 		log.Fatalf("Query failed: %v", err)
 	}
@@ -78,7 +90,7 @@ func main() {
 			continue
 		}
 
-		if _, err := pool.Exec(ctx, `UPDATE audit_logs SET description = $1 WHERE id = $2`, desc, id); err != nil {
+		if _, err := conn.Exec(ctx, `UPDATE audit_logs SET description = $1 WHERE id = $2`, desc, id); err != nil {
 			log.Printf("Update error id=%d: %v", id, err)
 			failed++
 			continue

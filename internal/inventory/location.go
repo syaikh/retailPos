@@ -147,5 +147,6 @@ func (h *Handler) auditLocation(c *gin.Context, description string, productID in
 		IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 		UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 		Description: fmt.Sprintf("%s for product #%d", description, productID),
+		StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 	})
 }

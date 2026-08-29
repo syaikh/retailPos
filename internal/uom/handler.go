@@ -92,6 +92,7 @@ func (h *Handler) CreateUnitOfMeasure(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Created unit of measure %s", uom.Name),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": uom})
@@ -135,6 +136,7 @@ func (h *Handler) UpdateUnitOfMeasure(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated unit of measure %s", uom.Name),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": uom})
@@ -177,6 +179,7 @@ func (h *Handler) DeleteUnitOfMeasure(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: description,
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})

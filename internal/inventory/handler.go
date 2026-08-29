@@ -87,6 +87,7 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Adjusted stock for product #%d by %d", req.ProductID, req.QuantityChange),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})

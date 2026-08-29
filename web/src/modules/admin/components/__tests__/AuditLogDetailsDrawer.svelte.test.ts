@@ -63,4 +63,10 @@ describe('AuditLogDetailsDrawer.svelte source-structure guards', () => {
   it('shows changes section', () => {
     expect(src).toContain('No specific data changes captured');
   });
+
+  it('renders the store field with store_name or store_id fallback', () => {
+    expect(src).toContain('labels.store');
+    expect(src).toContain('selectedLog.store_name');
+    expect(src).toContain('selectedLog.store_id');
+  });
 });

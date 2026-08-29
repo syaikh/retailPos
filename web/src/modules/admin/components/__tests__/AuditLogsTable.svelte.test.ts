@@ -50,6 +50,12 @@ describe('AuditLogsTable.svelte source-structure guards', () => {
     expect(src).toContain('labels.action');
     expect(src).toContain('labels.description');
     expect(src).toContain('labels.ipAddress');
+    expect(src).toContain('labels.store');
+  });
+
+  it('renders the store column cell with store_name or store_id fallback', () => {
+    expect(src).toContain('log.store_name');
+    expect(src).toContain('log.store_id');
   });
 
   it('has Pagination component', () => {

@@ -483,6 +483,7 @@ func (h *Handler) writeAudit(c *gin.Context, action string, entityID int, descri
 		IPAddress:   middleware.IPAddressFromContext(ctx),
 		UserAgent:   middleware.UserAgentFromContext(ctx),
 		Description: description,
+		StoreID:     middleware.StoreIDFromContext(ctx),
 	})
 }
 

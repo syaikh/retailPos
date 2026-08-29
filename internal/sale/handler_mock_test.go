@@ -1333,6 +1333,83 @@ func TestSaleHandler_CancelParkedSale_Success(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }
 
+// TestSaleHandler_CancelParkedSale_AuditsCancel verifies the new audit entry
+// written when a parked sale is cancelled.
+func TestSaleHandler_CancelParkedSale_AuditsCancel(t *testing.T) {
+	var captured *audit.Log
+	svc := &mockService{
+		cancelParkedSaleFn: func(ctx context.Context, saleID int, caller Caller) error {
+			return nil
+		},
+	}
+	auditSvc := &mockAuditCreator{
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+			captured = log
+			return nil
+		},
+	}
+	r := setupSaleHandler(svc, auditSvc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("DELETE", "/sales/parked/1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	require.NotNil(t, captured, "cancel should write an audit log")
+	assert.Equal(t, "cancel", captured.Action)
+	assert.Equal(t, "sale", captured.EntityType)
+	require.NotNil(t, captured.EntityID)
+	assert.Equal(t, 1, *captured.EntityID)
+	assert.Contains(t, captured.Description, "Cancelled parked sale")
+}
+
+// TestSaleHandler_CreateSale_FromCart_AuditsPayments verifies the new
+// per-payment audit entries written when a cart is checked out into a sale.
+func TestSaleHandler_CreateSale_FromCart_AuditsPayments(t *testing.T) {
+	var saleLog, paymentLog *audit.Log
+	var paymentLogCount int
+	svc := &mockService{
+		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
+			return &Sale{
+				ID:            9,
+				InvoiceNumber: "INV-CART-PAY",
+				TotalAmount:   15000,
+				Payments: []Payment{
+					{ID: 101, SaleID: 9, PaymentMethodCode: "CASH", Amount: 10000},
+					{ID: 102, SaleID: 9, PaymentMethodCode: "QRIS", Amount: 5000, ReferenceNumber: "ref-1"},
+				},
+			}, nil
+		},
+	}
+	auditSvc := &mockAuditCreator{
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+			switch log.EntityType {
+			case "sale":
+				saleLog = log
+			case "payment":
+				paymentLogCount++
+				paymentLog = log
+			}
+			return nil
+		},
+	}
+	r := setupSaleHandler(svc, auditSvc)
+	body := `{"cart_session_id":5,"payments":[{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"QRIS","amount":5000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	require.NotNil(t, saleLog, "a sale audit log should be written")
+	assert.Equal(t, "create", saleLog.Action)
+	assert.Equal(t, "sale", saleLog.EntityType)
+	require.NotNil(t, paymentLog, "payment audit logs should be written")
+	assert.Equal(t, 2, paymentLogCount, "one payment audit log per payment")
+	assert.Equal(t, "payment", paymentLog.EntityType)
+	assert.Contains(t, paymentLog.Description, "QRIS")
+	assert.Contains(t, paymentLog.Description, "INV-CART-PAY")
+}
+
 func TestSaleHandler_CancelParkedSale_NotFound(t *testing.T) {
 	svc := &mockService{
 		cancelParkedSaleFn: func(ctx context.Context, saleID int, caller Caller) error {
