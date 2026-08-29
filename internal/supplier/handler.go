@@ -204,6 +204,7 @@ func (h *Handler) UpdateSupplier(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
+		focusedOld, focusedNew := shared.DiffChanges(shared.ToJSONMap(oldSupplier), shared.ToJSONMap(supplier))
 		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
@@ -211,8 +212,8 @@ func (h *Handler) UpdateSupplier(c *gin.Context) {
 			Action:      "update",
 			EntityType:  "supplier",
 			EntityID:    &supplier.ID,
-			OldValues:   shared.ToJSONMap(oldSupplier),
-			NewValues:   shared.ToJSONMap(supplier),
+			OldValues:   focusedOld,
+			NewValues:   focusedNew,
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated supplier %s", supplier.Name),

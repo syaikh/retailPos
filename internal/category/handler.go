@@ -123,6 +123,7 @@ func (h *Handler) UpdateCategoryHandler(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
+		focusedOld, focusedNew := shared.DiffChanges(shared.ToJSONMap(oldCategory), shared.ToJSONMap(category))
 		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
@@ -130,8 +131,8 @@ func (h *Handler) UpdateCategoryHandler(c *gin.Context) {
 			Action:      "update",
 			EntityType:  "category",
 			EntityID:    &category.ID,
-			OldValues:   shared.ToJSONMap(oldCategory),
-			NewValues:   shared.ToJSONMap(category),
+			OldValues:   focusedOld,
+			NewValues:   focusedNew,
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated category %s", category.Name),

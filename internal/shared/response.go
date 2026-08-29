@@ -1,9 +1,11 @@
 package shared
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -93,6 +95,51 @@ func scrubSlice(s []interface{}) {
 			scrubSlice(v)
 		}
 	}
+}
+
+// DiffChanges compares an old and new representation of an entity and returns
+// focused old/new maps containing only the keys whose values actually changed.
+// Keys present in new but not old (or vice versa) are included; unchanged keys
+// are omitted. This keeps audit payloads minimal (smaller, less PII) while still
+// recording enough to reconstruct what changed.
+func DiffChanges(oldMap, newMap map[string]interface{}) (map[string]interface{}, map[string]interface{}) {
+	if oldMap == nil {
+		oldMap = map[string]interface{}{}
+	}
+	if newMap == nil {
+		newMap = map[string]interface{}{}
+	}
+	oldVals := map[string]interface{}{}
+	newVals := map[string]interface{}{}
+	for k, nv := range newMap {
+		ov, present := oldMap[k]
+		if !present || !valuesEqual(ov, nv) {
+			if present {
+				oldVals[k] = ov
+			}
+			newVals[k] = nv
+		}
+	}
+	for k, ov := range oldMap {
+		if _, present := newMap[k]; !present {
+			oldVals[k] = ov
+			newVals[k] = nil
+		}
+	}
+	return oldVals, newVals
+}
+
+// valuesEqual reports whether two JSON-derived values are semantically equal.
+func valuesEqual(a, b interface{}) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	ab, errA := json.Marshal(a)
+	bb, errB := json.Marshal(b)
+	if errA != nil || errB != nil {
+		return reflect.DeepEqual(a, b)
+	}
+	return bytes.Equal(ab, bb)
 }
 
 func JSONSuccess(c *gin.Context, data interface{}) {

@@ -419,7 +419,7 @@ func TestShiftHandler_OpenShift_CreatesAuditLog(t *testing.T) {
 	auditSvc := &mockAudit{
 		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
-			assert.Equal(t, "create", log.Action)
+			assert.Equal(t, "shift_opened", log.Action)
 			assert.Equal(t, "shift", log.EntityType)
 			return nil
 		},
@@ -457,7 +457,7 @@ func TestShiftHandler_CloseShift_CreatesAuditLog(t *testing.T) {
 	auditSvc := &mockAudit{
 		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
-			assert.Equal(t, "update", log.Action)
+			assert.Equal(t, "shift_closed", log.Action)
 			assert.Equal(t, "shift", log.EntityType)
 			return nil
 		},

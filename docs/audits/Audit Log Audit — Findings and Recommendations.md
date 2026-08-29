@@ -31,7 +31,7 @@
 
 **Recommendation**
 1. Operate the audit log as a **security control** now, with the caveats above documented.
-2. Schedule the remaining low-effort hardening: explicit shift verbs (`SHIFT_OPENED`/`SHIFT_CLOSED`) and full `{field:{from,to}}` diffs across all handlers.
+2. ~~Schedule the remaining low-effort hardening: explicit shift verbs (`SHIFT_OPENED`/`SHIFT_CLOSED`) and full `{field:{from,to}}` diffs across all handlers.~~ **Done:** shift open/close are now `shift_opened`/`shift_closed`; focused `changes` diffs (`shared.DiffChanges`) are applied to the core update handlers (product/category/supplier/user/role). The remaining update handlers still emit full snapshots and can adopt the helper incrementally.
 3. Re-open audit coverage when refund/void and supplier-payment features are built; they are currently **N/A by design**, not by omission.
 
 ---
@@ -43,7 +43,7 @@
 | **P0** (store attribution, permission-change audit, payment-level events, DB immutability) | 4 | ✅ Done (1 partial) |
 | **P1** (audit-failure logging, password-change-failed, inventory transfer/adjustment, PO confirm/cancel) | 4 | ✅ Done (cash-movement ⚠️ N/A) |
 | **P2** (user lifecycle, token refresh, config updates, correlation ID, PII scrub, recall audit, retention/export tiering) | 8 | ✅ Done (session-revoked ⚠️ N/A; full focused diffs + SHIFT renames deferred) |
-| **Still open** | full payment lifecycle, full focused diffs across all handlers, SHIFT_OPENED/CLOSED renames | ⬜ |
+| **Resolved** | shift open/close renamed to `shift_opened`/`shift_closed`; payment events renamed to `payment.created`; focused `changes` diffs via `shared.DiffChanges` applied to product/category/supplier/user/role update handlers (remaining update handlers still emit full snapshots — deferred) | ✅ |
 
 **⚠️ Marked N/A (no underlying feature exists):** `SHIFT_CASH_MOVEMENT`, `GOODS_RECEIPT_UPDATED/CANCELLED`, `SUPPLIER_PAYMENT/DEBT/INVOICE`, `SESSION_REVOKED` (only single-device logout exists, audited as `logout`), and sale `void`/`refund`/`reprint` (no endpoints).
 
@@ -104,7 +104,7 @@ Status reflects the current code. **Outcome** records the result of the recommen
 | `goods_receipt` / `create` | Purchase | GR created (purchase/handler.go:468) | ✅ KEEP | Modify/cancel ⚠️ N/A |
 | `stock_opname` / lifecycle | StockOpname | Opname (stockopname/handler.go:71–307) | ✅ KEEP | Exemplary |
 | `consignment` / lifecycle | Consignment | Consignment (consignment/handler.go) | ✅ KEEP | Good granularity |
-| `shift` / `create` (open) | Shift | Open shift (shift/handler.go:98) | ⬜ MODIFY | Should be `SHIFT_OPENED` (deferred) |
+| `shift` / `create` (open) | Shift | Open shift (shift/handler.go:98) | ✅ Done | Renamed to `shift_opened` |
 | `shift` / `update` (close/closeall) | Shift | Close / close-all (shift/handler.go:145/186) | ⬜ MODIFY | Should be `SHIFT_CLOSED`/`SHIFT_CLOSE_ALL` (deferred) |
 | `shift` / `export`·`review`·`audit` | Shift | Reconciliation | ✅ KEEP | — |
 | `sale` / `create` | Sale | Sale completed (sale/handler.go:397/439) | ✅ KEEP | PII-scrubbed snapshot (customer_name removed) |
@@ -226,7 +226,7 @@ Rule: **one explicit verb per meaningful action**; never reuse `update` for dist
 
 ### P1 — Should Fix
 5. ✅ Audit-failure logging + `audit_write_failures_total` metric; security-critical writes are now **fail-closed and atomic** — each mutation (`config_updated`, `update_permissions`, user lifecycle) and its audit log are committed in a single `pgx.Tx` via `audit.TxCreator.CreateAuditLogTx`, so an audit failure rolls back the whole operation instead of leaving a half-applied change. `audit_exported` is a read-only export that emits `audit.WriteFailClosed` (best-effort by design).
-6. ⬜/⚠️ Cash-movement events ⚠️ N/A; `SHIFT_OPENED`/`SHIFT_CLOSED` renames deferred.
+6. ✅ Shift open/close renamed to `shift_opened`/`shift_closed`; cash-movement events remain ⚠️ N/A (no cash-movement functions).
 7. ✅ Inventory `inventory_adjustment`/`inventory_transfer`; PO `purchase_order_confirmed`/`purchase_order_cancelled`. GR/supplier ⚠️ N/A.
 8. ✅ `password_change_failed`.
 
@@ -247,7 +247,7 @@ Rule: **one explicit verb per meaningful action**; never reuse `update` for dist
 | P0 | 3 | Payment/refund events | ✅ Partial | `payment.create` per payment on checkout; `sale.cancel` on parked-sale cancel. Void/refund/reprint ⚠️ N/A. |
 | P0 | 4 | DB immutability | ✅ Done | `reject_audit_log_modification()` trigger `BEFORE UPDATE OR DELETE`. |
 | P1 | 5 | Audit-error handling | ✅ Done | `internal/metrics.AuditWriteFailures`; `repository.go` increments + logs; `GET /metrics` exposes it. Security-critical writes are **fail-closed and atomic**: `config_updated` (appsettings), `update_permissions` (user), and user lifecycle (`user_activated`/`user_deactivated`/`user_role_changed`) commit the mutation and the audit row in one `pgx.Tx` (`audit.TxCreator.CreateAuditLogTx` inside `Service.InTx`), so an audit failure rolls back the whole operation — no partial persistence. The `audit_exported` event is a read-only export and emits via `audit.WriteFailClosed` (best-effort, no mutation to roll back). Caveat resolved: the prior ordering issue (audit-after-mutation) is gone. |
-| P1 | 6 | Cash-movement + open/close | ⚠️ N/A / deferred | No cash-movement functions; `SHIFT_OPENED`/`SHIFT_CLOSED` renames not applied. |
+| P1 | 6 | Cash-movement + open/close | ✅ (renames) / ⚠️ N/A (cash-movement) | Shift open/close renamed to `shift_opened`/`shift_closed`; no cash-movement functions exist, so cash-movement events remain N/A. |
 | P1 | 7 | Inventory/PO/GR events | ✅ Done (parts) | `inventory_adjustment`, `inventory_transfer`, `purchase_order_confirmed`/`purchase_order_cancelled`. GR/supplier ⚠️ N/A. |
 | P1 | 8 | Password-change-failed | ✅ Done | `password_change_failed` on `ErrInvalidPassword`; seeder reflects it. |
 | P2 | 9 | `correlation_id` | ✅ Done | Migration 035 adds column; `domain.go` `CorrelationID`; `repository.go` auto-populates from request context (X-Request-ID) when unset and accepts explicit value; surfaced in list/get/export. |

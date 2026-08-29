@@ -48,6 +48,9 @@
     if (v === 'DELETE') return labels.actionDeleted;
     if (v === 'LOGIN') return labels.login;
     if (v === 'LOGOUT') return labels.logout;
+    if (v === 'SHIFT_OPENED') return 'Shift Opened';
+    if (v === 'SHIFT_CLOSED') return 'Shift Closed';
+    if (v === 'PAYMENT.CREATED') return 'Payment Created';
     return action;
   }
 

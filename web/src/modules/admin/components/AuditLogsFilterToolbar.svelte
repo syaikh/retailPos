@@ -65,6 +65,8 @@
     uom: ['all', 'create', 'update', 'delete'],
     customer: ['all', 'create', 'update', 'delete'],
     stock: ['all', 'update'],
+    shift: ['all', 'shift_opened', 'shift_closed'],
+    payment: ['all', 'payment.created'],
   };
 
   function getResourceActions(resource: string): string[] {
@@ -78,6 +80,9 @@
     { id: 'delete', label: labels.delete },
     { id: 'login', label: labels.login },
     { id: 'logout', label: labels.logout },
+    { id: 'shift_opened', label: 'Shift Opened' },
+    { id: 'shift_closed', label: 'Shift Closed' },
+    { id: 'payment.created', label: 'Payment Created' },
   ];
 
   let availableActionFilters = $derived(
@@ -91,6 +96,9 @@
     { id: 'delete', label: labels.delete },
     { id: 'login', label: labels.login },
     { id: 'logout', label: labels.logout },
+    { id: 'shift_opened', label: 'Shift Opened' },
+    { id: 'shift_closed', label: 'Shift Closed' },
+    { id: 'payment.created', label: 'Payment Created' },
   ];
 
   function isActionDisabled(actionId: string): boolean {

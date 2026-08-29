@@ -483,7 +483,7 @@ func (h *Handler) auditSalePayments(ctx context.Context, actorID *int, sale *Sal
 			UserID:      actorID,
 			Username:    middleware.UsernameFromContext(ctx),
 			Role:        middleware.RoleFromContext(ctx),
-			Action:      "create",
+			Action:      "payment.created",
 			EntityType:  "payment",
 			EntityID:    &p.ID,
 			NewValues:   shared.ToJSONMap(map[string]interface{}{"sale_id": p.SaleID, "payment_method": p.PaymentMethodCode, "amount": p.Amount, "reference_number": p.ReferenceNumber}),
