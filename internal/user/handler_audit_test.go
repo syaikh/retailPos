@@ -215,6 +215,46 @@ func TestAuditHandler_ChangePassword_InvalidPassword(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+func TestAuditHandler_ChangePassword_InvalidPassword_WritesAudit(t *testing.T) {
+	var captured *audit.Log
+	svc := &mockAuthLoginService{
+		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) error {
+			return ErrInvalidPassword
+		},
+	}
+	auditSvc := &mockAuditCreator{
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+			captured = log
+			return nil
+		},
+	}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 7)
+		c.Set("username", "jdoe")
+		c.Set("role", "cashier")
+		c.Next()
+	})
+	h := NewAuthHandler(svc, auditSvc)
+	h.RegisterChangePasswordRoute(r.Group("/"), func(c *gin.Context) { c.Next() })
+	body := `{"current_password":"wrong","new_password":"newpass123"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/change-password", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	require.NotNil(t, captured, "an audit log should be written for a failed password change")
+	assert.Equal(t, "password_change_failed", captured.Action)
+	assert.Equal(t, "auth", captured.EntityType)
+	require.NotNil(t, captured.UserID)
+	assert.Equal(t, 7, *captured.UserID)
+	assert.Equal(t, "jdoe", captured.Username)
+	assert.Equal(t, "cashier", captured.Role)
+	assert.Contains(t, captured.Description, "invalid current password")
+}
+
 func TestAuditHandler_CreateUser_IsActiveFalse(t *testing.T) {
 	svc := &mockUserService{
 		getByUsernameFn: func(ctx context.Context, username string) (*User, error) {

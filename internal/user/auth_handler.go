@@ -224,6 +224,24 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 
 	if err := h.svc.ChangePassword(c.Request.Context(), id, req.CurrentPassword, req.NewPassword); err != nil {
 		if errors.Is(err, ErrInvalidPassword) {
+			if h.auditSvc != nil {
+				username, _ := c.Get("username")
+				role, _ := c.Get("role")
+				usernameStr, _ := username.(string)
+				roleStr, _ := role.(string)
+				_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+					UserID:      &id,
+					Username:    usernameStr,
+					Role:        roleStr,
+					Action:      "password_change_failed",
+					EntityType:  "auth",
+					EntityID:    &id,
+					IPAddress:   shared.GetIPAddress(c),
+					UserAgent:   shared.GetUserAgent(c),
+					Description: "Failed password change: invalid current password",
+					StoreID:     storeIDFromGin(c),
+				})
+			}
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}

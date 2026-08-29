@@ -2734,6 +2734,13 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 		addRow(userIDs[i], "superadmin", "logout", "auth", nil, "User logged out", logoutTime)
 	}
 
+	// A few failed password-change attempts (brute-force / typo signals)
+	for i := 0; i < len(userIDs) && i < 2; i++ {
+		failTime := ref.Add(-time.Duration(rand.Intn(48)) * time.Hour)
+		addRow(userIDs[i], "cashier", "password_change_failed", "auth", &userIDs[i],
+			"Failed password change: invalid current password", failTime)
+	}
+
 	// Category creation
 	for _, catID := range categoryIDs {
 		addRow(userID, "superadmin", "create", "category", &catID,
