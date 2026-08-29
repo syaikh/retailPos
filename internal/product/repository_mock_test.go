@@ -13,7 +13,7 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-// stubStockWriter is a no-op ProductStockWriter used by the pgxmock tests:
+// stubStockWriter is a no-op StockWriter used by the pgxmock tests:
 // the product_stock SQL now lives in the inventory-provided writer, so the
 // mock tests only exercise the product-owned products SQL and assert the rows
 // the repository delegated to the port.

@@ -11,7 +11,7 @@ import (
 )
 
 // ConsignmentAdjuster is the inventory-owned implementation of the consignment
-// module's ConsignmentStockAdjuster port (structural typing — no import of
+// module's StockAdjuster port (structural typing — no import of
 // internal/consignment needed). internal/inventory is the canonical single-writer
 // of product_stock and the inventory_movements ledger
 // (ADR_Modular_Monolith_Module_Boundaries §2.8), so the product_stock writes

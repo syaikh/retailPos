@@ -229,12 +229,12 @@ func (a *uomRefRepoAdapter) GetAllForExport(ctx context.Context) ([]product.UOMR
 }
 
 type scopeNameResolverAdapter struct {
-	storeNames     store.StoreNamesProvider
+	storeNames     store.NamesProvider
 	warehouseNames store.WarehouseNamesProvider
-	categoryNames  category.CategoryNamesProvider
-	brandNames     brand.BrandNamesProvider
-	supplierNames  supplier.SupplierNamesProvider
-	productNames   product.ProductNameLookup
+	categoryNames  category.NamesProvider
+	brandNames     brand.NamesProvider
+	supplierNames  supplier.NamesProvider
+	productNames   product.NameLookup
 	locationRacks  storagelocation.RackProvider
 }
 
@@ -405,16 +405,16 @@ func Initialize(p Providers) *Dependencies {
 	d.UserRepo.SetCache(d.Cache)
 	d.ProductRepo = product.NewRepository(p.DB)
 	d.ProductRepo.SetCache(d.Cache)
-	d.ProductRepo.SetProductStockWriter(inventory.ProductStockWriter{})
+	d.ProductRepo.SetProductStockWriter(inventory.StockWriter{})
 	d.PurchaseRepo = purchase.NewRepository(p.DB)
 	d.SaleRepo = sale.NewRepository(p.DB)
-	d.SaleRepo.SetProductNameProvider(product.ProductNameLookup{})
-	d.SaleRepo.SetCustomerNameProvider(customer.CustomerNameLookup{})
+	d.SaleRepo.SetProductNameProvider(product.NameLookup{})
+	d.SaleRepo.SetCustomerNameProvider(customer.NameLookup{})
 	d.InventoryRepo = inventory.NewRepository(p.DB)
 	d.InventoryRepo.SetLocationRackProvider(storagelocation.RackProvider{})
-	d.InventoryRepo.SetProductMetaProvider(product.ProductMetaLookup{})
+	d.InventoryRepo.SetProductMetaProvider(product.MetaLookup{})
 	d.CustomerRepo = customer.NewRepository(p.DB)
-	d.CustomerRepo.SetCustomerGroupNameProvider(customergroup.CustomerGroupNameLookup{})
+	d.CustomerRepo.SetCustomerGroupNameProvider(customergroup.NameLookup{})
 	d.CategoryRepo = category.NewRepository(p.DB)
 	d.CategoryRepo.SetCache(d.Cache)
 	d.CategoryRepo.SetProductQueryProvider(product.CategoryProductCountProvider{})
@@ -433,45 +433,45 @@ func Initialize(p Providers) *Dependencies {
 		d.ReportRepo.RefreshSalesMV,
 	)
 	d.PricingRepo = pricing.NewRepository(p.DB)
-	d.PricingRepo.SetProductPricingProvider(product.ProductPricingLookup{})
-	d.PricingRepo.SetCategorySearchProvider(category.CategoryNamesProvider{})
-	d.PricingRepo.SetBrandSearchProvider(brand.BrandNamesProvider{})
+	d.PricingRepo.SetProductPricingProvider(product.PricingLookup{})
+	d.PricingRepo.SetCategorySearchProvider(category.NamesProvider{})
+	d.PricingRepo.SetBrandSearchProvider(brand.NamesProvider{})
 	d.SupplierRepo = supplier.NewRepository(p.DB)
-	d.SupplierRepo.SetProductSupplierStore(product.ProductSupplierLinkStore{})
+	d.SupplierRepo.SetProductSupplierStore(product.SupplierLinkStore{})
 	d.CustomerGroupRepo = customergroup.NewRepository(p.DB)
-	d.CustomerGroupRepo.SetCustomerCountProvider(customer.CustomerGroupCountsLookup{})
+	d.CustomerGroupRepo.SetCustomerCountProvider(customer.GroupCountsLookup{})
 	d.StoreRepo = store.NewRepository(p.DB)
 	d.ShiftRepo = shift.NewRepository(p.DB)
 	d.ShiftRepo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
-	d.ShiftRepo.SetStoreNameProvider(store.StoreNamesProvider{})
+	d.ShiftRepo.SetStoreNameProvider(store.NamesProvider{})
 	d.ShiftRepo.SetUsernameProvider(user.UsernamesProvider{})
 	d.StockOpnameRepo = stockopname.NewRepository(p.DB)
 	d.StockOpnameRepo.SetUsernameProvider(user.UsernamesProvider{})
 	d.StockOpnameRepo.SetAssignableUserProvider(user.AssignableUsersProvider{})
 	d.StockOpnameRepo.SetUserRoleNameProvider(user.RoleNameProvider{})
 	d.StockOpnameRepo.SetScopeNameResolver(&scopeNameResolverAdapter{
-		storeNames:     store.StoreNamesProvider{},
+		storeNames:     store.NamesProvider{},
 		warehouseNames: store.WarehouseNamesProvider{},
-		categoryNames:  category.CategoryNamesProvider{},
-		brandNames:     brand.BrandNamesProvider{},
-		supplierNames:  supplier.SupplierNamesProvider{},
-		productNames:   product.ProductNameLookup{},
+		categoryNames:  category.NamesProvider{},
+		brandNames:     brand.NamesProvider{},
+		supplierNames:  supplier.NamesProvider{},
+		productNames:   product.NameLookup{},
 		locationRacks:  storagelocation.RackProvider{},
 	})
 	d.StockOpnameRepo.SetLocationScopeProvider(storagelocation.RackProvider{})
 	d.StockOpnameRepo.SetWarehouseStoreIDProvider(store.WarehouseStoreIDProvider{})
 	d.StockOpnameRepo.SetStockLocker(inventory.StockLocker{})
 	d.StockOpnameRepo.SetMovementWriter(inventory.MovementWriter{})
-	d.StockOpnameRepo.SetProductCatalogProvider(product.ProductMetaLookup{})
-	d.StockOpnameRepo.SetProductScopeProvider(product.ProductMetaLookup{})
+	d.StockOpnameRepo.SetProductCatalogProvider(product.MetaLookup{})
+	d.StockOpnameRepo.SetProductScopeProvider(product.MetaLookup{})
 	d.StockOpnameRepo.SetUOMNameProvider(uom.UnitNameLookup{})
 	d.StockOpnameRepo.SetStockSnapshotProvider(inventory.StockSnapshotProvider{})
 	d.StorageLocationRepo = storagelocation.NewRepository(p.DB)
-	d.StorageLocationRepo.SetStoreExistenceProvider(store.StoreExistenceProvider{})
+	d.StorageLocationRepo.SetStoreExistenceProvider(store.ExistenceProvider{})
 	d.ConsignmentRepo = consignment.NewRepository(p.DB)
 	d.ConsignmentRepo.SetStockAdjuster(inventory.ConsignmentAdjuster{})
 	d.ConsignmentRepo.SetSupplierStore(supplier.ConsignmentSupplierProvider{})
-	d.ConsignmentRepo.SetProductMetaProvider(product.ProductMetaLookup{})
+	d.ConsignmentRepo.SetProductMetaProvider(product.MetaLookup{})
 	d.ConsignmentRepo.SetUsernameProvider(user.UsernamesProvider{})
 	d.ConsignmentRepo.SetPaymentMethods(&paymentMethodAdapter{repo: d.SaleRepo})
 

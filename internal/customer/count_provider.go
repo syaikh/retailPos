@@ -7,13 +7,13 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-// CustomerGroupCountsLookup is the customer-owned implementation of the
+// GroupCountsLookup is the customer-owned implementation of the
 // customergroup module's CustomerCountProvider port.
-type CustomerGroupCountsLookup struct{}
+type GroupCountsLookup struct{}
 
 // CustomerGroupCounts returns the number of customers per customer group,
 // keyed by group ID. Groups with no customers are absent from the map.
-func (CustomerGroupCountsLookup) CustomerGroupCounts(ctx context.Context, db shared.DBPool) (map[int]int, error) {
+func (GroupCountsLookup) CustomerGroupCounts(ctx context.Context, db shared.DBPool) (map[int]int, error) {
 	rows, err := db.Query(ctx, `
 		SELECT customer_group_id, COUNT(*)
 		FROM customers

@@ -16,7 +16,7 @@ import (
 
 func newWiredInvRepo() *inventory.Repository {
 	repo := inventory.NewRepository(dbPool)
-	repo.SetProductMetaProvider(product.ProductMetaLookup{})
+	repo.SetProductMetaProvider(product.MetaLookup{})
 	repo.SetLocationRackProvider(storagelocation.RackProvider{})
 	return repo
 }

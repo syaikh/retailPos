@@ -20,7 +20,7 @@ func TestShiftService_OpenShift_ValidatesOpeningBalance(t *testing.T) {
 	}
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	svc := NewService(repo)
@@ -58,7 +58,7 @@ func TestShiftService_CloseShift_ValidatesClosingBalance(t *testing.T) {
 	}
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	svc := NewService(repo)
@@ -78,7 +78,7 @@ func TestShiftService_ReviewShift(t *testing.T) {
 	}
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	svc := NewService(repo)
@@ -113,7 +113,7 @@ func TestShiftService_GetActiveShift(t *testing.T) {
 	}
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	svc := NewService(repo)
@@ -134,7 +134,7 @@ func TestShiftService_GetShiftByID(t *testing.T) {
 	}
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	svc := NewService(repo)
@@ -154,7 +154,7 @@ func TestShiftService_ListShifts(t *testing.T) {
 	}
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	svc := NewService(repo)
@@ -175,7 +175,7 @@ func TestShiftService_AuditShift(t *testing.T) {
 	}
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	svc := NewService(repo)
@@ -194,7 +194,7 @@ func TestShiftService_ExportShifts(t *testing.T) {
 	}
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	svc := NewService(repo)
@@ -214,7 +214,7 @@ func TestShiftService_CloseAll(t *testing.T) {
 	}
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	svc := NewService(repo)

@@ -17,7 +17,7 @@ import (
 type Repository struct {
 	db          shared.DBPool
 	cache       *cache.Cache
-	stockWriter ProductStockWriter
+	stockWriter StockWriter
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -30,8 +30,8 @@ func (r *Repository) SetCache(c *cache.Cache) {
 
 // SetProductStockWriter wires the product_stock row writer port. internal/
 // inventory provides the production implementation; the composition root MUST
-// call this before any product stock write path runs (see ProductStockWriter).
-func (r *Repository) SetProductStockWriter(w ProductStockWriter) {
+// call this before any product stock write path runs (see StockWriter).
+func (r *Repository) SetProductStockWriter(w StockWriter) {
 	r.stockWriter = w
 }
 
@@ -39,7 +39,7 @@ func (r *Repository) SetProductStockWriter(w ProductStockWriter) {
 // caller's tx must be used to preserve atomicity. An unwired writer fails fast.
 func (r *Repository) setStoreStock(ctx context.Context, tx pgx.Tx, productID int, storeID *int, quantity int) error {
 	if r.stockWriter == nil {
-		return errors.New("product: product_stock writer not wired; set ProductStockWriter")
+		return errors.New("product: product_stock writer not wired; set StockWriter")
 	}
 	return r.stockWriter.SetStoreStock(ctx, tx, shared.StockRowSet{ProductID: productID, StoreID: storeID, Quantity: quantity})
 }
@@ -48,7 +48,7 @@ func (r *Repository) setStoreStock(ctx context.Context, tx pgx.Tx, productID int
 // a single transaction. An unwired writer fails fast.
 func (r *Repository) setStoreStockBatch(ctx context.Context, items []shared.StockRowSet) error {
 	if r.stockWriter == nil {
-		return errors.New("product: product_stock writer not wired; set ProductStockWriter")
+		return errors.New("product: product_stock writer not wired; set StockWriter")
 	}
 	tx, err := r.db.Begin(ctx)
 	if err != nil {

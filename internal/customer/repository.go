@@ -24,7 +24,7 @@ func (r *ImportResult) AddError(row int, msg string) {
 
 type Repository struct {
 	db                shared.DBPool
-	groupNameProvider CustomerGroupNameProvider
+	groupNameProvider GroupNameProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -32,10 +32,10 @@ func NewRepository(db shared.DBPool) *Repository {
 }
 
 // SetCustomerGroupNameProvider wires the customer-group-owned implementation of
-// the CustomerGroupNameProvider port (see ports.go). customer_groups is owned
+// the GroupNameProvider port (see ports.go). customer_groups is owned
 // by internal/customergroup (ADR §2.8 Referensi); customer routes group-name
 // enrichment through this port instead of a customer_groups JOIN.
-func (r *Repository) SetCustomerGroupNameProvider(p CustomerGroupNameProvider) {
+func (r *Repository) SetCustomerGroupNameProvider(p GroupNameProvider) {
 	r.groupNameProvider = p
 }
 

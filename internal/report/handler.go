@@ -13,6 +13,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
+	// Side-effect import: registers the PNG decoder so excelize can embed PNG
+	// logos in exported reports.
 	_ "image/png"
 )
 
@@ -590,7 +592,6 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 				})
 				_ = f.SetCellValue("Report", fmt.Sprintf("A%d", textRow), "(zero-revenue hours excluded)")
 				_ = f.SetCellStyle("Report", fmt.Sprintf("A%d", textRow), fmt.Sprintf("A%d", textRow), italicStyle)
-				textRow++
 			}
 		}
 	}

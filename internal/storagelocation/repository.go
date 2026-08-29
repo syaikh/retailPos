@@ -19,7 +19,7 @@ const baseFrom = `FROM storage_locations sl`
 
 type Repository struct {
 	db                     shared.DBPool
-	storeExistenceProvider StoreExistenceProvider
+	storeExistenceProvider ExistenceProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -27,10 +27,10 @@ func NewRepository(db shared.DBPool) *Repository {
 }
 
 // SetStoreExistenceProvider wires the store-owned implementation of the
-// StoreExistenceProvider port (ADR §2.4). It MUST be called before any
+// ExistenceProvider port (ADR §2.4). It MUST be called before any
 // create/update path validates a store/warehouse reference — an unwired
 // repository fails fast at runtime.
-func (r *Repository) SetStoreExistenceProvider(p StoreExistenceProvider) {
+func (r *Repository) SetStoreExistenceProvider(p ExistenceProvider) {
 	r.storeExistenceProvider = p
 }
 

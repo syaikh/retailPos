@@ -43,8 +43,8 @@ func TestMain(m *testing.M) {
 func newTestRepo(t *testing.T) *Repository {
 	t.Helper()
 	repo := NewRepository(dbPool)
-	repo.SetProductNameProvider(product.ProductNameLookup{})
-	repo.SetCustomerNameProvider(customer.CustomerNameLookup{})
+	repo.SetProductNameProvider(product.NameLookup{})
+	repo.SetCustomerNameProvider(customer.NameLookup{})
 	return repo
 }
 

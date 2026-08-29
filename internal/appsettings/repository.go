@@ -77,7 +77,7 @@ func (r *Repository) UpsertMultiple(ctx context.Context, settings map[string]str
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	for k, v := range settings {
 		_, err := tx.Exec(ctx,

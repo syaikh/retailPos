@@ -7,18 +7,18 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-// ProductMetaLookup is the product-owned implementation of the inventory
+// MetaLookup is the product-owned implementation of the inventory
 // module's consumer-side port (inventory.ProductMetaProvider, structural
 // typing — no import of internal/inventory needed). internal/product is the
 // canonical owner of the products table
 // (ADR_Modular_Monolith_Module_Boundaries §2.8 Katalog), so the sku/name
 // lookups that internal/inventory uses for rack-stock listing enrichment are
 // computed here rather than via a cross-context JOIN inside internal/inventory.
-type ProductMetaLookup struct{}
+type MetaLookup struct{}
 
 // ProductMetasByIDs returns product identity rows (sku/name) keyed by product
 // ID. IDs with no matching product are absent from the map.
-func (ProductMetaLookup) ProductMetasByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]shared.ProductMeta, error) {
+func (MetaLookup) ProductMetasByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]shared.ProductMeta, error) {
 	if len(ids) == 0 {
 		return map[int]shared.ProductMeta{}, nil
 	}
@@ -50,7 +50,7 @@ func (ProductMetaLookup) ProductMetasByIDs(ctx context.Context, db shared.DBPool
 // product.cost.view permission on display paths; this provider serves backend
 // business reads (e.g. stock opname posting computes adjustment line totals
 // from the product cost).
-func (ProductMetaLookup) ProductCostsByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]int, error) {
+func (MetaLookup) ProductCostsByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]int, error) {
 	if len(ids) == 0 {
 		return map[int]int{}, nil
 	}
@@ -80,7 +80,7 @@ func (ProductMetaLookup) ProductCostsByIDs(ctx context.Context, db shared.DBPool
 // from product_stock by internal/inventory, not here. Scope IDs ≤ 0 yield an
 // empty result (products.supplier membership lives in product_suppliers, also
 // owned by internal/product).
-func (ProductMetaLookup) ScopeProductIDs(ctx context.Context, db shared.DBPool, scopeType string, scopeID int64) ([]int, error) {
+func (MetaLookup) ScopeProductIDs(ctx context.Context, db shared.DBPool, scopeType string, scopeID int64) ([]int, error) {
 	var query string
 	var args []interface{}
 	switch scopeType {
@@ -122,7 +122,7 @@ func (ProductMetaLookup) ScopeProductIDs(ctx context.Context, db shared.DBPool, 
 // opname snapshot read-model, ordered by name. When ids is empty all active
 // products are returned. Stock quantities are NOT included — they are owned
 // by internal/inventory (product_stock) and merged by the consumer.
-func (ProductMetaLookup) SnapshotProducts(ctx context.Context, db shared.DBPool, ids []int) ([]shared.SnapshotProduct, error) {
+func (MetaLookup) SnapshotProducts(ctx context.Context, db shared.DBPool, ids []int) ([]shared.SnapshotProduct, error) {
 	query := `
 		SELECT p.id, p.name, p.sku, COALESCE(p.barcode, ''), p.unit_of_measure_id
 		FROM products p

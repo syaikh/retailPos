@@ -36,17 +36,17 @@ func (testScopeNameResolver) ScopeNames(ctx context.Context, db shared.DBPool, r
 		var err error
 		switch scopeType {
 		case "store":
-			byID, err = (store.StoreNamesProvider{}).StoreNamesByIDs(ctx, db, ids)
+			byID, err = (store.NamesProvider{}).StoreNamesByIDs(ctx, db, ids)
 		case "warehouse":
 			byID, err = (store.WarehouseNamesProvider{}).WarehouseNamesByIDs(ctx, db, ids)
 		case "category":
-			byID, err = (category.CategoryNamesProvider{}).CategoryNamesByIDs(ctx, db, ids)
+			byID, err = (category.NamesProvider{}).CategoryNamesByIDs(ctx, db, ids)
 		case "brand":
-			byID, err = (brand.BrandNamesProvider{}).BrandNamesByIDs(ctx, db, ids)
+			byID, err = (brand.NamesProvider{}).BrandNamesByIDs(ctx, db, ids)
 		case "supplier":
-			byID, err = (supplier.SupplierNamesProvider{}).SupplierNamesByIDs(ctx, db, ids)
+			byID, err = (supplier.NamesProvider{}).SupplierNamesByIDs(ctx, db, ids)
 		case "product":
-			byID, err = (product.ProductNameLookup{}).ProductNamesByIDs(ctx, db, ids)
+			byID, err = (product.NameLookup{}).ProductNamesByIDs(ctx, db, ids)
 		case "location":
 			racks, rerr := (storagelocation.RackProvider{}).RacksByIDs(ctx, db, ids)
 			if rerr != nil {
@@ -83,8 +83,8 @@ func newTestRepository() *Repository {
 	repo.SetWarehouseStoreIDProvider(store.WarehouseStoreIDProvider{})
 	repo.SetStockLocker(inventory.StockLocker{})
 	repo.SetMovementWriter(inventory.MovementWriter{})
-	repo.SetProductCatalogProvider(product.ProductMetaLookup{})
-	repo.SetProductScopeProvider(product.ProductMetaLookup{})
+	repo.SetProductCatalogProvider(product.MetaLookup{})
+	repo.SetProductScopeProvider(product.MetaLookup{})
 	repo.SetUOMNameProvider(uom.UnitNameLookup{})
 	repo.SetStockSnapshotProvider(inventory.StockSnapshotProvider{})
 	return repo

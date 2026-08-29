@@ -6,16 +6,16 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-// SupplierNamesProvider is the supplier-owned implementation of the stockopname
+// NamesProvider is the supplier-owned implementation of the stockopname
 // module's consumer-side scope-name read (stockopname.ScopeNameResolver,
 // structural typing — no import of internal/stockopname needed). internal/supplier
 // owns the suppliers table (ADR §2.8 Referensi), so supplier scope names are
 // resolved here rather than via a correlated subquery inside internal/stockopname.
-type SupplierNamesProvider struct{}
+type NamesProvider struct{}
 
 // SupplierNamesByIDs returns a map of supplier id -> name for the given ids.
 // IDs without a supplier row are absent from the result map.
-func (SupplierNamesProvider) SupplierNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error) {
+func (NamesProvider) SupplierNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error) {
 	if len(ids) == 0 {
 		return map[int]string{}, nil
 	}

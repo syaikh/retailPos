@@ -8,13 +8,13 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-// ConsignmentStockAdjuster is the consumer-side port for product_stock writes,
+// StockAdjuster is the consumer-side port for product_stock writes,
 // implemented by internal/inventory (structural typing — no import of
 // internal/inventory needed). internal/inventory is the single-writer of
 // product_stock and the inventory_movements ledger, so consignment receipts,
 // pending returns, and returns write through this port inside the caller's
 // Unit of Work.
-type ConsignmentStockAdjuster interface {
+type StockAdjuster interface {
 	ApplyConsignmentDelta(ctx context.Context, tx pgx.Tx, delta shared.ConsignmentStockDelta) error
 }
 

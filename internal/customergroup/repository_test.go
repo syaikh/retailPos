@@ -17,7 +17,7 @@ var dbPool *pgxpool.Pool
 
 func newWiredRepo() *Repository {
 	repo := NewRepository(dbPool)
-	repo.SetCustomerCountProvider(customer.CustomerGroupCountsLookup{})
+	repo.SetCustomerCountProvider(customer.GroupCountsLookup{})
 	return repo
 }
 

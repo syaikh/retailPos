@@ -27,13 +27,6 @@ func (s *Service) Repo() *Repository {
 	return s.repo
 }
 
-func (s *Service) repoForQuery(ctx context.Context, q queryer) queryer {
-	if q != nil {
-		return q
-	}
-	return s.repo.db
-}
-
 // --- Store scoping ---
 
 // requireStore returns the effective store scope for an operation. A nil
@@ -496,7 +489,7 @@ func (s *Service) ListPendingReturns(ctx context.Context, supplierID int, claims
 // open pending return reduce pending_return; free items reduce available. Both
 // paths also reduce the global product_stock (AC-C23). Ownership is released
 // once available and pending return both reach zero.
-func (s *Service) CreateReturn(ctx context.Context, req *ReturnRequest, userID int, claimsStore *int) (*ConsignmentReturn, error) {
+func (s *Service) CreateReturn(ctx context.Context, req *ReturnRequest, userID int, claimsStore *int) (*Return, error) {
 	if len(req.Items) == 0 {
 		return nil, ErrInvalidQty
 	}
@@ -521,7 +514,7 @@ func (s *Service) CreateReturn(ctx context.Context, req *ReturnRequest, userID i
 	if err != nil {
 		return nil, err
 	}
-	ret := &ConsignmentReturn{
+	ret := &Return{
 		ReturnNumber:  returnNumber,
 		SupplierID:    a.SupplierID,
 		StoreID:       a.StoreID,
@@ -626,7 +619,7 @@ func (s *Service) CreateReturn(ctx context.Context, req *ReturnRequest, userID i
 	return s.repo.GetReturnByID(ctx, s.repo.db, ret.ID)
 }
 
-func (s *Service) GetReturn(ctx context.Context, id int, claimsStore *int) (*ConsignmentReturn, error) {
+func (s *Service) GetReturn(ctx context.Context, id int, claimsStore *int) (*Return, error) {
 	ret, err := s.repo.GetReturnByID(ctx, s.repo.db, id)
 	if err != nil {
 		return nil, err
@@ -637,7 +630,7 @@ func (s *Service) GetReturn(ctx context.Context, id int, claimsStore *int) (*Con
 	return ret, nil
 }
 
-func (s *Service) ListReturns(ctx context.Context, supplierID int, claimsStore *int) ([]ConsignmentReturn, error) {
+func (s *Service) ListReturns(ctx context.Context, supplierID int, claimsStore *int) ([]Return, error) {
 	storeID, err := resolveStore(claimsStore, nil)
 	if err != nil {
 		return nil, err

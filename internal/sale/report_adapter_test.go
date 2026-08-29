@@ -100,7 +100,7 @@ func TestReportAdapter_GetAllCompletedSalesStats_MVParity(t *testing.T) {
 
 	refreshDashboardMVs(ctx, t)
 
-	adapter := reportAdapter{}
+	adapter := ReportAdapter{}
 
 	globRev, globOrders, err := adapter.GetAllCompletedSalesStats(ctx, dbPool, nil)
 	require.NoError(t, err)

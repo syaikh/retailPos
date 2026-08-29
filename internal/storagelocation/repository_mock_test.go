@@ -18,7 +18,7 @@ func newMockRepo(t *testing.T) (pgxmock.PgxPoolIface, *Repository, context.Conte
 	require.NoError(t, err)
 	t.Cleanup(func() { mock.Close() })
 	repo := NewRepository(mock)
-	repo.SetStoreExistenceProvider(store.StoreExistenceProvider{})
+	repo.SetStoreExistenceProvider(store.ExistenceProvider{})
 	return mock, repo, context.Background()
 }
 

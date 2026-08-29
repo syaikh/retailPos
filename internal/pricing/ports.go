@@ -11,7 +11,7 @@ import (
 // bounded context (internal/product); pricing no longer queries those tables
 // directly and instead routes base-price, scope, cost/tax, and autocomplete
 // reads through this port. internal/product provides the production
-// implementation (product.ProductPricingLookup); the composition root MUST wire
+// implementation (product.PricingLookup); the composition root MUST wire
 // it via SetProductPricingProvider before any price resolution or product
 // search — an unwired repository fails fast at runtime.
 type ProductPricingProvider interface {

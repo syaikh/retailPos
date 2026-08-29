@@ -57,9 +57,9 @@ func insertTestProduct(ctx context.Context, t *testing.T, sku string, name strin
 // owner providers wired, mirroring production wiring (internal/wiring).
 func newWiredRepo() *Repository {
 	repo := NewRepository(dbPool)
-	repo.SetProductPricingProvider(product.ProductPricingLookup{})
-	repo.SetCategorySearchProvider(category.CategoryNamesProvider{})
-	repo.SetBrandSearchProvider(brand.BrandNamesProvider{})
+	repo.SetProductPricingProvider(product.PricingLookup{})
+	repo.SetCategorySearchProvider(category.NamesProvider{})
+	repo.SetBrandSearchProvider(brand.NamesProvider{})
 	return repo
 }
 

@@ -6,18 +6,18 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-// CustomerNameLookup is the customer-owned implementation of the sale module's
+// NameLookup is the customer-owned implementation of the sale module's
 // consumer-side port (sale.CustomerNameProvider, structural typing — no import
 // of internal/sale needed). internal/customer is the canonical owner of the
 // customers table (ADR Modular_Monolith_Module_Boundaries §2.8 Referensi), so
 // the name lookups that internal/sale uses for listing/detail/export enrichment
 // and free-text search resolution are computed here rather than via direct SQL
 // inside internal/sale.
-type CustomerNameLookup struct{}
+type NameLookup struct{}
 
 // CustomerNamesByIDs returns customer names keyed by customer ID. IDs with no
 // matching customer are absent from the map.
-func (CustomerNameLookup) CustomerNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error) {
+func (NameLookup) CustomerNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error) {
 	if len(ids) == 0 {
 		return map[int]string{}, nil
 	}
@@ -44,7 +44,7 @@ func (CustomerNameLookup) CustomerNamesByIDs(ctx context.Context, db shared.DBPo
 
 // CustomerIDsByName returns the IDs of customers whose name ILIKE-matches the
 // given search pattern (caller supplies the '%' pattern).
-func (CustomerNameLookup) CustomerIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error) {
+func (NameLookup) CustomerIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error) {
 	rows, err := db.Query(ctx, `
 		SELECT id
 		FROM customers

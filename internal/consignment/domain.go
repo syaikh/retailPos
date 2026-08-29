@@ -158,8 +158,8 @@ type PendingReturn struct {
 	CreatedAt     string  `json:"created_at"`
 }
 
-// ConsignmentReturn is the formal hand-back of goods to the supplier.
-type ConsignmentReturn struct {
+// Return is the formal hand-back of goods to the supplier.
+type Return struct {
 	ID            int          `json:"id"`
 	ReturnNumber  string       `json:"return_number"`
 	SupplierID    int          `json:"supplier_id"`

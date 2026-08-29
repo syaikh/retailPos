@@ -182,7 +182,7 @@ func TestHandler_UploadLogo_InvalidExtension(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "malware.exe")
 	_, _ = part.Write([]byte("MZ"))
-	writer.Close()
+	_ = writer.Close()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/settings/logo", body)
@@ -202,7 +202,7 @@ func TestHandler_UploadLogo_MissingFileField(t *testing.T) {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	_ = writer.WriteField("not_file", "value")
-	writer.Close()
+	_ = writer.Close()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/settings/logo", body)
@@ -223,7 +223,7 @@ func TestHandler_UploadLogo_InvalidMIME(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "fake.png")
 	_, _ = part.Write([]byte("not-a-real-png-image"))
-	writer.Close()
+	_ = writer.Close()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/settings/logo", body)

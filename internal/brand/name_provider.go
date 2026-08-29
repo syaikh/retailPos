@@ -6,16 +6,16 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-// BrandNamesProvider is the brand-owned implementation of the stockopname
+// NamesProvider is the brand-owned implementation of the stockopname
 // module's consumer-side scope-name read (stockopname.ScopeNameResolver,
 // structural typing — no import of internal/stockopname needed). internal/brand
 // owns the brands table (ADR §2.8 Katalog), so brand scope names are resolved
 // here rather than via a correlated subquery inside internal/stockopname.
-type BrandNamesProvider struct{}
+type NamesProvider struct{}
 
 // BrandNamesByIDs returns a map of brand id -> name for the given ids. IDs
 // without a brand row are absent from the result map.
-func (BrandNamesProvider) BrandNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error) {
+func (NamesProvider) BrandNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error) {
 	if len(ids) == 0 {
 		return map[int]string{}, nil
 	}
@@ -44,7 +44,7 @@ func (BrandNamesProvider) BrandNamesByIDs(ctx context.Context, db shared.DBPool,
 // search pattern (caller supplies the '%' pattern). Used by internal/pricing
 // to resolve the pricing rule listing search filter without a brands EXISTS
 // clause (see pricing.BrandNameSearchProvider).
-func (BrandNamesProvider) BrandIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error) {
+func (NamesProvider) BrandIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error) {
 	rows, err := db.Query(ctx, `
 		SELECT id
 		FROM brands

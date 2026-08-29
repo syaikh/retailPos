@@ -20,7 +20,7 @@ type queryer interface {
 
 type Repository struct {
 	db                  shared.DBPool
-	stockAdjuster       ConsignmentStockAdjuster
+	stockAdjuster       StockAdjuster
 	supplierStore       SupplierStore
 	productMetaProvider ProductMetaProvider
 	usernameProvider    UsernameProvider
@@ -31,7 +31,7 @@ func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
 
-func (r *Repository) SetStockAdjuster(p ConsignmentStockAdjuster) {
+func (r *Repository) SetStockAdjuster(p StockAdjuster) {
 	r.stockAdjuster = p
 }
 
@@ -51,9 +51,9 @@ func (r *Repository) SetPaymentMethods(p PaymentMethodProvider) {
 	r.paymentMethods = p
 }
 
-func (r *Repository) stockAdjusterOrPanic() ConsignmentStockAdjuster {
+func (r *Repository) stockAdjusterOrPanic() StockAdjuster {
 	if r.stockAdjuster == nil {
-		panic("consignment.Repository: ConsignmentStockAdjuster not wired (SetStockAdjuster)")
+		panic("consignment.Repository: StockAdjuster not wired (SetStockAdjuster)")
 	}
 	return r.stockAdjuster
 }
@@ -63,20 +63,6 @@ func (r *Repository) supplierStoreOrPanic() SupplierStore {
 		panic("consignment.Repository: SupplierStore not wired (SetSupplierStore)")
 	}
 	return r.supplierStore
-}
-
-func (r *Repository) productMetaOrPanic() ProductMetaProvider {
-	if r.productMetaProvider == nil {
-		panic("consignment.Repository: ProductMetaProvider not wired (SetProductMetaProvider)")
-	}
-	return r.productMetaProvider
-}
-
-func (r *Repository) usernameOrPanic() UsernameProvider {
-	if r.usernameProvider == nil {
-		panic("consignment.Repository: UsernameProvider not wired (SetUsernameProvider)")
-	}
-	return r.usernameProvider
 }
 
 func (r *Repository) paymentMethodsOrPanic() PaymentMethodProvider {
@@ -791,7 +777,7 @@ func (r *Repository) ListOpenPendingReturns(ctx context.Context, q queryer, supp
 
 // --- Returns ---
 
-func (r *Repository) InsertReturn(ctx context.Context, tx pgx.Tx, ret *ConsignmentReturn) error {
+func (r *Repository) InsertReturn(ctx context.Context, tx pgx.Tx, ret *Return) error {
 	var createdAt time.Time
 	err := tx.QueryRow(ctx, `
 		INSERT INTO consignment_returns (return_number, supplier_id, store_id, arrangement_id, returned_by, returned_at, notes)
@@ -821,8 +807,8 @@ func (r *Repository) InsertReturnItem(ctx context.Context, tx pgx.Tx, item *Retu
 	return nil
 }
 
-func (r *Repository) GetReturnByID(ctx context.Context, q queryer, id int) (*ConsignmentReturn, error) {
-	var ret ConsignmentReturn
+func (r *Repository) GetReturnByID(ctx context.Context, q queryer, id int) (*Return, error) {
+	var ret Return
 	var returnedAt, createdAt time.Time
 	err := q.QueryRow(ctx, `
 		SELECT rt.id, rt.return_number, rt.supplier_id, COALESCE(s.name,''), rt.store_id, rt.arrangement_id,
@@ -880,7 +866,7 @@ func (r *Repository) getReturnItems(ctx context.Context, q queryer, returnID int
 	return result, rows.Err()
 }
 
-func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID, storeID int) ([]ConsignmentReturn, error) {
+func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID, storeID int) ([]Return, error) {
 	rows, err := q.Query(ctx, `
 		SELECT rt.id, rt.return_number, rt.supplier_id, COALESCE(s.name,''), rt.store_id, rt.arrangement_id,
 		       rt.returned_by, COALESCE(u.username,''), rt.returned_at, COALESCE(rt.notes,''), rt.created_at
@@ -895,9 +881,9 @@ func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID, sto
 	}
 	defer rows.Close()
 
-	var result []ConsignmentReturn
+	var result []Return
 	for rows.Next() {
-		var ret ConsignmentReturn
+		var ret Return
 		var returnedAt, createdAt time.Time
 		if err := rows.Scan(&ret.ID, &ret.ReturnNumber, &ret.SupplierID, &ret.SupplierName, &ret.StoreID, &ret.ArrangementID,
 			&ret.ReturnedBy, &ret.ReturnedByUsername, &returnedAt, &ret.Notes, &createdAt); err != nil {

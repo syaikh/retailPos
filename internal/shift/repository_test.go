@@ -66,7 +66,7 @@ func createOpenShift(ctx context.Context, t *testing.T, repo *Repository, userID
 func TestShiftRepository_OpenShift(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -125,7 +125,7 @@ func TestShiftRepository_OpenShift(t *testing.T) {
 func TestShiftRepository_CloseShift(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -177,7 +177,7 @@ func TestShiftRepository_CloseShift(t *testing.T) {
 func TestShiftRepository_GetActiveShiftByUserID(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -201,7 +201,7 @@ func TestShiftRepository_GetActiveShiftByUserID(t *testing.T) {
 func TestShiftRepository_ListShifts(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -232,7 +232,7 @@ func TestShiftRepository_ListShifts(t *testing.T) {
 func TestShiftRepository_GetShiftByID(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -257,7 +257,7 @@ func TestShiftRepository_GetShiftByID(t *testing.T) {
 func TestShiftRepository_ListShifts_OwnershipScope(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -297,7 +297,7 @@ func TestShiftRepository_ListShifts_OwnershipScope(t *testing.T) {
 func TestShiftRepository_GetShiftByID_OwnershipScope(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -327,7 +327,7 @@ func TestShiftRepository_GetShiftByID_OwnershipScope(t *testing.T) {
 func TestShiftRepository_ReviewShift(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -358,7 +358,7 @@ func TestShiftRepository_ReviewShift(t *testing.T) {
 func TestShiftRepository_CloseAll(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -420,7 +420,7 @@ func TestShiftRepository_CloseAll(t *testing.T) {
 func TestShiftRepository_OpenShift_WithStore(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -439,7 +439,7 @@ func TestShiftRepository_OpenShift_WithStore(t *testing.T) {
 func TestShiftRepository_CloseShift_WithStore(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -474,7 +474,7 @@ func TestShiftRepository_CloseShift_WithStore(t *testing.T) {
 func TestShiftRepository_GetActiveShiftByUserID_LiveSales(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -510,7 +510,7 @@ func TestShiftRepository_GetActiveShiftByUserID_LiveSales(t *testing.T) {
 func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -608,7 +608,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 func TestShiftRepository_ListShifts_InvalidSort(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -625,7 +625,7 @@ func TestShiftRepository_ListShifts_InvalidSort(t *testing.T) {
 func TestShiftRepository_GetShiftByID_WithStore(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -650,7 +650,7 @@ func TestShiftRepository_GetShiftByID_WithStore(t *testing.T) {
 func TestShiftRepository_GetShiftWithLiveSales_NotFound(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -662,7 +662,7 @@ func TestShiftRepository_GetShiftWithLiveSales_NotFound(t *testing.T) {
 func TestShiftRepository_GetActiveShiftByUserID_AllFields(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -697,7 +697,7 @@ func TestShiftRepository_GetActiveShiftByUserID_AllFields(t *testing.T) {
 func TestShiftRepository_GetShiftByID_AllFields(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -732,7 +732,7 @@ func TestShiftRepository_GetShiftByID_AllFields(t *testing.T) {
 func TestShiftRepository_CloseShift_SalesSummary(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()
@@ -771,7 +771,7 @@ func TestShiftRepository_CloseShift_SalesSummary(t *testing.T) {
 func TestShiftRepository_OpenShift_Duplicate(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.StoreNamesProvider{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	ctx := context.Background()

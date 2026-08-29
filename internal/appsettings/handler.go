@@ -285,7 +285,7 @@ func (h *Handler) UploadLogo(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "file is required or too large (max 2MB)"))
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Validate extension.
 	ext := filepath.Ext(header.Filename)
@@ -309,7 +309,7 @@ func (h *Handler) UploadLogo(c *gin.Context) {
 		}
 	}
 	if seeker, ok := file.(io.Seeker); ok {
-		seeker.Seek(0, io.SeekStart)
+		_, _ = seeker.Seek(0, io.SeekStart)
 	}
 
 	// Save file.
@@ -330,7 +330,7 @@ func (h *Handler) UploadLogo(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	if _, err := io.Copy(out, file); err != nil {
 		shared.InternalError(c, err)

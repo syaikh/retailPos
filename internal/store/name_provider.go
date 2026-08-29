@@ -9,17 +9,17 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-// StoreNamesProvider is the store-owned implementation of the shift module's
+// NamesProvider is the store-owned implementation of the shift module's
 // consumer-side port (shift.StoreNameProvider, structural typing — no import
 // of internal/shift needed). internal/store is the canonical owner of the
 // stores table (ADR Modular_Monolith_Module_Boundaries §2.8 Referensi), so
 // shift listing/detail reads resolve store names here rather than via a direct
 // JOIN on stores.
-type StoreNamesProvider struct{}
+type NamesProvider struct{}
 
 // StoreNamesByIDs returns a map of store id -> name for the given ids. IDs
 // without a store row (e.g. deleted) are absent from the result map.
-func (StoreNamesProvider) StoreNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error) {
+func (NamesProvider) StoreNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error) {
 	if len(ids) == 0 {
 		return map[int]string{}, nil
 	}

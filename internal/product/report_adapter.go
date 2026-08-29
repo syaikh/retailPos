@@ -6,13 +6,13 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-type reportAdapter struct{}
+type ReportAdapter struct{}
 
-func NewReportAdapter() *reportAdapter {
-	return &reportAdapter{}
+func NewReportAdapter() *ReportAdapter {
+	return &ReportAdapter{}
 }
 
-func (reportAdapter) GetActiveProductCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error) {
+func (ReportAdapter) GetActiveProductCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error) {
 	query := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL`
 	args := []interface{}{}
 	if storeID != nil {

@@ -55,7 +55,7 @@ func newTestService(t *testing.T) *Service {
 	repo := NewRepository(dbPool)
 	repo.SetStockAdjuster(inventory.ConsignmentAdjuster{})
 	repo.SetSupplierStore(supplier.ConsignmentSupplierProvider{})
-	repo.SetProductMetaProvider(product.ProductMetaLookup{})
+	repo.SetProductMetaProvider(product.MetaLookup{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetPaymentMethods(dbPaymentMethods{})
 	return NewService(repo)

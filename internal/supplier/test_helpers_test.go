@@ -12,6 +12,6 @@ import (
 func newTestRepo(t *testing.T) *Repository {
 	t.Helper()
 	repo := NewRepository(dbPool)
-	repo.SetProductSupplierStore(product.ProductSupplierLinkStore{})
+	repo.SetProductSupplierStore(product.SupplierLinkStore{})
 	return repo
 }

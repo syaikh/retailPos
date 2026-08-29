@@ -10,17 +10,17 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// ProductSupplierLinkStore is the product-owned implementation of the supplier
+// SupplierLinkStore is the product-owned implementation of the supplier
 // module's consumer-side port (supplier.ProductSupplierStore, structural
 // typing — no import of internal/supplier needed). internal/product is the
 // canonical owner of the product_suppliers link table (ADR
 // Modular_Monolith_Module_Boundaries §2.8 Katalog), so every read and write
 // that internal/supplier performs on that table is computed here rather than
 // via direct SQL inside internal/supplier.
-type ProductSupplierLinkStore struct{}
+type SupplierLinkStore struct{}
 
 // CreateLink inserts a new product-supplier link row.
-func (ProductSupplierLinkStore) CreateLink(ctx context.Context, db shared.DBPool, ps *shared.ProductSupplier) error {
+func (SupplierLinkStore) CreateLink(ctx context.Context, db shared.DBPool, ps *shared.ProductSupplier) error {
 	var createdAt time.Time
 	err := db.QueryRow(ctx, `
 		INSERT INTO product_suppliers (product_id, supplier_id, supplier_sku, unit_cost, lead_time_days, is_preferred)
@@ -36,7 +36,7 @@ func (ProductSupplierLinkStore) CreateLink(ctx context.Context, db shared.DBPool
 }
 
 // DeleteLink removes the product-supplier link row.
-func (ProductSupplierLinkStore) DeleteLink(ctx context.Context, db shared.DBPool, productID, supplierID int) error {
+func (SupplierLinkStore) DeleteLink(ctx context.Context, db shared.DBPool, productID, supplierID int) error {
 	_, err := db.Exec(ctx, `
 		DELETE FROM product_suppliers WHERE product_id = $1 AND supplier_id = $2
 	`, productID, supplierID)
@@ -47,7 +47,7 @@ func (ProductSupplierLinkStore) DeleteLink(ctx context.Context, db shared.DBPool
 }
 
 // GetLink returns a single link row, or shared.ErrProductSupplierNotFound.
-func (ProductSupplierLinkStore) GetLink(ctx context.Context, db shared.DBPool, productID, supplierID int) (*shared.ProductSupplier, error) {
+func (SupplierLinkStore) GetLink(ctx context.Context, db shared.DBPool, productID, supplierID int) (*shared.ProductSupplier, error) {
 	var ps shared.ProductSupplier
 	var createdAt time.Time
 
@@ -71,7 +71,7 @@ func (ProductSupplierLinkStore) GetLink(ctx context.Context, db shared.DBPool, p
 
 // GetPreferredLink returns the preferred link row for a product, or
 // shared.ErrProductSupplierNotFound when none is preferred.
-func (ProductSupplierLinkStore) GetPreferredLink(ctx context.Context, db shared.DBPool, productID int) (*shared.ProductSupplier, error) {
+func (SupplierLinkStore) GetPreferredLink(ctx context.Context, db shared.DBPool, productID int) (*shared.ProductSupplier, error) {
 	var ps shared.ProductSupplier
 	var createdAt time.Time
 
@@ -95,7 +95,7 @@ func (ProductSupplierLinkStore) GetPreferredLink(ctx context.Context, db shared.
 
 // SetPreferredLink makes the given link the product's single preferred one
 // (clearing any other preferred row for the product first).
-func (ProductSupplierLinkStore) SetPreferredLink(ctx context.Context, db shared.DBPool, productID, supplierID int) error {
+func (SupplierLinkStore) SetPreferredLink(ctx context.Context, db shared.DBPool, productID, supplierID int) error {
 	_, err := db.Exec(ctx, `
 		UPDATE product_suppliers SET is_preferred = false
 		WHERE product_id = $1 AND is_preferred = true
@@ -115,7 +115,7 @@ func (ProductSupplierLinkStore) SetPreferredLink(ctx context.Context, db shared.
 }
 
 // UpdateLink updates the per-supplier metadata of an existing link row.
-func (ProductSupplierLinkStore) UpdateLink(ctx context.Context, db shared.DBPool, ps *shared.ProductSupplier) error {
+func (SupplierLinkStore) UpdateLink(ctx context.Context, db shared.DBPool, ps *shared.ProductSupplier) error {
 	_, err := db.Exec(ctx, `
 		UPDATE product_suppliers
 		SET supplier_sku = $1, unit_cost = $2, lead_time_days = $3, is_preferred = $4, updated_at = NOW()
@@ -130,7 +130,7 @@ func (ProductSupplierLinkStore) UpdateLink(ctx context.Context, db shared.DBPool
 // ListLinksByProduct returns the raw link rows of a product ordered by
 // is_preferred DESC then supplier ID. Supplier enrichment (name/code) is the
 // consumer's responsibility on its own suppliers table.
-func (ProductSupplierLinkStore) ListLinksByProduct(ctx context.Context, db shared.DBPool, productID int) ([]shared.ProductSupplier, error) {
+func (SupplierLinkStore) ListLinksByProduct(ctx context.Context, db shared.DBPool, productID int) ([]shared.ProductSupplier, error) {
 	rows, err := db.Query(ctx, `
 		SELECT id, product_id, supplier_id, supplier_sku, unit_cost, lead_time_days, is_preferred, created_at
 		FROM product_suppliers
@@ -164,7 +164,7 @@ func (ProductSupplierLinkStore) ListLinksByProduct(ctx context.Context, db share
 
 // ListLinksBySupplier returns the link rows of a supplier with the joined
 // product name/SKU (both product_suppliers and products are katalog-owned).
-func (ProductSupplierLinkStore) ListLinksBySupplier(ctx context.Context, db shared.DBPool, supplierID int) ([]shared.ProductSupplier, error) {
+func (SupplierLinkStore) ListLinksBySupplier(ctx context.Context, db shared.DBPool, supplierID int) ([]shared.ProductSupplier, error) {
 	rows, err := db.Query(ctx, `
 		SELECT ps.id, ps.product_id, ps.supplier_id, ps.supplier_sku, ps.unit_cost, ps.lead_time_days, ps.is_preferred, ps.created_at,
 		       p.name, p.sku
@@ -203,7 +203,7 @@ func (ProductSupplierLinkStore) ListLinksBySupplier(ctx context.Context, db shar
 }
 
 // HasPreferredLink reports whether the product has a preferred supplier.
-func (ProductSupplierLinkStore) HasPreferredLink(ctx context.Context, db shared.DBPool, productID int) (bool, error) {
+func (SupplierLinkStore) HasPreferredLink(ctx context.Context, db shared.DBPool, productID int) (bool, error) {
 	var exists bool
 	err := db.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM product_suppliers WHERE product_id = $1 AND is_preferred = true)

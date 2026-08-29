@@ -223,13 +223,13 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 
 	userRepo := user.NewRepository(e2ePool)
 	productRepo := product.NewRepository(e2ePool)
-	productRepo.SetProductStockWriter(inventory.ProductStockWriter{})
+	productRepo.SetProductStockWriter(inventory.StockWriter{})
 	saleRepo := sale.NewRepository(e2ePool)
-	saleRepo.SetProductNameProvider(product.ProductNameLookup{})
-	saleRepo.SetCustomerNameProvider(customer.CustomerNameLookup{})
+	saleRepo.SetProductNameProvider(product.NameLookup{})
+	saleRepo.SetCustomerNameProvider(customer.NameLookup{})
 	inventoryRepo := inventory.NewRepository(e2ePool)
 	customerRepo := customer.NewRepository(e2ePool)
-	customerRepo.SetCustomerGroupNameProvider(customergroup.CustomerGroupNameLookup{})
+	customerRepo.SetCustomerGroupNameProvider(customergroup.NameLookup{})
 	categoryRepo := category.NewRepository(e2ePool)
 	categoryRepo.SetProductQueryProvider(product.CategoryProductCountProvider{})
 	brandRepo := brand.NewRepository(e2ePool)
@@ -237,12 +237,12 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	auditRepo := audit.NewRepository(e2ePool)
 	reportRepo := report.NewRepository(e2ePool)
 	cgRepo := customergroup.NewRepository(e2ePool)
-	cgRepo.SetCustomerCountProvider(customer.CustomerGroupCountsLookup{})
+	cgRepo.SetCustomerCountProvider(customer.GroupCountsLookup{})
 	storeRepo := store.NewRepository(e2ePool)
 	pricingRepo := pricing.NewRepository(e2ePool)
-	pricingRepo.SetProductPricingProvider(product.ProductPricingLookup{})
-	pricingRepo.SetCategorySearchProvider(category.CategoryNamesProvider{})
-	pricingRepo.SetBrandSearchProvider(brand.BrandNamesProvider{})
+	pricingRepo.SetProductPricingProvider(product.PricingLookup{})
+	pricingRepo.SetCategorySearchProvider(category.NamesProvider{})
+	pricingRepo.SetBrandSearchProvider(brand.NamesProvider{})
 	supplierRepo := supplier.NewRepository(e2ePool)
 	purchaseRepo := purchase.NewRepository(e2ePool)
 	consignmentRepo := consignment.NewRepository(e2ePool)
@@ -1547,7 +1547,7 @@ func seedE2EStore(t *testing.T) {
 		t.Skip("no database connection")
 	}
 	var storeCount int
-	e2ePool.QueryRow(context.Background(), "SELECT COUNT(*) FROM stores").Scan(&storeCount)
+	_ = e2ePool.QueryRow(context.Background(), "SELECT COUNT(*) FROM stores").Scan(&storeCount)
 	if storeCount == 0 {
 		_, err := e2ePool.Exec(context.Background(), `
 			INSERT INTO stores (name, address, phone, is_active)

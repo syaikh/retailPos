@@ -12,10 +12,6 @@ import (
 // failures when no REPORT_REFRESH_DEBOUNCE is configured.
 const DefaultReportRefreshDebounce = 30 * time.Second
 
-// retryBackoffCapMultiplier bounds the exponential retry backoff after
-// consecutive refresh failures (base * 2^n, capped at this multiple).
-const retryBackoffCapMultiplier = 8
-
 // RefreshFunc executes a single full refresh of the reporting materialized views.
 type RefreshFunc func(ctx context.Context) error
 
@@ -108,7 +104,7 @@ func (c *RefreshCoordinator) run(ctx context.Context) {
 
 	for {
 		next := c.nextBoundary()
-		timer := time.NewTimer(next.Sub(time.Now()))
+		timer := time.NewTimer(time.Until(next))
 
 		select {
 		case <-timer.C:
@@ -164,8 +160,8 @@ func (c *RefreshCoordinator) refreshOnce(ctx context.Context) error {
 	c.metrics.Started.Add(1)
 	cur := c.metrics.Concurrent.Add(1)
 	for {
-		max := c.metrics.MaxConcurrent.Load()
-		if cur <= max || c.metrics.MaxConcurrent.CompareAndSwap(max, cur) {
+		concurrencyCap := c.metrics.MaxConcurrent.Load()
+		if cur <= concurrencyCap || c.metrics.MaxConcurrent.CompareAndSwap(concurrencyCap, cur) {
 			break
 		}
 	}
@@ -199,7 +195,7 @@ func (c *RefreshCoordinator) refreshOnce(ctx context.Context) error {
 // when healthy, growing exponentially after consecutive failures (bounded).
 // Must be called with c.mu held.
 func (c *RefreshCoordinator) retryDelay() time.Duration {
-	const capBits = 3 // log2(retryBackoffCapMultiplier)
+	const capBits = 3 // bounds exponential backoff growth to 2^3 = 8x the base debounce
 	shift := c.failures
 	if shift > capBits {
 		shift = capBits

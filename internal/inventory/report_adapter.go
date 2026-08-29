@@ -7,13 +7,13 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-type reportAdapter struct{}
+type ReportAdapter struct{}
 
-func NewReportAdapter() *reportAdapter {
-	return &reportAdapter{}
+func NewReportAdapter() *ReportAdapter {
+	return &ReportAdapter{}
 }
 
-func (reportAdapter) GetLowStockCount(ctx context.Context, db shared.DBPool, threshold int, storeID *int) (count int64, err error) {
+func (ReportAdapter) GetLowStockCount(ctx context.Context, db shared.DBPool, threshold int, storeID *int) (count int64, err error) {
 	query := `SELECT COUNT(*) FROM product_stock WHERE quantity <= $1`
 	args := []interface{}{threshold}
 	if storeID != nil {

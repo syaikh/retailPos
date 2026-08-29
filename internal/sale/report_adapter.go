@@ -8,13 +8,13 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-type reportAdapter struct{}
+type ReportAdapter struct{}
 
-func NewReportAdapter() *reportAdapter {
-	return &reportAdapter{}
+func NewReportAdapter() *ReportAdapter {
+	return &ReportAdapter{}
 }
 
-func (reportAdapter) GetCompletedSalesStats(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (revenue int, orders int, err error) {
+func (ReportAdapter) GetCompletedSalesStats(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (revenue int, orders int, err error) {
 	// Read from the real-time `sales` table rather than mv_hourly_sales. The
 	// materialized views are only refreshed at each Jakarta :00 boundary and
 	// intentionally exclude the in-progress hour, which made same-day
@@ -38,7 +38,7 @@ func (reportAdapter) GetCompletedSalesStats(ctx context.Context, db shared.DBPoo
 	return
 }
 
-func (reportAdapter) GetAllCompletedSalesStats(ctx context.Context, db shared.DBPool, storeID *int) (revenue int, orders int, err error) {
+func (ReportAdapter) GetAllCompletedSalesStats(ctx context.Context, db shared.DBPool, storeID *int) (revenue int, orders int, err error) {
 	// Read from mv_dashboard_totals (refreshed by the coordinator at each
 	// Jakarta hour boundary) instead of scanning the raw sales table, keeping
 	// the all-time dashboard total as cheap as the charts. The view holds the
@@ -54,7 +54,7 @@ func (reportAdapter) GetAllCompletedSalesStats(ctx context.Context, db shared.DB
 	return
 }
 
-func (reportAdapter) GetActiveCustomerCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error) {
+func (ReportAdapter) GetActiveCustomerCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error) {
 	query := `SELECT COUNT(DISTINCT customer_id) FROM sales WHERE status = 'completed' AND customer_id IS NOT NULL`
 	args := []interface{}{}
 	if storeID != nil {
@@ -65,7 +65,7 @@ func (reportAdapter) GetActiveCustomerCount(ctx context.Context, db shared.DBPoo
 	return
 }
 
-func (reportAdapter) GetWeeklySales(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.WeeklyReportItem, error) {
+func (ReportAdapter) GetWeeklySales(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.WeeklyReportItem, error) {
 	query := shared.WeeklySalesQueryTemplate
 	args := []interface{}{start, end}
 	if storeID != nil {
@@ -94,7 +94,7 @@ func (reportAdapter) GetWeeklySales(ctx context.Context, db shared.DBPool, start
 	return result, rows.Err()
 }
 
-func (reportAdapter) GetMonthlySales(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.MonthlyReportItem, error) {
+func (ReportAdapter) GetMonthlySales(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.MonthlyReportItem, error) {
 	query := shared.MonthlySalesQueryTemplate
 	args := []interface{}{start, end}
 	if storeID != nil {
@@ -123,7 +123,7 @@ func (reportAdapter) GetMonthlySales(ctx context.Context, db shared.DBPool, star
 	return result, rows.Err()
 }
 
-func (reportAdapter) GetPricingBreakdown(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error) {
+func (ReportAdapter) GetPricingBreakdown(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error) {
 	query := shared.PricingBreakdownQueryTemplate
 	args := []interface{}{start, end}
 	if storeID != nil {

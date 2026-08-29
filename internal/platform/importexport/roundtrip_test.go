@@ -67,7 +67,7 @@ func TestMain(m *testing.M) {
 	_ = adapterReg.Register(uom.NewAdapter(uom.NewRepository(dbPool)))
 	_ = adapterReg.Register(customer.NewAdapter(customer.NewRepository(dbPool)))
 	productRepo := product.NewRepository(dbPool)
-	productRepo.SetProductStockWriter(inventory.ProductStockWriter{})
+	productRepo.SetProductStockWriter(inventory.StockWriter{})
 	_ = adapterReg.Register(product.NewAdapter(productRepo, &testCategoryRefRepo{category.NewRepository(dbPool)}, &testBrandRefRepo{brand.NewRepository(dbPool)}, &testUOMRefRepo{uom.NewRepository(dbPool)}))
 
 	val := validation.NewDefaultPipeline()

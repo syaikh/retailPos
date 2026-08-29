@@ -46,9 +46,9 @@ type pricingTestResolver struct {
 
 func newPricingTestResolver() *pricingTestResolver {
 	repo := pricing.NewRepository(dbPool)
-	repo.SetProductPricingProvider(product.ProductPricingLookup{})
-	repo.SetCategorySearchProvider(category.CategoryNamesProvider{})
-	repo.SetBrandSearchProvider(brand.BrandNamesProvider{})
+	repo.SetProductPricingProvider(product.PricingLookup{})
+	repo.SetCategorySearchProvider(category.NamesProvider{})
+	repo.SetBrandSearchProvider(brand.NamesProvider{})
 	return &pricingTestResolver{resolver: pricing.NewResolver(repo)}
 }
 

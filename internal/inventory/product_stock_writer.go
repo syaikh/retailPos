@@ -10,20 +10,20 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-// ProductStockWriter is the inventory-owned implementation of the product
-// module's ProductStockWriter port (structural typing — no import of
+// StockWriter is the inventory-owned implementation of the product
+// module's StockWriter port (structural typing — no import of
 // internal/product needed). internal/inventory is the canonical single-writer
 // of product_stock (ADR_Modular_Monolith_Module_Boundaries §2.8), so the
 // product_stock row writes performed when products are created, updated,
 // restored or bulk-imported live here rather than inside internal/product.
-type ProductStockWriter struct{}
+type StockWriter struct{}
 
 // SetStoreStock upserts a single product_stock row to an absolute quantity
 // within the caller's transaction: the store-scoped row when StoreID is set,
 // otherwise the global row. Product writes are a Unit of Work
 // (ADR_Cross_Module_Transaction_Strategy), so the caller's tx must be used to
 // preserve atomicity.
-func (w ProductStockWriter) SetStoreStock(ctx context.Context, tx pgx.Tx, item shared.StockRowSet) error {
+func (w StockWriter) SetStoreStock(ctx context.Context, tx pgx.Tx, item shared.StockRowSet) error {
 	if item.StoreID != nil {
 		_, err := tx.Exec(ctx, `
 			INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, $2, $3)
@@ -55,7 +55,7 @@ func (w ProductStockWriter) SetStoreStock(ctx context.Context, tx pgx.Tx, item s
 // SetStoreStockBatch upserts many product_stock rows in a single statement,
 // mixing store-scoped and global rows as given. It is used by bulk imports,
 // where per-row round trips would be prohibitive.
-func (w ProductStockWriter) SetStoreStockBatch(ctx context.Context, tx pgx.Tx, items []shared.StockRowSet) error {
+func (w StockWriter) SetStoreStockBatch(ctx context.Context, tx pgx.Tx, items []shared.StockRowSet) error {
 	if len(items) == 0 {
 		return nil
 	}

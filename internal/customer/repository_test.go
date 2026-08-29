@@ -18,7 +18,7 @@ var dbPool *pgxpool.Pool
 
 func newWiredRepo() *Repository {
 	repo := NewRepository(dbPool)
-	repo.SetCustomerGroupNameProvider(customergroup.CustomerGroupNameLookup{})
+	repo.SetCustomerGroupNameProvider(customergroup.NameLookup{})
 	return repo
 }
 

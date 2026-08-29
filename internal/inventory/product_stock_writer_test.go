@@ -26,7 +26,7 @@ func TestProductStockWriter_SetStoreStock(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	w := ProductStockWriter{}
+	w := StockWriter{}
 
 	// global row (nil store): first write inserts, second write updates in place
 	require.NoError(t, w.SetStoreStock(ctx, tx, shared.StockRowSet{ProductID: productID, Quantity: 100}))
@@ -64,7 +64,7 @@ func TestProductStockWriter_SetStoreStockBatch(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	err = ProductStockWriter{}.SetStoreStockBatch(ctx, tx, []shared.StockRowSet{
+	err = StockWriter{}.SetStoreStockBatch(ctx, tx, []shared.StockRowSet{
 		{ProductID: id1, Quantity: 10},
 		{ProductID: id2, Quantity: 20},
 		{ProductID: id1, StoreID: &storeID, Quantity: 5},

@@ -8,18 +8,18 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-// ProductPricingLookup is the product-owned implementation of the pricing
+// PricingLookup is the product-owned implementation of the pricing
 // module's consumer-side port (pricing.ProductPricingProvider, structural
 // typing — no import of internal/pricing needed). internal/product is the
 // canonical owner of the products and tax_classes tables
 // (ADR_Modular_Monolith_Module_Boundaries §2.8 Katalog), so the base-price,
 // scope, cost/tax, and autocomplete reads that internal/pricing needs are
 // computed here rather than via cross-context SQL inside internal/pricing.
-type ProductPricingLookup struct{}
+type PricingLookup struct{}
 
 // BasePricesByIDs returns product base prices keyed by product ID. IDs with no
 // matching non-deleted product are absent from the map.
-func (ProductPricingLookup) BasePricesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]int, error) {
+func (PricingLookup) BasePricesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]int, error) {
 	if len(ids) == 0 {
 		return map[int]int{}, nil
 	}
@@ -45,7 +45,7 @@ func (ProductPricingLookup) BasePricesByIDs(ctx context.Context, db shared.DBPoo
 
 // ProductScopesByIDs returns the category/brand scope keyed by product ID. IDs
 // with no matching non-deleted product are absent from the map.
-func (ProductPricingLookup) ProductScopesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]shared.ProductScope, error) {
+func (PricingLookup) ProductScopesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]shared.ProductScope, error) {
 	if len(ids) == 0 {
 		return map[int]shared.ProductScope{}, nil
 	}
@@ -72,7 +72,7 @@ func (ProductPricingLookup) ProductScopesByIDs(ctx context.Context, db shared.DB
 
 // ProductCostTaxesByIDs returns cost/tax/name rows keyed by product ID. IDs
 // with no matching non-deleted product are absent from the map.
-func (ProductPricingLookup) ProductCostTaxesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]shared.ProductCostTax, error) {
+func (PricingLookup) ProductCostTaxesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]shared.ProductCostTax, error) {
 	if len(ids) == 0 {
 		return map[int]shared.ProductCostTax{}, nil
 	}
@@ -100,7 +100,7 @@ func (ProductPricingLookup) ProductCostTaxesByIDs(ctx context.Context, db shared
 
 // ProductIDsByName returns the IDs of non-deleted products whose name
 // ILIKE-matches the given search pattern (caller supplies the '%' pattern).
-func (ProductPricingLookup) ProductIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error) {
+func (PricingLookup) ProductIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error) {
 	rows, err := db.Query(ctx, `
 		SELECT id
 		FROM products
@@ -123,7 +123,7 @@ func (ProductPricingLookup) ProductIDsByName(ctx context.Context, db shared.DBPo
 
 // SearchPricingProducts returns product autocomplete rows (active, non-deleted)
 // matching name, sku, or barcode, ordered by name.
-func (ProductPricingLookup) SearchPricingProducts(ctx context.Context, db shared.DBPool, query string, limit int) ([]shared.ProductSearchResult, error) {
+func (PricingLookup) SearchPricingProducts(ctx context.Context, db shared.DBPool, query string, limit int) ([]shared.ProductSearchResult, error) {
 	if query == "" {
 		return []shared.ProductSearchResult{}, nil
 	}
