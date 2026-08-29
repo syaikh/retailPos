@@ -66,6 +66,7 @@ yarn-error.log*
 # IDE files
 .vscode/
 .idea/
+.obsidian/
 *.swp
 *.swo
 *~
