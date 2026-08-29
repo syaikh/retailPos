@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,7 @@ import (
 	"retail-pos-system/internal/middleware"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -294,6 +296,8 @@ type mockService struct {
 	getMultipleFn func(ctx context.Context, keys []string) (map[string]string, error)
 	upsertFn      func(ctx context.Context, settings map[string]string) error
 	saveLogoFn    func(ctx context.Context, path string) error
+	inTxFn        func(ctx context.Context, fn func(tx pgx.Tx) error) error
+	upsertTxFn    func(ctx context.Context, tx pgx.Tx, settings map[string]string) error
 }
 
 func (m *mockService) GetAll(ctx context.Context) (map[string]string, error) {
@@ -317,6 +321,26 @@ func (m *mockService) GetMultiple(ctx context.Context, keys []string) (map[strin
 }
 
 func (m *mockService) Upsert(ctx context.Context, settings map[string]string) error {
+	if m.upsertFn != nil {
+		return m.upsertFn(ctx, settings)
+	}
+	return nil
+}
+
+// InTx runs fn (defaulting to a nil transaction, adequate for unit tests).
+func (m *mockService) InTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	if m.inTxFn != nil {
+		return m.inTxFn(ctx, fn)
+	}
+	return fn(nil)
+}
+
+// UpsertTx runs within an existing transaction; fall back to the plain Upsert
+// mock so existing tests that only wire upsertFn still pass.
+func (m *mockService) UpsertTx(ctx context.Context, tx pgx.Tx, settings map[string]string) error {
+	if m.upsertTxFn != nil {
+		return m.upsertTxFn(ctx, tx, settings)
+	}
 	if m.upsertFn != nil {
 		return m.upsertFn(ctx, settings)
 	}
@@ -514,6 +538,11 @@ func (m *mockAuditCreator) CreateAuditLog(_ context.Context, log *audit.Log) err
 	return nil
 }
 
+func (m *mockAuditCreator) CreateAuditLogTx(_ context.Context, _ pgx.Tx, log *audit.Log) error {
+	m.captured = log
+	return nil
+}
+
 func TestHandler_UpdateAll_EmitsConfigUpdatedAudit(t *testing.T) {
 	svc := &mockService{
 		upsertFn: func(_ context.Context, _ map[string]string) error { return nil },
@@ -534,4 +563,42 @@ func TestHandler_UpdateAll_EmitsConfigUpdatedAudit(t *testing.T) {
 	require.NotNil(t, auditSvc.captured, "audit log should be emitted")
 	assert.Equal(t, "config_updated", auditSvc.captured.Action)
 	assert.Equal(t, "app_settings", auditSvc.captured.EntityType)
+}
+
+// UpdateAll — fail-closed audit write
+// ──────────────────────────────────────────────────────────────────────
+
+type mockAuditCreatorFailing struct {
+	captured *audit.Log
+}
+
+func (m *mockAuditCreatorFailing) CreateAuditLog(_ context.Context, log *audit.Log) error {
+	m.captured = log
+	return errors.New("audit write failure")
+}
+
+func (m *mockAuditCreatorFailing) CreateAuditLogTx(_ context.Context, _ pgx.Tx, log *audit.Log) error {
+	m.captured = log
+	return errors.New("audit write failure")
+}
+
+func TestHandler_UpdateAll_FailClosedOnAuditError(t *testing.T) {
+	svc := &mockService{
+		upsertFn: func(_ context.Context, _ map[string]string) error { return nil },
+	}
+	auditSvc := &mockAuditCreatorFailing{}
+	h := NewHandler(svc, auditSvc, nil)
+
+	r := gin.New()
+	r.PUT("/api/settings", h.UpdateAll)
+
+	body := `{"settings":{"store_name":"New Name"}}`
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/settings", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code, "export must fail closed when the audit write fails")
+	require.NotNil(t, auditSvc.captured, "audit log should still be attempted")
+	assert.Equal(t, "config_updated", auditSvc.captured.Action)
 }

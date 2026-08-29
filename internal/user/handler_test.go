@@ -247,6 +247,7 @@ func TestHandler_CreateUser_WithReportsTo(t *testing.T) {
 
 func TestHandler_UpdateUser_WithReportsTo(t *testing.T) {
 	skipIfNoDB(t)
+	ensureTestUserExists(t)
 	r := setupUserRouterWithAudit()
 	repo := NewRepository(dbPool)
 	ctx := context.Background()

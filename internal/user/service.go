@@ -3,6 +3,8 @@ package user
 import (
 	"context"
 	"errors"
+
+	"github.com/jackc/pgx/v5"
 )
 
 var ErrManagerNotFound = errors.New("manager not found")
@@ -31,10 +33,10 @@ type Repo interface {
 }
 
 type service struct {
-	repo Repo
+	repo *Repository
 }
 
-func NewService(repo Repo) Service {
+func NewService(repo *Repository) Service {
 	return &service{repo: repo}
 }
 
@@ -74,6 +76,26 @@ func (s *service) CreateUser(ctx context.Context, user *User) error {
 
 func (s *service) UpdateUser(ctx context.Context, user *User) error {
 	return s.repo.UpdateUser(ctx, user)
+}
+
+// InTx runs fn inside a single transaction on the user database, committing on
+// success and rolling back on error. Used to make a user mutation and its audit
+// log atomic.
+func (s *service) InTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	tx, err := s.repo.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// UpdateUserTx updates the user within an existing transaction.
+func (s *service) UpdateUserTx(ctx context.Context, tx pgx.Tx, user *User) error {
+	return s.repo.UpdateUserTx(ctx, tx, user)
 }
 
 func (s *service) UpdatePreferences(ctx context.Context, userID int, language, theme string) error {
@@ -140,6 +162,12 @@ func (s *service) GetRolePermissions(ctx context.Context, roleID int) ([]Permiss
 
 func (s *service) UpdateRolePermissions(ctx context.Context, roleID int, permissionIDs []int) error {
 	return s.repo.UpdateRolePermissions(ctx, roleID, permissionIDs)
+}
+
+// UpdateRolePermissionsTx replaces a role's permissions within an existing
+// transaction.
+func (s *service) UpdateRolePermissionsTx(ctx context.Context, tx pgx.Tx, roleID int, permissionIDs []int) error {
+	return s.repo.updateRolePermissionsTx(ctx, tx, roleID, permissionIDs)
 }
 
 func (s *service) CountUsersByRole(ctx context.Context, roleID int) (int, error) {

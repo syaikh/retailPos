@@ -2768,7 +2768,14 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 			fmt.Sprintf("Activated user #%d", userIDs[1]), t.Add(time.Hour))
 		addRow(userIDs[1], "superadmin", "user_role_changed", "user", &userIDs[1],
 			fmt.Sprintf("Changed role of user #%d", userIDs[1]), t.Add(2*time.Hour))
+		// Self-recall of a parked sale is now audited regardless of role (P2-6 D4).
+		saleID := rand.Intn(100000) + 1
+		addRow(userIDs[1], "cashier", "recall_sale", "sale", &saleID,
+			"Recalled parked sale (self-recall)", t.Add(3*time.Hour))
 	}
+	// Audit log export is itself audit_logs (P2-6 #5).
+	addRow(userID, "superadmin", "audit_exported", "audit", nil,
+		"Exported 1,000 audit log(s) as csv", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
 
 	// Category creation
 	for _, catID := range categoryIDs {

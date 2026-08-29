@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+
 	"retail-pos-system/internal/shared"
 )
 
@@ -72,13 +74,20 @@ func (r *Repository) UpsertMultiple(ctx context.Context, settings map[string]str
 	if len(settings) == 0 {
 		return nil
 	}
-
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := r.upsertMultipleTx(ctx, tx, settings); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
 
+// upsertMultipleTx writes settings within an existing transaction so the caller
+// can combine it atomically with an audit-log write.
+func (r *Repository) upsertMultipleTx(ctx context.Context, tx pgx.Tx, settings map[string]string) error {
 	for k, v := range settings {
 		_, err := tx.Exec(ctx,
 			`INSERT INTO app_settings (key, value, updated_at)
@@ -90,6 +99,5 @@ func (r *Repository) UpsertMultiple(ctx context.Context, settings map[string]str
 			return fmt.Errorf("upsert %q: %w", k, err)
 		}
 	}
-
-	return tx.Commit(ctx)
+	return nil
 }

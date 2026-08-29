@@ -38,6 +38,8 @@ const (
 
 	AuditView Code = "audit.view"
 
+	AuditExport Code = "audit.export"
+
 	ReportView Code = "report.view"
 
 	ProductView        Code = "product.view"
@@ -134,7 +136,7 @@ func All() []Code {
 		DashboardView,
 		UserView, UserCreate, UserUpdate, UserDelete,
 		RoleView, RoleCreate, RoleUpdate, RoleDelete,
-		AuditView,
+		AuditView, AuditExport,
 		ReportView,
 		ProductView, ProductCreate, ProductUpdate, ProductDelete, ProductExport, ProductImport, ProductHistoryView, ProductCostView,
 		CategoryView, CategoryCreate, CategoryUpdate, CategoryDelete, CategoryExport, CategoryImport,

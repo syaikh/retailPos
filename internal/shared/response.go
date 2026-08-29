@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -46,6 +47,52 @@ func ToJSONMap(v interface{}) map[string]interface{} {
 	var m map[string]interface{}
 	_ = json.Unmarshal(b, &m)
 	return m
+}
+
+// piiScrubKeys are lowercase substrings of map keys that must never be persisted
+// in audit payloads. They target directly identifiable customer data.
+var piiScrubKeys = []string{"phone", "email", "customer_name"}
+
+// ScrubPII removes known PII keys from a map recursively (including nested
+// maps and slices) and returns it. It is intended for audit new_values so the
+// immutable trail does not accumulate customer-identifying data (e.g.
+// customer_name on sale records).
+func ScrubPII(m map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return m
+	}
+	for k, v := range m {
+		lk := strings.ToLower(k)
+		scrubbed := false
+		for _, bad := range piiScrubKeys {
+			if strings.Contains(lk, bad) {
+				delete(m, k)
+				scrubbed = true
+				break
+			}
+		}
+		if scrubbed {
+			continue
+		}
+		switch val := v.(type) {
+		case map[string]interface{}:
+			ScrubPII(val)
+		case []interface{}:
+			scrubSlice(val)
+		}
+	}
+	return m
+}
+
+func scrubSlice(s []interface{}) {
+	for _, item := range s {
+		switch v := item.(type) {
+		case map[string]interface{}:
+			ScrubPII(v)
+		case []interface{}:
+			scrubSlice(v)
+		}
+	}
 }
 
 func JSONSuccess(c *gin.Context, data interface{}) {

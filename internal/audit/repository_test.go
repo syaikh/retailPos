@@ -355,3 +355,56 @@ func TestAuditRepository_CreateAuditLog_FailureIncrementsMetric(t *testing.T) {
 	after := metrics.AuditWriteFailures.Value()
 	assert.Equal(t, before+1, after, "a failed audit write must increment the failure metric")
 }
+
+func TestAuditRepository_CorrelationID(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := shared.SetRequestID(context.Background(), "req-trace-123")
+
+	t.Run("correlation id is taken from request context when not set", func(t *testing.T) {
+		al := &Log{Role: "admin", Action: "corr_from_ctx", EntityType: "system"}
+		require.NoError(t, repo.CreateAuditLog(ctx, al))
+		require.Greater(t, al.ID, 0)
+
+		got, err := repo.GetAuditLogByID(ctx, al.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "req-trace-123", got.CorrelationID)
+	})
+
+	t.Run("explicit correlation id overrides context", func(t *testing.T) {
+		al := &Log{Role: "admin", Action: "corr_explicit", EntityType: "system", CorrelationID: "explicit-xyz"}
+		require.NoError(t, repo.CreateAuditLog(ctx, al))
+
+		got, err := repo.GetAuditLogByID(ctx, al.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "explicit-xyz", got.CorrelationID)
+	})
+
+	t.Run("list items carry correlation id", func(t *testing.T) {
+		al := &Log{Role: "admin", Action: "corr_list", EntityType: "system", CorrelationID: "list-trace"}
+		require.NoError(t, repo.CreateAuditLog(ctx, al))
+
+		logs, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, "", "corr_list", "system", nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, logs, 1)
+		assert.Equal(t, "list-trace", logs[0].CorrelationID)
+	})
+}
+
+func TestAuditRepository_PurgeOlderThan(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	_, err := dbPool.Exec(ctx, `INSERT INTO audit_logs (role, action, entity_type, created_at) VALUES ('system', 'purge_stale', 'system', '2000-01-01 00:00:00+00')`)
+	require.NoError(t, err)
+
+	recent := &Log{Role: "admin", Action: "purge_recent", EntityType: "system"}
+	require.NoError(t, repo.CreateAuditLog(ctx, recent))
+
+	affected, err := repo.PurgeOlderThan(ctx, time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), affected, "exactly the 2000-01-01 row should be purged")
+
+	remaining, _, err := repo.GetAuditLogs(ctx, 100, 0, nil, "", "purge_recent", "system", nil, nil, nil)
+	require.NoError(t, err)
+	assert.Len(t, remaining, 1, "the recent row must survive retention purge")
+}

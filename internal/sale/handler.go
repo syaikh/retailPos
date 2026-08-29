@@ -397,7 +397,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 			Action:      "create",
 			EntityType:  "sale",
 			EntityID:    &sale.ID,
-			NewValues:   shared.ToJSONMap(sale),
+			NewValues:   scrubSaleAuditPayload(sale),
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Created sale %s with total %d", sale.InvoiceNumber, sale.TotalAmount),
@@ -411,6 +411,18 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": sale})
+}
+
+// scrubSaleAuditPayload returns a PII-safe representation of a sale for audit
+// new_values: it serializes the sale and strips customer-identifying fields
+// (customer_name) so the audit trail does not persist identifiable customer
+// data.
+func scrubSaleAuditPayload(sale interface{}) interface{} {
+	m := shared.ToJSONMap(sale)
+	if m != nil {
+		shared.ScrubPII(m)
+	}
+	return m
 }
 
 // createSaleFromCart handles POST /sales with cart_session_id (RT-16 case 3).
@@ -441,7 +453,7 @@ func (h *Handler) respondSaleFromCart(ctx context.Context, c *gin.Context, sale 
 			Action:      "create",
 			EntityType:  "sale",
 			EntityID:    &sale.ID,
-			NewValues:   shared.ToJSONMap(sale),
+			NewValues:   scrubSaleAuditPayload(sale),
 			IPAddress:   middleware.IPAddressFromContext(ctx),
 			UserAgent:   middleware.UserAgentFromContext(ctx),
 			Description: fmt.Sprintf("Checked out cart %d as sale %s (total %d)", cartID, sale.InvoiceNumber, sale.TotalAmount),
@@ -1058,8 +1070,9 @@ func (h *Handler) RecallParkedSale(c *gin.Context) {
 		return
 	}
 
-	// Manager recalls of another cashier's parked sale are audited (P2-6 D4).
-	if caller.IsManager() && h.auditSvc != nil {
+	// Every recall of a parked sale is audited, regardless of whether the actor
+	// is a manager or the original cashier performing a self-recall (P2-6 D4).
+	if h.auditSvc != nil {
 		actorID := middleware.UserIDFromContext(ctx)
 		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
 			UserID:      actorID,
@@ -1068,10 +1081,10 @@ func (h *Handler) RecallParkedSale(c *gin.Context) {
 			Action:      "recall_sale",
 			EntityType:  "sale",
 			EntityID:    &sale.ID,
-			NewValues:   shared.ToJSONMap(sale),
+			NewValues:   scrubSaleAuditPayload(sale),
 			IPAddress:   middleware.IPAddressFromContext(ctx),
 			UserAgent:   middleware.UserAgentFromContext(ctx),
-			Description: fmt.Sprintf("Manager recalled parked sale %s (cashier %d)", sale.InvoiceNumber, sale.CashierID),
+			Description: fmt.Sprintf("Recalled parked sale %s (cashier %d)", sale.InvoiceNumber, sale.CashierID),
 			StoreID:     middleware.StoreIDFromContext(ctx),
 		})
 	}
@@ -1317,7 +1330,7 @@ func (h *Handler) CompleteParkedSale(c *gin.Context) {
 			Action:      "complete_parked_sale",
 			EntityType:  "sale",
 			EntityID:    &sale.ID,
-			NewValues:   shared.ToJSONMap(sale),
+			NewValues:   scrubSaleAuditPayload(sale),
 			IPAddress:   middleware.IPAddressFromContext(ctx),
 			UserAgent:   middleware.UserAgentFromContext(ctx),
 			Description: fmt.Sprintf("Manager completed recalled parked sale %d as sale %s (total %d)", id, sale.InvoiceNumber, sale.TotalAmount),

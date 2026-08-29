@@ -494,7 +494,7 @@ func (h *Handler) CheckoutCart(c *gin.Context) {
 			Action:      "checkout",
 			EntityType:  "cart",
 			EntityID:    &cartID,
-			NewValues:   shared.ToJSONMap(sale),
+			NewValues:   scrubSaleAuditPayload(sale),
 			IPAddress:   middleware.IPAddressFromContext(ctx),
 			UserAgent:   middleware.UserAgentFromContext(ctx),
 			Description: fmt.Sprintf("Checked out cart %d as sale %s (total %d)", cartID, sale.InvoiceNumber, sale.TotalAmount),

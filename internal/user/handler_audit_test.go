@@ -12,6 +12,7 @@ import (
 	"retail-pos-system/internal/permissions"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +22,13 @@ type mockAuditCreator struct {
 }
 
 func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) error {
+	if m.createAuditLogFn != nil {
+		return m.createAuditLogFn(ctx, log)
+	}
+	return nil
+}
+
+func (m *mockAuditCreator) CreateAuditLogTx(ctx context.Context, tx pgx.Tx, log *audit.Log) error {
 	if m.createAuditLogFn != nil {
 		return m.createAuditLogFn(ctx, log)
 	}
@@ -469,17 +477,22 @@ func TestAuditHandler_UpdateRolePermissions_BindError(t *testing.T) {
 
 func TestAuditHandler_UpdateRolePermissions_WritesAudit(t *testing.T) {
 	var captured *audit.Log
-	currentPerms := []Permission{{ID: 1, Code: "role.view"}, {ID: 2, Code: "role.create"}}
 	svc := &mockUserService{
 		getRolePermissionsFn: func(ctx context.Context, roleID int) ([]Permission, error) {
-			return currentPerms, nil
+			// The old/before state: only role.view is assigned.
+			return []Permission{{ID: 1, Code: "role.view"}}, nil
+		},
+		getAllPermsFn: func(ctx context.Context) ([]Permission, error) {
+			// Used to map the requested permission IDs to their codes.
+			return []Permission{
+				{ID: 1, Code: "role.view"},
+				{ID: 2, Code: "role.create"},
+				{ID: 3, Code: "role.update"},
+			}, nil
 		},
 		updatePermsFn: func(ctx context.Context, roleID int, permissionIDs []int) error {
 			assert.Equal(t, 1, roleID)
-			assert.Equal(t, []int{2, 3}, permissionIDs) // keep b, add c
-			// Simulate the persisted change so the second GetRolePermissions
-			// reflects the new state.
-			currentPerms = []Permission{{ID: 2, Code: "role.create"}, {ID: 3, Code: "role.update"}}
+			assert.Equal(t, []int{2, 3}, permissionIDs) // keep role.create, add role.update
 			return nil
 		},
 		getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {

@@ -6,6 +6,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"retail-pos-system/internal/metrics"
 	"retail-pos-system/internal/shared"
 )
@@ -14,20 +17,72 @@ type Repository struct {
 	db shared.DBPool
 }
 
+// AuditRetentionDays is the recommended retention window for audit logs.
+// Operators should schedule PurgeOlderThan (e.g. nightly) to delete logs older
+// than now minus this window. Keeping raw audit rows forever is both a storage
+// and a long-term PII-exposure concern.
+const AuditRetentionDays = 365
+
+// nullIfEmpty returns nil for an empty string so the column stores NULL rather
+// than an empty string.
+func nullIfEmpty(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
 
+// PurgeOlderThan deletes audit logs created before the given time. It is the
+// mechanical half of the retention policy and is intended to be invoked by a
+// scheduled job; it is intentionally not wired to any business action so that
+// routine operations can never silently erase the trail.
+func (r *Repository) PurgeOlderThan(ctx context.Context, before time.Time) (int64, error) {
+	cmd, err := r.db.Exec(ctx, `DELETE FROM audit_logs WHERE created_at < $1`, before)
+	if err != nil {
+		return 0, err
+	}
+	return cmd.RowsAffected(), nil
+}
+
+// queryExecer is satisfied by both shared.DBPool and pgx.Tx, so the same
+// insert logic runs inside or outside an explicit transaction.
+type queryExecer interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
 func (r *Repository) CreateAuditLog(ctx context.Context, log *Log) error {
+	return r.createAuditLog(ctx, r.db, log)
+}
+
+// CreateAuditLogTx persists an audit log within an existing transaction; the
+// caller is responsible for committing/rolling back tx. This is what makes a
+// "mutation + its audit" pair atomic.
+func (r *Repository) CreateAuditLogTx(ctx context.Context, tx pgx.Tx, log *Log) error {
+	return r.createAuditLog(ctx, tx, log)
+}
+
+func (r *Repository) createAuditLog(ctx context.Context, qx queryExecer, log *Log) error {
 	var ipAddr interface{}
 	if log.IPAddress != "" {
 		ipAddr = log.IPAddress
 	}
-	err := r.db.QueryRow(ctx, `
-		INSERT INTO audit_logs (user_id, store_id, role, action, entity_type, entity_id, ip_address, user_agent, old_values, new_values, description)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	// Default the correlation ID from the request context when the caller did
+	// not set one explicitly (e.g. seeded/background events). The request
+	// logging middleware attaches X-Request-ID to the context for every HTTP
+	// request, so normal API-driven events are traced automatically.
+	if log.CorrelationID == "" {
+		log.CorrelationID = shared.GetRequestID(ctx)
+	}
+	err := qx.QueryRow(ctx, `
+		INSERT INTO audit_logs (user_id, store_id, role, action, entity_type, entity_id, ip_address, user_agent, old_values, new_values, description, correlation_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id
-	`, log.UserID, log.StoreID, log.Role, log.Action, log.EntityType, log.EntityID, ipAddr, log.UserAgent, log.OldValues, log.NewValues, log.Description).Scan(&log.ID)
+	`, log.UserID, log.StoreID, log.Role, log.Action, log.EntityType, log.EntityID, ipAddr, log.UserAgent, log.OldValues, log.NewValues, log.Description, nullIfEmpty(log.CorrelationID)).Scan(&log.ID)
 	if err != nil {
 		metrics.AuditWriteFailures.Inc()
 		shared.LogError(ctx, "failed to write audit log",
@@ -101,7 +156,7 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 		return nil, 0, err
 	}
 
-	query = `SELECT al.id, al.user_id, al.store_id, COALESCE(s.name, ''), COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb) FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id LEFT JOIN stores s ON al.store_id = s.id WHERE 1=1`
+	query = `SELECT al.id, al.user_id, al.store_id, COALESCE(s.name, ''), COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb), COALESCE(al.correlation_id, '') FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id LEFT JOIN stores s ON al.store_id = s.id WHERE 1=1`
 	args2 := []interface{}{}
 	if userID != nil {
 		query += fmt.Sprintf(" AND al.user_id = $%d", len(args2)+1)
@@ -142,7 +197,7 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 
 	for rows.Next() {
 		var al LogListItem
-		err = rows.Scan(&al.ID, &al.UserID, &al.StoreID, &al.StoreName, &al.Username, &al.Role, &al.Action, &al.EntityType, &al.EntityID, &al.IPAddress, &al.UserAgent, &al.CreatedAt, &al.Description, &al.OldValues, &al.NewValues)
+		err = rows.Scan(&al.ID, &al.UserID, &al.StoreID, &al.StoreName, &al.Username, &al.Role, &al.Action, &al.EntityType, &al.EntityID, &al.IPAddress, &al.UserAgent, &al.CreatedAt, &al.Description, &al.OldValues, &al.NewValues, &al.CorrelationID)
 		if err != nil {
 			slog.Error("error scanning audit log row", "error", err)
 			continue
@@ -158,12 +213,12 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 func (r *Repository) GetAuditLogByID(ctx context.Context, id int) (*Log, error) {
 	var al Log
 	err := r.db.QueryRow(ctx, `
-		SELECT al.id, al.user_id, al.store_id, COALESCE(s.name, ''), COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, '')
+		SELECT al.id, al.user_id, al.store_id, COALESCE(s.name, ''), COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb), COALESCE(al.correlation_id, ''), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, '')
 		FROM audit_logs al
 		LEFT JOIN users u ON al.user_id = u.id
 		LEFT JOIN stores s ON al.store_id = s.id
 		WHERE al.id = $1
-	`, id).Scan(&al.ID, &al.UserID, &al.StoreID, &al.StoreName, &al.Username, &al.Role, &al.Action, &al.EntityType, &al.EntityID, &al.IPAddress, &al.UserAgent, &al.OldValues, &al.NewValues, &al.CreatedAt, &al.Description)
+	`, id).Scan(&al.ID, &al.UserID, &al.StoreID, &al.StoreName, &al.Username, &al.Role, &al.Action, &al.EntityType, &al.EntityID, &al.IPAddress, &al.UserAgent, &al.OldValues, &al.NewValues, &al.CorrelationID, &al.CreatedAt, &al.Description)
 	if err != nil {
 		return nil, err
 	}

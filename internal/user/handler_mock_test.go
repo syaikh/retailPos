@@ -12,6 +12,7 @@ import (
 	"retail-pos-system/internal/permissions"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,6 +38,9 @@ type mockUserService struct {
 	getRolePermissionsFn func(ctx context.Context, roleID int) ([]Permission, error)
 	updatePermsFn        func(ctx context.Context, roleID int, permissionIDs []int) error
 	updatePreferencesFn  func(ctx context.Context, userID int, language, theme string) error
+	inTxFn               func(ctx context.Context, fn func(tx pgx.Tx) error) error
+	updateUserTxFn       func(ctx context.Context, tx pgx.Tx, user *User) error
+	updateRolePermsTxFn  func(ctx context.Context, tx pgx.Tx, roleID int, permissionIDs []int) error
 }
 
 func (m *mockUserService) GetUserByID(ctx context.Context, id int) (*User, error) {
@@ -76,7 +80,10 @@ func (m *mockUserService) GetAllRoles(ctx context.Context) ([]Role, error) {
 	return m.getAllRolesFn(ctx)
 }
 func (m *mockUserService) GetRoleByID(ctx context.Context, id int) (*Role, error) {
-	return m.getRoleByIDFn(ctx, id)
+	if m.getRoleByIDFn != nil {
+		return m.getRoleByIDFn(ctx, id)
+	}
+	return nil, nil
 }
 func (m *mockUserService) CreateRole(ctx context.Context, role *Role) error {
 	return m.createRoleFn(ctx, role)
@@ -91,7 +98,10 @@ func (m *mockUserService) CountUsersByRole(ctx context.Context, roleID int) (int
 	return m.countByRoleFn(ctx, roleID)
 }
 func (m *mockUserService) GetAllPermissions(ctx context.Context) ([]Permission, error) {
-	return m.getAllPermsFn(ctx)
+	if m.getAllPermsFn != nil {
+		return m.getAllPermsFn(ctx)
+	}
+	return nil, nil
 }
 func (m *mockUserService) GetRolePermissions(ctx context.Context, roleID int) ([]Permission, error) {
 	if m.getRolePermissionsFn != nil {
@@ -105,6 +115,38 @@ func (m *mockUserService) UpdateRolePermissions(ctx context.Context, roleID int,
 func (m *mockUserService) UpdatePreferences(ctx context.Context, userID int, language, theme string) error {
 	if m.updatePreferencesFn != nil {
 		return m.updatePreferencesFn(ctx, userID, language, theme)
+	}
+	return nil
+}
+
+// InTx runs fn (defaulting to a nil transaction, adequate for unit tests).
+func (m *mockUserService) InTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	if m.inTxFn != nil {
+		return m.inTxFn(ctx, fn)
+	}
+	return fn(nil)
+}
+
+// UpdateUserTx runs within an existing transaction; fall back to the plain
+// UpdateUser mock so existing tests that only wire updateUserFn still pass.
+func (m *mockUserService) UpdateUserTx(ctx context.Context, tx pgx.Tx, user *User) error {
+	if m.updateUserTxFn != nil {
+		return m.updateUserTxFn(ctx, tx, user)
+	}
+	if m.updateUserFn != nil {
+		return m.updateUserFn(ctx, user)
+	}
+	return nil
+}
+
+// UpdateRolePermissionsTx runs within an existing transaction; fall back to
+// the plain UpdateRolePermissions mock.
+func (m *mockUserService) UpdateRolePermissionsTx(ctx context.Context, tx pgx.Tx, roleID int, permissionIDs []int) error {
+	if m.updateRolePermsTxFn != nil {
+		return m.updateRolePermsTxFn(ctx, tx, roleID, permissionIDs)
+	}
+	if m.updatePermsFn != nil {
+		return m.updatePermsFn(ctx, roleID, permissionIDs)
 	}
 	return nil
 }

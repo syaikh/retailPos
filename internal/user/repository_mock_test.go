@@ -453,7 +453,9 @@ func TestRepository_UpdateUser_WithPassword(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
+	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE users SET username = .+password_hash").WithArgs("admin", "admin@test.com", "newhash", 1, pgxmock.AnyArg(), pgxmock.AnyArg(), true, 1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectCommit()
 
 	repo := NewRepository(mock)
 	u := &User{ID: 1, Username: "admin", Email: "admin@test.com", Password: "newhash", RoleID: 1, IsActive: true}
@@ -467,7 +469,9 @@ func TestRepository_UpdateUser_WithoutPassword(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
+	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE users SET username = .+\\$6").WithArgs("admin", "admin@test.com", 1, pgxmock.AnyArg(), pgxmock.AnyArg(), true, 1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectCommit()
 
 	repo := NewRepository(mock)
 	u := &User{ID: 1, Username: "admin", Email: "admin@test.com", RoleID: 1, IsActive: true}

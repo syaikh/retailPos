@@ -292,14 +292,28 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 }
 
 func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := r.UpdateUserTx(ctx, tx, user); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// UpdateUserTx updates the user row within an existing transaction so the
+// mutation can be committed atomically with its audit log.
+func (r *Repository) UpdateUserTx(ctx context.Context, tx pgx.Tx, user *User) error {
 	var err error
 	if user.Password != "" {
-		_, err = r.db.Exec(ctx, `
+		_, err = tx.Exec(ctx, `
 			UPDATE users SET username = $1, email = $2, password_hash = $3, role_id = $4, store_id = $5, reports_to = $6, is_active = $7, updated_at = NOW()
 			WHERE id = $8
 		`, user.Username, user.Email, user.Password, user.RoleID, user.StoreID, user.ReportsToID, user.IsActive, user.ID)
 	} else {
-		_, err = r.db.Exec(ctx, `
+		_, err = tx.Exec(ctx, `
 			UPDATE users SET username = $1, email = $2, role_id = $3, store_id = $4, reports_to = $5, is_active = $6, updated_at = NOW()
 			WHERE id = $7
 		`, user.Username, user.Email, user.RoleID, user.StoreID, user.ReportsToID, user.IsActive, user.ID)
@@ -639,8 +653,22 @@ func (r *Repository) UpdateRolePermissions(ctx context.Context, roleID int, perm
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := r.updateRolePermissionsTx(ctx, tx, roleID, permissionIDs); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if r.cache != nil {
+		r.cache.Delete(fmt.Sprintf("role:%d", roleID))
+	}
+	return nil
+}
 
-	_, err = tx.Exec(ctx, "DELETE FROM role_permissions WHERE role_id = $1", roleID)
+// updateRolePermissionsTx replaces a role's permissions within an existing
+// transaction so the change can be committed atomically with its audit log.
+func (r *Repository) updateRolePermissionsTx(ctx context.Context, tx pgx.Tx, roleID int, permissionIDs []int) error {
+	_, err := tx.Exec(ctx, "DELETE FROM role_permissions WHERE role_id = $1", roleID)
 	if err != nil {
 		return err
 	}
@@ -661,13 +689,6 @@ func (r *Repository) UpdateRolePermissions(ctx context.Context, roleID int, perm
 		if err != nil {
 			return err
 		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-	if r.cache != nil {
-		r.cache.Delete(fmt.Sprintf("role:%d", roleID))
 	}
 	return nil
 }

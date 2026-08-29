@@ -4,11 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"retail-pos-system/internal/shared"
 )
 
 type Repo interface {
 	CreateAuditLog(ctx context.Context, log *Log) error
+	CreateAuditLogTx(ctx context.Context, tx pgx.Tx, log *Log) error
 	GetAuditLogByID(ctx context.Context, id int) (*Log, error)
 	GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string, entityID *int, startDate *time.Time, endDate *time.Time) ([]LogListItem, int, error)
 	GetDistinctEntityTypes(ctx context.Context) ([]string, error)
@@ -24,6 +27,10 @@ func NewService(repo Repo) *Service {
 
 func (s *Service) CreateAuditLog(ctx context.Context, log *Log) error {
 	return s.repo.CreateAuditLog(ctx, log)
+}
+
+func (s *Service) CreateAuditLogTx(ctx context.Context, tx pgx.Tx, log *Log) error {
+	return s.repo.CreateAuditLogTx(ctx, tx, log)
 }
 
 func (s *Service) GetEntityTypes(ctx context.Context) ([]string, error) {

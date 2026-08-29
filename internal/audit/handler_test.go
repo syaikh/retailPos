@@ -51,6 +51,12 @@ func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 func setupAuditRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
+	// testAuthMiddleware acts as user id=1; ensure that row exists so the
+	// fail-closed audit_exported write (which references users.id) succeeds.
+	if dbPool != nil {
+		_, _ = dbPool.Exec(context.Background(), `INSERT INTO users (id, username, email, password_hash, role_id) VALUES (1, 'testuser', 'testuser@test.com', 'hash', 1) ON CONFLICT (id) DO NOTHING`)
+	}
+
 	repo := NewRepository(dbPool)
 	svc := NewService(repo)
 	h := NewHandler(svc)
@@ -371,4 +377,40 @@ func TestHandler_ExportCSV_CreatedAtJakartaTimezone(t *testing.T) {
 
 	jakartaTimestamp := regexp.MustCompile(`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`)
 	assert.Regexp(t, jakartaTimestamp, body, "CSV export should contain Jakarta timezone formatted timestamp")
+}
+
+func TestHandler_ExportAuditLogs_EmitsExportedEvent(t *testing.T) {
+	skipIfNoDB(t)
+	_ = shared.TruncateTestData(dbPool)
+	r := setupAuditRouter()
+	ctx := context.Background()
+
+	// The acting user (id=1 from testAuthMiddleware) must exist for the
+	// fail-closed audit_exported write to satisfy the FK constraint.
+	_, err := dbPool.Exec(ctx, `INSERT INTO users (id, username, email, password_hash, role_id) VALUES (1, 'export_test_user', 'export_test@test.com', 'hash', 1) ON CONFLICT (id) DO NOTHING`)
+	require.NoError(t, err)
+
+	repo := NewRepository(dbPool)
+	require.NoError(t, repo.CreateAuditLog(ctx, &Log{
+		Role:       "admin",
+		Action:     "export_event_seed_" + time.Now().Format("0102150405"),
+		EntityType: "product",
+		IPAddress:  "10.0.0.99",
+	}))
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/audit-logs/export?format=csv", nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	var cnt int
+	err = dbPool.QueryRow(ctx, `SELECT count(*) FROM audit_logs WHERE action = 'audit_exported' AND user_id = 1`).Scan(&cnt)
+	require.NoError(t, err)
+	assert.Equal(t, 1, cnt, "export must write exactly one audit_exported row for the acting user")
+
+	var entityType string
+	err = dbPool.QueryRow(ctx, `SELECT entity_type FROM audit_logs WHERE action = 'audit_exported' AND user_id = 1`).Scan(&entityType)
+	require.NoError(t, err)
+	assert.Equal(t, "audit", entityType)
 }

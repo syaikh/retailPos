@@ -14,6 +14,7 @@ import (
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -63,14 +64,17 @@ type Service interface {
 	GetAllPermissions(ctx context.Context) ([]Permission, error)
 	GetRolePermissions(ctx context.Context, roleID int) ([]Permission, error)
 	UpdateRolePermissions(ctx context.Context, roleID int, permissionIDs []int) error
+	InTx(ctx context.Context, fn func(tx pgx.Tx) error) error
+	UpdateUserTx(ctx context.Context, tx pgx.Tx, user *User) error
+	UpdateRolePermissionsTx(ctx context.Context, tx pgx.Tx, roleID int, permissionIDs []int) error
 }
 
 type Handler struct {
 	svc      Service
-	auditSvc audit.Creator
+	auditSvc audit.TxCreator
 }
 
-func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
+func NewHandler(svc Service, auditSvc audit.TxCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -323,15 +327,6 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		existing.IsActive = *req.IsActive
 	}
 
-	if err := h.svc.UpdateUser(c.Request.Context(), existing); err != nil {
-		if isDuplicateKeyError(err) {
-			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "username or email already exists")
-			return
-		}
-		shared.InternalError(c, err)
-		return
-	}
-
 	if h.auditSvc != nil {
 		actorID, actorUsername, actorRole := auditContextFromGin(c)
 		storeID := storeIDFromGin(c)
@@ -342,9 +337,14 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		deactivated := oldIsActive && !existing.IsActive
 		roleChanged := oldRoleID != existing.RoleID
 
-		if activated || deactivated || roleChanged {
+		// The user mutation and its audit log(s) are committed atomically:
+		// either both persist or the whole operation rolls back.
+		err := h.svc.InTx(c.Request.Context(), func(tx pgx.Tx) error {
+			if err := h.svc.UpdateUserTx(c.Request.Context(), tx, existing); err != nil {
+				return err
+			}
 			if activated {
-				_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+				if err := h.auditSvc.CreateAuditLogTx(c.Request.Context(), tx, &audit.Log{
 					UserID:      actorID,
 					Username:    actorUsername,
 					Role:        actorRole,
@@ -357,10 +357,12 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 					UserAgent:   ua,
 					Description: fmt.Sprintf("Activated user %s (#%d)", existing.Username, existing.ID),
 					StoreID:     storeID,
-				})
+				}); err != nil {
+					return err
+				}
 			}
 			if deactivated {
-				_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+				if err := h.auditSvc.CreateAuditLogTx(c.Request.Context(), tx, &audit.Log{
 					UserID:      actorID,
 					Username:    actorUsername,
 					Role:        actorRole,
@@ -373,10 +375,12 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 					UserAgent:   ua,
 					Description: fmt.Sprintf("Deactivated user %s (#%d)", existing.Username, existing.ID),
 					StoreID:     storeID,
-				})
+				}); err != nil {
+					return err
+				}
 			}
 			if roleChanged {
-				_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+				if err := h.auditSvc.CreateAuditLogTx(c.Request.Context(), tx, &audit.Log{
 					UserID:      actorID,
 					Username:    actorUsername,
 					Role:        actorRole,
@@ -389,23 +393,46 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 					UserAgent:   ua,
 					Description: fmt.Sprintf("Changed role of user %s (#%d) from %d to %d", existing.Username, existing.ID, oldRoleID, existing.RoleID),
 					StoreID:     storeID,
-				})
+				}); err != nil {
+					return err
+				}
 			}
-		} else {
-			_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
-				UserID:      actorID,
-				Username:    actorUsername,
-				Role:        actorRole,
-				Action:      "update",
-				EntityType:  "user",
-				EntityID:    &existing.ID,
-				OldValues:   oldValues,
-				NewValues:   shared.ToJSONMap(map[string]interface{}{"username": existing.Username, "email": existing.Email, "role_id": existing.RoleID, "reports_to": existing.ReportsToID, "is_active": existing.IsActive}),
-				IPAddress:   ip,
-				UserAgent:   ua,
-				Description: fmt.Sprintf("Updated user %s", existing.Username),
-				StoreID:     storeID,
-			})
+			if !activated && !deactivated && !roleChanged {
+				if err := h.auditSvc.CreateAuditLogTx(c.Request.Context(), tx, &audit.Log{
+					UserID:      actorID,
+					Username:    actorUsername,
+					Role:        actorRole,
+					Action:      "update",
+					EntityType:  "user",
+					EntityID:    &existing.ID,
+					OldValues:   oldValues,
+					NewValues:   shared.ToJSONMap(map[string]interface{}{"username": existing.Username, "email": existing.Email, "role_id": existing.RoleID, "reports_to": existing.ReportsToID, "is_active": existing.IsActive}),
+					IPAddress:   ip,
+					UserAgent:   ua,
+					Description: fmt.Sprintf("Updated user %s", existing.Username),
+					StoreID:     storeID,
+				}); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			if isDuplicateKeyError(err) {
+				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "username or email already exists")
+				return
+			}
+			shared.InternalError(c, err)
+			return
+		}
+	} else {
+		if err := h.svc.UpdateUser(c.Request.Context(), existing); err != nil {
+			if isDuplicateKeyError(err) {
+				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "username or email already exists")
+				return
+			}
+			shared.InternalError(c, err)
+			return
 		}
 	}
 	existing.Password = ""
@@ -640,10 +667,6 @@ func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 	if h.auditSvc != nil {
 		oldPerms, _ = h.svc.GetRolePermissions(c.Request.Context(), id)
 	}
-	if err := h.svc.UpdateRolePermissions(c.Request.Context(), id, req.PermissionIDs); err != nil {
-		shared.InternalError(c, err)
-		return
-	}
 	role, err := h.svc.GetRoleByID(c.Request.Context(), id)
 	if err != nil {
 		shared.InternalError(c, err)
@@ -652,15 +675,25 @@ func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		actorID, actorUsername, actorRole := auditContextFromGin(c)
-		newPerms, _ := h.svc.GetRolePermissions(c.Request.Context(), id)
+
 		oldCodes := make([]string, 0, len(oldPerms))
 		for _, p := range oldPerms {
 			oldCodes = append(oldCodes, p.Code)
 		}
-		newCodes := make([]string, 0, len(newPerms))
-		for _, p := range newPerms {
-			newCodes = append(newCodes, p.Code)
+
+		// Map the requested permission IDs to their codes for the audit diff.
+		allPerms, _ := h.svc.GetAllPermissions(c.Request.Context())
+		codeByID := make(map[int]string, len(allPerms))
+		for _, p := range allPerms {
+			codeByID[p.ID] = p.Code
 		}
+		newCodes := make([]string, 0, len(req.PermissionIDs))
+		for _, pid := range req.PermissionIDs {
+			if code, ok := codeByID[pid]; ok {
+				newCodes = append(newCodes, code)
+			}
+		}
+
 		oldSet := make(map[string]bool, len(oldCodes))
 		for _, code := range oldCodes {
 			oldSet[code] = true
@@ -691,7 +724,8 @@ func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 		if len(removed) > 0 {
 			summary += "; removed: " + strings.Join(removed, ", ")
 		}
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+
+		log := &audit.Log{
 			UserID:      actorID,
 			Username:    actorUsername,
 			Role:        actorRole,
@@ -704,7 +738,23 @@ func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 			UserAgent:   shared.GetUserAgent(c),
 			Description: summary,
 			StoreID:     storeIDFromGin(c),
+		}
+		// The permission change and its audit log are committed atomically.
+		err := h.svc.InTx(c.Request.Context(), func(tx pgx.Tx) error {
+			if err := h.svc.UpdateRolePermissionsTx(c.Request.Context(), tx, id, req.PermissionIDs); err != nil {
+				return err
+			}
+			return h.auditSvc.CreateAuditLogTx(c.Request.Context(), tx, log)
 		})
+		if err != nil {
+			shared.InternalError(c, err)
+			return
+		}
+	} else {
+		if err := h.svc.UpdateRolePermissions(c.Request.Context(), id, req.PermissionIDs); err != nil {
+			shared.InternalError(c, err)
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": role})

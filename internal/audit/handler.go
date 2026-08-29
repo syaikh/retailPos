@@ -30,7 +30,7 @@ func NewHandler(svc *Service) *Handler {
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	r.GET("/audit-logs", auth, perm(permissions.AuditView), h.ListAuditLogs)
 	r.GET("/audit-logs/:id", auth, perm(permissions.AuditView), h.GetAuditLog)
-	r.GET("/audit-logs/export", auth, perm(permissions.AuditView), h.ExportAuditLogs)
+	r.GET("/audit-logs/export", auth, perm(permissions.AuditExport), h.ExportAuditLogs)
 	r.GET("/audit-logs/entity-types", auth, perm(permissions.AuditView), h.ListEntityTypes)
 }
 
@@ -133,6 +133,26 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 		logs = []LogListItem{}
 	}
 
+	// Record the export itself as a security-critical audit event. Failing
+	// closed means an export that cannot be audited is not served (P2 #5).
+	exportLog := &Log{
+		Username:    shared.GetUsername(c),
+		Role:        shared.GetRole(c),
+		Action:      "audit_exported",
+		EntityType:  "audit",
+		IPAddress:   shared.GetIPAddress(c),
+		UserAgent:   shared.GetUserAgent(c),
+		Description: fmt.Sprintf("Exported %d audit log(s) as %s", len(logs), format),
+		StoreID:     shared.GetStoreID(c),
+	}
+	if uid := shared.GetUserID(c); uid > 0 {
+		exportLog.UserID = &uid
+	}
+	if !WriteFailClosed(c.Request.Context(), h.svc, exportLog) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write audit log"})
+		return
+	}
+
 	cfg := config.Load()
 	now := time.Now().In(cfg.Timezone)
 	filename := "audit-logs-" + now.Format("2006-01-02")
@@ -143,7 +163,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 		sheet := "Audit Logs"
 		_ = wb.SetSheetName("Sheet1", sheet)
 
-		headers := []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Entity ID", "Description", "Changes", "IP Address", "User Agent", "Store"}
+		headers := []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Entity ID", "Description", "Changes", "IP Address", "User Agent", "Store", "Correlation ID"}
 		for i, hdr := range headers {
 			col, _ := excelize.ColumnNumberToName(i + 1)
 			_ = wb.SetCellValue(sheet, col+"1", hdr)
@@ -152,7 +172,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 			Font: &excelize.Font{Bold: true, Color: "FFFFFF"},
 			Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"7C3AED"}},
 		})
-		_ = wb.SetCellStyle(sheet, "A1", "J1", headerStyle)
+		_ = wb.SetCellStyle(sheet, "A1", "L1", headerStyle)
 
 		for i, log := range logs {
 			r := i + 2
@@ -171,9 +191,10 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 			_ = wb.SetCellValue(sheet, fmt.Sprintf("I%d", r), log.IPAddress)
 			_ = wb.SetCellValue(sheet, fmt.Sprintf("J%d", r), log.UserAgent)
 			_ = wb.SetCellValue(sheet, fmt.Sprintf("K%d", r), storeLabel(log))
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("L%d", r), log.CorrelationID)
 		}
 
-		colWidths := []float64{22, 20, 15, 12, 15, 10, 50, 50, 18, 30, 10}
+		colWidths := []float64{22, 20, 15, 12, 15, 10, 50, 50, 18, 30, 10, 24}
 		for i, w := range colWidths {
 			col, _ := excelize.ColumnNumberToName(i + 1)
 			_ = wb.SetColWidth(sheet, col, col, w)
@@ -193,7 +214,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 		_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 		writer := csv.NewWriter(c.Writer)
-		_ = shared.WriteCSVRow(writer, []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Entity ID", "Description", "Changes", "IP Address", "User Agent", "Store"})
+		_ = shared.WriteCSVRow(writer, []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Entity ID", "Description", "Changes", "IP Address", "User Agent", "Store", "Correlation ID"})
 		for _, log := range logs {
 			t := log.CreatedAt
 			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
@@ -211,6 +232,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 				log.IPAddress,
 				log.UserAgent,
 				storeLabel(log),
+				log.CorrelationID,
 			})
 		}
 		writer.Flush()

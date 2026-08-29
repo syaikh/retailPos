@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Service provides business-logic operations for application settings.
@@ -39,6 +41,35 @@ func (s *Service) Upsert(ctx context.Context, settings map[string]string) error 
 	}
 
 	return s.repo.UpsertMultiple(ctx, cleaned)
+}
+
+// InTx runs fn inside a single transaction on the settings database. The
+// transaction is committed if fn returns nil and rolled back otherwise. It is
+// used to keep a settings mutation and its audit log atomic.
+func (s *Service) InTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	tx, err := s.repo.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// UpsertTx validates and persists settings within an existing transaction.
+func (s *Service) UpsertTx(ctx context.Context, tx pgx.Tx, settings map[string]string) error {
+	cleaned := make(map[string]string, len(settings))
+	for k, v := range settings {
+		cleaned[k] = strings.TrimSpace(v)
+	}
+
+	if name, ok := cleaned["store_name"]; ok && name == "" {
+		return fmt.Errorf("store_name must not be empty")
+	}
+
+	return s.repo.upsertMultipleTx(ctx, tx, cleaned)
 }
 
 // SaveLogoPath persists the logo path setting.

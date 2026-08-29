@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/permissions"
@@ -34,7 +36,7 @@ type StoreProvider interface {
 // Handler handles HTTP requests for application settings.
 type Handler struct {
 	svc      ServiceIface
-	auditSvc audit.Creator
+	auditSvc audit.TxCreator
 	store    StoreProvider
 
 	mu         sync.RWMutex
@@ -48,12 +50,14 @@ type ServiceIface interface {
 	GetAll(ctx context.Context) (map[string]string, error)
 	GetMultiple(ctx context.Context, keys []string) (map[string]string, error)
 	Upsert(ctx context.Context, settings map[string]string) error
+	UpsertTx(ctx context.Context, tx pgx.Tx, settings map[string]string) error
+	InTx(ctx context.Context, fn func(tx pgx.Tx) error) error
 	SaveLogoPath(ctx context.Context, logoPath string) error
 }
 
 // NewHandler returns a new Handler. It creates the logo upload directory if it
 // does not already exist.
-func NewHandler(svc ServiceIface, auditSvc audit.Creator, store StoreProvider) *Handler {
+func NewHandler(svc ServiceIface, auditSvc audit.TxCreator, store StoreProvider) *Handler {
 	logoDir := filepath.Join("uploads", "logos")
 	if err := os.MkdirAll(logoDir, 0755); err != nil {
 		slog.Warn("appsettings: could not create logo directory", "path", logoDir, "error", err)
@@ -229,13 +233,6 @@ func (h *Handler) UpdateAll(c *gin.Context) {
 	delete(req.Settings, "store_address")
 	delete(req.Settings, "store_phone")
 
-	if len(req.Settings) > 0 {
-		if err := h.svc.Upsert(c.Request.Context(), req.Settings); err != nil {
-			c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrValidation, err.Error()))
-			return
-		}
-	}
-
 	// Persist branch address/phone if the caller has a store assignment.
 	if (hasStoreAddr || hasStorePhone) && h.store != nil {
 		storeID := middleware.StoreIDFromContext(c.Request.Context())
@@ -260,7 +257,7 @@ func (h *Handler) UpdateAll(c *gin.Context) {
 		if hasStorePhone {
 			auditValues["store_phone"] = storePhone
 		}
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+		log := &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -271,7 +268,28 @@ func (h *Handler) UpdateAll(c *gin.Context) {
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: "Updated application settings",
 			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
+		}
+		// The settings mutation and its audit log are written in one
+		// transaction: either both persist or both roll back.
+		err := h.svc.InTx(c.Request.Context(), func(tx pgx.Tx) error {
+			if len(req.Settings) > 0 {
+				if err := h.svc.UpsertTx(c.Request.Context(), tx, req.Settings); err != nil {
+					return err
+				}
+			}
+			return h.auditSvc.CreateAuditLogTx(c.Request.Context(), tx, log)
 		})
+		if err != nil {
+			shared.InternalError(c, err)
+			return
+		}
+	} else {
+		if len(req.Settings) > 0 {
+			if err := h.svc.Upsert(c.Request.Context(), req.Settings); err != nil {
+				shared.InternalError(c, err)
+				return
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "settings updated"})
