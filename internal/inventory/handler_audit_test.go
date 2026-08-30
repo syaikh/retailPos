@@ -8,12 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"retail-pos-system/internal/audit"
-	"retail-pos-system/internal/permissions"
-
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/permissions"
 )
 
 type mockAuditCreator struct {
@@ -21,6 +22,13 @@ type mockAuditCreator struct {
 }
 
 func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) error {
+	if m.createAuditLogFn != nil {
+		return m.createAuditLogFn(ctx, log)
+	}
+	return nil
+}
+
+func (m *mockAuditCreator) CreateAuditLogTx(ctx context.Context, tx pgx.Tx, log *audit.Log) error {
 	if m.createAuditLogFn != nil {
 		return m.createAuditLogFn(ctx, log)
 	}

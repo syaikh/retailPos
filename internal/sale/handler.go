@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/config"
@@ -22,7 +23,11 @@ import (
 
 type Service interface {
 	CreateSale(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error
+	CreateSaleTx(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, payments []CreatePaymentRequest) error
 	CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error
+	CreateSaleWithParkedSaleTx(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error
+	NotifySaleCreated(ctx context.Context, sale *Sale)
+	InTx(ctx context.Context, fn func(tx pgx.Tx) error) error
 	GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error)
 	ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int, cashierID *int, status *string) ([]Sale, int, error)
 	GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error)
@@ -33,7 +38,9 @@ type Service interface {
 	ResolveCheckoutPrices(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error)
 	ParkSale(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int, caller Caller) error
 	RecallSale(ctx context.Context, saleID int, caller Caller) (*Sale, error)
+	RecallSaleTx(ctx context.Context, tx pgx.Tx, saleID int, caller Caller) (*Sale, error)
 	CancelParkedSale(ctx context.Context, saleID int, caller Caller) error
+	CancelParkedSaleTx(ctx context.Context, tx pgx.Tx, saleID int, caller Caller) error
 	ListParkedSales(ctx context.Context, caller Caller) ([]Sale, error)
 	GetParkedSaleByID(ctx context.Context, saleID int, caller Caller) (*Sale, error)
 
@@ -49,6 +56,7 @@ type Service interface {
 	ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	CancelCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
+	CheckoutCartTx(ctx context.Context, tx pgx.Tx, cartID int, payments []CreatePaymentRequest, legacyPaymentMethod string, cashierID int) (*Sale, error)
 	CheckoutCartWithPaymentMethod(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error)
 
 	SetCartConfig(cfg CartConfig)
@@ -61,10 +69,10 @@ type Service interface {
 
 type Handler struct {
 	svc      Service
-	auditSvc audit.Creator
+	auditSvc audit.TxCreator
 }
 
-func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
+func NewHandler(svc Service, auditSvc audit.TxCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -360,50 +368,22 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		Status:        "completed",
 	}
 
-	if err := h.svc.CreateSaleWithParkedSale(ctx, sale, items, req.ParkedSaleID, payments, callerFromContext(c)); err != nil {
-		if errors.Is(err, ErrPermissionDenied) {
-			shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager can only complete a recalled parked sale")
-			return
-		}
-		if errors.Is(err, ErrInsufficientStock) {
-			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
-			return
-		}
-		if errors.Is(err, ErrParkedSaleNotRecalled) {
-			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "parked sale already checked out or cancelled")
-			return
-		}
-		if errors.Is(err, shared.ErrShiftNotOpen) {
-			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
-			return
-		}
-		if errors.Is(err, ErrPaymentOverTenderNonCash) || errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
-			errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
-			errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
-			errors.Is(err, ErrMaxPaymentsExceeded) || errors.Is(err, ErrMultipleCashPayments) {
-			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
-			return
-		}
-		shared.InternalError(c, err)
-		return
-	}
-
 	if h.auditSvc != nil {
-		actorID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
-			UserID:      actorID,
-			Username:    middleware.UsernameFromContext(c.Request.Context()),
-			Role:        middleware.RoleFromContext(c.Request.Context()),
-			Action:      "create",
-			EntityType:  "sale",
-			EntityID:    &sale.ID,
-			NewValues:   scrubSaleAuditPayload(sale),
-			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
-			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
-			Description: fmt.Sprintf("Created sale %s with total %d", sale.InvoiceNumber, sale.TotalAmount),
-			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
-		})
-		h.auditSalePayments(c.Request.Context(), actorID, sale)
+		if err := h.svc.InTx(ctx, func(tx pgx.Tx) error {
+			if err := h.svc.CreateSaleWithParkedSaleTx(ctx, tx, sale, items, req.ParkedSaleID, payments, callerFromContext(c)); err != nil {
+				return err
+			}
+			return h.auditCreateSaleTx(ctx, tx, sale)
+		}); err != nil {
+			h.respondSaleCreateError(c, err)
+			return
+		}
+		h.svc.NotifySaleCreated(ctx, sale)
+	} else {
+		if err := h.svc.CreateSaleWithParkedSale(ctx, sale, items, req.ParkedSaleID, payments, callerFromContext(c)); err != nil {
+			h.respondSaleCreateError(c, err)
+			return
+		}
 	}
 
 	if detail, err := h.svc.GetSaleByID(ctx, sale.ID, storeIDPtr); err == nil {
@@ -411,6 +391,35 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": sale})
+}
+
+// respondSaleCreateError maps a sale-creation domain error to the correct HTTP
+// response. It is shared by the atomic and non-atomic create paths.
+func (h *Handler) respondSaleCreateError(c *gin.Context, err error) {
+	if errors.Is(err, ErrPermissionDenied) {
+		shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager can only complete a recalled parked sale")
+		return
+	}
+	if errors.Is(err, ErrInsufficientStock) {
+		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
+		return
+	}
+	if errors.Is(err, ErrParkedSaleNotRecalled) {
+		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "parked sale already checked out or cancelled")
+		return
+	}
+	if errors.Is(err, shared.ErrShiftNotOpen) {
+		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
+		return
+	}
+	if errors.Is(err, ErrPaymentOverTenderNonCash) || errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
+		errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
+		errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
+		errors.Is(err, ErrMaxPaymentsExceeded) || errors.Is(err, ErrMultipleCashPayments) {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
+	shared.InternalError(c, err)
 }
 
 // scrubSaleAuditPayload returns a PII-safe representation of a sale for audit
@@ -429,39 +438,56 @@ func scrubSaleAuditPayload(sale interface{}) interface{} {
 // It delegates to CheckoutCart so the sale is built from immutable snapshots,
 // deducts stock, validates payments, and marks the cart as checked out.
 func (h *Handler) createSaleFromCart(ctx context.Context, c *gin.Context, cartID int, payments []CreatePaymentRequest, cashierID int, storeIDPtr *int) {
-	sale, err := h.svc.CheckoutCart(ctx, cartID, payments, cashierID)
-	h.respondSaleFromCart(ctx, c, sale, err, cartID, storeIDPtr)
-}
-
-func (h *Handler) createSaleFromCartWithPaymentMethod(ctx context.Context, c *gin.Context, cartID int, paymentMethod string, cashierID int, storeIDPtr *int) {
-	sale, err := h.svc.CheckoutCartWithPaymentMethod(ctx, cartID, paymentMethod, cashierID)
-	h.respondSaleFromCart(ctx, c, sale, err, cartID, storeIDPtr)
-}
-
-func (h *Handler) respondSaleFromCart(ctx context.Context, c *gin.Context, sale *Sale, err error, cartID int, storeIDPtr *int) {
+	var sale *Sale
+	var err error
+	if h.auditSvc != nil {
+		err = h.svc.InTx(ctx, func(tx pgx.Tx) error {
+			s, e := h.svc.CheckoutCartTx(ctx, tx, cartID, payments, "", cashierID)
+			if e != nil {
+				return e
+			}
+			sale = s
+			return h.auditCreateSaleTx(ctx, tx, sale)
+		})
+		if err == nil {
+			h.svc.NotifySaleCreated(ctx, sale)
+		}
+	} else {
+		sale, err = h.svc.CheckoutCart(ctx, cartID, payments, cashierID)
+	}
 	if err != nil {
 		h.cartError(c, err)
 		return
 	}
+	h.respondSaleAfterCart(ctx, c, sale, cartID, storeIDPtr)
+}
 
+func (h *Handler) createSaleFromCartWithPaymentMethod(ctx context.Context, c *gin.Context, cartID int, paymentMethod string, cashierID int, storeIDPtr *int) {
+	var sale *Sale
+	var err error
 	if h.auditSvc != nil {
-		actorID := middleware.UserIDFromContext(ctx)
-		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
-			UserID:      actorID,
-			Username:    middleware.UsernameFromContext(ctx),
-			Role:        middleware.RoleFromContext(ctx),
-			Action:      "create",
-			EntityType:  "sale",
-			EntityID:    &sale.ID,
-			NewValues:   scrubSaleAuditPayload(sale),
-			IPAddress:   middleware.IPAddressFromContext(ctx),
-			UserAgent:   middleware.UserAgentFromContext(ctx),
-			Description: fmt.Sprintf("Checked out cart %d as sale %s (total %d)", cartID, sale.InvoiceNumber, sale.TotalAmount),
-			StoreID:     middleware.StoreIDFromContext(ctx),
+		err = h.svc.InTx(ctx, func(tx pgx.Tx) error {
+			s, e := h.svc.CheckoutCartTx(ctx, tx, cartID, nil, paymentMethod, cashierID)
+			if e != nil {
+				return e
+			}
+			sale = s
+			return h.auditCreateSaleTx(ctx, tx, sale)
 		})
-		h.auditSalePayments(ctx, actorID, sale)
+		if err == nil {
+			h.svc.NotifySaleCreated(ctx, sale)
+		}
+	} else {
+		sale, err = h.svc.CheckoutCartWithPaymentMethod(ctx, cartID, paymentMethod, cashierID)
 	}
+	if err != nil {
+		h.cartError(c, err)
+		return
+	}
+	h.respondSaleAfterCart(ctx, c, sale, cartID, storeIDPtr)
+}
 
+func (h *Handler) respondSaleAfterCart(ctx context.Context, c *gin.Context, sale *Sale, cartID int, storeIDPtr *int) {
 	if detail, err := h.svc.GetSaleByID(ctx, sale.ID, storeIDPtr); err == nil {
 		c.JSON(http.StatusCreated, gin.H{"data": detail})
 		return
@@ -493,6 +519,88 @@ func (h *Handler) auditSalePayments(ctx context.Context, actorID *int, sale *Sal
 			StoreID:     middleware.StoreIDFromContext(ctx),
 		})
 	}
+}
+
+// auditCreateSaleTx writes the "create" (sale) and per-payment "payment.created"
+// audit rows inside an existing transaction, so the sale and its audit trail are
+// atomic.
+func (h *Handler) auditCreateSaleTx(ctx context.Context, tx pgx.Tx, sale *Sale) error {
+	actorID := middleware.UserIDFromContext(ctx)
+	if err := h.auditSvc.CreateAuditLogTx(ctx, tx, &audit.Log{
+		UserID:      actorID,
+		Username:    middleware.UsernameFromContext(ctx),
+		Role:        middleware.RoleFromContext(ctx),
+		Action:      "create",
+		EntityType:  "sale",
+		EntityID:    &sale.ID,
+		NewValues:   scrubSaleAuditPayload(sale),
+		IPAddress:   middleware.IPAddressFromContext(ctx),
+		UserAgent:   middleware.UserAgentFromContext(ctx),
+		Description: fmt.Sprintf("Created sale %s with total %d", sale.InvoiceNumber, sale.TotalAmount),
+		StoreID:     middleware.StoreIDFromContext(ctx),
+	}); err != nil {
+		return err
+	}
+	return h.auditSalePaymentsTx(ctx, tx, actorID, sale)
+}
+
+// auditSalePaymentsTx writes one "payment.created" audit row per payment inside
+// an existing transaction.
+func (h *Handler) auditSalePaymentsTx(ctx context.Context, tx pgx.Tx, actorID *int, sale *Sale) error {
+	for i := range sale.Payments {
+		p := sale.Payments[i]
+		if err := h.auditSvc.CreateAuditLogTx(ctx, tx, &audit.Log{
+			UserID:      actorID,
+			Username:    middleware.UsernameFromContext(ctx),
+			Role:        middleware.RoleFromContext(ctx),
+			Action:      "payment.created",
+			EntityType:  "payment",
+			EntityID:    &p.ID,
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"sale_id": p.SaleID, "payment_method": p.PaymentMethodCode, "amount": p.Amount, "reference_number": p.ReferenceNumber}),
+			IPAddress:   middleware.IPAddressFromContext(ctx),
+			UserAgent:   middleware.UserAgentFromContext(ctx),
+			Description: fmt.Sprintf("Recorded %s payment of %d for sale %s", p.PaymentMethodCode, p.Amount, sale.InvoiceNumber),
+			StoreID:     middleware.StoreIDFromContext(ctx),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// auditSaleActionTx writes a single sale audit row (e.g. recall_sale,
+// complete_parked_sale) inside an existing transaction.
+func (h *Handler) auditSaleActionTx(ctx context.Context, tx pgx.Tx, caller Caller, sale *Sale, action, description string) error {
+	return h.auditSvc.CreateAuditLogTx(ctx, tx, &audit.Log{
+		UserID:      middleware.UserIDFromContext(ctx),
+		Username:    middleware.UsernameFromContext(ctx),
+		Role:        caller.Role,
+		Action:      action,
+		EntityType:  "sale",
+		EntityID:    &sale.ID,
+		NewValues:   scrubSaleAuditPayload(sale),
+		IPAddress:   middleware.IPAddressFromContext(ctx),
+		UserAgent:   middleware.UserAgentFromContext(ctx),
+		Description: description,
+		StoreID:     middleware.StoreIDFromContext(ctx),
+	})
+}
+
+// auditCancelSaleTx writes the "cancel" audit row for a parked sale inside an
+// existing transaction.
+func (h *Handler) auditCancelSaleTx(ctx context.Context, tx pgx.Tx, id int) error {
+	return h.auditSvc.CreateAuditLogTx(ctx, tx, &audit.Log{
+		UserID:      middleware.UserIDFromContext(ctx),
+		Username:    middleware.UsernameFromContext(ctx),
+		Role:        middleware.RoleFromContext(ctx),
+		Action:      "cancel",
+		EntityType:  "sale",
+		EntityID:    &id,
+		IPAddress:   middleware.IPAddressFromContext(ctx),
+		UserAgent:   middleware.UserAgentFromContext(ctx),
+		Description: fmt.Sprintf("Cancelled parked sale %d", id),
+		StoreID:     middleware.StoreIDFromContext(ctx),
+	})
 }
 
 // GetSalesHistory godoc
@@ -1060,7 +1168,20 @@ func (h *Handler) RecallParkedSale(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	caller := callerFromContext(c)
-	sale, err := h.svc.RecallSale(ctx, id, caller)
+	var sale *Sale
+	if h.auditSvc != nil {
+		err = h.svc.InTx(ctx, func(tx pgx.Tx) error {
+			s, e := h.svc.RecallSaleTx(ctx, tx, id, caller)
+			if e != nil {
+				return e
+			}
+			sale = s
+			return h.auditSaleActionTx(ctx, tx, caller, sale, "recall_sale",
+				fmt.Sprintf("Recalled parked sale %s (cashier %d)", sale.InvoiceNumber, sale.CashierID))
+		})
+	} else {
+		sale, err = h.svc.RecallSale(ctx, id, caller)
+	}
 	if err != nil {
 		if errors.Is(err, ErrSaleNotFound) {
 			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "sale not found")
@@ -1068,25 +1189,6 @@ func (h *Handler) RecallParkedSale(c *gin.Context) {
 		}
 		shared.InternalError(c, err)
 		return
-	}
-
-	// Every recall of a parked sale is audited, regardless of whether the actor
-	// is a manager or the original cashier performing a self-recall (P2-6 D4).
-	if h.auditSvc != nil {
-		actorID := middleware.UserIDFromContext(ctx)
-		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
-			UserID:      actorID,
-			Username:    middleware.UsernameFromContext(ctx),
-			Role:        caller.Role,
-			Action:      "recall_sale",
-			EntityType:  "sale",
-			EntityID:    &sale.ID,
-			NewValues:   scrubSaleAuditPayload(sale),
-			IPAddress:   middleware.IPAddressFromContext(ctx),
-			UserAgent:   middleware.UserAgentFromContext(ctx),
-			Description: fmt.Sprintf("Recalled parked sale %s (cashier %d)", sale.InvoiceNumber, sale.CashierID),
-			StoreID:     middleware.StoreIDFromContext(ctx),
-		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": sale})
@@ -1100,7 +1202,18 @@ func (h *Handler) CancelParkedSale(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	if err := h.svc.CancelParkedSale(ctx, id, callerFromContext(c)); err != nil {
+	caller := callerFromContext(c)
+	if h.auditSvc != nil {
+		err = h.svc.InTx(ctx, func(tx pgx.Tx) error {
+			if e := h.svc.CancelParkedSaleTx(ctx, tx, id, caller); e != nil {
+				return e
+			}
+			return h.auditCancelSaleTx(ctx, tx, id)
+		})
+	} else {
+		err = h.svc.CancelParkedSale(ctx, id, caller)
+	}
+	if err != nil {
 		if errors.Is(err, ErrSaleNotFound) {
 			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "sale not found")
 			return
@@ -1113,20 +1226,6 @@ func (h *Handler) CancelParkedSale(c *gin.Context) {
 		return
 	}
 
-	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
-			UserID:      middleware.UserIDFromContext(ctx),
-			Username:    middleware.UsernameFromContext(ctx),
-			Role:        middleware.RoleFromContext(ctx),
-			Action:      "cancel",
-			EntityType:  "sale",
-			EntityID:    &id,
-			IPAddress:   middleware.IPAddressFromContext(ctx),
-			UserAgent:   middleware.UserAgentFromContext(ctx),
-			Description: fmt.Sprintf("Cancelled parked sale %d", id),
-			StoreID:     middleware.StoreIDFromContext(ctx),
-		})
-	}
 	c.JSON(http.StatusNoContent, nil)
 }
 
@@ -1289,53 +1388,77 @@ func (h *Handler) CompleteParkedSale(c *gin.Context) {
 	}
 
 	caller := callerFromContext(c)
-	if err := h.svc.CreateSaleWithParkedSale(ctx, sale, items, &id, payments, caller); err != nil {
-		if errors.Is(err, ErrPermissionDenied) {
-			shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager can only complete a recalled parked sale")
+	if h.auditSvc != nil && caller.IsManager() {
+		if err := h.svc.InTx(ctx, func(tx pgx.Tx) error {
+			if err := h.svc.CreateSaleWithParkedSaleTx(ctx, tx, sale, items, &id, payments, caller); err != nil {
+				return err
+			}
+			return h.auditSaleActionTx(ctx, tx, caller, sale, "complete_parked_sale",
+				fmt.Sprintf("Manager completed recalled parked sale %d as sale %s (total %d)", id, sale.InvoiceNumber, sale.TotalAmount))
+		}); err != nil {
+			if errors.Is(err, ErrPermissionDenied) {
+				shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager can only complete a recalled parked sale")
+				return
+			}
+			if errors.Is(err, ErrSaleNotFound) {
+				shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "parked sale not found")
+				return
+			}
+			if errors.Is(err, ErrParkedSaleNotRecalled) {
+				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "parked sale already checked out or cancelled")
+				return
+			}
+			if errors.Is(err, ErrInsufficientStock) {
+				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
+				return
+			}
+			if errors.Is(err, shared.ErrShiftNotOpen) {
+				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
+				return
+			}
+			if errors.Is(err, ErrPaymentOverTenderNonCash) || errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
+				errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
+				errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
+				errors.Is(err, ErrMaxPaymentsExceeded) || errors.Is(err, ErrMultipleCashPayments) {
+				shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+				return
+			}
+			shared.InternalError(c, err)
 			return
 		}
-		if errors.Is(err, ErrSaleNotFound) {
-			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "parked sale not found")
+		h.svc.NotifySaleCreated(ctx, sale)
+	} else {
+		if err := h.svc.CreateSaleWithParkedSale(ctx, sale, items, &id, payments, caller); err != nil {
+			if errors.Is(err, ErrPermissionDenied) {
+				shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager can only complete a recalled parked sale")
+				return
+			}
+			if errors.Is(err, ErrSaleNotFound) {
+				shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "parked sale not found")
+				return
+			}
+			if errors.Is(err, ErrParkedSaleNotRecalled) {
+				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "parked sale already checked out or cancelled")
+				return
+			}
+			if errors.Is(err, ErrInsufficientStock) {
+				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
+				return
+			}
+			if errors.Is(err, shared.ErrShiftNotOpen) {
+				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
+				return
+			}
+			if errors.Is(err, ErrPaymentOverTenderNonCash) || errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
+				errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
+				errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
+				errors.Is(err, ErrMaxPaymentsExceeded) || errors.Is(err, ErrMultipleCashPayments) {
+				shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+				return
+			}
+			shared.InternalError(c, err)
 			return
 		}
-		if errors.Is(err, ErrParkedSaleNotRecalled) {
-			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "parked sale already checked out or cancelled")
-			return
-		}
-		if errors.Is(err, ErrInsufficientStock) {
-			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
-			return
-		}
-		if errors.Is(err, shared.ErrShiftNotOpen) {
-			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
-			return
-		}
-		if errors.Is(err, ErrPaymentOverTenderNonCash) || errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
-			errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
-			errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
-			errors.Is(err, ErrMaxPaymentsExceeded) || errors.Is(err, ErrMultipleCashPayments) {
-			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
-			return
-		}
-		shared.InternalError(c, err)
-		return
-	}
-
-	if caller.IsManager() && h.auditSvc != nil {
-		actorID := middleware.UserIDFromContext(ctx)
-		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
-			UserID:      actorID,
-			Username:    middleware.UsernameFromContext(ctx),
-			Role:        caller.Role,
-			Action:      "complete_parked_sale",
-			EntityType:  "sale",
-			EntityID:    &sale.ID,
-			NewValues:   scrubSaleAuditPayload(sale),
-			IPAddress:   middleware.IPAddressFromContext(ctx),
-			UserAgent:   middleware.UserAgentFromContext(ctx),
-			Description: fmt.Sprintf("Manager completed recalled parked sale %d as sale %s (total %d)", id, sale.InvoiceNumber, sale.TotalAmount),
-			StoreID:     middleware.StoreIDFromContext(ctx),
-		})
 	}
 
 	if detail, err := h.svc.GetSaleByID(ctx, sale.ID, storeIDPtr); err == nil {

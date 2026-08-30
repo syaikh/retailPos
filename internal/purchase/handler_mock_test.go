@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/permissions"
 )
 
@@ -54,11 +54,33 @@ func (m *mockPurchaseService) Confirm(ctx context.Context, id, userID int) error
 	return m.confirm(ctx, id, userID)
 }
 
+func (m *mockPurchaseService) ConfirmTx(ctx context.Context, tx pgx.Tx, id, userID int) error {
+	if m.confirm == nil {
+		return nil
+	}
+	return m.confirm(ctx, id, userID)
+}
+
+func (m *mockPurchaseService) NotifyPOConfirmed(ctx context.Context, id int) {}
+
 func (m *mockPurchaseService) Cancel(ctx context.Context, id, userID int) error {
 	if m.cancel == nil {
 		return nil
 	}
 	return m.cancel(ctx, id, userID)
+}
+
+func (m *mockPurchaseService) CancelTx(ctx context.Context, tx pgx.Tx, id, userID int) error {
+	if m.cancel == nil {
+		return nil
+	}
+	return m.cancel(ctx, id, userID)
+}
+
+func (m *mockPurchaseService) NotifyPOCancelled(ctx context.Context, id int) {}
+
+func (m *mockPurchaseService) InTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	return fn(nil)
 }
 
 func (m *mockPurchaseService) GetDetail(ctx context.Context, id int, storeID *int) (*Order, error) {
@@ -95,8 +117,7 @@ func (m *mockPurchaseService) SetSupplierLookup(l SupplierLookup) {}
 
 func setupHandlerMock(t *testing.T, svc Service) *gin.Engine {
 	t.Helper()
-	auditRepo := audit.NewRepository(dbPool)
-	auditSvc := audit.NewService(auditRepo)
+	auditSvc := &mockAuditCreator{}
 	handler := NewHandler(svc, auditSvc)
 
 	gin.SetMode(gin.TestMode)

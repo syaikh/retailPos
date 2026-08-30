@@ -879,7 +879,8 @@ func (r *Repository) GetParkedSaleByID(ctx context.Context, id int, ownerID, sto
 	return &sale, nil
 }
 
-func (r *Repository) RecallSale(ctx context.Context, saleID int, ownerID, storeID *int) (*Sale, error) {
+// RecallSaleTx marks a parked sale as recalled within an existing transaction.
+func (r *Repository) RecallSaleTx(ctx context.Context, tx pgx.Tx, saleID int, ownerID, storeID *int) (*Sale, error) {
 	var sale Sale
 	var storeIDVal sql.NullInt64
 	var createdAt, updatedAt time.Time
@@ -900,7 +901,7 @@ func (r *Repository) RecallSale(ctx context.Context, saleID int, ownerID, storeI
 	query += `
 		RETURNING id, invoice_number, cashier_id, store_id, subtotal, discount, tax, total_amount, payment_method, status, created_at, updated_at
 	`
-	err := r.db.QueryRow(ctx, query, args...).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &storeIDVal, &sale.Subtotal, &sale.Discount, &sale.Tax,
+	err := tx.QueryRow(ctx, query, args...).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &storeIDVal, &sale.Subtotal, &sale.Discount, &sale.Tax,
 		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -915,7 +916,7 @@ func (r *Repository) RecallSale(ctx context.Context, saleID int, ownerID, storeI
 	sale.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	sale.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
-	itemRows, err := r.db.Query(ctx, `
+	itemRows, err := tx.Query(ctx, `
 		SELECT si.id, si.sale_id, si.product_id, si.quantity, si.unit_price, si.subtotal
 		FROM sale_items si
 		WHERE si.sale_id = $1
@@ -949,7 +950,24 @@ func (r *Repository) RecallSale(ctx context.Context, saleID int, ownerID, storeI
 	return &sale, nil
 }
 
-func (r *Repository) CancelParkedSale(ctx context.Context, saleID int, ownerID, storeID *int) error {
+func (r *Repository) RecallSale(ctx context.Context, saleID int, ownerID, storeID *int) (*Sale, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	sale, err := r.RecallSaleTx(ctx, tx, saleID, ownerID, storeID)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+	return sale, nil
+}
+
+// CancelParkedSaleTx voids a parked/recalled sale within an existing transaction.
+func (r *Repository) CancelParkedSaleTx(ctx context.Context, tx pgx.Tx, saleID int, ownerID, storeID *int) error {
 	query := `
 		UPDATE sales SET status = 'cancelled', updated_at = NOW()
 		WHERE id = $1 AND status IN ('parked', 'recalled')
@@ -963,7 +981,7 @@ func (r *Repository) CancelParkedSale(ctx context.Context, saleID int, ownerID, 
 		args = append(args, *storeID)
 		query += fmt.Sprintf(` AND store_id = $%d`, len(args))
 	}
-	tag, err := r.db.Exec(ctx, query, args...)
+	tag, err := tx.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("cancel parked sale: %w", err)
 	}
@@ -971,6 +989,18 @@ func (r *Repository) CancelParkedSale(ctx context.Context, saleID int, ownerID, 
 		return ErrSaleNotFound
 	}
 	return nil
+}
+
+func (r *Repository) CancelParkedSale(ctx context.Context, saleID int, ownerID, storeID *int) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := r.CancelParkedSaleTx(ctx, tx, saleID, ownerID, storeID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (r *Repository) ConsumeParkedSale(ctx context.Context, tx pgx.Tx, parkedSaleID int, ownerID, storeID *int) error {

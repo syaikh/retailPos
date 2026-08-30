@@ -2,6 +2,7 @@ package sale
 
 import (
 	"context"
+	"errors"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -56,6 +58,14 @@ type mockService struct {
 	cancelCartFn                    func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	checkoutCartFn                  func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
 	checkoutCartWithPaymentMethodFn func(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error)
+
+	createSaleTxFn               func(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, payments []CreatePaymentRequest) error
+	createSaleWithParkedSaleTxFn func(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error
+	recallSaleTxFn               func(ctx context.Context, tx pgx.Tx, saleID int, caller Caller) (*Sale, error)
+	cancelParkedSaleTxFn         func(ctx context.Context, tx pgx.Tx, saleID int, caller Caller) error
+	checkoutCartTxFn             func(ctx context.Context, tx pgx.Tx, cartID int, payments []CreatePaymentRequest, legacyPaymentMethod string, cashierID int) (*Sale, error)
+	notifySaleCreatedFn          func(ctx context.Context, sale *Sale)
+	inTxFn                      func(ctx context.Context, fn func(tx pgx.Tx) error) error
 
 	setCartConfigFn    func(cfg CartConfig)
 	setPriceStoreFn    func(ps ProductPriceGetter)
@@ -213,6 +223,54 @@ func (m *mockService) CheckoutCartWithPaymentMethod(ctx context.Context, cartID 
 	return nil, fmt.Errorf("not mocked")
 }
 
+func (m *mockService) CreateSaleTx(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
+	if m.createSaleTxFn != nil {
+		return m.createSaleTxFn(ctx, tx, sale, items, payments)
+	}
+	return m.CreateSale(ctx, sale, items, payments)
+}
+
+func (m *mockService) CreateSaleWithParkedSaleTx(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error {
+	if m.createSaleWithParkedSaleTxFn != nil {
+		return m.createSaleWithParkedSaleTxFn(ctx, tx, sale, items, parkedSaleID, payments, caller)
+	}
+	return m.CreateSaleWithParkedSale(ctx, sale, items, parkedSaleID, payments, caller)
+}
+
+func (m *mockService) NotifySaleCreated(ctx context.Context, sale *Sale) {
+	if m.notifySaleCreatedFn != nil {
+		m.notifySaleCreatedFn(ctx, sale)
+	}
+}
+
+func (m *mockService) InTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	if m.inTxFn != nil {
+		return m.inTxFn(ctx, fn)
+	}
+	return fn(nil)
+}
+
+func (m *mockService) RecallSaleTx(ctx context.Context, tx pgx.Tx, saleID int, caller Caller) (*Sale, error) {
+	if m.recallSaleTxFn != nil {
+		return m.recallSaleTxFn(ctx, tx, saleID, caller)
+	}
+	return m.RecallSale(ctx, saleID, caller)
+}
+
+func (m *mockService) CancelParkedSaleTx(ctx context.Context, tx pgx.Tx, saleID int, caller Caller) error {
+	if m.cancelParkedSaleTxFn != nil {
+		return m.cancelParkedSaleTxFn(ctx, tx, saleID, caller)
+	}
+	return m.CancelParkedSale(ctx, saleID, caller)
+}
+
+func (m *mockService) CheckoutCartTx(ctx context.Context, tx pgx.Tx, cartID int, payments []CreatePaymentRequest, legacyPaymentMethod string, cashierID int) (*Sale, error) {
+	if m.checkoutCartTxFn != nil {
+		return m.checkoutCartTxFn(ctx, tx, cartID, payments, legacyPaymentMethod, cashierID)
+	}
+	return m.CheckoutCart(ctx, cartID, payments, cashierID)
+}
+
 func (m *mockService) SetCartConfig(cfg CartConfig) {
 	if m.setCartConfigFn != nil {
 		m.setCartConfigFn(cfg)
@@ -251,7 +309,14 @@ func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) e
 	return nil
 }
 
-func setupSaleHandler(svc Service, auditSvc audit.Creator) *gin.Engine {
+func (m *mockAuditCreator) CreateAuditLogTx(ctx context.Context, tx pgx.Tx, log *audit.Log) error {
+	if m.createAuditLogFn != nil {
+		return m.createAuditLogFn(ctx, log)
+	}
+	return nil
+}
+
+func setupSaleHandler(svc Service, auditSvc audit.TxCreator) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -288,7 +353,7 @@ func setupSaleHandlerPerms(svc Service, perms []string) *gin.Engine {
 // setupSaleHandlerUser builds a handler with a configurable userID context
 // value (nil omits the key entirely) so the auth branches of the sale
 // handlers can be exercised.
-func setupSaleHandlerUser(svc Service, auditSvc audit.Creator, userID interface{}) *gin.Engine {
+func setupSaleHandlerUser(svc Service, auditSvc audit.TxCreator, userID interface{}) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -1810,4 +1875,25 @@ func TestSaleHandler_CancelParkedSale_ServiceError(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// TestSaleHandler_RecallParkedSale_AuditFailure verifies the new atomic
+// behaviour: when the audit write fails inside the transaction, the recall is
+// rolled back and the request fails instead of silently completing an
+// unaudited mutation.
+func TestSaleHandler_RecallParkedSale_AuditFailure(t *testing.T) {
+	svc := &mockService{
+		recallSaleFn: func(ctx context.Context, saleID int, caller Caller) (*Sale, error) {
+			return &Sale{ID: saleID, InvoiceNumber: "INV-AUDIT-FAIL"}, nil
+		},
+	}
+	auditSvc := &mockAuditCreator{createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+		return errors.New("audit write failed")
+	}}
+	r := setupSaleHandler(svc, auditSvc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales/parked/1/recall", nil)
+	r.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusOK, w.Code, "recall must fail when its audit log cannot be written")
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/permissions"
 )
@@ -25,8 +24,7 @@ func setupHandlerTest(t *testing.T) (*gin.Engine, *Handler, int) {
 	defer bus.Shutdown()
 
 	svc := newWiredService(repo, bus)
-	auditRepo := audit.NewRepository(dbPool)
-	auditSvc := audit.NewService(auditRepo)
+	auditSvc := &mockAuditCreator{}
 	handler := NewHandler(svc, auditSvc)
 
 	gin.SetMode(gin.TestMode)
@@ -465,8 +463,7 @@ func TestHandler_CreateGoodsReceipt_StoreFromBody(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := newWiredService(repo, bus)
-	auditRepo := audit.NewRepository(dbPool)
-	auditSvc := audit.NewService(auditRepo)
+	auditSvc := &mockAuditCreator{}
 	handler := NewHandler(svc, auditSvc)
 
 	gin.SetMode(gin.TestMode)

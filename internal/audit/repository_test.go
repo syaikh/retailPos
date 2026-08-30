@@ -336,6 +336,39 @@ func intPtr(i int) *int {
 	return &i
 }
 
+func TestAuditRepository_CreateAuditLog_DanglingUserFallback(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	// A non-nil user_id referencing no existing user must not fail the audit
+	// write (which would roll back the surrounding sale/PO/inventory mutation).
+	// The row is persisted with user_id = NULL; the stored role column is kept.
+	danglingID := 999999999
+	var count int
+	err := dbPool.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE id = $1`, danglingID).Scan(&count)
+	require.NoError(t, err)
+	require.Zero(t, count, "test fixture requires a non-existent user id")
+
+	before := metrics.AuditWriteFailures.Value()
+
+	al := &Log{
+		UserID:     &danglingID,
+		Role:       "admin",
+		Action:     "test_action_dangling_user",
+		EntityType: "product",
+	}
+	require.NoError(t, repo.CreateAuditLog(ctx, al))
+	require.Greater(t, al.ID, 0)
+
+	got, err := repo.GetAuditLogByID(ctx, al.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.UserID, "dangling user reference must be stored as NULL")
+	assert.Equal(t, "admin", got.Role, "the stored role column must be preserved on fallback")
+
+	after := metrics.AuditWriteFailures.Value()
+	assert.Equal(t, before, after, "a successful FK-fallback write must not increment the failure metric")
+}
+
 func TestAuditRepository_CreateAuditLog_FailureIncrementsMetric(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()

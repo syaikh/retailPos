@@ -134,16 +134,11 @@ func (r *Repository) LoadLocationForStock(ctx context.Context, db shared.DBPool,
 // rack row on first use. The rack row mirrors the rack's warehouse_id/store_id.
 // Global stock is intentionally left unchanged (rack rows are bookkeeping).
 // A store-scoped caller may only write a rack that belongs to their store.
-func (r *Repository) SetLocationStock(ctx context.Context, productID, locationID, quantity, userID int, storeID *int) error {
+// SetLocationStockTx records how much of a product sits in a rack within an existing transaction.
+func (r *Repository) SetLocationStockTx(ctx context.Context, tx pgx.Tx, productID, locationID, quantity, userID int, storeID *int) error {
 	if quantity < 0 {
 		return ErrNegativeQuantity
 	}
-
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 
 	rack, err := r.LoadLocationForStock(ctx, tx, locationID)
 	if err != nil {
@@ -175,6 +170,24 @@ func (r *Repository) SetLocationStock(ctx context.Context, productID, locationID
 	if err := r.insertLocationMovement(ctx, tx, productID, locationID, quantity-oldQty, "location_set", userID, notes); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (r *Repository) SetLocationStock(ctx context.Context, productID, locationID, quantity, userID int, storeID *int) error {
+	if quantity < 0 {
+		return ErrNegativeQuantity
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := r.SetLocationStockTx(ctx, tx, productID, locationID, quantity, userID, storeID); err != nil {
+		return err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit location stock set: %w", err)
 	}
@@ -184,19 +197,13 @@ func (r *Repository) SetLocationStock(ctx context.Context, productID, locationID
 // TransferLocationStock moves quantity between two racks. Global stock is
 // unchanged. Both rack rows are locked to keep concurrent transfers correct.
 // A store-scoped caller may only move stock between racks of their own store.
-func (r *Repository) TransferLocationStock(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int, storeID *int) error {
+func (r *Repository) TransferLocationStockTx(ctx context.Context, tx pgx.Tx, productID, fromLocationID, toLocationID, quantity, userID int, storeID *int) error {
 	if quantity <= 0 {
 		return ErrNonPositiveQuantity
 	}
 	if fromLocationID == toLocationID {
 		return ErrSameLocation
 	}
-
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 
 	fromRack, err := r.LoadLocationForStock(ctx, tx, fromLocationID)
 	if err != nil {
@@ -241,6 +248,20 @@ func (r *Repository) TransferLocationStock(ctx context.Context, productID, fromL
 	if err := r.insertLocationMovement(ctx, tx, productID, toLocationID, quantity, "location_transfer", userID, toNotes); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (r *Repository) TransferLocationStock(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int, storeID *int) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := r.TransferLocationStockTx(ctx, tx, productID, fromLocationID, toLocationID, quantity, userID, storeID); err != nil {
+		return err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit location transfer: %w", err)
 	}

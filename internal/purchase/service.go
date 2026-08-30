@@ -3,6 +3,7 @@ package purchase
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -271,7 +272,23 @@ func (s *service) DeleteDraft(ctx context.Context, id int) error {
 	return nil
 }
 
-func (s *service) Confirm(ctx context.Context, id, userID int) error {
+// InTx runs fn inside a single transaction on the purchase database, committing
+// on success and rolling back on error. Used to make a PO mutation and its audit
+// log atomic.
+func (s *service) InTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// ConfirmTx confirms a purchase order within an existing transaction.
+func (s *service) ConfirmTx(ctx context.Context, tx pgx.Tx, id, userID int) error {
 	existing, err := s.repo.GetPurchaseOrderByID(ctx, id, nil)
 	if err != nil {
 		return err
@@ -282,34 +299,39 @@ func (s *service) Confirm(ctx context.Context, id, userID int) error {
 
 	now := time.Now().In(shared.JakartaLocation()).Format(time.RFC3339)
 
-	tx, err := s.repo.BeginTx(ctx)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
 	if err := s.repo.LockPurchaseOrderForUpdate(ctx, tx, id); err != nil {
 		return err
 	}
 
-	if err := s.repo.ConfirmPurchaseOrder(ctx, tx, id, userID, now); err != nil {
-		return err
-	}
+	return s.repo.ConfirmPurchaseOrder(ctx, tx, id, userID, now)
+}
 
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
+// NotifyPOConfirmed publishes the PO-confirmed event after a successful commit.
+func (s *service) NotifyPOConfirmed(ctx context.Context, id int) {
+	existing, err := s.repo.GetPurchaseOrderByID(ctx, id, nil)
+	if err != nil {
+		slog.Warn("failed to reload purchase order for event publish", "po_id", id, "error", err)
+		return
 	}
-
 	_ = s.eventBus.Publish(ctx, events.TopicPOConfirmed, &events.PurchaseOrderEvent{
 		POID:     id,
 		PONumber: existing.PONumber,
 		StoreID:  existing.StoreID,
 	})
+}
 
+func (s *service) Confirm(ctx context.Context, id, userID int) error {
+	if err := s.InTx(ctx, func(tx pgx.Tx) error {
+		return s.ConfirmTx(ctx, tx, id, userID)
+	}); err != nil {
+		return err
+	}
+	s.NotifyPOConfirmed(ctx, id)
 	return nil
 }
 
-func (s *service) Cancel(ctx context.Context, id, userID int) error {
+// CancelTx cancels a purchase order within an existing transaction.
+func (s *service) CancelTx(ctx context.Context, tx pgx.Tx, id, userID int) error {
 	existing, err := s.repo.GetPurchaseOrderByID(ctx, id, nil)
 	if err != nil {
 		return err
@@ -327,30 +349,34 @@ func (s *service) Cancel(ctx context.Context, id, userID int) error {
 
 	now := time.Now().In(shared.JakartaLocation()).Format(time.RFC3339)
 
-	tx, err := s.repo.BeginTx(ctx)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
 	if err := s.repo.LockPurchaseOrderForUpdate(ctx, tx, id); err != nil {
 		return err
 	}
 
-	if err := s.repo.CancelPurchaseOrder(ctx, tx, id, userID, now); err != nil {
-		return err
-	}
+	return s.repo.CancelPurchaseOrder(ctx, tx, id, userID, now)
+}
 
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
+// NotifyPOCancelled publishes the PO-cancelled event after a successful commit.
+func (s *service) NotifyPOCancelled(ctx context.Context, id int) {
+	existing, err := s.repo.GetPurchaseOrderByID(ctx, id, nil)
+	if err != nil {
+		slog.Warn("failed to reload purchase order for event publish", "po_id", id, "error", err)
+		return
 	}
-
 	_ = s.eventBus.Publish(ctx, events.TopicPOCancelled, &events.PurchaseOrderEvent{
 		POID:     id,
 		PONumber: existing.PONumber,
 		StoreID:  existing.StoreID,
 	})
+}
 
+func (s *service) Cancel(ctx context.Context, id, userID int) error {
+	if err := s.InTx(ctx, func(tx pgx.Tx) error {
+		return s.CancelTx(ctx, tx, id, userID)
+	}); err != nil {
+		return err
+	}
+	s.NotifyPOCancelled(ctx, id)
 	return nil
 }
 

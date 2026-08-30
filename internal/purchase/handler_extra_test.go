@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/permissions"
 )
@@ -32,8 +31,7 @@ func setupHandlerOpt(t *testing.T, opts handlerOpts) *gin.Engine {
 	t.Cleanup(bus.Shutdown)
 
 	svc := newWiredService(repo, bus)
-	auditRepo := audit.NewRepository(dbPool)
-	auditSvc := audit.NewService(auditRepo)
+	auditSvc := &mockAuditCreator{}
 	handler := NewHandler(svc, auditSvc)
 
 	gin.SetMode(gin.TestMode)

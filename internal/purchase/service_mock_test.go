@@ -217,7 +217,6 @@ func TestServiceMock_Confirm_Errors(t *testing.T) {
 
 	t.Run("begin error", func(t *testing.T) {
 		mock, svc, ctx := newMockSvc(t)
-		expectPOFetch(mock, now, StatusDraft, false)
 		mock.ExpectBegin().WillReturnError(boom)
 		err := svc.Confirm(ctx, 1, 9)
 		assert.ErrorContains(t, err, "begin transaction")
@@ -225,8 +224,8 @@ func TestServiceMock_Confirm_Errors(t *testing.T) {
 
 	t.Run("lock error", func(t *testing.T) {
 		mock, svc, ctx := newMockSvc(t)
-		expectPOFetch(mock, now, StatusDraft, false)
 		mock.ExpectBegin()
+		expectPOFetch(mock, now, StatusDraft, false)
 		mock.ExpectQuery("SELECT id FROM purchase_orders").WithArgs(1).WillReturnError(boom)
 		err := svc.Confirm(ctx, 1, 9)
 		assert.ErrorContains(t, err, "failed to lock purchase order")
@@ -234,8 +233,8 @@ func TestServiceMock_Confirm_Errors(t *testing.T) {
 
 	t.Run("confirm error", func(t *testing.T) {
 		mock, svc, ctx := newMockSvc(t)
-		expectPOFetch(mock, now, StatusDraft, false)
 		mock.ExpectBegin()
+		expectPOFetch(mock, now, StatusDraft, false)
 		mock.ExpectQuery("SELECT id FROM purchase_orders").WithArgs(1).WillReturnRows(
 			pgxmock.NewRows([]string{"id"}).AddRow(1))
 		mock.ExpectExec("SET status = 'confirmed'").WithArgs(anyArgs(3)...).WillReturnError(boom)
@@ -245,14 +244,14 @@ func TestServiceMock_Confirm_Errors(t *testing.T) {
 
 	t.Run("commit error", func(t *testing.T) {
 		mock, svc, ctx := newMockSvc(t)
-		expectPOFetch(mock, now, StatusDraft, false)
 		mock.ExpectBegin()
+		expectPOFetch(mock, now, StatusDraft, false)
 		mock.ExpectQuery("SELECT id FROM purchase_orders").WithArgs(1).WillReturnRows(
 			pgxmock.NewRows([]string{"id"}).AddRow(1))
 		mock.ExpectExec("SET status = 'confirmed'").WithArgs(anyArgs(3)...).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		mock.ExpectCommit().WillReturnError(boom)
 		err := svc.Confirm(ctx, 1, 9)
-		assert.ErrorContains(t, err, "commit transaction")
+		assert.ErrorContains(t, err, "boom")
 	})
 }
 
@@ -262,7 +261,6 @@ func TestServiceMock_Cancel_Errors(t *testing.T) {
 
 	t.Run("begin error", func(t *testing.T) {
 		mock, svc, ctx := newMockSvc(t)
-		expectPOFetch(mock, now, StatusConfirmed, true)
 		mock.ExpectBegin().WillReturnError(boom)
 		err := svc.Cancel(ctx, 1, 9)
 		assert.ErrorContains(t, err, "begin transaction")
@@ -270,8 +268,8 @@ func TestServiceMock_Cancel_Errors(t *testing.T) {
 
 	t.Run("lock error", func(t *testing.T) {
 		mock, svc, ctx := newMockSvc(t)
-		expectPOFetch(mock, now, StatusConfirmed, true)
 		mock.ExpectBegin()
+		expectPOFetch(mock, now, StatusConfirmed, true)
 		mock.ExpectQuery("SELECT id FROM purchase_orders").WithArgs(1).WillReturnError(boom)
 		err := svc.Cancel(ctx, 1, 9)
 		assert.ErrorContains(t, err, "failed to lock purchase order")
@@ -279,8 +277,8 @@ func TestServiceMock_Cancel_Errors(t *testing.T) {
 
 	t.Run("cancel error", func(t *testing.T) {
 		mock, svc, ctx := newMockSvc(t)
-		expectPOFetch(mock, now, StatusConfirmed, true)
 		mock.ExpectBegin()
+		expectPOFetch(mock, now, StatusConfirmed, true)
 		mock.ExpectQuery("SELECT id FROM purchase_orders").WithArgs(1).WillReturnRows(
 			pgxmock.NewRows([]string{"id"}).AddRow(1))
 		mock.ExpectExec("SET status = 'cancelled'").WithArgs(anyArgs(3)...).WillReturnError(boom)
@@ -290,14 +288,14 @@ func TestServiceMock_Cancel_Errors(t *testing.T) {
 
 	t.Run("commit error", func(t *testing.T) {
 		mock, svc, ctx := newMockSvc(t)
-		expectPOFetch(mock, now, StatusConfirmed, true)
 		mock.ExpectBegin()
+		expectPOFetch(mock, now, StatusConfirmed, true)
 		mock.ExpectQuery("SELECT id FROM purchase_orders").WithArgs(1).WillReturnRows(
 			pgxmock.NewRows([]string{"id"}).AddRow(1))
 		mock.ExpectExec("SET status = 'cancelled'").WithArgs(anyArgs(3)...).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		mock.ExpectCommit().WillReturnError(boom)
 		err := svc.Cancel(ctx, 1, 9)
-		assert.ErrorContains(t, err, "commit transaction")
+		assert.ErrorContains(t, err, "boom")
 	})
 }
 

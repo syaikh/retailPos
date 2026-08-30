@@ -435,13 +435,9 @@ func (s *service) CheckoutCartWithPaymentMethod(ctx context.Context, cartID int,
 	return s.checkoutCart(ctx, cartID, nil, paymentMethod, cashierID)
 }
 
-func (s *service) checkoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, legacyPaymentMethod string, cashierID int) (*Sale, error) {
-	tx, err := s.repo.BeginTx(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
+// CheckoutCartTx checks out a cart into a completed sale within an existing
+// transaction. It does not commit or publish events.
+func (s *service) CheckoutCartTx(ctx context.Context, tx pgx.Tx, cartID int, payments []CreatePaymentRequest, legacyPaymentMethod string, cashierID int) (*Sale, error) {
 	status, expiredAt, err := s.repo.LockCartSession(ctx, tx, cartID)
 	if err != nil {
 		return nil, err
@@ -554,13 +550,24 @@ func (s *service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
-	}
-
 	sale.Items = items
-	s.publishSaleCreated(ctx, sale)
+	return sale, nil
+}
 
+func (s *service) checkoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, legacyPaymentMethod string, cashierID int) (*Sale, error) {
+	var sale *Sale
+	err := s.InTx(ctx, func(tx pgx.Tx) error {
+		s, e := s.CheckoutCartTx(ctx, tx, cartID, payments, legacyPaymentMethod, cashierID)
+		if e != nil {
+			return e
+		}
+		sale = s
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.publishSaleCreated(ctx, sale)
 	return sale, nil
 }
 

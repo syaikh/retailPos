@@ -9,6 +9,7 @@ import (
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 )
 
 // ListLocationStock godoc
@@ -61,13 +62,36 @@ func (h *Handler) SetLocationStock(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.svc.SetLocationStock(c.Request.Context(), req.ProductID, req.LocationID, req.Quantity, uid, shared.GetStoreID(c)); err != nil {
-		badRequestOrInternal(c, err)
-		return
+	storeID := shared.GetStoreID(c)
+	if h.auditSvc != nil {
+		err := h.svc.InTx(c.Request.Context(), func(tx pgx.Tx) error {
+			if e := h.svc.SetLocationStockTx(c.Request.Context(), tx, req.ProductID, req.LocationID, req.Quantity, uid, storeID); e != nil {
+				return e
+			}
+			return h.auditSvc.CreateAuditLogTx(c.Request.Context(), tx, &audit.Log{
+				UserID:      middleware.UserIDFromContext(c.Request.Context()),
+				Username:    middleware.UsernameFromContext(c.Request.Context()),
+				Role:        middleware.RoleFromContext(c.Request.Context()),
+				Action:      "update",
+				EntityType:  "inventory_location",
+				EntityID:    &req.ProductID,
+				NewValues:   shared.ToJSONMap(map[string]interface{}{"location_id": req.LocationID, "quantity": req.Quantity}),
+				IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+				UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+				Description: fmt.Sprintf("Set rack stock for product #%d", req.ProductID),
+				StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
+			})
+		})
+		if err != nil {
+			badRequestOrInternal(c, err)
+			return
+		}
+	} else {
+		if err := h.svc.SetLocationStock(c.Request.Context(), req.ProductID, req.LocationID, req.Quantity, uid, storeID); err != nil {
+			badRequestOrInternal(c, err)
+			return
+		}
 	}
-	h.auditLocation(c, "Set rack stock", req.ProductID, map[string]interface{}{
-		"location_id": req.LocationID, "quantity": req.Quantity,
-	})
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
@@ -100,24 +124,35 @@ func (h *Handler) TransferLocationStock(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.svc.TransferLocationStock(c.Request.Context(), req.ProductID, req.FromLocationID, req.ToLocationID, req.Quantity, uid, shared.GetStoreID(c)); err != nil {
-		badRequestOrInternal(c, err)
-		return
-	}
+	storeID := shared.GetStoreID(c)
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
-			UserID:      middleware.UserIDFromContext(c.Request.Context()),
-			Username:    middleware.UsernameFromContext(c.Request.Context()),
-			Role:        middleware.RoleFromContext(c.Request.Context()),
-			Action:      "inventory_transfer",
-			EntityType:  "inventory",
-			EntityID:    &req.ProductID,
-			NewValues:   shared.ToJSONMap(map[string]interface{}{"product_id": req.ProductID, "from_location_id": req.FromLocationID, "to_location_id": req.ToLocationID, "quantity": req.Quantity}),
-			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
-			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
-			Description: fmt.Sprintf("Transferred stock for product #%d from location %d to %d (qty %d)", req.ProductID, req.FromLocationID, req.ToLocationID, req.Quantity),
-			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
+		err := h.svc.InTx(c.Request.Context(), func(tx pgx.Tx) error {
+			if e := h.svc.TransferLocationStockTx(c.Request.Context(), tx, req.ProductID, req.FromLocationID, req.ToLocationID, req.Quantity, uid, storeID); e != nil {
+				return e
+			}
+			return h.auditSvc.CreateAuditLogTx(c.Request.Context(), tx, &audit.Log{
+				UserID:      middleware.UserIDFromContext(c.Request.Context()),
+				Username:    middleware.UsernameFromContext(c.Request.Context()),
+				Role:        middleware.RoleFromContext(c.Request.Context()),
+				Action:      "inventory_transfer",
+				EntityType:  "inventory",
+				EntityID:    &req.ProductID,
+				NewValues:   shared.ToJSONMap(map[string]interface{}{"product_id": req.ProductID, "from_location_id": req.FromLocationID, "to_location_id": req.ToLocationID, "quantity": req.Quantity}),
+				IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+				UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+				Description: fmt.Sprintf("Transferred stock for product #%d from location %d to %d (qty %d)", req.ProductID, req.FromLocationID, req.ToLocationID, req.Quantity),
+				StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
+			})
 		})
+		if err != nil {
+			badRequestOrInternal(c, err)
+			return
+		}
+	} else {
+		if err := h.svc.TransferLocationStock(c.Request.Context(), req.ProductID, req.FromLocationID, req.ToLocationID, req.Quantity, uid, storeID); err != nil {
+			badRequestOrInternal(c, err)
+			return
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
@@ -142,23 +177,4 @@ func badRequestOrInternal(c *gin.Context, err error) {
 	default:
 		shared.InternalError(c, err)
 	}
-}
-
-func (h *Handler) auditLocation(c *gin.Context, description string, productID int, newValues map[string]interface{}) {
-	if h.auditSvc == nil {
-		return
-	}
-	_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
-		UserID:      middleware.UserIDFromContext(c.Request.Context()),
-		Username:    middleware.UsernameFromContext(c.Request.Context()),
-		Role:        middleware.RoleFromContext(c.Request.Context()),
-		Action:      "update",
-		EntityType:  "inventory_location",
-		EntityID:    &productID,
-		NewValues:   shared.ToJSONMap(newValues),
-		IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
-		UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
-		Description: fmt.Sprintf("%s for product #%d", description, productID),
-		StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
-	})
 }

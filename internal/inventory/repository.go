@@ -96,6 +96,26 @@ func (r *Repository) GetStockByProductID(ctx context.Context, productID int) (*P
 // (store-scoped manager/staff) routes the delta to that store's product_stock
 // row after validating the product belongs to the store; nil storeID
 // (superadmin/admin) keeps the global bucket.
+// BeginTx starts a transaction on the inventory database.
+func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
+	return r.db.Begin(ctx)
+}
+
+// AdjustStockTx applies a single stock adjustment within an existing transaction.
+func (r *Repository) AdjustStockTx(ctx context.Context, tx pgx.Tx, productID int, quantityChange int, storeID *int, userID *int, notes string) error {
+	if storeID != nil {
+		if err := r.checkProductStore(ctx, tx, productID, storeID); err != nil {
+			return err
+		}
+	}
+
+	if err := r.adjustStockInTx(ctx, tx, productID, quantityChange, storeID, userID, notes); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityChange int, storeID *int, userID *int, notes string) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -105,13 +125,7 @@ func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityCha
 		_ = tx.Rollback(ctx)
 	}()
 
-	if storeID != nil {
-		if err := r.checkProductStore(ctx, tx, productID, storeID); err != nil {
-			return err
-		}
-	}
-
-	if err := r.adjustStockInTx(ctx, tx, productID, quantityChange, storeID, userID, notes); err != nil {
+	if err := r.AdjustStockTx(ctx, tx, productID, quantityChange, storeID, userID, notes); err != nil {
 		return err
 	}
 

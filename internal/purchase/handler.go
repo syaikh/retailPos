@@ -13,6 +13,7 @@ import (
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 )
 
 type Service interface {
@@ -20,21 +21,26 @@ type Service interface {
 	UpdateDraft(ctx context.Context, id int, po *Order, items []OrderItem) error
 	DeleteDraft(ctx context.Context, id int) error
 	Confirm(ctx context.Context, id, userID int) error
+	ConfirmTx(ctx context.Context, tx pgx.Tx, id, userID int) error
+	NotifyPOConfirmed(ctx context.Context, id int)
 	Cancel(ctx context.Context, id, userID int) error
+	CancelTx(ctx context.Context, tx pgx.Tx, id, userID int) error
+	NotifyPOCancelled(ctx context.Context, id int)
 	GetDetail(ctx context.Context, id int, storeID *int) (*Order, error)
 	List(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]Order, int, error)
 	GetReceipts(ctx context.Context, poID int, storeID *int) ([]GoodsReceipt, error)
 	CreateGoodsReceipt(ctx context.Context, poID, userID, storeID int, items []CreateGRItemInput) (*GoodsReceipt, error)
 	SetProductLookup(l ProductLookup)
 	SetSupplierLookup(l SupplierLookup)
+	InTx(ctx context.Context, fn func(tx pgx.Tx) error) error
 }
 
 type Handler struct {
 	svc      Service
-	auditSvc audit.Creator
+	auditSvc audit.TxCreator
 }
 
-func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
+func NewHandler(svc Service, auditSvc audit.TxCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -286,7 +292,26 @@ func (h *Handler) ConfirmPO(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.Confirm(ctx, id, uid); err != nil {
+	if h.auditSvc != nil {
+		err = h.svc.InTx(ctx, func(tx pgx.Tx) error {
+			if e := h.svc.ConfirmTx(ctx, tx, id, uid); e != nil {
+				return e
+			}
+			return h.auditSvc.CreateAuditLogTx(ctx, tx, &audit.Log{
+				UserID:      &uid,
+				Username:    middleware.UsernameFromContext(c),
+				Role:        middleware.RoleFromContext(c),
+				Action:      "purchase_order_confirmed",
+				EntityType:  "purchase_order",
+				EntityID:    &id,
+				Description: fmt.Sprintf("Confirmed purchase order %s", po.PONumber),
+				StoreID:     middleware.StoreIDFromContext(c),
+			})
+		})
+	} else {
+		err = h.svc.Confirm(ctx, id, uid)
+	}
+	if err != nil {
 		switch err {
 		case ErrPurchaseOrderNotDraft:
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
@@ -297,17 +322,9 @@ func (h *Handler) ConfirmPO(c *gin.Context) {
 		}
 		return
 	}
-
-	_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
-		UserID:      &uid,
-		Username:    middleware.UsernameFromContext(c),
-		Role:        middleware.RoleFromContext(c),
-		Action:      "purchase_order_confirmed",
-		EntityType:  "purchase_order",
-		EntityID:    &id,
-		Description: fmt.Sprintf("Confirmed purchase order %s", po.PONumber),
-		StoreID:     middleware.StoreIDFromContext(c),
-	})
+	if h.auditSvc != nil {
+		h.svc.NotifyPOConfirmed(ctx, id)
+	}
 
 	shared.JSONSuccess(c, gin.H{"status": StatusConfirmed})
 }
@@ -336,7 +353,26 @@ func (h *Handler) CancelPO(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.Cancel(ctx, id, uid); err != nil {
+	if h.auditSvc != nil {
+		err = h.svc.InTx(ctx, func(tx pgx.Tx) error {
+			if e := h.svc.CancelTx(ctx, tx, id, uid); e != nil {
+				return e
+			}
+			return h.auditSvc.CreateAuditLogTx(ctx, tx, &audit.Log{
+				UserID:      &uid,
+				Username:    middleware.UsernameFromContext(c),
+				Role:        middleware.RoleFromContext(c),
+				Action:      "purchase_order_cancelled",
+				EntityType:  "purchase_order",
+				EntityID:    &id,
+				Description: fmt.Sprintf("Cancelled purchase order %s", po.PONumber),
+				StoreID:     middleware.StoreIDFromContext(c),
+			})
+		})
+	} else {
+		err = h.svc.Cancel(ctx, id, uid)
+	}
+	if err != nil {
 		switch err {
 		case ErrPurchaseOrderCancelled:
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
@@ -347,17 +383,9 @@ func (h *Handler) CancelPO(c *gin.Context) {
 		}
 		return
 	}
-
-	_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
-		UserID:      &uid,
-		Username:    middleware.UsernameFromContext(c),
-		Role:        middleware.RoleFromContext(c),
-		Action:      "purchase_order_cancelled",
-		EntityType:  "purchase_order",
-		EntityID:    &id,
-		Description: fmt.Sprintf("Cancelled purchase order %s", po.PONumber),
-		StoreID:     middleware.StoreIDFromContext(c),
-	})
+	if h.auditSvc != nil {
+		h.svc.NotifyPOCancelled(ctx, id)
+	}
 
 	shared.JSONSuccess(c, gin.H{"status": StatusCancelled})
 }

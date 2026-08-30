@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -66,6 +67,25 @@ func (r *Repository) CreateAuditLogTx(ctx context.Context, tx pgx.Tx, log *Log) 
 	return r.createAuditLog(ctx, tx, log)
 }
 
+// insertAuditLog persists a single audit row against the given query execer
+// (either the pool or a pgx.Tx). `userID` is passed separately so a dangling
+// reference can be retried as NULL without mutating the caller's Log.
+func (r *Repository) insertAuditLog(ctx context.Context, qx queryExecer, log *Log, ipAddr interface{}, userID any) error {
+	return qx.QueryRow(ctx, `
+		INSERT INTO audit_logs (user_id, store_id, role, action, entity_type, entity_id, ip_address, user_agent, old_values, new_values, description, correlation_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		RETURNING id
+	`, userID, log.StoreID, log.Role, log.Action, log.EntityType, log.EntityID, ipAddr, log.UserAgent, log.OldValues, log.NewValues, log.Description, nullIfEmpty(log.CorrelationID)).Scan(&log.ID)
+}
+
+// isForeignKeyViolation reports whether err is a Postgres foreign-key violation
+// (SQLSTATE 23503), i.e. the only self-inflicted reason an audit insert can fail
+// for a well-formed row: a non-nil user_id pointing to a deleted/bad user.
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23503"
+}
+
 func (r *Repository) createAuditLog(ctx context.Context, qx queryExecer, log *Log) error {
 	var ipAddr interface{}
 	if log.IPAddress != "" {
@@ -78,23 +98,45 @@ func (r *Repository) createAuditLog(ctx context.Context, qx queryExecer, log *Lo
 	if log.CorrelationID == "" {
 		log.CorrelationID = shared.GetRequestID(ctx)
 	}
-	err := qx.QueryRow(ctx, `
-		INSERT INTO audit_logs (user_id, store_id, role, action, entity_type, entity_id, ip_address, user_agent, old_values, new_values, description, correlation_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		RETURNING id
-	`, log.UserID, log.StoreID, log.Role, log.Action, log.EntityType, log.EntityID, ipAddr, log.UserAgent, log.OldValues, log.NewValues, log.Description, nullIfEmpty(log.CorrelationID)).Scan(&log.ID)
-	if err != nil {
-		metrics.AuditWriteFailures.Inc()
-		shared.LogError(ctx, "failed to write audit log",
-			err,
-			"action", log.Action,
-			"entity_type", log.EntityType,
-			"entity_id", log.EntityID,
-			"user_id", log.UserID,
-			"store_id", log.StoreID,
-			"username", log.Username,
-		)
+
+	err := r.insertAuditLog(ctx, qx, log, ipAddr, log.UserID)
+	if err == nil {
+		return nil
 	}
+
+	// A non-nil user_id referencing a deleted or otherwise-missing user must
+	// never block the surrounding business operation (audit fail-closed spans a
+	// sale/PO/inventory mutation). Retry once with user_id = NULL, keeping the
+	// denormalized username/role, so the audit row is still persisted and the
+	// transaction is not rolled back over a user-data hiccup.
+	if log.UserID != nil && isForeignKeyViolation(err) {
+		if retryErr := r.insertAuditLog(ctx, qx, log, ipAddr, nil); retryErr == nil {
+			return nil
+		} else {
+			metrics.AuditWriteFailures.Inc()
+			shared.LogError(ctx, "failed to write audit log after dropping dangling user_id",
+				retryErr,
+				"action", log.Action,
+				"entity_type", log.EntityType,
+				"entity_id", log.EntityID,
+				"user_id", log.UserID,
+				"store_id", log.StoreID,
+				"username", log.Username,
+			)
+			return retryErr
+		}
+	}
+
+	metrics.AuditWriteFailures.Inc()
+	shared.LogError(ctx, "failed to write audit log",
+		err,
+		"action", log.Action,
+		"entity_type", log.EntityType,
+		"entity_id", log.EntityID,
+		"user_id", log.UserID,
+		"store_id", log.StoreID,
+		"username", log.Username,
+	)
 	return err
 }
 

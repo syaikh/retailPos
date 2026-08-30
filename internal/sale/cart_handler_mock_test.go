@@ -80,7 +80,7 @@ func mockCartFixture() *mockService {
 
 // setupSaleCartHandler builds a router with cart routes only. When withUser is
 // false the userID context value is omitted so 401 paths can be exercised.
-func setupSaleCartHandler(svc Service, auditSvc audit.Creator, withUser bool, perms []string) *gin.Engine {
+func setupSaleCartHandler(svc Service, auditSvc audit.TxCreator, withUser bool, perms []string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

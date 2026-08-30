@@ -13,23 +13,29 @@ import (
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 )
 
 type Service interface {
 	AdjustStock(ctx context.Context, productID int, quantityChange int, storeID *int, userID int, notes string) error
+	AdjustStockTx(ctx context.Context, tx pgx.Tx, productID int, quantityChange int, storeID *int, userID int, notes string) error
+	NotifyStockAdjusted(ctx context.Context, productID, userID int, quantityChange int, notes string)
 	AdjustStockBatch(ctx context.Context, adjustments []StockAdjustment, userID int, notes string) error
 	GetStockByProductID(ctx context.Context, productID int) (*ProductStock, error)
 	ListLocationStock(ctx context.Context, productID, locationID int, storeID *int) ([]LocationStockItem, error)
 	SetLocationStock(ctx context.Context, productID, locationID, quantity, userID int, storeID *int) error
+	SetLocationStockTx(ctx context.Context, tx pgx.Tx, productID, locationID, quantity, userID int, storeID *int) error
 	TransferLocationStock(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int, storeID *int) error
+	TransferLocationStockTx(ctx context.Context, tx pgx.Tx, productID, fromLocationID, toLocationID, quantity, userID int, storeID *int) error
+	InTx(ctx context.Context, fn func(tx pgx.Tx) error) error
 }
 
 type Handler struct {
 	svc      Service
-	auditSvc audit.Creator
+	auditSvc audit.TxCreator
 }
 
-func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
+func NewHandler(svc Service, auditSvc audit.TxCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -65,30 +71,43 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 		return
 	}
 	storeID := shared.GetStoreID(c)
-	if err := h.svc.AdjustStock(c.Request.Context(), req.ProductID, req.QuantityChange, storeID, uid, req.Notes); err != nil {
-		if errors.Is(err, ErrStoreForbidden) {
-			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+	if h.auditSvc != nil {
+		err := h.svc.InTx(c.Request.Context(), func(tx pgx.Tx) error {
+			if e := h.svc.AdjustStockTx(c.Request.Context(), tx, req.ProductID, req.QuantityChange, storeID, uid, req.Notes); e != nil {
+				return e
+			}
+			return h.auditSvc.CreateAuditLogTx(c.Request.Context(), tx, &audit.Log{
+				UserID:      middleware.UserIDFromContext(c.Request.Context()),
+				Username:    middleware.UsernameFromContext(c.Request.Context()),
+				Role:        middleware.RoleFromContext(c.Request.Context()),
+				Action:      "inventory_adjustment",
+				EntityType:  "inventory",
+				EntityID:    &req.ProductID,
+				NewValues:   shared.ToJSONMap(map[string]interface{}{"product_id": req.ProductID, "quantity_change": req.QuantityChange, "notes": req.Notes}),
+				IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+				UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+				Description: fmt.Sprintf("Adjusted stock for product #%d by %d: %s", req.ProductID, req.QuantityChange, req.Notes),
+				StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
+			})
+		})
+		if err != nil {
+			if errors.Is(err, ErrStoreForbidden) {
+				c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+				return
+			}
+			shared.InternalError(c, err)
 			return
 		}
-		shared.InternalError(c, err)
-		return
-	}
-
-	if h.auditSvc != nil {
-		actorID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
-			UserID:      actorID,
-			Username:    middleware.UsernameFromContext(c.Request.Context()),
-			Role:        middleware.RoleFromContext(c.Request.Context()),
-			Action:      "inventory_adjustment",
-			EntityType:  "inventory",
-			EntityID:    &req.ProductID,
-			NewValues:   shared.ToJSONMap(map[string]interface{}{"product_id": req.ProductID, "quantity_change": req.QuantityChange, "notes": req.Notes}),
-			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
-			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
-			Description: fmt.Sprintf("Adjusted stock for product #%d by %d: %s", req.ProductID, req.QuantityChange, req.Notes),
-			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
-		})
+		h.svc.NotifyStockAdjusted(c.Request.Context(), req.ProductID, uid, req.QuantityChange, req.Notes)
+	} else {
+		if err := h.svc.AdjustStock(c.Request.Context(), req.ProductID, req.QuantityChange, storeID, uid, req.Notes); err != nil {
+			if errors.Is(err, ErrStoreForbidden) {
+				c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+				return
+			}
+			shared.InternalError(c, err)
+			return
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

@@ -40,6 +40,7 @@ type Repo interface {
 	AtomicGetOrCreateOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error)
 	BeginTx(ctx context.Context) (pgx.Tx, error)
 	CancelParkedSale(ctx context.Context, saleID int, ownerID, storeID *int) error
+	CancelParkedSaleTx(ctx context.Context, tx pgx.Tx, saleID int, ownerID, storeID *int) error
 	ConsumeParkedSale(ctx context.Context, tx pgx.Tx, parkedSaleID int, ownerID, storeID *int) error
 	CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item) error
 	CreateSalePayments(ctx context.Context, tx pgx.Tx, saleID int, payments []Payment) error
@@ -61,6 +62,7 @@ type Repo interface {
 	LoadCartItemsForCheckout(ctx context.Context, tx pgx.Tx, cartID int) ([]CartItem, error)
 	LockCartSession(ctx context.Context, tx pgx.Tx, cartID int) (status string, expiredAt *time.Time, err error)
 	RecallSale(ctx context.Context, saleID int, ownerID, storeID *int) (*Sale, error)
+	RecallSaleTx(ctx context.Context, tx pgx.Tx, saleID int, ownerID, storeID *int) (*Sale, error)
 	StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error
 	UpdateCartCustomer(ctx context.Context, tx pgx.Tx, cartID int, customerID *int) error
 	UpdateCartItemQuantity(ctx context.Context, tx pgx.Tx, cartID, itemID, quantity, subtotal, dppAmount, taxAmount int) error
@@ -264,13 +266,24 @@ func (s *service) validatePayments(ctx context.Context, totalAmount int, payment
 	return result, change, nil
 }
 
-func (s *service) CreateSale(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
+// InTx runs fn inside a single transaction on the sale database, committing on
+// success and rolling back on error. Used to make a sale mutation and its audit
+// log atomic.
+func (s *service) InTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
 
+// CreateSaleTx creates a completed sale (items, payments, shift totals) within an
+// existing transaction. It does not commit or publish events.
+func (s *service) CreateSaleTx(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
 	if err := s.processSaleItems(ctx, tx, sale, items); err != nil {
 		return err
 	}
@@ -301,6 +314,23 @@ func (s *service) CreateSale(ctx context.Context, sale *Sale, items []Item, paym
 	}
 
 	return nil
+}
+
+func (s *service) CreateSale(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
+	if err := s.InTx(ctx, func(tx pgx.Tx) error {
+		return s.CreateSaleTx(ctx, tx, sale, items, payments)
+	}); err != nil {
+		return err
+	}
+	s.publishSaleCreated(ctx, sale)
+	return nil
+}
+
+// NotifySaleCreated publishes the sale.created event. It is called after a
+// successful (committed) sale mutation so domain subscribers react to a real,
+// persisted sale.
+func (s *service) NotifySaleCreated(ctx context.Context, sale *Sale) {
+	s.publishSaleCreated(ctx, sale)
 }
 
 func (s *service) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
@@ -380,21 +410,45 @@ func (s *service) ParkSale(ctx context.Context, sale *Sale, items []Item, recall
 	return nil
 }
 
+// RecallSaleTx marks a parked sale as recalled within an existing transaction.
+func (s *service) RecallSaleTx(ctx context.Context, tx pgx.Tx, saleID int, caller Caller) (*Sale, error) {
+	return s.repo.RecallSaleTx(ctx, tx, saleID, caller.ownerScope(), caller.storeScope())
+}
+
 // RecallSale marks a parked sale as recalled. Cashiers are restricted to their
 // own sales (non-owner renders ErrSaleNotFound); managers and elevated roles
 // may recall any cashier's parked sale (P2-6 D4).
 func (s *service) RecallSale(ctx context.Context, saleID int, caller Caller) (*Sale, error) {
-	return s.repo.RecallSale(ctx, saleID, caller.ownerScope(), caller.storeScope())
+	var recalled *Sale
+	err := s.InTx(ctx, func(tx pgx.Tx) error {
+		s, e := s.RecallSaleTx(ctx, tx, saleID, caller)
+		if e != nil {
+			return e
+		}
+		recalled = s
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return recalled, nil
+}
+
+// CancelParkedSaleTx voids a parked/recalled sale within an existing transaction.
+func (s *service) CancelParkedSaleTx(ctx context.Context, tx pgx.Tx, saleID int, caller Caller) error {
+	if caller.IsManager() {
+		return ErrPermissionDenied
+	}
+	return s.repo.CancelParkedSaleTx(ctx, tx, saleID, caller.ownerScope(), caller.storeScope())
 }
 
 // CancelParkedSale voids a parked/recalled sale. Managers are denied outright
 // (recall-only); cashiers are restricted to their own sales; elevated roles may
 // cancel any (P2-6 D4).
 func (s *service) CancelParkedSale(ctx context.Context, saleID int, caller Caller) error {
-	if caller.IsManager() {
-		return ErrPermissionDenied
-	}
-	return s.repo.CancelParkedSale(ctx, saleID, caller.ownerScope(), caller.storeScope())
+	return s.InTx(ctx, func(tx pgx.Tx) error {
+		return s.CancelParkedSaleTx(ctx, tx, saleID, caller)
+	})
 }
 
 func (s *service) ListParkedSales(ctx context.Context, caller Caller) ([]Sale, error) {
@@ -410,19 +464,16 @@ func (s *service) GetParkedSaleByID(ctx context.Context, saleID int, caller Call
 // manager-initiated sale without a parked_sale_id is rejected (defense in depth
 // with the SalePark-gated dedicated completion route). Cashiers consume only
 // their own recalled sales (P2-6 D4).
-func (s *service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error {
+// CreateSaleWithParkedSaleTx creates a completed sale, optionally consuming a
+// previously recalled parked sale, within an existing transaction. It does not
+// commit or publish events.
+func (s *service) CreateSaleWithParkedSaleTx(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error {
 	if parkedSaleID == nil {
 		if caller.IsManager() {
 			return ErrPermissionDenied
 		}
-		return s.CreateSale(ctx, sale, items, payments)
+		return s.CreateSaleTx(ctx, tx, sale, items, payments)
 	}
-
-	tx, err := s.repo.BeginTx(ctx)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 
 	var parkedStatus string
 	args := []interface{}{*parkedSaleID}
@@ -432,7 +483,7 @@ func (s *service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 		lockQuery += fmt.Sprintf(` AND store_id = $%d`, len(args))
 	}
 	lockQuery += ` FOR UPDATE`
-	err = tx.QueryRow(ctx, lockQuery, args...).Scan(&parkedStatus)
+	err := tx.QueryRow(ctx, lockQuery, args...).Scan(&parkedStatus)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return ErrParkedSaleNotRecalled
@@ -461,10 +512,8 @@ func (s *service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 		return err
 	}
 
-	if parkedSaleID != nil {
-		if err := s.repo.ConsumeParkedSale(ctx, tx, *parkedSaleID, caller.ownerScope(), caller.storeScope()); err != nil {
-			return err
-		}
+	if err := s.repo.ConsumeParkedSale(ctx, tx, *parkedSaleID, caller.ownerScope(), caller.storeScope()); err != nil {
+		return err
 	}
 
 	if err := s.persistConsignmentRecords(ctx, tx, sale); err != nil {
@@ -475,6 +524,16 @@ func (s *service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 		return err
 	}
 
+	return nil
+}
+
+func (s *service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error {
+	if err := s.InTx(ctx, func(tx pgx.Tx) error {
+		return s.CreateSaleWithParkedSaleTx(ctx, tx, sale, items, parkedSaleID, payments, caller)
+	}); err != nil {
+		return err
+	}
+	s.publishSaleCreated(ctx, sale)
 	return nil
 }
 
@@ -490,11 +549,7 @@ func (s *service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sal
 			return err
 		}
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
 	sale.Items = items
-	s.publishSaleCreated(ctx, sale)
 	return nil
 }
 

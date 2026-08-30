@@ -8,11 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"retail-pos-system/internal/permissions"
-
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/permissions"
 )
 
 type mockService struct {
@@ -61,6 +62,33 @@ func (m *mockService) TransferLocationStock(ctx context.Context, productID, from
 		return nil
 	}
 	return m.transferLocationStockFn(ctx, productID, fromLocationID, toLocationID, quantity, userID, storeID)
+}
+
+func (m *mockService) AdjustStockTx(ctx context.Context, tx pgx.Tx, productID int, quantityChange int, storeID *int, userID int, notes string) error {
+	if m.adjustStockFn == nil {
+		return nil
+	}
+	return m.adjustStockFn(ctx, productID, quantityChange, storeID, userID, notes)
+}
+
+func (m *mockService) NotifyStockAdjusted(ctx context.Context, productID, userID int, quantityChange int, notes string) {}
+
+func (m *mockService) SetLocationStockTx(ctx context.Context, tx pgx.Tx, productID, locationID, quantity, userID int, storeID *int) error {
+	if m.setLocationStockFn == nil {
+		return nil
+	}
+	return m.setLocationStockFn(ctx, productID, locationID, quantity, userID, storeID)
+}
+
+func (m *mockService) TransferLocationStockTx(ctx context.Context, tx pgx.Tx, productID, fromLocationID, toLocationID, quantity, userID int, storeID *int) error {
+	if m.transferLocationStockFn == nil {
+		return nil
+	}
+	return m.transferLocationStockFn(ctx, productID, fromLocationID, toLocationID, quantity, userID, storeID)
+}
+
+func (m *mockService) InTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	return fn(nil)
 }
 
 var _ Service = (*mockService)(nil)
