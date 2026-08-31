@@ -366,7 +366,9 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	if numProducts == 0 {
 		var existingProducts int
 		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM products`).Scan(&existingProducts); err == nil && existingProducts > 0 {
-			fmt.Printf("   Found %d existing products, reusing them for this re-seed\n", existingProducts)
+			if !truncateData {
+				fmt.Printf("   Found %d existing products, reusing them for this re-seed\n", existingProducts)
+			}
 		} else {
 			numProducts = rand.Intn(1001) + 4500 // 4500-5500
 		}
