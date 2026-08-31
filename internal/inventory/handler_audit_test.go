@@ -52,6 +52,27 @@ func setupMockInventoryRouterWithAudit(svc Service) *gin.Engine {
 	return r
 }
 
+// setupMockInventoryRouterWithFailingAudit wires the audit service to always
+// fail, so the fail-closed (atomic) mutation endpoints must reject the request.
+func setupMockInventoryRouterWithFailingAudit(svc Service) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "admin")
+		c.Set("role", "admin")
+		c.Next()
+	})
+	auditSvc := &mockAuditCreator{createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+		return errors.New("audit write failed")
+	}}
+	h := NewHandler(svc, auditSvc)
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	return r
+}
+
 func TestAuditHandler_AdjustStock(t *testing.T) {
 	svc := &mockService{
 		adjustStockFn: func(ctx context.Context, productID int, quantityChange int, storeID *int, userID int, notes string) error {
@@ -182,4 +203,53 @@ func TestAuditHandler_TransferLocationStock_WritesAudit(t *testing.T) {
 	assert.Equal(t, "inventory", captured.EntityType)
 	require.NotNil(t, captured.EntityID)
 	assert.Equal(t, 7, *captured.EntityID)
+}
+
+// TestAuditHandler_AdjustStock_AuditFailureRollsBack verifies fail-closed
+// behaviour: when the audit write fails inside the transaction, the whole
+// adjustment is rolled back and the request fails instead of committing an
+// unaudited mutation.
+func TestAuditHandler_AdjustStock_AuditFailureRollsBack(t *testing.T) {
+	svc := &mockService{
+		adjustStockFn: func(ctx context.Context, productID int, quantityChange int, storeID *int, userID int, notes string) error {
+			return nil
+		},
+	}
+	r := setupMockInventoryRouterWithFailingAudit(svc)
+	body := `{"product_id":42,"quantity_change":10,"notes":"restock"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/inventory/adjust", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.NotEqual(t, http.StatusOK, w.Code, "adjustment must fail when its audit log cannot be written")
+}
+
+func TestAuditHandler_SetLocationStock_AuditFailureRollsBack(t *testing.T) {
+	svc := &mockService{
+		setLocationStockFn: func(ctx context.Context, productID, locationID, quantity, userID int, storeID *int) error {
+			return nil
+		},
+	}
+	r := setupMockInventoryRouterWithFailingAudit(svc)
+	body := `{"product_id":42,"location_id":5,"quantity":12}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/inventory/locations", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.NotEqual(t, http.StatusOK, w.Code, "set location stock must fail when its audit log cannot be written")
+}
+
+func TestAuditHandler_TransferLocationStock_AuditFailureRollsBack(t *testing.T) {
+	svc := &mockService{
+		transferLocationStockFn: func(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int, storeID *int) error {
+			return nil
+		},
+	}
+	r := setupMockInventoryRouterWithFailingAudit(svc)
+	body := `{"product_id":7,"from_location_id":1,"to_location_id":2,"quantity":5}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/inventory/locations/transfer", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.NotEqual(t, http.StatusOK, w.Code, "stock transfer must fail when its audit log cannot be written")
 }

@@ -6,7 +6,7 @@ This project uses a semantic codebase index at `.opencode/index`. The current wo
 
 ### Core principles
 
-1. Prefer semantic index tools for non-trivial codebase investigation.
+1. Use semantic index tools as much as possible.
 2. Use the smallest tool that can answer the current question.
 3. Do not run every semantic tool for every task.
 4. Do not perform a full re-index unless the index is stale or incomplete.

@@ -48,6 +48,44 @@ func newTestRepo(t *testing.T) *Repository {
 	return repo
 }
 
+// recallSaleInTx runs RecallSaleTx inside a short transaction, the test stand-in
+// for the removed non-atomic repo.RecallSale. Production only ever invokes the
+// Tx variants (via service.InTx), so tests mirror that by committing explicitly.
+func recallSaleInTx(t *testing.T, repo *Repository, saleID int, ownerID, storeID *int) (*Sale, error) {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	s, err := repo.RecallSaleTx(ctx, tx, saleID, ownerID, storeID)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// cancelParkedSaleInTx runs CancelParkedSaleTx inside a short transaction, the
+// test stand-in for the removed non-atomic repo.CancelParkedSale.
+func cancelParkedSaleInTx(t *testing.T, repo *Repository, saleID int, ownerID, storeID *int) error {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := repo.CancelParkedSaleTx(ctx, tx, saleID, ownerID, storeID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+
 func insertTestProduct(ctx context.Context, t *testing.T, sku, name string, price, stock int) int {
 	t.Helper()
 	var id int
@@ -422,7 +460,7 @@ func TestSaleRepository_StoreScopedReads(t *testing.T) {
 	require.NotNil(t, byID.StoreID)
 	assert.Equal(t, storeID, *byID.StoreID)
 
-	recalled, err := repo.RecallSale(ctx, parkedID, &cashierID, nil)
+	recalled, err := recallSaleInTx(t, repo, parkedID, &cashierID, nil)
 	require.NoError(t, err)
 	require.NotNil(t, recalled.StoreID)
 	assert.Equal(t, storeID, *recalled.StoreID)
@@ -529,6 +567,12 @@ func TestSaleRepository_CreateSalePayments(t *testing.T) {
 		err = dbPool.QueryRow(ctx, `SELECT COUNT(*) FROM sale_payments WHERE sale_id = $1`, sale.ID).Scan(&count)
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)
+
+		// CreateSalePayments must back-fill the authoritative DB identity into
+		// the in-memory payment slice so downstream readers (e.g. the atomic
+		// payment.created audit rows) carry real IDs instead of zeros.
+		assert.Greater(t, payments[0].ID, 0, "payment id must be back-filled from RETURNING id")
+		assert.Equal(t, sale.ID, payments[0].SaleID, "payment sale_id must be back-filled")
 	})
 
 	t.Run("insert multiple payments", func(t *testing.T) {
@@ -720,7 +764,7 @@ func TestSaleRepository_RecallSale(t *testing.T) {
 	t.Run("recall parked sale", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-RECALL-001", "parked", prodID, 2, 10000)
 
-		sale, err := repo.RecallSale(ctx, parked.ID, &cashierID, nil)
+		sale, err := recallSaleInTx(t, repo, parked.ID, &cashierID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "recalled", sale.Status)
 		assert.Equal(t, parked.InvoiceNumber, sale.InvoiceNumber)
@@ -730,22 +774,22 @@ func TestSaleRepository_RecallSale(t *testing.T) {
 
 	t.Run("recall already recalled succeeds", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-RECALL-002", "parked", prodID, 1, 10000)
-		_, err := repo.RecallSale(ctx, parked.ID, &cashierID, nil)
+		_, err := recallSaleInTx(t, repo, parked.ID, &cashierID, nil)
 		require.NoError(t, err)
 
-		sale, err := repo.RecallSale(ctx, parked.ID, &cashierID, nil)
+		sale, err := recallSaleInTx(t, repo, parked.ID, &cashierID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "recalled", sale.Status)
 	})
 
 	t.Run("recall completed sale returns error", func(t *testing.T) {
 		completed := createParkedSale(ctx, t, repo, cashierID, "INV-RECALL-003", "completed", prodID, 1, 10000)
-		_, err := repo.RecallSale(ctx, completed.ID, &cashierID, nil)
+		_, err := recallSaleInTx(t, repo, completed.ID, &cashierID, nil)
 		assert.ErrorIs(t, err, ErrSaleNotFound)
 	})
 
 	t.Run("recall non-existent sale returns error", func(t *testing.T) {
-		_, err := repo.RecallSale(ctx, -999, &cashierID, nil)
+		_, err := recallSaleInTx(t, repo, -999, &cashierID, nil)
 		assert.ErrorIs(t, err, ErrSaleNotFound)
 	})
 }
@@ -771,7 +815,7 @@ func TestSaleRepository_GetParkedSaleByID(t *testing.T) {
 
 	t.Run("get recalled sale by id", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-GETBYID-002", "parked", prodID, 1, 10000)
-		recalled, err := repo.RecallSale(ctx, parked.ID, &cashierID, nil)
+		recalled, err := recallSaleInTx(t, repo, parked.ID, &cashierID, nil)
 		require.NoError(t, err)
 
 		sale, err := repo.GetParkedSaleByID(ctx, recalled.ID, &cashierID, nil)
@@ -812,7 +856,7 @@ func TestSaleRepository_ConsumeParkedSale(t *testing.T) {
 
 	t.Run("consume recalled sale", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-CONSUME-001", "parked", prodID, 1, 10000)
-		_, err := repo.RecallSale(ctx, parked.ID, &cashierID, nil)
+		_, err := recallSaleInTx(t, repo, parked.ID, &cashierID, nil)
 		require.NoError(t, err)
 
 		tx, err := repo.BeginTx(ctx)
@@ -854,7 +898,7 @@ func TestSaleRepository_CancelParkedSale(t *testing.T) {
 
 	t.Run("cancel parked sale", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-CANCEL-001", "parked", prodID, 1, 10000)
-		err := repo.CancelParkedSale(ctx, parked.ID, &cashierID, nil)
+		err := cancelParkedSaleInTx(t, repo, parked.ID, &cashierID, nil)
 		assert.NoError(t, err)
 
 		var status string
@@ -865,7 +909,7 @@ func TestSaleRepository_CancelParkedSale(t *testing.T) {
 
 	t.Run("cancel recalled sale", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-CANCEL-002", "recalled", prodID, 1, 10000)
-		err := repo.CancelParkedSale(ctx, parked.ID, &cashierID, nil)
+		err := cancelParkedSaleInTx(t, repo, parked.ID, &cashierID, nil)
 		assert.NoError(t, err)
 
 		var status string
@@ -876,20 +920,20 @@ func TestSaleRepository_CancelParkedSale(t *testing.T) {
 
 	t.Run("cancel completed sale returns error", func(t *testing.T) {
 		completed := createParkedSale(ctx, t, repo, cashierID, "INV-CANCEL-003", "completed", prodID, 1, 10000)
-		err := repo.CancelParkedSale(ctx, completed.ID, &cashierID, nil)
+		err := cancelParkedSaleInTx(t, repo, completed.ID, &cashierID, nil)
 		assert.Error(t, err)
 	})
 
 	t.Run("cancel non-existent sale returns error", func(t *testing.T) {
-		err := repo.CancelParkedSale(ctx, -999, &cashierID, nil)
+		err := cancelParkedSaleInTx(t, repo, -999, &cashierID, nil)
 		assert.Error(t, err)
 	})
 
 	t.Run("cancel already cancelled sale returns error", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-CANCEL-004", "parked", prodID, 1, 10000)
-		err := repo.CancelParkedSale(ctx, parked.ID, &cashierID, nil)
+		err := cancelParkedSaleInTx(t, repo, parked.ID, &cashierID, nil)
 		require.NoError(t, err)
-		err = repo.CancelParkedSale(ctx, parked.ID, &cashierID, nil)
+		err = cancelParkedSaleInTx(t, repo, parked.ID, &cashierID, nil)
 		assert.Error(t, err)
 	})
 }

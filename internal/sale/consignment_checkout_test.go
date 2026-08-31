@@ -236,7 +236,7 @@ func TestSaleService_ParkedSaleCompletesConsignment(t *testing.T) {
 	caller := Caller{UserID: cashierID}
 
 	parked := createParkedSale(ctx, t, repo, cashierID, "INV-PARK-PARKED", "parked", consignProd, 1, 10000)
-	_, err := repo.RecallSale(ctx, parked.ID, &cashierID, nil)
+	_, err := recallSaleInTx(t, repo, parked.ID, &cashierID, nil)
 	require.NoError(t, err)
 
 	completed := &Sale{

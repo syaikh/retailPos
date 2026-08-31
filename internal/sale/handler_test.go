@@ -82,6 +82,7 @@ func setupSaleRouter(t *testing.T) *gin.Engine {
 
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
+	h.RegisterCartRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
 	return r
 }
 
@@ -318,7 +319,7 @@ func insertOpenCartWithItem(ctx context.Context, t *testing.T, cashierID, prodID
 	return cartID
 }
 
-func TestHandler_CreateSale_WithCartSessionID_Integration(t *testing.T) {
+func TestHandler_CheckoutCart_Integration(t *testing.T) {
 	skipIfNoDB(t)
 	_ = shared.TruncateTestData(dbPool)
 	r := setupSaleRouter(t)
@@ -327,12 +328,12 @@ func TestHandler_CreateSale_WithCartSessionID_Integration(t *testing.T) {
 	prodID := insertTestProduct(ctx, t, "HDL-CART-CHECKOUT", "Cart Checkout Product", 10000, 100)
 	cashierID := int(testCashierID)
 
-	t.Run("cart_session_id behaves like CheckoutCart", func(t *testing.T) {
+	t.Run("checkout returns 201 with sale details", func(t *testing.T) {
 		cartID := insertOpenCartWithItem(ctx, t, cashierID, prodID, 2, 10000)
 
-		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `,"payments":[{"payment_method_code":"CASH","amount":20000}]}`
+		body := `{"payments":[{"payment_method_code":"CASH","amount":20000}]}`
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req, _ := http.NewRequest("POST", "/pos/cart/"+strconv.Itoa(cartID)+"/checkout", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 
@@ -361,65 +362,43 @@ func TestHandler_CreateSale_WithCartSessionID_Integration(t *testing.T) {
 		assert.Equal(t, 98, stock)
 	})
 
-	t.Run("cart_session_id falls back to legacy payment_method", func(t *testing.T) {
-		cartID := insertOpenCartWithItem(ctx, t, cashierID, prodID, 1, 10000)
-
-		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `,"payment_method":"CASH"}`
+	t.Run("nonexistent cart returns 404", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
-		var resp struct {
-			Data Sale `json:"data"`
-		}
-		err := json.Unmarshal(w.Body.Bytes(), &resp)
-		require.NoError(t, err)
-		assert.Greater(t, resp.Data.ID, 0)
-		assert.Equal(t, 10000, resp.Data.TotalAmount)
-		assert.Equal(t, "CASH", resp.Data.PaymentMethod)
-	})
-
-	t.Run("cart_session_id not found returns 404", func(t *testing.T) {
-		body := `{"cart_session_id":999999,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req, _ := http.NewRequest("POST", "/pos/cart/999999/checkout", strings.NewReader(`{"payments":[{"payment_method_code":"CASH","amount":10000}]}`))
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("cart_session_id with no payments returns 400", func(t *testing.T) {
+	t.Run("no payments returns 400", func(t *testing.T) {
 		cartID := insertOpenCartWithItem(ctx, t, cashierID, prodID, 1, 10000)
 
-		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `}`
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req, _ := http.NewRequest("POST", "/pos/cart/"+strconv.Itoa(cartID)+"/checkout", strings.NewReader(`{}`))
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
-	t.Run("cart_session_id of another cashier returns 403", func(t *testing.T) {
+	t.Run("another cashier's cart returns 403", func(t *testing.T) {
 		var otherID int
 		err := dbPool.QueryRow(ctx, `INSERT INTO users (username, email, password_hash, role_id) VALUES ('sale_handler_other', 'sale_handler_other@test.com', 'hash', 1) ON CONFLICT (username) DO UPDATE SET email = excluded.email RETURNING id`).Scan(&otherID)
 		require.NoError(t, err)
 
 		cartID := insertOpenCartWithItem(ctx, t, otherID, prodID, 1, 10000)
 
-		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
+		body := `{"payments":[{"payment_method_code":"CASH","amount":10000}]}`
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req, _ := http.NewRequest("POST", "/pos/cart/"+strconv.Itoa(cartID)+"/checkout", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
 
-	t.Run("cart_session_id with empty cart returns 409", func(t *testing.T) {
+	t.Run("empty cart returns 409", func(t *testing.T) {
 		// Earlier subtests may have left an open cart for the same cashier, which
 		// would violate uq_cart_sessions_open_cashier.
 		_, err := dbPool.Exec(ctx, `
@@ -439,9 +418,9 @@ func TestHandler_CreateSale_WithCartSessionID_Integration(t *testing.T) {
 		`, int(testCashierID)).Scan(&cartID)
 		require.NoError(t, err)
 
-		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
+		body := `{"payments":[{"payment_method_code":"CASH","amount":10000}]}`
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req, _ := http.NewRequest("POST", "/pos/cart/"+strconv.Itoa(cartID)+"/checkout", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 

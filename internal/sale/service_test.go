@@ -674,7 +674,7 @@ func TestSaleService_ParkSale(t *testing.T) {
 
 	t.Run("with recalled sale ID", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-PARK-RECALL", "parked", prodID, 1, 10000)
-		recalled, err := repo.RecallSale(ctx, parked.ID, &cashierID, nil)
+		recalled, err := recallSaleInTx(t, repo, parked.ID, &cashierID, nil)
 		require.NoError(t, err)
 
 		sale := &Sale{
@@ -963,7 +963,7 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 
 	t.Run("checkout from recalled sale", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-COP-001", "parked", prodID, 2, 10000)
-		_, err := repo.RecallSale(ctx, parked.ID, &cashierID, nil)
+		_, err := recallSaleInTx(t, repo, parked.ID, &cashierID, nil)
 		require.NoError(t, err)
 
 		sale := &Sale{

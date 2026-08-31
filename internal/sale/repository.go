@@ -166,22 +166,26 @@ func (r *Repository) CreateSalePayments(ctx context.Context, tx pgx.Tx, saleID i
 	if len(payments) == 0 {
 		return nil
 	}
-	rows := make([][]interface{}, len(payments))
-	for i, p := range payments {
+	for i := range payments {
+		p := payments[i]
 		var refNum interface{}
 		if p.ReferenceNumber != "" {
 			refNum = p.ReferenceNumber
 		}
-		rows[i] = []interface{}{
-			saleID, p.PaymentMethodID, p.PaymentMethodCode, p.Amount, refNum,
+		var id int
+		err := tx.QueryRow(ctx, `
+			INSERT INTO sale_payments (sale_id, payment_method_id, payment_method_code, amount, reference_number)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING id
+		`, saleID, p.PaymentMethodID, p.PaymentMethodCode, p.Amount, refNum).Scan(&id)
+		if err != nil {
+			return fmt.Errorf("insert sale payment: %w", err)
 		}
-	}
-	_, err := tx.CopyFrom(ctx, pgx.Identifier{"sale_payments"},
-		[]string{"sale_id", "payment_method_id", "payment_method_code", "amount", "reference_number"},
-		pgx.CopyFromRows(rows),
-	)
-	if err != nil {
-		return fmt.Errorf("batch insert sale payments: %w", err)
+		// Back-fill the authoritative DB identity so downstream readers of
+		// sale.Payments (e.g. the atomic payment.created audit rows) carry real
+		// IDs instead of zero values.
+		payments[i].ID = id
+		payments[i].SaleID = saleID
 	}
 	return nil
 }
@@ -950,22 +954,6 @@ func (r *Repository) RecallSaleTx(ctx context.Context, tx pgx.Tx, saleID int, ow
 	return &sale, nil
 }
 
-func (r *Repository) RecallSale(ctx context.Context, saleID int, ownerID, storeID *int) (*Sale, error) {
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	sale, err := r.RecallSaleTx(ctx, tx, saleID, ownerID, storeID)
-	if err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
-	}
-	return sale, nil
-}
-
 // CancelParkedSaleTx voids a parked/recalled sale within an existing transaction.
 func (r *Repository) CancelParkedSaleTx(ctx context.Context, tx pgx.Tx, saleID int, ownerID, storeID *int) error {
 	query := `
@@ -989,18 +977,6 @@ func (r *Repository) CancelParkedSaleTx(ctx context.Context, tx pgx.Tx, saleID i
 		return ErrSaleNotFound
 	}
 	return nil
-}
-
-func (r *Repository) CancelParkedSale(ctx context.Context, saleID int, ownerID, storeID *int) error {
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	if err := r.CancelParkedSaleTx(ctx, tx, saleID, ownerID, storeID); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
 }
 
 func (r *Repository) ConsumeParkedSale(ctx context.Context, tx pgx.Tx, parkedSaleID int, ownerID, storeID *int) error {

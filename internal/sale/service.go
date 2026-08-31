@@ -39,7 +39,6 @@ type ProductBatchPriceGetter interface {
 type Repo interface {
 	AtomicGetOrCreateOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error)
 	BeginTx(ctx context.Context) (pgx.Tx, error)
-	CancelParkedSale(ctx context.Context, saleID int, ownerID, storeID *int) error
 	CancelParkedSaleTx(ctx context.Context, tx pgx.Tx, saleID int, ownerID, storeID *int) error
 	ConsumeParkedSale(ctx context.Context, tx pgx.Tx, parkedSaleID int, ownerID, storeID *int) error
 	CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item) error
@@ -61,7 +60,6 @@ type Repo interface {
 	ListHeldCarts(ctx context.Context, cashierID int) ([]CartSession, error)
 	LoadCartItemsForCheckout(ctx context.Context, tx pgx.Tx, cartID int) ([]CartItem, error)
 	LockCartSession(ctx context.Context, tx pgx.Tx, cartID int) (status string, expiredAt *time.Time, err error)
-	RecallSale(ctx context.Context, saleID int, ownerID, storeID *int) (*Sale, error)
 	RecallSaleTx(ctx context.Context, tx pgx.Tx, saleID int, ownerID, storeID *int) (*Sale, error)
 	StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error
 	UpdateCartCustomer(ctx context.Context, tx pgx.Tx, cartID int, customerID *int) error

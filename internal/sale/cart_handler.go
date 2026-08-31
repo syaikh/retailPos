@@ -13,6 +13,8 @@ import (
 	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type CartService interface {
@@ -479,28 +481,27 @@ func (h *Handler) CheckoutCart(c *gin.Context) {
 	if !ok {
 		return
 	}
-	sale, err := h.svc.CheckoutCart(ctx, cartID, req.Payments, cashierID)
+
+	var sale *Sale
+	var err error
+	if h.auditSvc != nil {
+		err = h.svc.InTx(ctx, func(tx pgx.Tx) error {
+			s, e := h.svc.CheckoutCartTx(ctx, tx, cartID, req.Payments, "", cashierID)
+			if e != nil {
+				return e
+			}
+			sale = s
+			return h.auditCreateSaleTx(ctx, tx, sale)
+		})
+		if err == nil {
+			h.svc.NotifySaleCreated(ctx, sale)
+		}
+	} else {
+		sale, err = h.svc.CheckoutCart(ctx, cartID, req.Payments, cashierID)
+	}
 	if err != nil {
 		h.cartError(c, err)
 		return
-	}
-
-	if h.auditSvc != nil {
-		actorID := middleware.UserIDFromContext(ctx)
-		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
-			UserID:      actorID,
-			Username:    middleware.UsernameFromContext(ctx),
-			Role:        middleware.RoleFromContext(ctx),
-			Action:      "checkout",
-			EntityType:  "cart",
-			EntityID:    &cartID,
-			NewValues:   scrubSaleAuditPayload(sale),
-			IPAddress:   middleware.IPAddressFromContext(ctx),
-			UserAgent:   middleware.UserAgentFromContext(ctx),
-			Description: fmt.Sprintf("Checked out cart %d as sale %s (total %d)", cartID, sale.InvoiceNumber, sale.TotalAmount),
-			StoreID:     middleware.StoreIDFromContext(ctx),
-		})
-		h.auditSalePayments(ctx, actorID, sale)
 	}
 
 	canViewCost := canViewCost(c)

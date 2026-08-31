@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/permissions"
@@ -568,7 +569,8 @@ func TestSaleCartHandler_CheckoutCart(t *testing.T) {
 		auditCalls := 0
 		auditSvc := &mockAuditCreator{createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalls++
-			assert.Equal(t, "checkout", log.Action)
+			assert.Equal(t, "create", log.Action)
+			assert.Equal(t, "sale", log.EntityType)
 			return nil
 		}}
 		r := setupSaleCartHandler(mockCartFixture(), auditSvc, true, nil)
@@ -610,6 +612,60 @@ func TestSaleCartHandler_CheckoutCart(t *testing.T) {
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+}
+
+func TestSaleCartHandler_CheckoutCart_AuditsPayments(t *testing.T) {
+	var saleLog, paymentLog *audit.Log
+	var paymentLogCount int
+	svc := &mockService{
+		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
+			return &Sale{
+				ID:            9,
+				InvoiceNumber: "INV-CART-PAY",
+				TotalAmount:   15000,
+				Payments: []Payment{
+					{ID: 101, SaleID: 9, PaymentMethodCode: "CASH", Amount: 10000},
+					{ID: 102, SaleID: 9, PaymentMethodCode: "QRIS", Amount: 5000, ReferenceNumber: "ref-1"},
+				},
+			}, nil
+		},
+	}
+	auditSvc := &mockAuditCreator{
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+			switch log.EntityType {
+			case "sale":
+				saleLog = log
+			case "payment":
+				paymentLogCount++
+				paymentLog = log
+			}
+			return nil
+		},
+	}
+	r := setupSaleCartHandler(svc, auditSvc, true, nil)
+	body := `{"payments":[{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"QRIS","amount":5000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/pos/cart/7/checkout", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	require.NotNil(t, saleLog, "a sale audit log should be written")
+	assert.Equal(t, "create", saleLog.Action)
+	assert.Equal(t, "sale", saleLog.EntityType)
+	require.NotNil(t, paymentLog, "payment audit logs should be written")
+	assert.Equal(t, 2, paymentLogCount, "one payment audit log per payment")
+	assert.Equal(t, "payment", paymentLog.EntityType)
+	assert.Contains(t, paymentLog.Description, "QRIS")
+	assert.Contains(t, paymentLog.Description, "INV-CART-PAY")
+
+	require.NotNil(t, paymentLog.EntityID, "payment audit must carry the payment id")
+	assert.Equal(t, 102, *paymentLog.EntityID, "payment audit entity_id must be the payment id")
+
+	newVals, ok := paymentLog.NewValues.(map[string]interface{})
+	require.True(t, ok, "payment audit new_values should be a map")
+	assert.Equal(t, float64(9), newVals["sale_id"], "payment audit sale_id must reference the real sale id")
+	assert.Equal(t, float64(5000), newVals["amount"])
 }
 
 func TestSaleCartHandler_NonIntUserID(t *testing.T) {

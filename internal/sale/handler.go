@@ -203,7 +203,6 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		Subtotal        int                `json:"subtotal"`
 		TotalAmount     int                `json:"total_amount"`
 		ParkedSaleID    *int               `json:"parked_sale_id"`
-		CartSessionID   *int               `json:"cart_session_id"`
 	}
 
 	var req createSaleReq
@@ -224,24 +223,6 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		return
 	}
 	storeIDPtr := shared.GetStoreID(c)
-
-	// RT-16 case 3: when cart_session_id is provided, POST /sales behaves like
-	// CheckoutCart — the sale is built from the immutable cart snapshots.
-	if req.CartSessionID != nil {
-		// Backward compat: if only the legacy `payment_method` field is given,
-		// CheckoutCartWithPaymentMethod derives the amount from the recomputed
-		// sale total inside the checkout transaction (no lock-free pre-read).
-		if len(req.Payments) == 0 && req.PaymentMethod != "" {
-			h.createSaleFromCartWithPaymentMethod(ctx, c, *req.CartSessionID, req.PaymentMethod, cashierID, storeIDPtr)
-			return
-		}
-		payments := make([]CreatePaymentRequest, len(req.Payments))
-		for i, p := range req.Payments {
-			payments[i] = CreatePaymentRequest(p)
-		}
-		h.createSaleFromCart(ctx, c, *req.CartSessionID, payments, cashierID, storeIDPtr)
-		return
-	}
 
 	if len(req.Items) == 0 {
 		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "items is required")
@@ -422,7 +403,40 @@ func (h *Handler) respondSaleCreateError(c *gin.Context, err error) {
 	shared.InternalError(c, err)
 }
 
-// scrubSaleAuditPayload returns a PII-safe representation of a sale for audit
+// respondCompleteParkedSaleError maps a parked-sale completion domain error to
+// the correct HTTP response. It is shared by the atomic (audited) and
+// non-atomic completion paths. Unlike the create path, it also surfaces
+// ErrSaleNotFound (the route's parked_sale_id may reference a missing sale).
+func (h *Handler) respondCompleteParkedSaleError(c *gin.Context, err error) {
+	if errors.Is(err, ErrPermissionDenied) {
+		shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager can only complete a recalled parked sale")
+		return
+	}
+	if errors.Is(err, ErrSaleNotFound) {
+		shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "parked sale not found")
+		return
+	}
+	if errors.Is(err, ErrParkedSaleNotRecalled) {
+		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "parked sale already checked out or cancelled")
+		return
+	}
+	if errors.Is(err, ErrInsufficientStock) {
+		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
+		return
+	}
+	if errors.Is(err, shared.ErrShiftNotOpen) {
+		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
+		return
+	}
+	if errors.Is(err, ErrPaymentOverTenderNonCash) || errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
+		errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
+		errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
+		errors.Is(err, ErrMaxPaymentsExceeded) || errors.Is(err, ErrMultipleCashPayments) {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
+	shared.InternalError(c, err)
+}
 // new_values: it serializes the sale and strips customer-identifying fields
 // (customer_name) so the audit trail does not persist identifiable customer
 // data.
@@ -432,93 +446,6 @@ func scrubSaleAuditPayload(sale interface{}) interface{} {
 		shared.ScrubPII(m)
 	}
 	return m
-}
-
-// createSaleFromCart handles POST /sales with cart_session_id (RT-16 case 3).
-// It delegates to CheckoutCart so the sale is built from immutable snapshots,
-// deducts stock, validates payments, and marks the cart as checked out.
-func (h *Handler) createSaleFromCart(ctx context.Context, c *gin.Context, cartID int, payments []CreatePaymentRequest, cashierID int, storeIDPtr *int) {
-	var sale *Sale
-	var err error
-	if h.auditSvc != nil {
-		err = h.svc.InTx(ctx, func(tx pgx.Tx) error {
-			s, e := h.svc.CheckoutCartTx(ctx, tx, cartID, payments, "", cashierID)
-			if e != nil {
-				return e
-			}
-			sale = s
-			return h.auditCreateSaleTx(ctx, tx, sale)
-		})
-		if err == nil {
-			h.svc.NotifySaleCreated(ctx, sale)
-		}
-	} else {
-		sale, err = h.svc.CheckoutCart(ctx, cartID, payments, cashierID)
-	}
-	if err != nil {
-		h.cartError(c, err)
-		return
-	}
-	h.respondSaleAfterCart(ctx, c, sale, cartID, storeIDPtr)
-}
-
-func (h *Handler) createSaleFromCartWithPaymentMethod(ctx context.Context, c *gin.Context, cartID int, paymentMethod string, cashierID int, storeIDPtr *int) {
-	var sale *Sale
-	var err error
-	if h.auditSvc != nil {
-		err = h.svc.InTx(ctx, func(tx pgx.Tx) error {
-			s, e := h.svc.CheckoutCartTx(ctx, tx, cartID, nil, paymentMethod, cashierID)
-			if e != nil {
-				return e
-			}
-			sale = s
-			return h.auditCreateSaleTx(ctx, tx, sale)
-		})
-		if err == nil {
-			h.svc.NotifySaleCreated(ctx, sale)
-		}
-	} else {
-		sale, err = h.svc.CheckoutCartWithPaymentMethod(ctx, cartID, paymentMethod, cashierID)
-	}
-	if err != nil {
-		h.cartError(c, err)
-		return
-	}
-	h.respondSaleAfterCart(ctx, c, sale, cartID, storeIDPtr)
-}
-
-func (h *Handler) respondSaleAfterCart(ctx context.Context, c *gin.Context, sale *Sale, cartID int, storeIDPtr *int) {
-	if detail, err := h.svc.GetSaleByID(ctx, sale.ID, storeIDPtr); err == nil {
-		c.JSON(http.StatusCreated, gin.H{"data": detail})
-		return
-	}
-	c.JSON(http.StatusCreated, gin.H{"data": sale})
-}
-
-// auditSalePayments emits one "payment.created" audit row per payment on a completed
-// sale. It is shared by every sale-creation entry point (cart checkout,
-// single-payment-method checkout, and manual parked-sale completion) so payment
-// activity is attributed consistently regardless of which endpoint was used.
-func (h *Handler) auditSalePayments(ctx context.Context, actorID *int, sale *Sale) {
-	if h.auditSvc == nil {
-		return
-	}
-	for i := range sale.Payments {
-		p := sale.Payments[i]
-		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
-			UserID:      actorID,
-			Username:    middleware.UsernameFromContext(ctx),
-			Role:        middleware.RoleFromContext(ctx),
-			Action:      "payment.created",
-			EntityType:  "payment",
-			EntityID:    &p.ID,
-			NewValues:   shared.ToJSONMap(map[string]interface{}{"sale_id": p.SaleID, "payment_method": p.PaymentMethodCode, "amount": p.Amount, "reference_number": p.ReferenceNumber}),
-			IPAddress:   middleware.IPAddressFromContext(ctx),
-			UserAgent:   middleware.UserAgentFromContext(ctx),
-			Description: fmt.Sprintf("Recorded %s payment of %d for sale %s", p.PaymentMethodCode, p.Amount, sale.InvoiceNumber),
-			StoreID:     middleware.StoreIDFromContext(ctx),
-		})
-	}
 }
 
 // auditCreateSaleTx writes the "create" (sale) and per-payment "payment.created"
@@ -556,7 +483,7 @@ func (h *Handler) auditSalePaymentsTx(ctx context.Context, tx pgx.Tx, actorID *i
 			Action:      "payment.created",
 			EntityType:  "payment",
 			EntityID:    &p.ID,
-			NewValues:   shared.ToJSONMap(map[string]interface{}{"sale_id": p.SaleID, "payment_method": p.PaymentMethodCode, "amount": p.Amount, "reference_number": p.ReferenceNumber}),
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"sale_id": sale.ID, "payment_method": p.PaymentMethodCode, "amount": p.Amount, "reference_number": p.ReferenceNumber}),
 			IPAddress:   middleware.IPAddressFromContext(ctx),
 			UserAgent:   middleware.UserAgentFromContext(ctx),
 			Description: fmt.Sprintf("Recorded %s payment of %d for sale %s", p.PaymentMethodCode, p.Amount, sale.InvoiceNumber),
@@ -1396,67 +1323,13 @@ func (h *Handler) CompleteParkedSale(c *gin.Context) {
 			return h.auditSaleActionTx(ctx, tx, caller, sale, "complete_parked_sale",
 				fmt.Sprintf("Manager completed recalled parked sale %d as sale %s (total %d)", id, sale.InvoiceNumber, sale.TotalAmount))
 		}); err != nil {
-			if errors.Is(err, ErrPermissionDenied) {
-				shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager can only complete a recalled parked sale")
-				return
-			}
-			if errors.Is(err, ErrSaleNotFound) {
-				shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "parked sale not found")
-				return
-			}
-			if errors.Is(err, ErrParkedSaleNotRecalled) {
-				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "parked sale already checked out or cancelled")
-				return
-			}
-			if errors.Is(err, ErrInsufficientStock) {
-				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
-				return
-			}
-			if errors.Is(err, shared.ErrShiftNotOpen) {
-				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
-				return
-			}
-			if errors.Is(err, ErrPaymentOverTenderNonCash) || errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
-				errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
-				errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
-				errors.Is(err, ErrMaxPaymentsExceeded) || errors.Is(err, ErrMultipleCashPayments) {
-				shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
-				return
-			}
-			shared.InternalError(c, err)
+			h.respondCompleteParkedSaleError(c, err)
 			return
 		}
 		h.svc.NotifySaleCreated(ctx, sale)
 	} else {
 		if err := h.svc.CreateSaleWithParkedSale(ctx, sale, items, &id, payments, caller); err != nil {
-			if errors.Is(err, ErrPermissionDenied) {
-				shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager can only complete a recalled parked sale")
-				return
-			}
-			if errors.Is(err, ErrSaleNotFound) {
-				shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "parked sale not found")
-				return
-			}
-			if errors.Is(err, ErrParkedSaleNotRecalled) {
-				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "parked sale already checked out or cancelled")
-				return
-			}
-			if errors.Is(err, ErrInsufficientStock) {
-				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
-				return
-			}
-			if errors.Is(err, shared.ErrShiftNotOpen) {
-				shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
-				return
-			}
-			if errors.Is(err, ErrPaymentOverTenderNonCash) || errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
-				errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
-				errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
-				errors.Is(err, ErrMaxPaymentsExceeded) || errors.Is(err, ErrMultipleCashPayments) {
-				shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
-				return
-			}
-			shared.InternalError(c, err)
+			h.respondCompleteParkedSaleError(c, err)
 			return
 		}
 	}

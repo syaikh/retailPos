@@ -567,74 +567,6 @@ func TestSaleHandler_CreateSale_BindJSONError(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestSaleHandler_CreateSale_WithCartSessionID_DelegatesToCheckout(t *testing.T) {
-	checkoutCalled := false
-	var capturedPayments []CreatePaymentRequest
-	svc := &mockService{
-		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
-			checkoutCalled = true
-			assert.Equal(t, 5, cartID)
-			assert.Equal(t, 1, cashierID)
-			capturedPayments = payments
-			return &Sale{ID: 9, InvoiceNumber: "INV-CART-1", TotalAmount: 10000}, nil
-		},
-	}
-	r := setupSaleHandler(svc, nil)
-	body := `{"cart_session_id":5,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusCreated, w.Code)
-	assert.True(t, checkoutCalled, "CheckoutCart should be invoked")
-	require.Len(t, capturedPayments, 1)
-	assert.Equal(t, "CASH", capturedPayments[0].PaymentMethodCode)
-	assert.Equal(t, 10000, capturedPayments[0].Amount)
-}
-
-func TestSaleHandler_CreateSale_WithCartSessionID_ErrorPropagates(t *testing.T) {
-	svc := &mockService{
-		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
-			return nil, ErrCartNotFound
-		},
-	}
-	r := setupSaleHandler(svc, nil)
-	body := `{"cart_session_id":999,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusNotFound, w.Code)
-}
-
-func TestSaleHandler_CreateSale_WithCartSessionID_AuditLogged(t *testing.T) {
-	auditCalled := false
-	svc := &mockService{
-		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
-			return &Sale{ID: 9, InvoiceNumber: "INV-CART-2", TotalAmount: 10000}, nil
-		},
-	}
-	auditSvc := &mockAuditCreator{
-		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
-			auditCalled = true
-			assert.Equal(t, "create", log.Action)
-			assert.Equal(t, "sale", log.EntityType)
-			return nil
-		},
-	}
-	r := setupSaleHandler(svc, auditSvc)
-	body := `{"cart_session_id":5,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusCreated, w.Code)
-	assert.True(t, auditCalled, "audit log should be created for cart-based sale")
-}
-
 // TestSaleHandler_CreateSale_EngineDiscountApplied asserts the pricing engine's
 // rule-based discount (UnitPrice < OriginalPrice with a pricing rule) is applied
 // server-side and captured on the sale item so the discount stays auditable.
@@ -1427,54 +1359,6 @@ func TestSaleHandler_CancelParkedSale_AuditsCancel(t *testing.T) {
 	assert.Contains(t, captured.Description, "Cancelled parked sale")
 }
 
-// TestSaleHandler_CreateSale_FromCart_AuditsPayments verifies the new
-// per-payment audit entries written when a cart is checked out into a sale.
-func TestSaleHandler_CreateSale_FromCart_AuditsPayments(t *testing.T) {
-	var saleLog, paymentLog *audit.Log
-	var paymentLogCount int
-	svc := &mockService{
-		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
-			return &Sale{
-				ID:            9,
-				InvoiceNumber: "INV-CART-PAY",
-				TotalAmount:   15000,
-				Payments: []Payment{
-					{ID: 101, SaleID: 9, PaymentMethodCode: "CASH", Amount: 10000},
-					{ID: 102, SaleID: 9, PaymentMethodCode: "QRIS", Amount: 5000, ReferenceNumber: "ref-1"},
-				},
-			}, nil
-		},
-	}
-	auditSvc := &mockAuditCreator{
-		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
-			switch log.EntityType {
-			case "sale":
-				saleLog = log
-			case "payment":
-				paymentLogCount++
-				paymentLog = log
-			}
-			return nil
-		},
-	}
-	r := setupSaleHandler(svc, auditSvc)
-	body := `{"cart_session_id":5,"payments":[{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"QRIS","amount":5000}]}`
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusCreated, w.Code)
-	require.NotNil(t, saleLog, "a sale audit log should be written")
-	assert.Equal(t, "create", saleLog.Action)
-	assert.Equal(t, "sale", saleLog.EntityType)
-	require.NotNil(t, paymentLog, "payment audit logs should be written")
-	assert.Equal(t, 2, paymentLogCount, "one payment audit log per payment")
-	assert.Equal(t, "payment", paymentLog.EntityType)
-	assert.Contains(t, paymentLog.Description, "QRIS")
-	assert.Contains(t, paymentLog.Description, "INV-CART-PAY")
-}
-
 func TestSaleHandler_CancelParkedSale_NotFound(t *testing.T) {
 	svc := &mockService{
 		cancelParkedSaleFn: func(ctx context.Context, saleID int, caller Caller) error {
@@ -1896,4 +1780,93 @@ func TestSaleHandler_RecallParkedSale_AuditFailure(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.NotEqual(t, http.StatusOK, w.Code, "recall must fail when its audit log cannot be written")
+}
+
+// setupSaleHandlerManager builds a handler authenticated as userID 1 with the
+// manager role, so the fail-closed (audited) completion branch that is gated on
+// caller.IsManager() is exercised.
+func setupSaleHandlerManager(svc Service, auditSvc audit.TxCreator) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("role", "manager")
+		c.Set("storeID", nil)
+		c.Next()
+	})
+	h := NewHandler(svc, auditSvc)
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	h.RegisterPaymentMethodsPublicRoutes(r.Group("/public"))
+	return r
+}
+
+// TestSaleHandler_CreateSale_AuditFailure verifies the fail-closed direct
+// create path: when the audit write fails inside the transaction, the sale is
+// rolled back and the request fails instead of committing an unaudited sale.
+func TestSaleHandler_CreateSale_AuditFailure(t *testing.T) {
+	svc := &mockService{
+		createSaleWithParkedSaleTxFn: func(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error {
+			sale.ID = 1
+			return nil
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-AUDIT-FAIL", nil
+		},
+		getPaymentMethodByCodeFn: func(ctx context.Context, code string) (*PaymentMethod, error) {
+			return &PaymentMethod{Code: "cash"}, nil
+		},
+	}
+	auditSvc := &mockAuditCreator{createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+		return errors.New("audit write failed")
+	}}
+	r := setupSaleHandler(svc, auditSvc)
+	body := `{"items":[{"product_id":1,"quantity":1}],"payment_method":"cash"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusCreated, w.Code, "create must fail when its audit log cannot be written")
+}
+
+func TestSaleHandler_CancelParkedSale_AuditFailure(t *testing.T) {
+	svc := &mockService{
+		cancelParkedSaleTxFn: func(ctx context.Context, tx pgx.Tx, saleID int, caller Caller) error {
+			return nil
+		},
+	}
+	auditSvc := &mockAuditCreator{createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+		return errors.New("audit write failed")
+	}}
+	r := setupSaleHandler(svc, auditSvc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("DELETE", "/sales/parked/1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusNoContent, w.Code, "cancel must fail when its audit log cannot be written")
+}
+
+func TestSaleHandler_CompleteParkedSale_AuditFailure(t *testing.T) {
+	svc := &mockService{
+		createSaleWithParkedSaleTxFn: func(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error {
+			sale.ID = 2
+			return nil
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-COMPLETE-AUDIT-FAIL", nil
+		},
+	}
+	auditSvc := &mockAuditCreator{createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+		return errors.New("audit write failed")
+	}}
+	r := setupSaleHandlerManager(svc, auditSvc)
+	body := `{"items":[{"product_id":1,"quantity":1}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales/parked/7/complete", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusCreated, w.Code, "completion must fail when its audit log cannot be written")
 }

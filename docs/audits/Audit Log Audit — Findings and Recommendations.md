@@ -106,12 +106,12 @@ Status reflects the current code. **Outcome** records the result of the recommen
 | `shift` / `create` (open) | Shift | Open shift (shift/handler.go:98) | ✅ Done | Renamed to `shift_opened` |
 | `shift` / `update` (close/closeall) | Shift | Close / close-all (shift/handler.go:145/186) | ✅ Done | Renamed to `shift_closed` / `shift_close_all` |
 | `shift` / `export`·`review`·`audit` | Shift | Reconciliation | ✅ KEEP | — |
-| `sale` / `create` | Sale | Sale completed (sale/handler.go:397/439) | ✅ KEEP | PII-scrubbed snapshot (customer_name removed) |
+| `sale` / `create` | Sale | Sale completed (sale/handler.go:397, cart_handler.go) | ✅ KEEP | PII-scrubbed snapshot (customer_name removed); `/pos/cart/:id/checkout` now emits `create`/`sale` atomically via `CheckoutCartTx` + `auditCreateSaleTx` inside `InTx` |
 | `sale` / `cancel` | Sale | Cancel parked (sale/handler.go) | ✅ ADDED | On `CancelParkedSale` |
 | `sale` / `recall_sale` | Sale | Recall (sale/handler.go:1062) | ✅ Done | Audited for all actors (manager + self-recall); PII-scrubbed |
 | `sale` / `void`·`refund`·`reprint` | Sale | (none) | ⚠️ N/A | No endpoints exist |
-| `cart` / `cancel_cart`·`checkout` | Sale | Cart ops (cart_handler.go:439/493) | ✅ KEEP | Minor double-event noise |
-| `payment` / `create` | Payment | Checkout (sale/handler.go) | ✅ Done | Per-payment `payment.created`; full lifecycle ⬜ (init/success/fail/method-change deferred) |
+| `cart` / `cancel_cart` | Sale | CancelCart (cart_handler.go) | ✅ KEEP | Only `cancel_cart` remains; `checkout` action removed from live path |
+| `payment` / `create` | Payment | Checkout (sale/handler.go, cart_handler.go) | ✅ Done | Per-payment `payment.created` atomic in same tx as sale; full lifecycle ⬜ (init/success/fail/method-change deferred); dead `cart_session_id` alias removed (previously created via `POST /sales` `createSaleFromCart`) |
 
 ---
 
@@ -201,7 +201,7 @@ SUPPLIER: created/updated/deleted (+ payment/debt/invoice — N/A)
 PRICING_RULE: created/updated/deleted
 SHIFT: opened, closed, close_all, cash_in, cash_out, drawer_opened, cash_adjusted, reviewed, audited, exported
 SALE: created, cancelled, recalled, voided, refunded, receipt_reprinted, completed
-CART: cancelled, checkout
+CART: cancelled
 PAYMENT: created, initiated, succeeded, failed, method_changed, reversed, reference_changed
 INVENTORY: adjusted, transfer_created, transfer_approved, transfer_cancelled
 STOCK_OPNAME / CONSIGNMENT: keep current explicit verbs
@@ -245,7 +245,7 @@ Rule: **one explicit verb per meaningful action**; never reuse `update` for dist
 | P0 | 2 | Permission-change audit + diff | ✅ Done | `UpdateRolePermissions` emits `update_permissions` with before/after permission sets. |
 | P0 | 3 | Payment/refund events | ✅ Partial | `payment.create` per payment on checkout; `sale.cancel` on parked-sale cancel. Void/refund/reprint ⚠️ N/A. |
 | P0 | 4 | DB immutability | ✅ Done | `reject_audit_log_modification()` trigger `BEFORE UPDATE OR DELETE`. |
-| P1 | 5 | Audit-error handling | ✅ Done | `internal/metrics.AuditWriteFailures`; `repository.go` increments + logs; `GET /metrics` exposes it. Security-critical writes are **fail-closed and atomic** across all mutating modules: `config_updated` (appsettings), `update_permissions` (user), user lifecycle (`user_activated`/`user_deactivated`/`user_role_changed`), shift open/close/closeall (`shift_opened`/`shift_closed`/`shift_close_all`), inventory `inventory_adjustment`/`inventory_transfer`, purchase `purchase_order_confirmed`/`purchase_order_cancelled`, and sale lifecycle (`sale`/`create` via POST /sales and cart checkout, `recall_sale`, `cancel`, `complete_parked_sale`) plus per-payment `payment.created` — every mutation commits the change and its audit row(s) in one `pgx.Tx` (`audit.TxCreator.CreateAuditLogTx` inside `Service.InTx`), so an audit failure rolls back the whole operation — no partial persistence. The `audit_exported` event is a read-only export and emits via `audit.WriteFailClosed` (best-effort, no mutation to roll back). Caveat resolved: the prior ordering issue (audit-after-mutation) is gone. |
+| P1 | 5 | Audit-error handling | ✅ Done | `internal/metrics.AuditWriteFailures`; `repository.go` increments + logs; `GET /metrics` exposes it. Security-critical writes are **fail-closed and atomic** across all mutating modules: `config_updated` (appsettings), `update_permissions` (user), user lifecycle (`user_activated`/`user_deactivated`/`user_role_changed`), shift open/close/closeall (`shift_opened`/`shift_closed`/`shift_close_all`), inventory `inventory_adjustment`/`inventory_transfer`, purchase `purchase_order_confirmed`/`purchase_order_cancelled`, and sale lifecycle (`sale`/`create` via POST /sales and `/pos/cart/:id/checkout` (atomic `CheckoutCartTx` + `auditCreateSaleTx`), `recall_sale`, `cancel`, `complete_parked_sale`) plus per-payment `payment.created` — every mutation commits the change and its audit row(s) in one `pgx.Tx` (`audit.TxCreator.CreateAuditLogTx` inside `Service.InTx`), so an audit failure rolls back the whole operation — no partial persistence. The dead `cart_session_id` alias (`POST /sales` → `createSaleFromCart`) has been removed; checkout now exclusively routes through `/pos/cart/:id/checkout`. The `audit_exported` event is a read-only export and emits via `audit.WriteFailClosed` (best-effort, no mutation to roll back). Caveat resolved: the prior ordering issue (audit-after-mutation) is gone. Every `payment.created` row now carries an authoritative `entity_id` (the payment's own DB id) and `sale_id` (from the completed `sale.ID`): `CreateSalePayments` back-fills `payments[].ID`/`SaleID` via per-row `INSERT ... RETURNING id` (required because `CopyFrom` cannot return generated ids), and `auditSalePayments`/`auditSalePaymentsTx` write `sale_id: sale.ID`. FK-fallback scope note: a `payment.created` audit row is committed in the same transaction as its owning payment, so it is never persisted before the payment row exists; the audit `entity_id` is only meaningful when the owning payment row is present and referenced by the same transaction — there is no deferred/standalone write path. |
 | P1 | 6 | Cash-movement + open/close | ✅ Done (renames) / ⚠️ N/A (cash-movement) | Shift open/close/closeall renamed to `shift_opened`/`shift_closed`/`shift_close_all`; shift mutations are now fail-closed and atomic. No cash-movement functions exist, so cash-movement events remain N/A. |
 | P1 | 7 | Inventory/PO/GR events | ✅ Done (parts) | `inventory_adjustment`, `inventory_transfer`, `purchase_order_confirmed`/`purchase_order_cancelled`. GR/supplier ⚠️ N/A. |
 | P1 | 8 | Password-change-failed | ✅ Done | `password_change_failed` on `ErrInvalidPassword`; seeder reflects it. |

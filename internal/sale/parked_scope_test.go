@@ -109,12 +109,12 @@ func TestSaleRepository_ParkedSaleOwnerScopeIDOR(t *testing.T) {
 	parkedA := createParkedSale(ctx, t, repo, cashierA, "INV-SCOPE-A-001", "parked", prodID, 1, 10000)
 
 	t.Run("other cashier cannot recall", func(t *testing.T) {
-		_, err := repo.RecallSale(ctx, parkedA.ID, &cashierB, nil)
+		_, err := recallSaleInTx(t, repo, parkedA.ID, &cashierB, nil)
 		require.ErrorIs(t, err, ErrSaleNotFound)
 	})
 
 	t.Run("other cashier cannot cancel", func(t *testing.T) {
-		err := repo.CancelParkedSale(ctx, parkedA.ID, &cashierB, nil)
+		err := cancelParkedSaleInTx(t, repo, parkedA.ID, &cashierB, nil)
 		require.ErrorIs(t, err, ErrSaleNotFound)
 	})
 
@@ -130,7 +130,7 @@ func TestSaleRepository_ParkedSaleOwnerScopeIDOR(t *testing.T) {
 	})
 
 	t.Run("owner can recall own sale", func(t *testing.T) {
-		recalled, err := repo.RecallSale(ctx, parkedA.ID, &cashierA, nil)
+		recalled, err := recallSaleInTx(t, repo, parkedA.ID, &cashierA, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "recalled", recalled.Status)
 	})
@@ -139,9 +139,9 @@ func TestSaleRepository_ParkedSaleOwnerScopeIDOR(t *testing.T) {
 		parkedB := createParkedSale(ctx, t, repo, cashierB, "INV-SCOPE-B-001", "parked", prodID, 1, 10000)
 		parkedC := createParkedSale(ctx, t, repo, cashierB, "INV-SCOPE-C-001", "parked", prodID, 1, 10000)
 
-		_, err := repo.RecallSale(ctx, parkedB.ID, nil, nil)
+		_, err := recallSaleInTx(t, repo, parkedB.ID, nil, nil)
 		require.NoError(t, err)
-		err = repo.CancelParkedSale(ctx, parkedC.ID, nil, nil)
+		err = cancelParkedSaleInTx(t, repo, parkedC.ID, nil, nil)
 		require.NoError(t, err)
 
 		sales, err := repo.GetParkedSales(ctx, nil, nil)
@@ -448,7 +448,7 @@ func TestParkedScope_HandlerCompletion(t *testing.T) {
 // repo where the parked sale was created (newTestRepo is stateless/shared pool).
 func mustRecallParked(t *testing.T, repo *Repository, sale *Sale) *Sale {
 	t.Helper()
-	recalled, err := repo.RecallSale(context.Background(), sale.ID, nil, nil)
+	recalled, err := recallSaleInTx(t, repo, sale.ID, nil, nil)
 	require.NoError(t, err)
 	return recalled
 }
@@ -516,18 +516,18 @@ func TestSaleRepository_ParkedSaleStoreScope(t *testing.T) {
 	})
 
 	t.Run("manager recall is scoped to own store", func(t *testing.T) {
-		_, err := repo.RecallSale(ctx, parkedB.ID, nil, &storeA)
+		_, err := recallSaleInTx(t, repo, parkedB.ID, nil, &storeA)
 		require.ErrorIs(t, err, ErrSaleNotFound)
-		recalled, err := repo.RecallSale(ctx, parkedB.ID, nil, &storeB)
+		recalled, err := recallSaleInTx(t, repo, parkedB.ID, nil, &storeB)
 		require.NoError(t, err)
 		assert.Equal(t, "recalled", recalled.Status)
 	})
 
 	t.Run("manager cancel is scoped to own store", func(t *testing.T) {
 		parkedC := createParkedSaleWithStore(ctx, t, repo, cashierA, storeB, "INV-STORE-C-001", "parked", prodID, 1, 10000)
-		err := repo.CancelParkedSale(ctx, parkedC.ID, nil, &storeA)
+		err := cancelParkedSaleInTx(t, repo, parkedC.ID, nil, &storeA)
 		require.ErrorIs(t, err, ErrSaleNotFound)
-		err = repo.CancelParkedSale(ctx, parkedC.ID, nil, &storeB)
+		err = cancelParkedSaleInTx(t, repo, parkedC.ID, nil, &storeB)
 		require.NoError(t, err)
 	})
 
