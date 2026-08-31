@@ -155,6 +155,11 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
+	var oldGroup *CustomerGroup
+	if h.auditSvc != nil {
+		oldGroup, _ = h.svc.GetByID(c.Request.Context(), id)
+	}
+
 	var req UpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -168,14 +173,17 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		focusedOld, focusedNew := shared.DiffChanges(shared.ToJSONMap(oldGroup), shared.ToJSONMap(group))
 		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
-			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
 			Action:      "update",
 			EntityType:  "customer_group",
 			EntityID:    &group.ID,
-			NewValues:   shared.ToJSONMap(group),
+			OldValues:   focusedOld,
+			NewValues:   focusedNew,
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated customer group %s", group.Name),

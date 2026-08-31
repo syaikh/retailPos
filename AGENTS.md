@@ -184,6 +184,12 @@ Migrations must be applied **before** deploying a new server binary. The server 
 | `007_sale_lookup.sql` | Seeds `sale.lookup` permission for `cashier`/`manager` |
 | `031_revoke_sale_lookup_manager.sql` | Revokes `sale.lookup` from `manager` (cashier-only) |
 | `032_sale_detail_and_receipt_print.sql` | Seeds `sale.detail`/`receipt.print` permissions |
+| `033_audit_log_store_and_immutability.sql` | Adds `audit_logs.store_id` FK + append-only trigger |
+| `033_cash_change.sql` | Adds `cash_change` table |
+| `034_audit_immutable_bypass.sql` | GUC-aware bypass for audit immutability trigger |
+| `035_audit_correlation_id.sql` | Adds `audit_logs.correlation_id` column |
+| `036_audit_export_permission.sql` | Seeds `audit.export` permission |
+| `037_audit_immutable_fk_bypass.sql` | Allows FK-cascade updates through append-only trigger |
 
 ## Filesystem Convention
 

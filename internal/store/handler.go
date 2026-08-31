@@ -190,6 +190,11 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
+	var oldStore *Store
+	if h.auditSvc != nil {
+		oldStore, _ = h.svc.GetByID(c.Request.Context(), id)
+	}
+
 	var req UpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -203,14 +208,17 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		focusedOld, focusedNew := shared.DiffChanges(shared.ToJSONMap(oldStore), shared.ToJSONMap(st))
 		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
-			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
 			Action:      "update",
 			EntityType:  "store",
 			EntityID:    &st.ID,
-			NewValues:   shared.ToJSONMap(st),
+			OldValues:   focusedOld,
+			NewValues:   focusedNew,
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated store %s", st.Name),

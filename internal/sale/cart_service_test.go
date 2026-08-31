@@ -430,42 +430,6 @@ func TestCartService_IT08_CheckoutDeductsStockAndPublishes(t *testing.T) {
 	}
 }
 
-func TestCartService_CheckoutCartWithPaymentMethod_DerivesAmountFromTotal(t *testing.T) {
-	_ = shared.TruncateTestData(dbPool)
-	ctx := context.Background()
-	svc, _ := newCartTestService(ctx, t)
-
-	cashierID := insertTestCashier(ctx, t)
-	prodID := insertTestProductWithTax(ctx, t, "CART-PM-PROD", "Legacy PM Product", 3500, 100, 11)
-
-	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
-	require.NoError(t, err)
-	cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 2, nil, cashierID)
-	require.NoError(t, err)
-	total := cart.TotalAmount
-
-	sale, err := svc.CheckoutCartWithPaymentMethod(ctx, cart.ID, "CASH", cashierID)
-	require.NoError(t, err)
-	assert.Equal(t, total, sale.TotalAmount, "amount derived from recomputed sale total")
-	assert.Equal(t, "CASH", sale.PaymentMethod)
-	assert.Len(t, sale.Payments, 1)
-	assert.Equal(t, total, sale.Payments[0].Amount)
-}
-
-func TestCartService_CheckoutCartWithPaymentMethod_EmptyCartRejected(t *testing.T) {
-	_ = shared.TruncateTestData(dbPool)
-	ctx := context.Background()
-	svc, _ := newCartTestService(ctx, t)
-
-	cashierID := insertTestCashier(ctx, t)
-
-	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
-	require.NoError(t, err)
-
-	_, err = svc.CheckoutCartWithPaymentMethod(ctx, cart.ID, "CASH", cashierID)
-	assert.ErrorIs(t, err, ErrCartEmpty)
-}
-
 func TestCartService_IT09_CheckoutTwiceRejected(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()

@@ -2685,39 +2685,15 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 
 	rows := make([]string, 0, 500)
 
-	// Resolve seeded stores so audit entries can be attributed to a store
-	// (P0.1: every audit log carries store_id).
-	var storeIDs []int
-	if sRows, err := db.QueryContext(ctx, "SELECT id FROM stores ORDER BY id"); err == nil {
-		for sRows.Next() {
-			var sid int
-			if err := sRows.Scan(&sid); err == nil {
-				storeIDs = append(storeIDs, sid)
-			}
-		}
-		_ = sRows.Close()
-	}
-	pickStore := func() *int {
-		if len(storeIDs) == 0 {
-			return nil
-		}
-		s := storeIDs[rand.Intn(len(storeIDs))]
-		return &s
-	}
-
 	addRow := func(userID int, role, action, entityType string, entityID *int, description string, createdAt time.Time) {
 		var eid any = "NULL"
 		if entityID != nil {
 			eid = *entityID
 		}
-		var sid any = "NULL"
-		if s := pickStore(); s != nil {
-			sid = *s
-		}
 		ip := randomPrivateIP()
 		rows = append(rows, fmt.Sprintf(
-			"(%d, %v, '%s', '%s', '%s', %v, NULL, NULL, '%s', NULL, '%s', '%s')",
-			userID, sid, escapeSQL(role), escapeSQL(action), escapeSQL(entityType),
+			"(%d, '%s', '%s', '%s', %v, NULL, NULL, '%s', NULL, '%s', '%s')",
+			userID, escapeSQL(role), escapeSQL(action), escapeSQL(entityType),
 			eid, ip, escapeSQL(description),
 			createdAt.Format("2006-01-02 15:04:05-07"),
 		))
@@ -2873,13 +2849,9 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 			nv := fmt.Sprintf(`{"invoice_number":"%s","cashier_id":%d,"customer_id":%d,"total_amount":%d,"payment_method":"%s","status":"completed"}`,
 				inv, cid, custID, total, pm)
 			ip := randomPrivateIP()
-			var saleStore any = "NULL"
-			if storeID.Valid {
-				saleStore = storeID.Int64
-			}
 			rows = append(rows, fmt.Sprintf(
-				"(%d, %v, 'cashier', 'create', 'sale', %d, NULL, '%s'::jsonb, '%s', NULL, 'Created sale #%d', '%s')",
-				cid, saleStore, sid, escapeSQL(nv), ip, sid, ct.Format("2006-01-02 15:04:05-07"),
+				"(%d, 'cashier', 'create', 'sale', %d, NULL, '%s'::jsonb, '%s', NULL, 'Created sale #%d', '%s')",
+				cid, sid, escapeSQL(nv), ip, sid, ct.Format("2006-01-02 15:04:05-07"),
 			))
 		}
 	}
@@ -2896,7 +2868,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 			end = len(rows)
 		}
 		batch := rows[i:end]
-		query := `INSERT INTO audit_logs (user_id, store_id, role, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent, description, created_at) VALUES `
+		query := `INSERT INTO audit_logs (user_id, role, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent, description, created_at) VALUES `
 		query += strings.Join(batch, ", ")
 		if _, err := db.ExecContext(ctx, query); err != nil {
 			return fmt.Errorf("failed to insert audit logs batch %d: %w", i/batchSize, err)

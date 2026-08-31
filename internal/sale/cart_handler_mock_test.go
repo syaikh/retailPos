@@ -2,6 +2,7 @@ package sale
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -666,6 +667,20 @@ func TestSaleCartHandler_CheckoutCart_AuditsPayments(t *testing.T) {
 	require.True(t, ok, "payment audit new_values should be a map")
 	assert.Equal(t, float64(9), newVals["sale_id"], "payment audit sale_id must reference the real sale id")
 	assert.Equal(t, float64(5000), newVals["amount"])
+}
+
+func TestSaleCartHandler_CheckoutCart_AuditFailureRollsBack(t *testing.T) {
+	svc := mockCartFixture()
+	auditSvc := &mockAuditCreator{createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
+		return errors.New("audit write failed")
+	}}
+	r := setupSaleCartHandler(svc, auditSvc, true, nil)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/pos/cart/7/checkout", strings.NewReader(`{"payments":[{"method":"CASH","amount":20000}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusCreated, w.Code, "checkout must fail when its audit log cannot be written")
 }
 
 func TestSaleCartHandler_NonIntUserID(t *testing.T) {

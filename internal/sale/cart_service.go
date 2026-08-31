@@ -427,14 +427,6 @@ func (s *service) CheckoutCart(ctx context.Context, cartID int, payments []Creat
 	return s.checkoutCart(ctx, cartID, payments, "", cashierID)
 }
 
-// CheckoutCartWithPaymentMethod checks out a cart using a single legacy
-// payment method code. The amount is derived from the recomputed sale total
-// inside the same locked transaction, so it cannot go stale the way a
-// handler-side pre-read of cart.TotalAmount could.
-func (s *service) CheckoutCartWithPaymentMethod(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error) {
-	return s.checkoutCart(ctx, cartID, nil, paymentMethod, cashierID)
-}
-
 // CheckoutCartTx checks out a cart into a completed sale within an existing
 // transaction. It does not commit or publish events.
 func (s *service) CheckoutCartTx(ctx context.Context, tx pgx.Tx, cartID int, payments []CreatePaymentRequest, legacyPaymentMethod string, cashierID int) (*Sale, error) {

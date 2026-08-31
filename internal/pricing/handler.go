@@ -273,6 +273,7 @@ func (h *Handler) UpdateRule(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
+		focusedOld, focusedNew := shared.DiffChanges(shared.ToJSONMap(oldRule), shared.ToJSONMap(rule))
 		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
@@ -280,8 +281,8 @@ func (h *Handler) UpdateRule(c *gin.Context) {
 			Action:      "update",
 			EntityType:  "pricing_rule",
 			EntityID:    &rule.ID,
-			OldValues:   shared.ToJSONMap(oldRule),
-			NewValues:   shared.ToJSONMap(rule),
+			OldValues:   focusedOld,
+			NewValues:   focusedNew,
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated pricing rule %s", rule.Name),

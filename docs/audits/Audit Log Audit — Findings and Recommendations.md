@@ -30,7 +30,7 @@
 
 **Recommendation**
 1. Operate the audit log as a **security control** now, with the caveats above documented.
-2. ~~Schedule the remaining low-effort hardening: explicit shift verbs (`SHIFT_OPENED`/`SHIFT_CLOSED`) and full `{field:{from,to}}` diffs across all handlers.~~ **Done:** shift open/close are now `shift_opened`/`shift_closed`; focused `changes` diffs (`shared.DiffChanges`) are applied to the core update handlers (product/category/supplier/user/role). The remaining update handlers still emit full snapshots and can adopt the helper incrementally.
+2. ~~Schedule the remaining low-effort hardening: explicit shift verbs (`SHIFT_OPENED`/`SHIFT_CLOSED`) and full `{field:{from,to}}` diffs across all handlers.~~ **Done:** shift open/close are now `shift_opened`/`shift_closed`; focused `changes` diffs (`shared.DiffChanges`) are applied to all entity-update handlers (product/category/supplier/user/role/brand/uom/customer/customer_group/pricing_rule/store/storage_location). Remaining handlers (inventory, user lifecycle, purchase) already use targeted maps.
 3. Re-open audit coverage when refund/void and supplier-payment features are built; they are currently **N/A by design**, not by omission.
 
 ---
@@ -39,10 +39,10 @@
 
 | Group | Items | State |
 |---|---|---|
-| **P0** (store attribution, permission-change audit, payment-level events, DB immutability) | 4 | ✅ Done (1 partial) |
+| **P0** (store attribution, permission-change audit, payment-level events, DB immutability) | 4 | ✅ Done |
 | **P1** (audit-failure logging, password-change-failed, inventory transfer/adjustment, PO confirm/cancel) | 4 | ✅ Done (cash-movement ⚠️ N/A) |
 | **P2** (user lifecycle, token refresh, config updates, correlation ID, PII scrub, recall audit, retention/export tiering) | 8 | ✅ Done (session-revoked ⚠️ N/A) |
-| **Resolved** | shift open/close renamed to `shift_opened`/`shift_closed`; payment events renamed to `payment.created`; focused `changes` diffs via `shared.DiffChanges` applied to product/category/supplier/user/role update handlers (remaining update handlers still emit full snapshots — deferred) | ✅ |
+| **Resolved** | shift open/close renamed to `shift_opened`/`shift_closed`; payment events renamed to `payment.created`; focused `changes` diffs via `shared.DiffChanges` applied to all entity-update handlers (product/category/supplier/user/role/brand/uom/customer/customer_group/pricing_rule/store/storage_location); remaining handlers (inventory, user lifecycle, purchase) already use targeted maps | ✅ |
 
 **⚠️ Marked N/A (no underlying feature exists):** `SHIFT_CASH_MOVEMENT`, `GOODS_RECEIPT_UPDATED/CANCELLED`, `SUPPLIER_PAYMENT/DEBT/INVOICE`, `SESSION_REVOKED` (only single-device logout exists, audited as `logout`), and sale `void`/`refund`/`reprint` (no endpoints).
 
@@ -166,7 +166,7 @@ Status reflects the current code. **Outcome** records the result of the recommen
 | High | Audit errors discarded (`_ =`) | ✅ Resolved (logging) | `internal/metrics.AuditWriteFailures` + app-log; fail-closed ✅ (atomic transaction) |
 | High | `UpdateRole` logs only name/desc | ✅ Resolved | Permission delta now in `update_permissions` |
 | Medium | No `correlation_id` / server actor binding | ✅ Resolved | P2 #9 (migration 035 + context population) |
-| Medium | Full-snapshot `new_values` retain PII | ✅ Resolved (PII) | P2 #10 (`shared.ScrubPII`); full focused diffs deferred |
+| Medium | Full-snapshot `new_values` retain PII | ✅ Resolved (PII) | P2 #10 (`shared.ScrubPII`); focused diffs via `shared.DiffChanges` applied to all entity-update handlers |
 | Medium | No DB immutability | ✅ Resolved | `reject_audit_log_modification()` trigger (migration `033`) |
 | Low | No retention / export tiering | ✅ Resolved | P2 #12 (`audit.export` + `PurgeOlderThan`) |
 | Low | `recall_sale` audited only for managers | ✅ Resolved | P2 #11 (audited for all actors) |
@@ -182,7 +182,7 @@ id, store_id, user_id, username, role, action, entity_type, entity_id,
 description, ip_address, user_agent, old_values(jsonb), new_values(jsonb), created_at
 ```
 
-**State:** `store_id` ✅ added (migration `033`); `correlation_id` ✅ added (migration `035`). Full focused `changes` jsonb deferred.
+**State:** `store_id` ✅ added (migration `033`); `correlation_id` ✅ added (migration `035`). Full focused `changes` jsonb via `shared.DiffChanges` applied to all entity-update handlers.
 
 **Recommended additive schema (future):** `correlation_id TEXT`, `success BOOLEAN DEFAULT TRUE`, `changes jsonb` (focused `{field:{from,to}}` diffs, preferred over full snapshots). `created_at` must remain server-defaulted (not client-set).
 
@@ -250,7 +250,7 @@ Rule: **one explicit verb per meaningful action**; never reuse `update` for dist
 | P1 | 7 | Inventory/PO/GR events | ✅ Done (parts) | `inventory_adjustment`, `inventory_transfer`, `purchase_order_confirmed`/`purchase_order_cancelled`. GR/supplier ⚠️ N/A. |
 | P1 | 8 | Password-change-failed | ✅ Done | `password_change_failed` on `ErrInvalidPassword`; seeder reflects it. |
 | P2 | 9 | `correlation_id` | ✅ Done | Migration 035 adds column; `domain.go` `CorrelationID`; `repository.go` auto-populates from request context (X-Request-ID) when unset and accepts explicit value; surfaced in list/get/export. |
-| P2 | 10 | Focused diffs + PII scrub | ✅ Done (PII) | `shared.ScrubPII` recursively strips customer PII (`customer_name`, phone, email) from sale audit payloads (sale/handler.go, cart_handler.go); full `{field:{from,to}}` diffs across all handlers deferred. |
+| P2 | 10 | Focused diffs + PII scrub | ✅ Done | `shared.ScrubPII` recursively strips customer PII (`customer_name`, phone, email) from sale audit payloads (sale/handler.go, cart_handler.go); focused `{field:{from,to}}` diffs via `shared.DiffChanges` applied to all entity-update handlers (product/category/supplier/user/role/brand/uom/customer/customer_group/pricing_rule/store/storage_location). |
 | P2 | 11 | Recall/token/user lifecycle | ✅ Done | `recall_sale` now audited for every actor (manager + self-recall); `token_refresh`, user lifecycle, `config_updated` done; `session_revoked` ⚠️ N/A. |
 | P2 | 12 | Retention / export tiering | ✅ Done | New `audit.export` permission (migration 036) granted to superadmin/admin, gating the export route (stricter than `audit.view`); `AuditRetentionDays` constant + `PurgeOlderThan` repo method provide the retention building block (scheduling out of scope). The export itself emits a fail-closed `audit_exported` event (`entity_type=audit`) recording who exported and how many rows. |
 

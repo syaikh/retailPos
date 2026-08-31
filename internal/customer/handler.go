@@ -259,16 +259,42 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 		oldCustomer = existing
 	}
 
+	// Start from the existing record so non-requested fields (LoyaltyPoints,
+	// TotalSpent, IsActive, etc.) are preserved in the struct and the audit
+	// diff only reflects actual changes.
 	customer := &Customer{
 		ID:              id,
-		Phone:           req.Phone,
-		Email:           req.Email,
-		Address:         req.Address,
-		Note:            req.Note,
-		CustomerGroupID: req.CustomerGroupID,
+		Name:            existing.Name,
+		Phone:           existing.Phone,
+		Email:           existing.Email,
+		Address:         existing.Address,
+		TaxID:           existing.TaxID,
+		CustomerGroupID: existing.CustomerGroupID,
+		Note:            existing.Note,
+		IsActive:        existing.IsActive,
+		IsWalkIn:        existing.IsWalkIn,
+		LoyaltyPoints:   existing.LoyaltyPoints,
+		TotalSpent:      existing.TotalSpent,
+		LastPurchaseAt:  existing.LastPurchaseAt,
+		StoreID:         existing.StoreID,
 	}
 	if req.Name != nil {
 		customer.Name = *req.Name
+	}
+	if req.Phone != nil {
+		customer.Phone = req.Phone
+	}
+	if req.Email != nil {
+		customer.Email = req.Email
+	}
+	if req.Address != nil {
+		customer.Address = req.Address
+	}
+	if req.Note != nil {
+		customer.Note = req.Note
+	}
+	if req.CustomerGroupID != nil {
+		customer.CustomerGroupID = req.CustomerGroupID
 	}
 	if req.IsActive != nil {
 		customer.IsActive = *req.IsActive
@@ -281,6 +307,7 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
+		focusedOld, focusedNew := shared.DiffChanges(shared.ToJSONMap(oldCustomer), shared.ToJSONMap(customer))
 		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
@@ -288,8 +315,8 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 			Action:      "update",
 			EntityType:  "customer",
 			EntityID:    &id,
-			OldValues:   shared.ToJSONMap(oldCustomer),
-			NewValues:   shared.ToJSONMap(customer),
+			OldValues:   focusedOld,
+			NewValues:   focusedNew,
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Updated customer %s", customer.Name),

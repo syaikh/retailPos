@@ -56,8 +56,7 @@ type mockService struct {
 	holdCartFn                      func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	resumeCartFn                    func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	cancelCartFn                    func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
-	checkoutCartFn                  func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
-	checkoutCartWithPaymentMethodFn func(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error)
+	checkoutCartFn func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
 
 	createSaleTxFn               func(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, payments []CreatePaymentRequest) error
 	createSaleWithParkedSaleTxFn func(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error
@@ -213,12 +212,6 @@ func (m *mockService) CancelCart(ctx context.Context, cartID int, cashierID int)
 func (m *mockService) CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
 	if m.checkoutCartFn != nil {
 		return m.checkoutCartFn(ctx, cartID, payments, cashierID)
-	}
-	return nil, fmt.Errorf("not mocked")
-}
-func (m *mockService) CheckoutCartWithPaymentMethod(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error) {
-	if m.checkoutCartWithPaymentMethodFn != nil {
-		return m.checkoutCartWithPaymentMethodFn(ctx, cartID, paymentMethod, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }

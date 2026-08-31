@@ -218,8 +218,8 @@ var strictModuleTables = map[string]map[string]bool{
 // is ported.
 var crossContextDebt = map[string]map[string]bool{
 	"sale": {
-		"customers":       true, // sale reads customer data for invoices/receipts
-		"mv_hourly_sales": true, // sale reads hourly analytics for realtime dashboard
+		"customers": true, // sale reads customer data for invoices/receipts
+		"users":     true, // sale reads user data for cashier info
 	},
 	"shift": {
 		"cart_sessions": true, // shift reads active cart session to enforce close-before-logout

@@ -7,8 +7,8 @@ import (
 
 func TestRegistryCount(t *testing.T) {
 	got := len(All())
-	if got != 84 {
-		t.Fatalf("registry has %d codes, want 84 (72 from database/permission-matrix-final.md + product.history.view/product.cost.view + consignment.* + app_settings.* + sale.lookup + sale.detail + receipt.print)", got)
+	if got != 85 {
+		t.Fatalf("registry has %d codes, want 85 (72 from database/permission-matrix-final.md + product.history.view/product.cost.view + consignment.* + app_settings.* + sale.lookup + sale.detail + receipt.print + audit.export)", got)
 	}
 }
 
@@ -60,7 +60,7 @@ func TestSpotCheckCodes(t *testing.T) {
 	spot := []Code{
 		DashboardView, UserView, UserCreate, UserUpdate, UserDelete,
 		RoleView, RoleCreate, RoleUpdate, RoleDelete,
-		AuditView, ReportView,
+		AuditView, AuditExport, ReportView,
 		ProductView, ProductCreate, ProductUpdate, ProductDelete, ProductExport, ProductImport,
 		ProductHistoryView, ProductCostView,
 		CategoryView, CategoryCreate, CategoryUpdate, CategoryDelete, CategoryExport, CategoryImport,
@@ -77,8 +77,8 @@ func TestSpotCheckCodes(t *testing.T) {
 		ConsignmentView, ConsignmentCreate, ConsignmentUpdate, ConsignmentSettle, ConsignmentPay,
 		AppSettingsView, AppSettingsUpdate,
 	}
-	if len(spot) != 84 {
-		t.Fatalf("spot-check list has %d entries, want 84", len(spot))
+	if len(spot) != 85 {
+		t.Fatalf("spot-check list has %d entries, want 85", len(spot))
 	}
 	for _, c := range spot {
 		if !Exists(c) {
