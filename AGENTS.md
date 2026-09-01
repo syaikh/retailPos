@@ -1,19 +1,8 @@
 # Development Commands
 
-## Codebase Investigation & Semantic Index Workflow
+## Codebase Investigation & Semantic Index
 
 This project uses a semantic codebase index at `.opencode/index`. The current working tree is always the source of truth.
-
-### Core principles
-
-1. Use semantic index tools as much as possible.
-2. Use the smallest tool that can answer the current question.
-3. Do not run every semantic tool for every task.
-4. Do not perform a full re-index unless the index is stale or incomplete.
-5. Use incremental indexing when only a limited part of the repository has changed.
-6. Use raw `read`/`grep` when the task is inherently exact or textual.
-7. Always verify important conclusions against the current working tree before editing.
-8. Never treat stale semantic-index results as authoritative over the current source.
 
 ### Tool selection
 
@@ -30,41 +19,12 @@ This project uses a semantic codebase index at `.opencode/index`. The current wo
 | `codebase_edit_context` | Before modifying a known implementation, get bounded context |
 | `pr_impact` | Assess blast radius of a branch or planned change |
 
-### Recommended investigation workflow
-
-For non-trivial questions, follow this progression (stop when sufficient evidence is obtained):
-
-1. Identify the relevant area with `codebase_context`
-2. Narrow to likely files/symbols with `codebase_peek`
-3. Locate definitions with `implementation_lookup`
-4. Retrieve source with `codebase_search`
-5. Trace dependencies with `call_graph` or `call_graph_path`
-6. Search for existing patterns with `find_similar` before designing new behavior
-7. Use `codebase_edit_context` before modifying
-8. Verify findings against the current working tree, then implement
-
 **Quick rules:** For known symbols, start with `implementation_lookup`. For exact text, use `grep`. For new features, add `find_similar` → `code_communities` before implementing.
 
-### Incremental indexing policy
+### Incremental indexing
 
-- **Prefer incremental indexing** for small changes (edited package, new service, added tests).
-- **Full re-index** only when: index is missing/corrupt, large portion changed, major refactoring, or incremental cannot reconcile changes.
-- **After normal edits:** Make change → incrementally index if supported → continue. Re-check health only when results appear stale.
-- **After large refactors:** Complete refactor → check status/health → prefer incremental, otherwise full `index_codebase`.
-- **Stale-index detection:** If a symbol cannot be found, is still returned after deletion, or results contradict source → check `index_status`/`index_health_check`, determine smallest scope, incrementally index, retry, escalate to full re-index only if necessary.
-- **Do not repeatedly re-index** because a query returned no result — first consider whether the query is vague, wrong tool selected, target outside index, or symbol has a different name.
-
-### Source-of-truth rule
-
-The current working tree is authoritative. When semantic-index results conflict: trust the source, investigate staleness, update index when appropriate.
-
-### Raw search/read exceptions
-
-Use `read`/`grep` directly when: exact file/symbol is known, exact literal search requested, inspecting migrations/config/generated files/fixtures/docs, or semantic indexing does not cover the content.
-
-### Efficiency rule
-
-Optimize for minimum evidence. Do not: run every tool for every question, search the whole repo when target is known, retrieve full source when only symbol locations needed, full re-index for small changes, or repeatedly re-index without evidence of staleness.
+- Prefer incremental indexing for small changes. Full re-index only when index is missing/corrupt, large portion changed, or major refactoring.
+- Do not repeatedly re-index because a query returned no result — first consider whether the query is vague, wrong tool selected, or target outside index.
 
 ## Environment Configuration
 
@@ -79,6 +39,20 @@ All database connection parameters are in `.env.example`:
 | `FRONTEND_PORT` | `5173` | Frontend dev server (Vite) |
 | `BACKEND_PORT` | `9095` | Backend dev server (Go) |
 | `DATABASE_PORT` | `5433` | Development database port |
+| `LOGIN_RATE_LIMIT_RPM` | `5` | Login rate limit requests per minute |
+| `LOGIN_RATE_LIMIT_BURST` | `10` | Login rate limit burst |
+| `RATE_LIMIT_RPS` | `50` | General API rate limit requests per second |
+| `RATE_LIMIT_BURST` | `100` | General API rate limit burst |
+| `REFRESH_RATE_LIMIT_RPM` | `10` | Token refresh rate limit RPM |
+| `REFRESH_RATE_LIMIT_BURST` | `20` | Token refresh rate limit burst |
+| `STOCK_WARNING_THRESHOLD` | `10` | Stock warning level |
+| `STOCK_CRITICAL_THRESHOLD` | `5` | Stock critical level |
+| `CART_HOLD_TTL_HOURS` | `24` | Cart hold TTL in hours |
+| `REPORT_REFRESH_DEBOUNCE` | `30` | Report refresh retry delay (seconds, exponential backoff) |
+| `ENV` | `development` | Log format: development/production |
+| `LOG_LEVEL` | `info` | Log level: debug/info/warn/error |
+| `VITE_PRINT_MODE` | | Receipt printing mode (frontend) |
+| `VITE_PRINT_AGENT_URL` | | Print agent URL (frontend) |
 
 Copy `.env.example` to `.env` and adjust as needed.
 
@@ -94,6 +68,7 @@ Copy `.env.example` to `.env` and adjust as needed.
 Analytical queries are served from materialized views pre-aggregated in Jakarta time, refreshed via `refresh_sales_mv()`:
 - `mv_hourly_sales` — period comparisons and hourly chart
 - `mv_daily_sales` — daily chart, dual-period chart, available years
+- `mv_dashboard_totals` — live dashboard stats
 
 `report.RefreshCoordinator` (`internal/report/refresh_coordinator.go`) refreshes once at startup and then at each Jakarta hour (`:00`) boundary. The `sale.created` listener only invalidates dashboard caches and never triggers a refresh. Refresh failures are retried with exponential backoff (`REPORT_REFRESH_DEBOUNCE` is base retry delay).
 
@@ -162,7 +137,7 @@ Never auto-commit. Changes must be committed manually.
 |------|-------------|
 | `-products=N` | Number of products (4500-5000, random if 0; if 0 and DB has products, reuses existing) |
 | `-days=N` | Days to generate (0 = interactive prompt) |
-| `-categories=N` | Number of categories (65-80, random if 0) |
+| `-categories=N` | Number of categories (65-100, random if 0) |
 | `-truncate=false` | Skip truncating existing data |
 
 Re-seeding (`-truncate=false`) continues document sequences and reuses existing products/suppliers/pricing rules, adding new transactions without key collisions.
