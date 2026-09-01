@@ -319,6 +319,7 @@ _, err := dbPool.Exec(ctx, `INSERT INTO audit_logs (role, action, entity_type, c
 | `cmd/partition-audit/main.go` | **New** | Optional CLI tool for manual partition management |
 | `internal/shared/testdb.go` | Verify | `TruncateTestData` TRUNCATE works on partitioned parent — verify |
 | `cmd/dummy/main.go` | Verify | Batch INSERT works unchanged — verify |
+| `README.md` | Modify | Add deployment notes for partition management |
 
 ---
 
@@ -355,4 +356,4 @@ _, err := dbPool.Exec(ctx, `INSERT INTO audit_logs (role, action, entity_type, c
 9. Update `internal/shared/testdb.go` if needed
 10. Verify all tests pass
 11. Verify seed tool works
-12. Update AGENTS.md with deployment notes
+12. Update README.md with deployment notes (partition management, cron setup if used)
