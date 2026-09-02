@@ -96,6 +96,15 @@ jobs:
             echo "waiting for frontend $i/60"
             sleep 2
           done
+      - name: Start print-agent
+        run: |
+          go run ./tools/print-agent/cmd/print-agent --port 9124 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9124/health && echo "print-agent ready" && break
+            echo "waiting for print-agent $i/30"
+            sleep 2
+          done
+          curl -sf http://localhost:9124/health || echo "print-agent health check skipped (no /health)"
       - name: Run e2e shard ${{ matrix.shard }}/4
         run: npx playwright test --shard=${{ matrix.shard }}/4
       - name: List reports
