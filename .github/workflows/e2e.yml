@@ -110,3 +110,21 @@ jobs:
             test-results
           retention-days: 7
           if-no-files-found: warn
+  merge:
+    if: always()
+    needs: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: reports
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npx playwright merge-reports reports --reporter html || npx playwright merge-reports reports/report-* --reporter html || echo "merge failed, listing reports" && ls -R reports | head -50
+      - uses: actions/upload-artifact@v4
+        with:
+          name: all-reports
+          path: playwright-report
+          if-no-files-found: warn
