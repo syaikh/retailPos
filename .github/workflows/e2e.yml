@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - uses: actions/setup-go@v4
         with:
           go-version: '1.22'
@@ -60,9 +60,15 @@ jobs:
           done
       - name: Run e2e shard ${{ matrix.shard }}/4
         run: npx playwright test --shard=${{ matrix.shard }}/4
+      - name: List reports
+        if: always()
+        run: ls -la playwright-report 2>&1 || ls -la test-results 2>&1 || echo "no report found"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: report-${{ matrix.shard }}
-          path: playwright-report
+          path: |
+            playwright-report
+            test-results
           retention-days: 7
+          if-no-files-found: warn
