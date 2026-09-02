@@ -21,7 +21,13 @@ test.describe('POS UI Flow', () => {
     await expect(page.getByText('Cart', { exact: true }).nth(1)).toBeVisible();
   });
 
-  test('should search products by name', async ({ page }) => {
+  test('should search products by name', async ({ page, request }) => {
+    // Ensure deterministic product exists (100-product seed may not contain Quality Model)
+    const tok = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    await request.post(`${API_BASE}/api/products`, {
+      headers: authHeader(tok),
+      data: { name: `Quality Model E2E ${Date.now()}`, sku: `QM-${Date.now()}`, price: 10000, cost: 5000, stock: 10, status: 'active', category_id: 1 },
+    });
     await page.fill('#pos-search-input', 'Quality Model');
     await expect(page.locator('tbody tr').first()).toContainText('Quality Model', { timeout: 5000 });
     await page.locator('#pos-search-input').fill('');
