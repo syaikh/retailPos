@@ -51,6 +51,19 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Wait for DB
         run: npx wait-on tcp:5433 --timeout 30000 && echo "postgres:18 ready"
+      - name: Migrate DB
+        env:
+          PGPASSWORD: admin123
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y postgresql-client
+          fi
+          # 000_squash is baseline (covers 001..030 idempotent); then 031..039
+          for f in database/migrations/000_squash.sql database/migrations/03*.sql; do
+            echo "Applying $f"
+            psql -h localhost -p 5433 -U pos -d retail_pos -f "$f"
+          done
+          echo "migrations done"
       - name: Start backend
         env:
           DB_HOST: localhost
