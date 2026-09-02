@@ -58,8 +58,7 @@ jobs:
           if ! command -v psql >/dev/null 2>&1; then
             sudo apt-get update && sudo apt-get install -y postgresql-client
           fi
-          # 000_squash is baseline (covers 001..030 idempotent); then 031..039
-          for f in database/migrations/000_squash.sql database/migrations/03*.sql; do
+          for f in database/migrations/*.sql; do
             echo "Applying $f"
             psql -h localhost -p 5433 -U pos -d retail_pos -f "$f"
           done
