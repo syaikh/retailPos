@@ -68,10 +68,6 @@ jobs:
         env:
           DATABASE_URL: postgres://pos:admin123@localhost:5433/retail_pos?sslmode=disable&timezone=Asia/Jakarta
         run: go run ./cmd/dummy -products=100 -days=30 -categories=10
-      - name: Clear audit_logs (avoid 5-fail lock)
-        env:
-          PGPASSWORD: admin123
-        run: psql -h localhost -p 5433 -U pos -d retail_pos -c "TRUNCATE audit_logs"
       - name: Verify DB users
         env:
           PGPASSWORD: admin123
