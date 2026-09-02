@@ -71,7 +71,7 @@ jobs:
       - name: Verify DB users
         env:
           PGPASSWORD: admin123
-        run: psql -h localhost -p 5433 -U pos -d retail_pos -c "SELECT username, is_active, substring(password_hash,1,7) AS hash_prefix FROM users WHERE username IN ('superadmin','admin','manager','cashier') ORDER BY username"
+        run: psql -h localhost -p 5433 -U pos -d retail_pos -c "SELECT username, is_active, substring(password_hash,1,7) AS hash_prefix FROM users WHERE username IN ('superadmin','admin','manager','cashier', 'staff') ORDER BY username"
       - name: Start backend
         env:
           DB_HOST: localhost
