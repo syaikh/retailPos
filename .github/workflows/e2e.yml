@@ -58,6 +58,7 @@ jobs:
           if ! command -v psql >/dev/null 2>&1; then
             sudo apt-get update && sudo apt-get install -y postgresql-client
           fi
+          psql -h localhost -p 5433 -U pos -d retail_pos -c "CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY)"
           for f in database/migrations/*.sql; do
             echo "Applying $f"
             psql -h localhost -p 5433 -U pos -d retail_pos -f "$f"
