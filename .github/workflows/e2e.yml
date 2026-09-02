@@ -6,9 +6,11 @@ jobs:
     strategy:
       matrix:
         shard: [1, 2, 3, 4]
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_USER: pos
           POSTGRES_PASSWORD: admin123
@@ -27,6 +29,8 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: '1.22'
+      - name: Install deps (root + web)
+        run: npm ci
       - name: Install web deps
         working-directory: web
         run: npm ci
