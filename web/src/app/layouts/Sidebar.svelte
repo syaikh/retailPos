@@ -354,24 +354,26 @@
           <p class="text-[10px] text-text-muted capitalize truncate">{rbac.roleDisplayName}</p>
         </div>
         <div class="flex items-center gap-0.5">
-          <button type="button" onclick={toggleLanguage}
-            class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary-subtle transition-all duration-200"
-            title={userLang === 'id' ? labels.switchToEnglish : labels.switchToIndonesian}
-            aria-label={labels.switchLanguage}
-          >
-            <Globe size={13} />
-          </button>
-          <button type="button" onclick={toggleTheme}
-            class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary-subtle transition-all duration-200"
-            title={userTheme === 'light' ? labels.switchToDarkMode : labels.switchToLightMode}
-            aria-label={labels.switchTheme}
-          >
-            {#if userTheme === 'light'}
-              <Moon size={13} />
-            {:else}
-              <Sun size={13} />
-            {/if}
-          </button>
+          <Tooltip content={userLang === 'id' ? labels.switchToEnglish : labels.switchToIndonesian} placement="top">
+            <button type="button" onclick={toggleLanguage}
+              class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary-subtle transition-all duration-200"
+              aria-label={labels.switchLanguage}
+            >
+              <Globe size={13} />
+            </button>
+          </Tooltip>
+          <Tooltip content={userTheme === 'light' ? labels.switchToDarkMode : labels.switchToLightMode} placement="top">
+            <button type="button" onclick={toggleTheme}
+              class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary-subtle transition-all duration-200"
+              aria-label={labels.switchTheme}
+            >
+              {#if userTheme === 'light'}
+                <Moon size={13} />
+              {:else}
+                <Sun size={13} />
+              {/if}
+            </button>
+          </Tooltip>
         </div>
         {#if canLogout}
           <button type="button" 

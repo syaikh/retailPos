@@ -16,9 +16,9 @@ const dictionaries: Record<Locale, Labels> = { id, en };
 const STORAGE_KEY = 'pos.locale';
 
 function loadInitialLocale(): Locale {
-  if (typeof localStorage === 'undefined') return 'id';
+  if (typeof localStorage === 'undefined') return 'en';
   const saved = localStorage.getItem(STORAGE_KEY);
-  return saved === 'en' ? 'en' : 'id';
+  return saved === 'id' ? 'id' : 'en';
 }
 
 class I18nStore {

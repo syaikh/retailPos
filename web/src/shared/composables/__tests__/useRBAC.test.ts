@@ -6,24 +6,22 @@ import { Roles } from '$shared/constants/roles';
 
 /**
  * Role × permission matrix — source of truth: docs/audits/permission-matrix-final.md
- * (72 × 5, target state setelah migration 023: staff = 5) +
- * docs/audits/permission-additions-sprint1.md (product.history.view, product.cost.view) +
- * consignment.*, app_settings.*.
+ * (updated 2026-09-02, migrations 038–039).
  */
 const MATRIX: Record<string, readonly string[]> = {
   [Roles.superadmin]: ALL_PERMISSIONS,
   [Roles.admin]: ALL_PERMISSIONS.filter(
-    (p) => !['user.delete', 'role.update', 'role.delete', 'audit.view', 'purchase_order.delete'].includes(p),
+    (p) => !['user.delete', 'role.update', 'role.delete', 'purchase_order.delete'].includes(p),
   ),
   [Roles.manager]: [
     'dashboard.view', 'report.view',
-    'product.view', 'product.update', 'product.cost.view', 'category.view', 'category.create',
+    'product.view', 'product.create', 'product.update', 'product.cost.view', 'category.view', 'category.create', 'category.update', 'category.delete',
     'sale.view', 'shift.view', 'shift.create', 'shift.review', 'shift.audit',
-    'customer.view', 'customer.create', 'customer.update',
-    'pricing.view', 'pricing.create', 'pricing.update',
-    'inventory.adjust', 'customer_group.view',
+    'customer.view', 'customer.create', 'customer.update', 'customer.delete', 'customer.export', 'customer.import',
+    'pricing.view', 'pricing.create', 'pricing.update', 'pricing.delete',
+    'inventory.adjust', 'customer_group.view', 'customer_group.create', 'customer_group.update', 'customer_group.delete',
     'purchase_order.view', 'purchase_order.create', 'purchase_order.update', 'purchase_order.confirm', 'purchase_order.receive', 'purchase_order.cancel',
-    'stock_opname.view', 'stock_opname.create', 'stock_opname.assign', 'stock_opname.recount', 'stock_opname.cancel', 'stock_opname.export', 'stock_opname.verify', 'stock_opname.post', 'stock_opname.close', 'stock_opname.report',
+    'stock_opname.view', 'stock_opname.create', 'stock_opname.assign', 'stock_opname.count', 'stock_opname.submit', 'stock_opname.recount', 'stock_opname.cancel', 'stock_opname.export', 'stock_opname.verify', 'stock_opname.post', 'stock_opname.close', 'stock_opname.report',
     'storage_location.view',
   ],
   [Roles.cashier]: [
@@ -31,11 +29,13 @@ const MATRIX: Record<string, readonly string[]> = {
     'sale.view', 'sale.create', 'sale.park',
     'shift.view', 'shift.create',
     'customer.view',
+    'category.view', 'pricing.view', 'customer_group.view', 'dashboard.view',
     'stock_opname.view', 'stock_opname.count', 'stock_opname.submit',
     'storage_location.view',
   ],
   [Roles.staff]: [
     'product.view',
+    'category.view',
     'stock_opname.view', 'stock_opname.count', 'stock_opname.submit',
     'storage_location.view',
   ],
