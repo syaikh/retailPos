@@ -36,6 +36,8 @@ jobs:
         run: npm ci
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
+      - name: Wait for DB
+        run: npx wait-on tcp:5433 --timeout 30000 && echo "postgres:18 ready"
       - name: Start backend
         env:
           DB_HOST: localhost
@@ -45,12 +47,13 @@ jobs:
           DB_NAME: retail_pos
           JWT_SECRET: ci-test-secret-for-github-actions-only-32b
           ENV: development
+          LOGIN_RATE_LIMIT_RPM: "100"
+          LOGIN_RATE_LIMIT_BURST: "100"
+          RATE_LIMIT_RPS: "100"
+          RATE_LIMIT_BURST: "200"
         run: |
           go run cmd/server/main.go &
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:9095/health && break
-            sleep 2
-          done
+          npx wait-on http://localhost:9095/health --timeout 60000
           curl -sf http://localhost:9095/health
       - name: Start frontend
         working-directory: web
@@ -58,10 +61,7 @@ jobs:
           VITE_API_BASE_URL: http://localhost:9095
         run: |
           npm run dev -- --host 0.0.0.0 --port 5173 &
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:5173/ && break
-            sleep 2
-          done
+          npx wait-on http://localhost:5173 --timeout 60000
       - name: Run e2e shard ${{ matrix.shard }}/4
         run: npx playwright test --shard=${{ matrix.shard }}/4
       - name: List reports
