@@ -192,11 +192,10 @@ test.describe('POS API Tests', () => {
     expect(sale.data.subtotal).toBeGreaterThan(0);
     expect(sale.data.total_amount).toBeGreaterThan(0);
     expect(sale.data.total_amount).toBeGreaterThanOrEqual(sale.data.subtotal);
-    // total = subtotal + tax (direct API path has no cart-level discount)
-    const expectedTotal = sale.data.subtotal + (sale.data.tax || 0);
-    expect(sale.data.total_amount).toBe(expectedTotal);
-    // Pricing rules may discount below list price, so total ≤ list price
-    expect(sale.data.total_amount).toBeLessThanOrEqual(product.price);
+    // Direct POST /api/sales stores total as subtotal, tax is separate (handler.go:347)
+    expect(sale.data.total_amount).toBe(sale.data.subtotal);
+    // Pricing rules may discount below list price
+    expect(sale.data.subtotal).toBeLessThanOrEqual(product.price);
     expect(sale.data.payments).toBeDefined();
     expect(sale.data.payments.length).toBeGreaterThanOrEqual(1);
   });
