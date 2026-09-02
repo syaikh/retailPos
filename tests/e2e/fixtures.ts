@@ -1,5 +1,5 @@
 import { test as base, expect } from '@playwright/test';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, renameSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -32,6 +32,44 @@ export const API_URLS = {
  */
 export { expect };
 
+/**
+ * Shared helper: inject tokens and wait for the SPA to stabilise off /login.
+ * Extracted so `page.authAs` and `loginUI` use the same robust flow.
+ */
+async function injectAndStabilise(page: any, token: string, refreshToken: string): Promise<void> {
+  await page.goto(`${FRONTEND_BASE}/`);
+  await page.evaluate(({ t, rt }) => {
+    sessionStorage.setItem('access_token', t);
+    sessionStorage.setItem('refresh_token', rt);
+  }, { t: token, rt: refreshToken });
+  await page.reload({ waitUntil: 'load' });
+
+  // The SPA validates via POST /api/validate (restoreSession). The auth store
+  // sets isAuthenticated synchronously, so sidebar appears before validation.
+  // Wait for the validate response to settle, then ensure URL is stably off /login.
+  let sawValidate = false;
+  try {
+    const resp = await page.waitForResponse(
+      (r) => r.url().includes('/api/validate') && r.request().method() === 'POST',
+      { timeout: 5000 },
+    );
+    sawValidate = true;
+    if (resp.status() === 401) await page.waitForTimeout(1500);
+  } catch {
+    // No /validate observed (endpoint renamed or slow) — fall back to URL polling.
+  }
+
+  await waitForAppReady(page);
+
+  const pollTimeout = Math.max(2000, (sawValidate ? 2000 : 4000));
+  await expect
+    .poll(() => page.url(), { timeout: pollTimeout, intervals: [200] })
+    .not.toContain('/login');
+  // Ensure the non-login URL is stable for 500 ms (catches late redirects).
+  await page.waitForTimeout(500);
+  await expect(page).not.toHaveURL(/\/login/);
+}
+
 export const test = base.extend({
   // Add authenticated page fixture
   page: async ({ page }, use) => {
@@ -41,24 +79,9 @@ export const test = base.extend({
       localStorage.setItem('pos.locale', 'en');
     });
 
-    // Add helper methods to page
+    // Add helper methods to page — unified with loginUI retry/eviction logic.
     page.authAs = async (username: string, password: string) => {
-      const { token, refreshToken } = await getAuthTokens(page.request, username, password);
-
-      // Restore an existing session via the shared cached token instead of
-      // submitting the login form. This keeps total /api/login calls for the
-      // whole suite at ~4 (one per user, shared on disk), avoiding the per-IP
-      // login rate limiter. `restoreSession()` does NOT re-apply the user's
-      // language, so the English locale pinned by addInitScript above is kept.
-      await page.goto('/');
-      await page.evaluate(({ t, rt }) => {
-        sessionStorage.setItem('access_token', t);
-        sessionStorage.setItem('refresh_token', rt);
-      }, { t: token, rt: refreshToken });
-      await page.reload({ waitUntil: 'load' });
-      await waitForAppReady(page);
-
-      return token;
+      return loginUI(page, username, password);
     };
 
     page.logout = async () => {
@@ -162,19 +185,28 @@ const validatedKeys = new Set<string>();
 function readTokenStore(): TokenStore {
   try {
     if (existsSync(TOKEN_CACHE_FILE)) {
-      return JSON.parse(readFileSync(TOKEN_CACHE_FILE, 'utf8')) as TokenStore;
+      const raw = readFileSync(TOKEN_CACHE_FILE, 'utf8');
+      if (!raw.trim()) return {};
+      return JSON.parse(raw) as TokenStore;
     }
   } catch {
-    // ignore corrupt/locked cache
+    // Corrupt or partially written file (atomic rename makes this rare) — treat as empty
   }
   return {};
 }
 
 function writeTokenStore(store: TokenStore): void {
   try {
-    writeFileSync(TOKEN_CACHE_FILE, JSON.stringify(store));
+    const tmp = `${TOKEN_CACHE_FILE}.tmp.${process.pid}.${Date.now()}`;
+    writeFileSync(tmp, JSON.stringify(store));
+    renameSync(tmp, TOKEN_CACHE_FILE);
   } catch {
-    // ignore write failures (token simply won't be shared)
+    // Best-effort: fall back to direct write if atomic rename fails
+    try {
+      writeFileSync(TOKEN_CACHE_FILE, JSON.stringify(store));
+    } catch {
+      // ignore write failures (token simply won't be shared)
+    }
   }
 }
 
@@ -294,22 +326,27 @@ export function authHeader(token: string) {
 
 /**
  * Login via browser UI with retry for transient failures.
- * Clears session, fills form, submits, and waits for navigation away from login.
+ * Injects cached tokens and waits for SPA to stabilise off /login.
  */
-export async function loginUI(page: any, username: string, password: string, _retries = 2) {
-  const { token, refreshToken } = await getAuthTokens(page.request, username, password);
+export async function loginUI(page: any, username: string, password: string, retries = 2): Promise<string> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const { token, refreshToken } = await getAuthTokens(page.request, username, password);
 
-  // Restore an existing session via the shared cached token instead of
-  // submitting the login form, avoiding the per-IP login rate limiter.
-  // `restoreSession()` does not re-apply the user's language, so the English
-  // locale pinned by addInitScript is preserved.
-  await page.goto(`${FRONTEND_BASE}/`);
-  await page.evaluate(({ t, rt }) => {
-    sessionStorage.setItem('access_token', t);
-    sessionStorage.setItem('refresh_token', rt);
-  }, { t: token, rt: refreshToken });
-  await page.reload({ waitUntil: 'load' });
-  await waitForAppReady(page);
+    try {
+      await injectAndStabilise(page, token, refreshToken);
+      return token;
+    } catch (e: any) {
+      const isLast = attempt === retries;
+      if (isLast) {
+        throw new Error(`loginUI failed after ${retries + 1} attempts for ${username}: ${e?.message || e} (url=${page.url()})`);
+      }
+      // Transient auth failure — evict stale cache and retry with fresh login
+      validatedKeys.delete(`${username}:${password}`);
+      const s = readTokenStore();
+      delete s[`${username}:${password}`];
+      writeTokenStore(s);
+    }
+  }
 }
 
 /**

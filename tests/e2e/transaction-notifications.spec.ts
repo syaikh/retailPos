@@ -7,8 +7,11 @@ import {
   getToken,
   authHeader,
 } from './fixtures';
+import { TestDataTracker } from './db-helper';
 
 const FT_TAB = 'Find Transaction';
+const tracker = new TestDataTracker();
+test.afterAll(() => tracker.cleanup());
 
 /**
  * Create a product + stock + sale via the API and return its id/invoice.
@@ -27,6 +30,7 @@ async function createSale(
   expect(createRes.ok(), `product create failed: ${createRes.status()}`).toBeTruthy();
   const created = await createRes.json();
   const productId = created.data?.id || created.id;
+  tracker.trackProduct(productId);
 
   await request.post(`${API_BASE}/api/inventory/adjust`, {
     headers: authHeader(token),
@@ -43,8 +47,10 @@ async function createSale(
   });
   expect(saleRes.ok(), `sale create failed: ${saleRes.status()}`).toBeTruthy();
   const sale = await saleRes.json();
+  const saleId = sale.data?.id || sale.id;
+  tracker.trackSale(saleId);
   return {
-    id: sale.data?.id || sale.id,
+    id: saleId,
     invoice: sale.data?.invoice_number || sale.invoice_number,
   };
 }
@@ -164,6 +170,7 @@ test.describe('Find Transaction (cashier, search-only)', () => {
     await expect
       .poll(() => capturedStart, { timeout: 5000 })
       .toBe('2000-01-01');
+    await page.unroute('**/api/sales/lookup*');
   });
 });
 
@@ -189,14 +196,23 @@ test.describe('Transaction deep-link & refresh (superadmin/manager)', () => {
   });
 
   test('notification click deep-links to the transaction detail drawer', async ({ page, request }) => {
+    // WS must be Online before sale — otherwise sale_created push is lost (hydration gap).
+    await expect(page.getByText('Online')).toBeVisible({ timeout: 10000 });
+
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     const { id, invoice } = await createSale(request, token);
 
     const bell = page.getByRole('button', { name: 'Notifications' });
     await bell.click();
 
+    // Notification arrives via WebSocket async — wrap in block-retry (expect.toPass)
+    // so the locate+assert is retried atomically if the push is 100 ms late.
+    await expect(async () => {
+      const n = page.locator('button', { hasText: invoice }).first();
+      await expect(n).toBeVisible({ timeout: 5000 });
+    }).toPass({ timeout: 15000, intervals: [1000, 2000] });
+
     const notif = page.locator('button', { hasText: invoice }).first();
-    await expect(notif).toBeVisible({ timeout: 10000 });
     await notif.click();
 
     await expect(page).toHaveURL(new RegExp(`/transactions\\?txn=${id}`), { timeout: 5000 });
@@ -245,19 +261,25 @@ test.describe('Manager new-transactions banner', () => {
   });
 
   test('banner appears on sale_created and clears on View', async ({ page, request }) => {
+    await expect(page.getByText('Online')).toBeVisible({ timeout: 10000 });
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     await createSale(request, token);
 
-    await expect(page.getByText(/new transactions since/)).toBeVisible({ timeout: 10000 });
+    await expect(async () => {
+      await expect(page.getByText(/new transactions since/)).toBeVisible({ timeout: 5000 });
+    }).toPass({ timeout: 15000, intervals: [1000, 2000] });
     await page.getByRole('button', { name: 'View' }).click();
     await expect(page.getByText(/new transactions since/)).toBeHidden({ timeout: 5000 });
   });
 
   test('banner clears on manual Refresh', async ({ page, request }) => {
+    await expect(page.getByText('Online')).toBeVisible({ timeout: 10000 });
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     await createSale(request, token);
 
-    await expect(page.getByText(/new transactions since/)).toBeVisible({ timeout: 10000 });
+    await expect(async () => {
+      await expect(page.getByText(/new transactions since/)).toBeVisible({ timeout: 5000 });
+    }).toPass({ timeout: 15000, intervals: [1000, 2000] });
     await page.getByRole('button', { name: 'Refresh' }).click();
     await expect(page.getByText(/new transactions since/)).toBeHidden({ timeout: 5000 });
   });

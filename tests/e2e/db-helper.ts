@@ -64,6 +64,9 @@ export class TestDataTracker {
   shiftIds: number[] = [];
   userIds: number[] = [];
   customerIds: number[] = [];
+  brandIds: number[] = [];
+  storeIds: number[] = [];
+  productIds: number[] = [];
 
   trackSale(id: number | undefined | null): void {
     if (id) this.saleIds.push(id);
@@ -83,6 +86,18 @@ export class TestDataTracker {
 
   trackCustomer(id: number | undefined | null): void {
     if (id) this.customerIds.push(id);
+  }
+
+  trackBrand(id: number | undefined | null): void {
+    if (id) this.brandIds.push(id);
+  }
+
+  trackStore(id: number | undefined | null): void {
+    if (id) this.storeIds.push(id);
+  }
+
+  trackProduct(id: number | undefined | null): void {
+    if (id) this.productIds.push(id);
   }
 
   cleanup(): void {
@@ -106,16 +121,46 @@ export class TestDataTracker {
       execSQL(`DELETE FROM cart_sessions WHERE id IN (${idList(this.cartIds)})`);
     }
     if (this.shiftIds.length) {
+      // Sales reference shifts via shift_id FK — must delete them first.
+      const shifts = idList(this.shiftIds);
+      execSQL(`DELETE FROM sale_payments WHERE sale_id IN (SELECT id FROM sales WHERE shift_id IN (${shifts}))`);
+      execSQL(`DELETE FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE shift_id IN (${shifts}))`);
+      execSQL(`DELETE FROM sales WHERE shift_id IN (${shifts})`);
       // Held leftovers created by helpers may reference tracked shifts.
-      execSQL(`DELETE FROM cart_sessions WHERE shift_id IN (${idList(this.shiftIds)})`);
-      execSQL(`DELETE FROM shifts WHERE id IN (${idList(this.shiftIds)})`);
+      execSQL(`DELETE FROM cart_sessions WHERE shift_id IN (${shifts})`);
+      execSQL(`DELETE FROM shifts WHERE id IN (${shifts})`);
     }
     if (users) {
-      execSQL(`DELETE FROM audit_logs WHERE user_id IN (${users})`);
+      // audit_logs has an append-only trigger; bypass it via the GUC the
+      // migration (034) introduced for maintenance operations. Combine SET
+      // and DELETE in one psql invocation so the GUC persists.
+      psql(['-c', `SET app.allow_audit_mod = 'on'; DELETE FROM audit_logs WHERE user_id IN (${users})`]);
       execSQL(`DELETE FROM users WHERE id IN (${users})`);
     }
     if (this.customerIds.length) {
       execSQL(`DELETE FROM customers WHERE id IN (${idList(this.customerIds)})`);
+    }
+    if (this.productIds.length) {
+      const pids = idList(this.productIds);
+      // Test products may have sales — delete orphaned sales first to keep counts clean
+      execSQL(`DELETE FROM sale_payments WHERE sale_id IN (SELECT sale_id FROM sale_items WHERE product_id IN (${pids}))`);
+      execSQL(`DELETE FROM sales WHERE id IN (SELECT sale_id FROM sale_items WHERE product_id IN (${pids}))`);
+      execSQL(`DELETE FROM sale_items WHERE product_id IN (${pids})`);
+      execSQL(`DELETE FROM cart_items WHERE product_id IN (${pids})`);
+      execSQL(`DELETE FROM products WHERE id IN (${pids})`);
+    }
+    if (this.brandIds.length) {
+      const bids = idList(this.brandIds);
+      // Schema is SET NULL for products.brand_id, but delete test products to avoid leaks
+      execSQL(`DELETE FROM sale_payments WHERE sale_id IN (SELECT sale_id FROM sale_items WHERE product_id IN (SELECT id FROM products WHERE brand_id IN (${bids})))`);
+      execSQL(`DELETE FROM sales WHERE id IN (SELECT sale_id FROM sale_items WHERE product_id IN (SELECT id FROM products WHERE brand_id IN (${bids})))`);
+      execSQL(`DELETE FROM sale_items WHERE product_id IN (SELECT id FROM products WHERE brand_id IN (${bids}))`);
+      execSQL(`DELETE FROM cart_items WHERE product_id IN (SELECT id FROM products WHERE brand_id IN (${bids}))`);
+      execSQL(`DELETE FROM products WHERE brand_id IN (${bids})`);
+      execSQL(`DELETE FROM brands WHERE id IN (${bids})`);
+    }
+    if (this.storeIds.length) {
+      execSQL(`DELETE FROM stores WHERE id IN (${idList(this.storeIds)})`);
     }
   }
 }

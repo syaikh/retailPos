@@ -1,6 +1,7 @@
 import { test, expect } from './fixtures';
 import { apiAs } from './api-driver';
 import { API_BASE } from './fixtures';
+import { TestDataTracker } from './db-helper';
 
 /**
  * RBAC behaviour, tested at the API layer. The cheap, meaningful assertion is
@@ -12,6 +13,9 @@ import { API_BASE } from './fixtures';
  * page (e.g. POS), so prefix checks are both fragile and not the real contract.
  */
 test.describe('RBAC behaviour (API driver)', () => {
+  const tracker = new TestDataTracker();
+  test.afterAll(() => tracker.cleanup());
+
   test('every role is issued a non-empty permission set', async ({ request }) => {
     for (const role of ['superadmin', 'admin', 'manager', 'cashier'] as const) {
       const api = await apiAs(request, role);
@@ -21,19 +25,27 @@ test.describe('RBAC behaviour (API driver)', () => {
 
   test('superadmin (full privilege) can create brands and stores', async ({ request }) => {
     const api = await apiAs(request, 'superadmin');
-    expect((await api.post('/api/brands', { name: `E2E Brand ${Date.now()}` })).status).toBe(201);
-    expect((await api.post('/api/stores', { name: `E2E Store ${Date.now()}` })).status).toBe(201);
+    const b = await api.post('/api/brands', { name: `E2E Brand ${Date.now()}` });
+    expect(b.status).toBe(201);
+    tracker.trackBrand(b.body?.data?.id ?? b.body?.id);
+    const s = await api.post('/api/stores', { name: `E2E Store ${Date.now()}` });
+    expect(s.status).toBe(201);
+    tracker.trackStore(s.body?.data?.id ?? s.body?.id);
   });
 
   test('admin can create stores (store.create)', async ({ request }) => {
     const api = await apiAs(request, 'admin');
-    expect((await api.post('/api/stores', { name: `E2E Store ${Date.now()}` })).status).toBe(201);
+    const r = await api.post('/api/stores', { name: `E2E Store ${Date.now()}` });
+    expect(r.status).toBe(201);
+    tracker.trackStore(r.body?.data?.id ?? r.body?.id);
   });
 
-  test('manager is rejected from store and brand creation (no store/product create)', async ({ request }) => {
+  test('manager is rejected from store creation (no store.create) but can create brands (has product.create)', async ({ request }) => {
     const api = await apiAs(request, 'manager');
     expect((await api.post('/api/stores', { name: 'x' })).status).toBe(403);
-    expect((await api.post('/api/brands', { name: 'x' })).status).toBe(403);
+    const brandRes = await api.post('/api/brands', { name: `E2E Manager Brand ${Date.now()}` });
+    expect(brandRes.status).toBe(201);
+    tracker.trackBrand(brandRes.body?.data?.id ?? brandRes.body?.id);
   });
 
   test('cashier is rejected from store and brand creation', async ({ request }) => {

@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures';
-import { TEST_USERS, loginUI, logoutUI } from './fixtures';
+import { TEST_USERS, FRONTEND_BASE, loginUI, logoutUI, getToken, authHeader } from './fixtures';
+import { ensureOpenShift, closeShift } from './pos-api';
 
 // NOTE: the *permission grants* that gate this navigation live in
 // rbac-api.spec.ts (tested at the API layer). These browser tests only cover
@@ -12,7 +13,7 @@ test.describe('Sidebar RBAC Visibility (UI rendering)', () => {
 
   test('superadmin sees all navigation items', async ({ page }) => {
     await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    await page.goto('http://localhost:5173/');
+    await page.goto(`${FRONTEND_BASE}/`);
     const sidebar = page.locator('aside');
     await expect(sidebar).toBeVisible();
 
@@ -24,21 +25,30 @@ test.describe('Sidebar RBAC Visibility (UI rendering)', () => {
     await expect(sidebar.getByRole('button', { name: 'Administration' })).toBeVisible();
   });
 
-  test('cashier sees POS and transactions but not Dashboard', async ({ page }) => {
-    await loginUI(page, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
-    await page.goto('http://localhost:5173/');
-    const sidebar = page.locator('aside');
-    await expect(sidebar).toBeVisible();
+  test('cashier sees POS and transactions but not Dashboard', async ({ page, request }) => {
+    // Business rule (Sidebar.svelte:145): cashier nav is filtered to only /shifts
+    // when no active shift exists. Ensure a shift is open so POS/Transactions appear.
+    const tok = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
+    const shiftId = await ensureOpenShift(request, { token: tok, headers: authHeader(tok) });
 
-    await expect(sidebar.getByRole('button', { name: 'Dashboard' })).toHaveCount(0);
-    await expect(sidebar.getByRole('button', { name: 'Point of Sale' })).toBeVisible();
-    await expect(sidebar.getByRole('button', { name: 'Transaction History' })).toBeVisible();
-    await expect(sidebar.getByRole('button', { name: 'Shift Management' })).toBeVisible();
+    try {
+      await loginUI(page, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
+      await page.goto(`${FRONTEND_BASE}/`);
+      const sidebar = page.locator('aside');
+      await expect(sidebar).toBeVisible();
+
+      await expect(sidebar.getByRole('button', { name: 'Dashboard' })).toHaveCount(0);
+      await expect(sidebar.getByRole('button', { name: 'Point of Sale' })).toBeVisible();
+      await expect(sidebar.getByRole('button', { name: 'Transaction History' })).toBeVisible();
+      await expect(sidebar.getByRole('button', { name: 'Shift Management' })).toBeVisible();
+    } finally {
+      if (shiftId) await closeShift(request, { token: tok, headers: authHeader(tok) }, shiftId).catch(() => {});
+    }
   });
 
   test('cashier does not see Store Management navigation item', async ({ page }) => {
     await loginUI(page, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
-    await page.goto('http://localhost:5173/');
+    await page.goto(`${FRONTEND_BASE}/`);
     const sidebar = page.locator('aside');
     await expect(sidebar).toBeVisible();
 
@@ -48,7 +58,7 @@ test.describe('Sidebar RBAC Visibility (UI rendering)', () => {
 
   test('superadmin sees Stores under Administration (group expansion)', async ({ page }) => {
     await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    await page.goto('http://localhost:5173/');
+    await page.goto(`${FRONTEND_BASE}/`);
     const sidebar = page.locator('aside');
     await expect(sidebar).toBeVisible();
 
@@ -58,7 +68,7 @@ test.describe('Sidebar RBAC Visibility (UI rendering)', () => {
 
   test('sidebar navigates to correct pages', async ({ page }) => {
     await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    await page.goto('http://localhost:5173/');
+    await page.goto(`${FRONTEND_BASE}/`);
 
     const sidebar = page.locator('aside');
     const masterDataBtn = sidebar.getByRole('button', { name: 'Master Data' });
