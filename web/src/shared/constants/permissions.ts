@@ -1,15 +1,8 @@
 /**
  * Permission Registry — single source of truth for all permission codes.
  *
- * Sync source: database (permissions table, 84 live codes) — see
- * docs/audits/permission-matrix-final.md (72, approved 2026-08-04) and
- * docs/audits/permission-additions-sprint1.md (+product.history.view,
- * +product.cost.view).
- *
- * Sprint 0 rules (permission-matrix-final.md §8 Scope Freeze):
- * - Do NOT add/remove/rename permission codes in this file.
- * - Do NOT use raw string literals for permissions in components — reference these constants.
- * - Changes only via backlog (Sprint 1+), not mid-sprint.
+ * Sync source: database (permissions table, 85 live codes) — see
+ * docs/audits/permission-matrix-final.md (updated 2026-09-02).
  */
 
 export const Permissions = {
@@ -30,6 +23,7 @@ export const Permissions = {
   },
   audit: {
     view: 'audit.view',
+    export: 'audit.export',
   },
   report: {
     view: 'report.view',

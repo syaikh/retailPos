@@ -196,12 +196,12 @@ test.describe('Customers API - RBAC', () => {
     expect(getBody.data.is_active).toBe(false);
   });
 
-  test('manager CANNOT deactivate customer (403)', async ({ request }) => {
+  test('manager CAN deactivate customer (200)', async ({ request }) => {
     const saToken = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const created = await createCustomerAPI(request, saToken, { name: 'No Delete Manager', phone: uniquePhone(), email: uniqueEmail() });
+    const created = await createCustomerAPI(request, saToken, { name: 'Delete Manager', phone: uniquePhone(), email: uniqueEmail() });
     const managerToken = await getToken(request, TEST_USERS.manager.username, TEST_USERS.manager.password);
     const res = await request.delete(`${API_BASE}/api/customers/${created.id}`, { headers: authHeader(managerToken) });
-    expect(res.status()).toBe(403);
+    expect(res.status()).toBe(200);
   });
 
   test('cashier CANNOT deactivate customer (403)', async ({ request }) => {
@@ -709,7 +709,7 @@ test.describe('Customers UI - Manager', () => {
     await expect(page.locator('button').filter({ hasText: /Add Customer/ })).toBeVisible();
   });
 
-  test('manager sees edit button but NOT deactivate button', async ({ page }) => {
+  test('manager sees edit and deactivate buttons', async ({ page }) => {
     const saToken = await getToken(page.request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     const name = `Manager View ${Date.now()}`;
     await createCustomerAPI(page.request, saToken, { name, phone: uniquePhone(), email: uniqueEmail() });
@@ -717,8 +717,7 @@ test.describe('Customers UI - Manager', () => {
 
     const row = page.locator('table tr').filter({ has: page.locator(`text=${name}`) });
     await expect(row.locator('button[title="Edit"]')).toBeVisible();
-    const deactivateBtn = row.locator('button[title="Deactivate"]');
-    await expect(deactivateBtn).toHaveCount(0);
+    await expect(row.locator('button[title="Deactivate"]')).toBeVisible();
   });
 
   test('manager can create customer via modal', async ({ page }) => {
@@ -961,10 +960,10 @@ test.describe('Customers API - Bulk Operations', () => {
     expect(res.status()).toBe(400);
   });
 
-  test('POST /customers/bulk/delete with restricted role returns 403', async ({ request }) => {
-    const managerToken = await getToken(request, TEST_USERS.manager.username, TEST_USERS.manager.password);
+  test('POST /customers/bulk/delete with cashier (no customer.delete) returns 403', async ({ request }) => {
+    const cashierToken = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
     const res = await request.post(`${API_BASE}/api/customers/bulk/delete`, {
-      headers: authHeader(managerToken),
+      headers: authHeader(cashierToken),
       data: { ids: [1] },
     });
     expect(res.status()).toBe(403);

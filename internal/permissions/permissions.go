@@ -1,16 +1,14 @@
 // Package permissions is the single source of truth for permission codes on
 // the backend.
 //
-// Sync source: database (permissions table, 84 live codes) — see
-// docs/audits/permission-matrix-final.md (72, approved 2026-08-04) and
-// docs/audits/permission-additions-sprint1.md (+product.history.view,
-// +product.cost.view); web/src/shared/constants/permissions.ts (frontend mirror).
+// Sync source: database (permissions table, 85 live codes) — see
+// docs/audits/permission-matrix-final.md (updated 2026-09-02).
 //
-// Sprint 1 rules:
+// Rules:
 //   - Do NOT add/remove/rename permission codes here without a migration.
 //   - Route registration must use these typed constants — passing a raw
 //     string to RequirePermission is a compile error.
-//   - Changes only via backlog, not mid-sprint.
+//   - Changes only via migration, not mid-sprint.
 package permissions
 
 // Code is a typed permission code. Using a distinct type (rather than a

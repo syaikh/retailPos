@@ -1,6 +1,6 @@
 # Retail POS System
 
-Retail POS System is a modern Point of Sale (POS) application for retail stores with inventory management, sales, purchase orders, pricing engine, reporting, shift management, and role-based access control. Sistem Point of Sale (POS) modern untuk toko retail dengan manajemen inventory, penjualan, purchase order, pricing engine, reporting, shift management, dan kontrol akses berbasis role.
+Retail POS System is a modern Point of Sale (POS) application for retail stores with inventory management, sales, purchase orders, pricing engine, reporting, shift management, and role-based access control.
 
 > A note: "This is the single consolidated project reference. It contains both the Developer Guide and the End-User Manual."
 
@@ -55,39 +55,39 @@ Retail POS System is a modern Point of Sale (POS) application for retail stores 
 
 ## Features
 
-- **Point of Sale (POS)** — Transaksi penjualan dengan scanner, diskon, split payment (multi metode pembayaran), dan hold & recall (parked sales)
-- **Purchase Order & Goods Receiving** — Alur pembelian dari supplier: draft → confirmed → received, penerimaan barang parsial, auto-generate nomor PO/GR/DO
-- **Stock Opname** — Sesi perhitungan stok fisik dengan workflow 9-state (draft → open → counting → verification → needs_recount → approved → posted → closed/cancelled), multi-scope session (store/warehouse/category/product), multi-counter assignment, blind count, recount workflow, adjustment ledger (dokumen IA-), dan auto-adjustment stok saat posting (FR-001 s.d. FR-044)
-- **Storage Locations** — Master data lokasi penyimpanan (rak/gudang) dengan scope warehouse/store, CRUD + bulk actions (fase 1 dari per-rack stock tracking)
-- **Store Management** — CRUD toko/outlet + halaman UI manajemen toko (daftar, status aktif/nonaktif)
-- **Shift Management** — Buka/tutup shift kasir, opening/closing balance, discrepancy review & audit
-- **Pricing Engine** — Aturan harga (special price / promotion) berbasis produk, kategori, brand, customer group, dan store; workflow approval (draft → pending → approved/rejected); resolver harga real-time
-- **Supplier Management** — CRUD supplier, tautan produk-supplier, preferred supplier, bulk actions, auto-generate kode (SUP-XXXXXX)
-- **Konsinyasi Supplier (Consignment)** — Manajemen konsinyasi penuh: perjanjian, penerimaan barang, retur, penyelesaian (settlement), pembayaran (payout), stok konsinyasi, integrasi checkout POS
-- **Application Settings** — Pengaturan global (branding toko, jargon, logo) khusus superadmin, info struk per cabang, preferensi per-user (theme/light-dark, bahasa)
-- **Customer & Customer Groups** — Manajemen pelanggan, grup pelanggan (Walk-in, Member, VIP), bulk actions
-- **Multi-Warehouse & Multi-Store** — Inventori per warehouse/store dengan kunci unik komposit, manajemen toko
-- **Inventory Management** — Tracking stok, movement, low stock alerts, stock thresholds, multi-category filter
-- **Import & Export Framework** — Schema-driven reusable import/export untuk Products, Categories, Customer Groups, Brands, UOMs, Customers, Pricing Rules, Suppliers, Stores dengan XLSX templates, preview, validasi, reference dropdowns, import history (async job), dan cancel
-- **User Management** — RBAC (Role-Based Access Control) dengan permissions dot-notation, hierarki manajer-bawahan (org chart), soft delete
-- **Audit Logging** — Full audit trail untuk semua aksi (termasuk login/logout, import, change-password)
-- **Real-time Dashboard** — Statistik penjualan, revenue, analytics + live updates via WebSocket, chart harian/mingguan/bulanan, period comparison, pricing breakdown
-- **WebSocket Support** — Notifikasi real-time (dashboard live, update PO)
+- **Point of Sale (POS)** — Sales transactions with scanner, discounts, split payment (multi payment methods), and hold & recall (parked sales)
+- **Purchase Order & Goods Receiving** — Purchasing workflow from suppliers: draft → confirmed → received, partial goods receiving, auto-generate PO/GR/DO numbers
+- **Stock Opname** — Physical stock count sessions with 9-state workflow (draft → open → counting → verification → needs_recount → approved → posted → closed/cancelled), multi-scope sessions (store/warehouse/category/product), multi-counter assignment, blind count, recount workflow, adjustment ledger (IA- documents), and auto-adjustment of stock upon posting (FR-001 through FR-044)
+- **Storage Locations** — Storage location master data (racks/warehouses) with warehouse/store scope, CRUD + bulk actions (phase 1 of per-rack stock tracking)
+- **Store Management** — Store/outlet CRUD + store management UI page (list, active/inactive status)
+- **Shift Management** — Cashier shift open/close, opening/closing balance, discrepancy review & audit
+- **Pricing Engine** — Price rules (special price / promotion) by product, category, brand, customer group, and store; approval workflow (draft → pending → approved/rejected); real-time price resolver
+- **Supplier Management** — Supplier CRUD, product-supplier links, preferred supplier, bulk actions, auto-generate codes (SUP-XXXXXX)
+- **Konsinyasi Supplier (Consignment)** — Full consignment management: agreements, goods receiving, returns, settlements, payouts, consignment stock, POS checkout integration
+- **Application Settings** — Global settings (store branding, jargon, logo) for superadmin only, receipt info per branch, per-user preferences (theme/light-dark, language)
+- **Customer & Customer Groups** — Customer management, customer groups (Walk-in, Member, VIP), bulk actions
+- **Multi-Warehouse & Multi-Store** — Inventory per warehouse/store with composite unique key, store management
+- **Inventory Management** — Stock tracking, movement, low stock alerts, stock thresholds, multi-category filter
+- **Import & Export Framework** — Schema-driven reusable import/export for Products, Categories, Customer Groups, Brands, UOMs, Customers, Pricing Rules, Suppliers, Stores with XLSX templates, preview, validation, reference dropdowns, import history (async job), and cancel
+- **User Management** — RBAC (Role-Based Access Control) with dot-notation permissions, manager-subordinate hierarchy (org chart), soft delete
+- **Audit Logging** — Full audit trail for all actions (including login/logout, import, change-password)
+- **Real-time Dashboard** — Sales statistics, revenue, analytics + live updates via WebSocket, daily/weekly/monthly charts, period comparison, pricing breakdown
+- **WebSocket Support** — Real-time notifications (dashboard live, PO updates)
 - **Swagger/OpenAPI** — API documentation via swaggo annotations
 - **Structured Logging** — JSON (production) / text (development) via `log/slog`
 - **EventBus Observability** — Atomic metrics for published/consumed/failed events
 - **Dead-Letter Queue** — Failed events stored to PostgreSQL for retry
-- **Materialized Views** — Pre-aggregasi data penjualan harian/jam-an untuk query reporting cepat; refresh di-koordinasikan `report.RefreshCoordinator` (debounced, default 30s setelah `sale.created`, coalescing) plus ticker per jam di `cmd/server/main.go`
+- **Materialized Views** — Pre-aggregated daily/hourly sales data for fast reporting queries; refresh coordinated by `report.RefreshCoordinator` (debounced, default 30s after `sale.created`, coalescing) plus hourly ticker in `cmd/server/main.go`
 
 ### Security Features
 
-- JWT authentication dengan refresh token (HTTP-only cookie, terpisah secret refresh)
-- CSRF protection pada state-changing endpoints (validate, logout, change-password)
-- Rate limiting dengan per-entry TTL (terpisah untuk login, refresh, dan API umum)
-- IP spoofing protection (menggunakan `RemoteAddr` bukan `X-Forwarded-For`)
-- Product search via tsvector (menghindari ILIKE full table scan)
-- Inventory adjustments menggunakan `SELECT ... FOR UPDATE` untuk concurrency safety
-- Security headers middleware (CSP, X-Frame-Options, dll), body limit, gzip
+- JWT authentication with refresh token (HTTP-only cookie, separate refresh secret)
+- CSRF protection on state-changing endpoints (validate, logout, change-password)
+- Rate limiting with per-entry TTL (separate for login, refresh, and general API)
+- IP spoofing protection (uses `RemoteAddr` not `X-Forwarded-For`)
+- Product search via tsvector (avoids ILIKE full table scan)
+- Inventory adjustments use `SELECT ... FOR UPDATE` for concurrency safety
+- Security headers middleware (CSP, X-Frame-Options, etc.), body limit, gzip
 
 ---
 
@@ -104,7 +104,7 @@ Retail POS System is a modern Point of Sale (POS) application for retail stores 
 ┌──────────────┴───────────────────────────────────────────┐
 │  Go Backend (Gin)        http://localhost:9095           │
 │  PostgreSQL              localhost:5433 (postgres-dev)   │
-│  `./run-dev.sh` rebuild + restart otomatis (tekan r)     │
+│  `./run-dev.sh` rebuild + restart automatically (press r)     │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -115,7 +115,7 @@ Retail POS System is a modern Point of Sale (POS) application for retail stores 
 │  Nginx Frontend            Port 80 / 443                │
 │  Go Backend                Port 8080 (internal)         │
 │  PostgreSQL 18             Volume retail-pos-postgres-data│
-│  Jaringan: retail-pos-network                            │
+│  Network: retail-pos-network                              │
 │  `./deploy/podman-deploy.sh start`                       │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -147,29 +147,29 @@ podman run -d --name postgres-dev -p 5433:5432 \
 ### Development
 
 ```bash
-# 1. Salin konfigurasi
+# 1. Copy configuration
 cp .env.example .env
 
 # 2. Seed database (dummy data)
-./seed-dev.sh            # data besar (produk, transaksi)
-./seed-daily-dev.sh      # transaksi harian saja
+./seed-dev.sh            # large data (products, transactions)
+./seed-daily-dev.sh      # daily transactions only
 
-# 3. Start backend (port 9095, auto-reload via tombol r/q)
+# 3. Start backend (port 9095, auto-reload via r/q keys)
 ./run-dev.sh
 
 # 4. Start frontend (port 5173)
 cd web && npm run dev
 
-# 5. Buka http://localhost:5173
+# 5. Open http://localhost:5173
 ```
 
 ### Production
 
 ```bash
-make build-all                 # Build image backend + frontend
-./deploy/podman-deploy.sh start   # Start semua service
-./deploy/podman-deploy.sh migrate # Jalankan migrasi (opsional, otomatis saat startup)
-./deploy/podman-deploy.sh seed    # Seed data awal (opsional)
+make build-all                 # Build backend + frontend images
+./deploy/podman-deploy.sh start   # Start all services
+./deploy/podman-deploy.sh migrate # Run migrations (optional, automatic at startup)
+./deploy/podman-deploy.sh seed    # Seed initial data (optional)
 ```
 
 ---
@@ -186,7 +186,7 @@ internal/
 ├── brand/             # Brand CRUD + import adapter
 ├── category/          # Category CRUD + import adapter
 ├── config/            # App configuration (env, timezone)
-├── consignment/       # Konsinyasi supplier (arrangements, receipts, returns, settlements, payouts)
+├── consignment/       # Consignment supplier (arrangements, receipts, returns, settlements, payouts)
 ├── customergroup/     # Customer group CRUD + bulk actions
 ├── customer/          # Customer CRUD + bulk actions + import adapter
 ├── eventbus/          # In-process event bus (retry, dead-letter, metrics)
@@ -223,16 +223,16 @@ internal/
 | `cmd/server/e2e_test.go` | End-to-end API tests |
 | `internal/wiring/wiring.go` | Dependency wiring |
 | `internal/eventbus/bus.go` | Event bus with retry, dead-letter, observability |
-| `internal/pricing/resolver.go` | Harga final resolver (rule → harga efektif) |
+| `internal/pricing/resolver.go` | Final price resolver (rule → effective price) |
 | `internal/purchase/service.go` | Purchase order & goods receipt logic |
 | `internal/shift/service.go` | Shift lifecycle (open/close/review/audit) |
 | `internal/stockopname/service.go` | Stock opname workflow (9-state lifecycle, count/verify/post) |
 | `internal/storagelocation/service.go` | Storage location CRUD |
-| `internal/consignment/service.go` | Konsinyasi supplier (arrangements, receipts, returns, settlements) |
+| `internal/consignment/service.go` | Consignment supplier (arrangements, receipts, returns, settlements) |
 | `internal/appsettings/handler.go` | Application settings (branding, receipt info, per-user preferences) |
 | `internal/sale/service.go` | POS transaction, parked sales, split payment |
 | `internal/shared/logger.go` | Structured logging (slog) |
-| `database/migrations/000_squash.sql` | Baseline schema (role, user, product, sale, inventory, dll) |
+| `database/migrations/000_squash.sql` | Baseline schema (role, user, product, sale, inventory, etc.) |
 | `docs/swagger.go` | OpenAPI annotations |
 
 #### Run Tests
@@ -243,24 +243,24 @@ DB_USER=pos DB_PASSWORD=admin123 JWT_SECRET=test-secret-for-testing-only \
 go test -p 1 -count=1 ./...
 ```
 
-> `-p 1` memaksa eksekusi sekuensial untuk menghindari deadlock dari TRUNCATE/INSERT bersamaan antar package. Tests terhubung ke database `retail_pos_test`.
+> `-p 1` forces sequential execution to avoid deadlocks from concurrent TRUNCATE/INSERT across packages. Tests connect to the `retail_pos_test` database.
 
 #### API Documentation
 
-Swagger annotations ada di endpoint kunci. Untuk generate spec:
+Swagger annotations are on key endpoints. To generate the spec:
 
 ```bash
 go install github.com/swaggo/swag/cmd/swag@latest
 swag init -g cmd/server/main.go -o docs/swagger
 ```
 
-Spec bisa diakses di `/swagger/*any` saat server berjalan.
+Spec is accessible at `/swagger/*any` while the server is running.
 
 ### API Reference
 
 #### API Endpoints
 
-Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau cookie) kecuali dinyatakan "Public".
+Base path: `/api`. All endpoints require JWT (via `Authorization: Bearer` or cookie) unless stated as "Public".
 
 ##### Auth
 
@@ -268,48 +268,48 @@ Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau 
 |--------|----------|-------------|------|
 | POST | `/login` | Login (set cookie refresh_token) | No |
 | POST | `/refresh` | Refresh access token | No |
-| POST | `/validate` | Validasi session + daftar permission | Yes |
+| POST | `/validate` | Validate session + permission list | Yes |
 | POST | `/logout` | Logout (revoke refresh token) | Yes |
-| POST | `/change-password` | Ganti password sendiri | Yes |
+| POST | `/change-password` | Change own password | Yes |
 
 ##### Dashboard & Reports
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| GET | `/dashboard/stats` | Statistik dashboard (revenue hari ini, dsb) | `dashboard.view` |
-| GET | `/dashboard/live` | Statistik live (WebSocket) | `dashboard.view` |
-| GET | `/dashboard/chart` | Data chart penjualan | `report.view` |
-| GET | `/dashboard/chart/weekly` | Laporan mingguan | `report.view` |
-| GET | `/dashboard/chart/monthly` | Laporan bulanan | `report.view` |
-| GET | `/dashboard/comparison` | Perbandingan periode | `report.view` |
+| GET | `/dashboard/stats` | Dashboard statistics (today's revenue, etc.) | `dashboard.view` |
+| GET | `/dashboard/live` | Live statistics (WebSocket) | `dashboard.view` |
+| GET | `/dashboard/chart` | Sales chart data | `report.view` |
+| GET | `/dashboard/chart/weekly` | Weekly report | `report.view` |
+| GET | `/dashboard/chart/monthly` | Monthly report | `report.view` |
+| GET | `/dashboard/comparison` | Period comparison | `report.view` |
 | POST | `/dashboard/export` | Export dashboard (CSV/XLSX) | `report.view` |
-| GET | `/dashboard/years` | Tahun tersedia | `report.view` |
-| GET | `/dashboard/pricing-breakdown` | Rincian harga | `report.view` |
+| GET | `/dashboard/years` | Available years | `report.view` |
+| GET | `/dashboard/pricing-breakdown` | Pricing breakdown | `report.view` |
 
 ##### Products, Categories, Brands, UOM
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| GET | `/products` | List produk (search + filter multi-category) | Public |
+| GET | `/products` | Product list (search + multi-category filter) | Public |
 | GET | `/products/next-sku` | Next SKU generator | Public |
-| GET | `/products/:id` | Detail produk | Yes |
-| POST | `/products` | Buat produk | `product.create` |
-| PUT | `/products/:id` | Update produk | `product.update` |
-| DELETE | `/products/:id` | Hapus produk | `product.delete` |
+| GET | `/products/:id` | Product detail | Yes |
+| POST | `/products` | Create product | `product.create` |
+| PUT | `/products/:id` | Update product | `product.update` |
+| DELETE | `/products/:id` | Delete product | `product.delete` |
 | POST | `/products/bulk/status` | Bulk update status | `product.update` |
-| GET | `/categories` | List kategori | Public |
-| GET | `/categories/manage` | List kategori (management, paginated) | `category.view` |
-| POST | `/categories` | Buat kategori | `category.create` |
-| PUT | `/categories/:id` | Update kategori | `category.update` |
-| DELETE | `/categories/:id` | Hapus kategori | `category.delete` |
-| GET | `/brands` | List brand | Public |
-| POST | `/brands` | Buat brand | `product.create` |
+| GET | `/categories` | Category list | Public |
+| GET | `/categories/manage` | Category list (management, paginated) | `category.view` |
+| POST | `/categories` | Create category | `category.create` |
+| PUT | `/categories/:id` | Update category | `category.update` |
+| DELETE | `/categories/:id` | Delete category | `category.delete` |
+| GET | `/brands` | Brand list | Public |
+| POST | `/brands` | Create brand | `product.create` |
 | PUT | `/brands/:id` | Update brand | `product.update` |
-| DELETE | `/brands/:id` | Hapus brand | `product.delete` |
-| GET | `/units-of-measure` | List UOM | Public |
-| POST | `/units-of-measure` | Buat UOM | `product.create` |
+| DELETE | `/brands/:id` | Delete brand | `product.delete` |
+| GET | `/units-of-measure` | UOM list | Public |
+| POST | `/units-of-measure` | Create UOM | `product.create` |
 | PUT | `/units-of-measure/:id` | Update UOM | `product.update` |
-| DELETE | `/units-of-measure/:id` | Hapus UOM | `product.delete` |
+| DELETE | `/units-of-measure/:id` | Delete UOM | `product.delete` |
 | GET | `/tax-classes` | List tax classes | Public |
 | GET | `/stock-thresholds` | Stock thresholds | Public |
 
@@ -317,66 +317,66 @@ Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau 
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| POST | `/sales` | Buat transaksi (split payment, parked recall) | `sale.create` |
-| GET | `/sales` | Riwayat penjualan | `sale.view` |
-| GET | `/sales/:id` | Detail penjualan | `sale.view` |
-| GET | `/sales/export` | Export penjualan (CSV/XLSX) | `report.view` |
-| POST | `/sales/parked` | Park (hold) transaksi | `sale.park` |
-| GET | `/sales/parked` | List parked sales | `sale.park` |
-| GET | `/sales/parked/:id` | Detail parked sale | `sale.park` |
+| POST | `/sales` | Create transaction (split payment, parked recall) | `sale.create` |
+| GET | `/sales` | Sales history | `sale.view` |
+| GET | `/sales/:id` | Sales detail | `sale.view` |
+| GET | `/sales/export` | Export sales (CSV/XLSX) | `report.view` |
+| POST | `/sales/parked` | Park (hold) transaction | `sale.park` |
+| GET | `/sales/parked` | Parked sales list | `sale.park` |
+| GET | `/sales/parked/:id` | Parked sale detail | `sale.park` |
 | POST | `/sales/parked/:id/recall` | Recall parked sale | `sale.park` |
 | POST | `/sales/parked/:id/complete` | Complete parked sale (checkout) | `sale.park` |
-| DELETE | `/sales/parked/:id` | Batalkan parked sale | `sale.park` |
-| GET | `/payment-methods` | List metode pembayaran | Public |
-| GET | `/payment-methods/:code` | Detail metode pembayaran | Yes |
+| DELETE | `/sales/parked/:id` | Cancel parked sale | `sale.park` |
+| GET | `/payment-methods` | Payment method list | Public |
+| GET | `/payment-methods/:code` | Payment method detail | Yes |
 
 ##### Inventory
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| POST | `/inventory/adjust` | Penyesuaian stok manual | `inventory.adjust` |
-| GET | `/inventory/locations` | Lihat stok per lokasi (rak) | `product.view` |
-| POST | `/inventory/locations` | Set stok di lokasi (rak) | `inventory.adjust` |
-| POST | `/inventory/locations/transfer` | Transfer stok antar lokasi | `inventory.adjust` |
+| POST | `/inventory/adjust` | Manual stock adjustment | `inventory.adjust` |
+| GET | `/inventory/locations` | View stock per location (rack) | `product.view` |
+| POST | `/inventory/locations` | Set stock at location (rack) | `inventory.adjust` |
+| POST | `/inventory/locations/transfer` | Transfer stock between locations | `inventory.adjust` |
 
 ##### Stock Opname
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| POST | `/stock-opnames` | Buat sesi Stock Opname (multi-scope snapshot) | `stock_opname.create` |
-| GET | `/stock-opnames` | List sesi (filter status/scope, pagination) | `stock_opname.view` |
-| GET | `/stock-opnames/:id` | Detail sesi | `stock_opname.view` |
-| GET | `/stock-opnames/assignable-users` | Daftar user yang bisa di-assign | `stock_opname.assign` |
-| POST | `/stock-opnames/:id/open` | Buka sesi (Draft → Open) | `stock_opname.create` |
-| POST | `/stock-opnames/:id/cancel` | Batalkan sesi (draft/open/counting/needs_recount) | `stock_opname.cancel` |
+| POST | `/stock-opnames` | Create Stock Opname session (multi-scope snapshot) | `stock_opname.create` |
+| GET | `/stock-opnames` | Session list (filter status/scope, pagination) | `stock_opname.view` |
+| GET | `/stock-opnames/:id` | Session detail | `stock_opname.view` |
+| GET | `/stock-opnames/assignable-users` | List assignable users | `stock_opname.assign` |
+| POST | `/stock-opnames/:id/open` | Open session (Draft → Open) | `stock_opname.create` |
+| POST | `/stock-opnames/:id/cancel` | Cancel session (draft/open/counting/needs_recount) | `stock_opname.cancel` |
 | POST | `/stock-opnames/:id/assignments` | Assign counter/supervisor | `stock_opname.assign` |
-| GET | `/stock-opnames/:id/assignments` | List assignment sesi | `stock_opname.view` |
+| GET | `/stock-opnames/:id/assignments` | Session assignment list | `stock_opname.view` |
 | PUT | `/stock-opnames/:id/assignments/:assignmentId` | Reassign counter | `stock_opname.assign` |
-| PUT | `/stock-opnames/items/:itemId/count` | Simpan hasil counting (autosave) | `stock_opname.count` |
-| GET | `/stock-opnames/items/:itemId/counts` | Riwayat counting per item | `stock_opname.view` |
-| POST | `/stock-opnames/:id/start` | Mulai counting (Draft/Open → Counting) | `stock_opname.count` |
-| POST | `/stock-opnames/:id/submit` | Submit hasil counting (Counting → Verification) | `stock_opname.submit` |
-| POST | `/stock-opnames/:id/verify` | Verifikasi (persist selisih, belum ubah stok; Verification → Approved) | `stock_opname.verify` |
-| POST | `/stock-opnames/:id/reject` | Reject sesi (Verification → Needs Recount) | `stock_opname.verify` |
+| PUT | `/stock-opnames/items/:itemId/count` | Save counting results (autosave) | `stock_opname.count` |
+| GET | `/stock-opnames/items/:itemId/counts` | Counting history per item | `stock_opname.view` |
+| POST | `/stock-opnames/:id/start` | Start counting (Draft/Open → Counting) | `stock_opname.count` |
+| POST | `/stock-opnames/:id/submit` | Submit counting results (Counting → Verification) | `stock_opname.submit` |
+| POST | `/stock-opnames/:id/verify` | Verify (persist differences, does not change stock yet; Verification → Approved) | `stock_opname.verify` |
+| POST | `/stock-opnames/:id/reject` | Reject session (Verification → Needs Recount) | `stock_opname.verify` |
 | POST | `/stock-opnames/:id/recount` | Request recount (Verification → Needs Recount) | `stock_opname.recount` |
 | POST | `/stock-opnames/:id/resume` | Resume counting (Needs Recount → Counting) | `stock_opname.count` |
-| POST | `/stock-opnames/:id/post-adjustment` | Posting penyesuaian ke stok + buat dokumen IA- (Approved → Posted) | `stock_opname.post` |
-| POST | `/stock-opnames/:id/close` | Tutup sesi (Posted → Closed) | `stock_opname.close` |
-| GET | `/stock-opnames/:id/summary` | Ringkasan progres sesi | `stock_opname.view` |
-| GET | `/stock-opnames/:id/difference` | Laporan selisih stok | `stock_opname.view` |
-| GET | `/stock-opnames/:id/export` | Export laporan (CSV/Excel/PDF) | `stock_opname.export` |
-| GET | `/stock-opnames/adjustments` | Laporan penyesuaian (dokumen IA-) | `stock_opname.report` |
-| GET | `/stock-opnames/adjustments/:id` | Detail dokumen penyesuaian | `stock_opname.report` |
+| POST | `/stock-opnames/:id/post-adjustment` | Post adjustment to stock + create IA- document (Approved → Posted) | `stock_opname.post` |
+| POST | `/stock-opnames/:id/close` | Close session (Posted → Closed) | `stock_opname.close` |
+| GET | `/stock-opnames/:id/summary` | Session progress summary | `stock_opname.view` |
+| GET | `/stock-opnames/:id/difference` | Stock difference report | `stock_opname.view` |
+| GET | `/stock-opnames/:id/export` | Export report (CSV/Excel/PDF) | `stock_opname.export` |
+| GET | `/stock-opnames/adjustments` | Adjustments report (IA- documents) | `stock_opname.report` |
+| GET | `/stock-opnames/adjustments/:id` | Adjustment document detail | `stock_opname.report` |
 
 ##### Storage Locations
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| GET | `/storage-locations` | List lokasi penyimpanan (search, filter is_active) | `storage_location.view` |
-| GET | `/storage-locations/:id` | Detail lokasi | `storage_location.view` |
-| POST | `/storage-locations` | Buat lokasi (scope warehouse/store) | `storage_location.create` |
-| PUT | `/storage-locations/:id` | Update lokasi | `storage_location.update` |
-| DELETE | `/storage-locations/:id` | Hapus lokasi | `storage_location.delete` |
+| GET | `/storage-locations` | Storage location list (search, filter is_active) | `storage_location.view` |
+| GET | `/storage-locations/:id` | Location detail | `storage_location.view` |
+| POST | `/storage-locations` | Create location (scope warehouse/store) | `storage_location.create` |
+| PUT | `/storage-locations/:id` | Update location | `storage_location.update` |
+| DELETE | `/storage-locations/:id` | Delete location | `storage_location.delete` |
 | PUT | `/storage-locations/bulk` | Bulk update | `storage_location.update` |
 | DELETE | `/storage-locations/bulk` | Bulk delete | `storage_location.delete` |
 
@@ -384,18 +384,18 @@ Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau 
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| GET | `/customers` | List pelanggan | `customer.view` |
-| GET | `/customers/:id` | Detail pelanggan | `customer.view` |
-| POST | `/customers` | Buat pelanggan | `customer.create` |
-| PUT | `/customers/:id` | Update pelanggan | `customer.update` |
-| DELETE | `/customers/:id` | Hapus pelanggan | `customer.delete` |
+| GET | `/customers` | Customer list | `customer.view` |
+| GET | `/customers/:id` | Customer detail | `customer.view` |
+| POST | `/customers` | Create customer | `customer.create` |
+| PUT | `/customers/:id` | Update customer | `customer.update` |
+| DELETE | `/customers/:id` | Delete customer | `customer.delete` |
 | POST | `/customers/bulk/status` | Bulk update status | `customer.update` |
 | POST | `/customers/bulk/delete` | Bulk delete | `customer.delete` |
-| GET | `/customer-groups` | List grup pelanggan | `customer_group.view` |
-| GET | `/customer-groups/:id` | Detail grup | `customer_group.view` |
-| POST | `/customer-groups` | Buat grup | `customer_group.create` |
-| PUT | `/customer-groups/:id` | Update grup | `customer_group.update` |
-| DELETE | `/customer-groups/:id` | Hapus grup | `customer_group.delete` |
+| GET | `/customer-groups` | Customer group list | `customer_group.view` |
+| GET | `/customer-groups/:id` | Group detail | `customer_group.view` |
+| POST | `/customer-groups` | Create group | `customer_group.create` |
+| PUT | `/customer-groups/:id` | Update group | `customer_group.update` |
+| DELETE | `/customer-groups/:id` | Delete group | `customer_group.delete` |
 | PUT | `/customer-groups/bulk` | Bulk update | `customer_group.update` |
 | DELETE | `/customer-groups/bulk` | Bulk delete | `customer_group.delete` |
 
@@ -403,150 +403,150 @@ Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau 
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| GET | `/stores` | List toko | `store.view` |
-| GET | `/stores/active` | List toko aktif | `store.view` |
-| GET | `/stores/:id` | Detail toko | `store.view` |
-| POST | `/stores` | Buat toko | `store.create` |
-| PUT | `/stores/:id` | Update toko | `store.update` |
-| DELETE | `/stores/:id` | Hapus toko | `store.delete` |
+| GET | `/stores` | Store list | `store.view` |
+| GET | `/stores/active` | Active store list | `store.view` |
+| GET | `/stores/:id` | Store detail | `store.view` |
+| POST | `/stores` | Create store | `store.create` |
+| PUT | `/stores/:id` | Update store | `store.update` |
+| DELETE | `/stores/:id` | Delete store | `store.delete` |
 
 ##### Purchase Orders & Goods Receiving
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| POST | `/purchase-orders` | Buat draft PO | `purchase_order.create` |
-| GET | `/purchase-orders` | List PO (filter status/supplier) | `purchase_order.view` |
-| GET | `/purchase-orders/:id` | Detail PO | `purchase_order.view` |
-| PUT | `/purchase-orders/:id` | Update draft PO | `purchase_order.update` |
-| DELETE | `/purchase-orders/:id` | Hapus draft PO | `purchase_order.delete` |
-| POST | `/purchase-orders/:id/confirm` | Konfirmasi PO | `purchase_order.confirm` |
-| POST | `/purchase-orders/:id/cancel` | Batalkan PO | `purchase_order.cancel` |
-| GET | `/purchase-orders/:id/receipts` | List goods receipts PO | `purchase_order.view` |
-| POST | `/goods-receipts` | Terima barang (auto-generate GR & DO number) | `purchase_order.receive` |
+| POST | `/purchase-orders` | Create PO draft | `purchase_order.create` |
+| GET | `/purchase-orders` | PO list (filter status/supplier) | `purchase_order.view` |
+| GET | `/purchase-orders/:id` | PO detail | `purchase_order.view` |
+| PUT | `/purchase-orders/:id` | Update PO draft | `purchase_order.update` |
+| DELETE | `/purchase-orders/:id` | Delete PO draft | `purchase_order.delete` |
+| POST | `/purchase-orders/:id/confirm` | Confirm PO | `purchase_order.confirm` |
+| POST | `/purchase-orders/:id/cancel` | Cancel PO | `purchase_order.cancel` |
+| GET | `/purchase-orders/:id/receipts` | PO goods receipts list | `purchase_order.view` |
+| POST | `/goods-receipts` | Receive goods (auto-generate GR & DO number) | `purchase_order.receive` |
 
 ##### Pricing Engine & Suppliers
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| GET | `/pricing-rules` | List aturan harga | `pricing.view` |
-| GET | `/pricing-rules/:id` | Detail aturan | `pricing.view` |
-| POST | `/pricing-rules` | Buat aturan | `pricing.create` |
-| PUT | `/pricing-rules/:id` | Update aturan | `pricing.update` |
-| DELETE | `/pricing-rules/:id` | Hapus aturan | `pricing.delete` |
-| POST | `/pricing-rules/check-conflicts` | Cek konflik aturan | `pricing.view` |
-| POST | `/pricing-rules/:id/submit` | Submit untuk approval | `pricing.update` |
-| POST | `/pricing-rules/:id/approve` | Approve aturan | `pricing.update` |
-| POST | `/pricing-rules/:id/reject` | Reject aturan | `pricing.update` |
-| POST | `/pricing/resolve` | Resolve harga final | `pricing.view` |
-| GET | `/products/search` | Search produk (untuk pricing) | `pricing.view` |
-| GET | `/suppliers` | List supplier | `pricing.view` |
-| GET | `/suppliers/:id` | Detail supplier | `pricing.view` |
-| POST | `/suppliers` | Buat supplier | `pricing.create` |
+| GET | `/pricing-rules` | Pricing rules list | `pricing.view` |
+| GET | `/pricing-rules/:id` | Rule detail | `pricing.view` |
+| POST | `/pricing-rules` | Create rule | `pricing.create` |
+| PUT | `/pricing-rules/:id` | Update rule | `pricing.update` |
+| DELETE | `/pricing-rules/:id` | Delete rule | `pricing.delete` |
+| POST | `/pricing-rules/check-conflicts` | Check rule conflicts | `pricing.view` |
+| POST | `/pricing-rules/:id/submit` | Submit for approval | `pricing.update` |
+| POST | `/pricing-rules/:id/approve` | Approve rule | `pricing.update` |
+| POST | `/pricing-rules/:id/reject` | Reject rule | `pricing.update` |
+| POST | `/pricing/resolve` | Resolve final price | `pricing.view` |
+| GET | `/products/search` | Search products (for pricing) | `pricing.view` |
+| GET | `/suppliers` | Supplier list | `pricing.view` |
+| GET | `/suppliers/:id` | Supplier detail | `pricing.view` |
+| POST | `/suppliers` | Create supplier | `pricing.create` |
 | PUT | `/suppliers/:id` | Update supplier | `pricing.update` |
-| DELETE | `/suppliers/:id` | Hapus supplier | `pricing.delete` |
+| DELETE | `/suppliers/:id` | Delete supplier | `pricing.delete` |
 | PUT | `/suppliers/bulk` | Bulk update | `pricing.update` |
 | DELETE | `/suppliers/bulk` | Bulk delete | `pricing.delete` |
-| GET | `/suppliers/:id/products` | Produk dari supplier | `pricing.view` |
-| POST | `/suppliers/:id/products` | Tautkan produk ke supplier | `pricing.update` |
-| DELETE | `/suppliers/:id/products/:productId` | Lepas tautan produk | `pricing.update` |
-| PUT | `/suppliers/:id/products/:productId` | Update relasi (unit_cost) | `pricing.update` |
+| GET | `/suppliers/:id/products` | Products from supplier | `pricing.view` |
+| POST | `/suppliers/:id/products` | Link product to supplier | `pricing.update` |
+| DELETE | `/suppliers/:id/products/:productId` | Unlink product | `pricing.update` |
+| PUT | `/suppliers/:id/products/:productId` | Update relation (unit_cost) | `pricing.update` |
 | POST | `/suppliers/:id/products/:productId/preferred` | Set preferred supplier | `pricing.update` |
-| GET | `/products/:id/suppliers` | Supplier dari produk | `pricing.view` |
+| GET | `/products/:id/suppliers` | Suppliers for product | `pricing.view` |
 
 ##### Consignment (Konsinyasi Supplier)
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| GET | `/consignment/suppliers` | List supplier konsinyasi | `consignment.view` |
-| GET | `/consignment/arrangements` | List perjanjian konsinyasi | `consignment.view` |
-| POST | `/consignment/arrangements` | Buat perjanjian | `consignment.create` |
-| GET | `/consignment/arrangements/:id` | Detail perjanjian | `consignment.view` |
-| PUT | `/consignment/arrangements/:id/terms` | Update syarat/ketentuan | `consignment.update` |
-| GET | `/consignment/receipts` | List penerimaan barang | `consignment.view` |
-| POST | `/consignment/receipts` | Buat penerimaan barang | `consignment.create` |
-| GET | `/consignment/receipts/:id` | Detail penerimaan | `consignment.view` |
-| GET | `/consignment/stock` | Stok konsinyasi | `consignment.view` |
-| GET | `/consignment/pending-returns` | Retur tertunda | `consignment.view` |
-| POST | `/consignment/pending-returns` | Buat retur tertunda | `consignment.update` |
-| GET | `/consignment/returns` | List retur | `consignment.view` |
-| POST | `/consignment/returns` | Buat retur formal | `consignment.create` |
-| GET | `/consignment/returns/:id` | Detail retur | `consignment.view` |
-| GET | `/consignment/settlements/preview` | Preview penyelesaian | `consignment.settle` |
-| GET | `/consignment/settlements` | List penyelesaian | `consignment.view` |
-| POST | `/consignment/settlements` | Buat penyelesaian | `consignment.settle` |
-| GET | `/consignment/settlements/:id` | Detail penyelesaian | `consignment.view` |
-| GET | `/consignment/payment-methods` | Metode pembayaran konsinyasi | `consignment.settle` |
-| POST | `/consignment/settlements/:id/payouts` | Buat pembayaran ke supplier | `consignment.pay` |
+| GET | `/consignment/suppliers` | Consignment supplier list | `consignment.view` |
+| GET | `/consignment/arrangements` | Consignment arrangement list | `consignment.view` |
+| POST | `/consignment/arrangements` | Create arrangement | `consignment.create` |
+| GET | `/consignment/arrangements/:id` | Arrangement detail | `consignment.view` |
+| PUT | `/consignment/arrangements/:id/terms` | Update terms/conditions | `consignment.update` |
+| GET | `/consignment/receipts` | Goods receipt list | `consignment.view` |
+| POST | `/consignment/receipts` | Create goods receipt | `consignment.create` |
+| GET | `/consignment/receipts/:id` | Receipt detail | `consignment.view` |
+| GET | `/consignment/stock` | Consignment stock | `consignment.view` |
+| GET | `/consignment/pending-returns` | Pending returns | `consignment.view` |
+| POST | `/consignment/pending-returns` | Create pending return | `consignment.update` |
+| GET | `/consignment/returns` | Return list | `consignment.view` |
+| POST | `/consignment/returns` | Create formal return | `consignment.create` |
+| GET | `/consignment/returns/:id` | Return detail | `consignment.view` |
+| GET | `/consignment/settlements/preview` | Settlement preview | `consignment.settle` |
+| GET | `/consignment/settlements` | Settlement list | `consignment.view` |
+| POST | `/consignment/settlements` | Create settlement | `consignment.settle` |
+| GET | `/consignment/settlements/:id` | Settlement detail | `consignment.view` |
+| GET | `/consignment/payment-methods` | Consignment payment methods | `consignment.settle` |
+| POST | `/consignment/settlements/:id/payouts` | Create payment to supplier | `consignment.pay` |
 
 ##### Shifts
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| POST | `/shifts/open` | Buka shift | `shift.create` |
-| POST | `/shifts/:id/close` | Tutup shift | `shift.create` |
-| POST | `/shifts/close-all` | Tutup semua shift aktif | `shift.create` |
-| POST | `/shifts/:id/review` | Review selisih shift | `shift.review` |
-| POST | `/shifts/:id/audit` | Audit fisik cash | `shift.audit` |
-| GET | `/shifts/active` | Shift aktif saat ini | Yes |
-| GET | `/shifts` | List shift | `shift.view` |
-| GET | `/shifts/export` | Export shift | `shift.view` |
-| GET | `/shifts/:id` | Detail shift | `shift.view` |
+| POST | `/shifts/open` | Open shift | `shift.create` |
+| POST | `/shifts/:id/close` | Close shift | `shift.create` |
+| POST | `/shifts/close-all` | Close all active shifts | `shift.create` |
+| POST | `/shifts/:id/review` | Review shift discrepancy | `shift.review` |
+| POST | `/shifts/:id/audit` | Physical cash audit | `shift.audit` |
+| GET | `/shifts/active` | Current active shift | Yes |
+| GET | `/shifts` | Shift list | `shift.view` |
+| GET | `/shifts/export` | Export shifts | `shift.view` |
+| GET | `/shifts/:id` | Shift detail | `shift.view` |
 
 ##### User & Role Management
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| GET | `/admin/users` | List users | `user.view` |
-| POST | `/admin/users` | Buat user | `user.create` |
+| GET | `/admin/users` | User list | `user.view` |
+| POST | `/admin/users` | Create user | `user.create` |
 | PUT | `/admin/users/:id` | Update user | `user.update` |
-| DELETE | `/admin/users/:id` | Hapus user (soft delete) | `user.delete` |
-| GET | `/admin/users/:id/subordinates` | Bawahan user | `user.view` |
-| GET | `/admin/users/:id/manager` | Manager user | `user.view` |
+| DELETE | `/admin/users/:id` | Delete user (soft delete) | `user.delete` |
+| GET | `/admin/users/:id/subordinates` | User's subordinates | `user.view` |
+| GET | `/admin/users/:id/manager` | User's manager | `user.view` |
 | GET | `/admin/users/org-chart` | Org chart | `user.view` |
-| GET | `/admin/roles` | List roles | `role.view` |
-| POST | `/admin/roles` | Buat role | `role.create` |
+| GET | `/admin/roles` | Role list | `role.view` |
+| POST | `/admin/roles` | Create role | `role.create` |
 | PUT | `/admin/roles/:id` | Update role | `role.update` |
-| PUT | `/admin/roles/:id/permissions` | Update permission role | `role.update` |
-| DELETE | `/admin/roles/:id` | Hapus role | `role.delete` |
-| GET | `/admin/permissions` | List semua permissions | `role.view` |
-| PUT | `/users/me/preferences` | Update preferensi user (theme, language) | Yes |
+| PUT | `/admin/roles/:id/permissions` | Update role permissions | `role.update` |
+| DELETE | `/admin/roles/:id` | Delete role | `role.delete` |
+| GET | `/admin/permissions` | List all permissions | `role.view` |
+| PUT | `/users/me/preferences` | Update user preferences (theme, language) | Yes |
 
 ##### Audit Logs
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| GET | `/audit-logs` | List audit logs (filter tanggal, aksi, entity) | `audit.view` |
-| GET | `/audit-logs/:id` | Detail audit log | `audit.view` |
+| GET | `/audit-logs` | Audit log list (filter date, action, entity) | `audit.view` |
+| GET | `/audit-logs/:id` | Audit log detail | `audit.view` |
 | GET | `/audit-logs/export` | Export audit logs | `audit.view` |
-| GET | `/audit-logs/entity-types` | List entity types | `audit.view` |
+| GET | `/audit-logs/entity-types` | Entity type list | `audit.view` |
 
 ##### Import & Export
 
-Module yang didukung: `products`, `categories`, `brands`, `uoms`, `customers`, `pricing_rules`, `suppliers`, `stores`.
+Supported modules: `products`, `categories`, `brands`, `uoms`, `customers`, `pricing_rules`, `suppliers`, `stores`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/import-export/modules` | List module importable |
+| GET | `/import-export/modules` | List importable modules |
 | GET | `/import-export/template/:module` | Download XLSX template |
-| POST | `/import-export/preview/:module` | Preview import (validasi) |
+| POST | `/import-export/preview/:module` | Import preview (validation) |
 | POST | `/import-export/confirm/:module` | Confirm import (async job) |
-| GET | `/import-export/progress/:jobId` | Progress job import |
-| POST | `/import-export/cancel/:jobId` | Batalkan job |
-| GET | `/import-export/history/:module` | Riwayat import per module |
-| GET | `/import-export/history/:module/:jobId` | Detail snapshot job |
-| GET | `/import-export/history/:module/:jobId/rows` | Rows hasil import |
+| GET | `/import-export/progress/:jobId` | Import job progress |
+| POST | `/import-export/cancel/:jobId` | Cancel job |
+| GET | `/import-export/history/:module` | Import history per module |
+| GET | `/import-export/history/:module/:jobId` | Job snapshot detail |
+| GET | `/import-export/history/:module/:jobId/rows` | Import result rows |
 | GET | `/import-export/export/:module` | Export data (CSV/XLSX) |
 
 ##### Application Settings
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| GET | `/settings/public` | Branding publik (nama toko, jargon) | No |
-| GET | `/settings/logo` | Logo toko | No |
-| GET | `/settings` | Semua pengaturan | `app_settings.view` |
-| PUT | `/settings` | Update pengaturan | `app_settings.update` |
+| GET | `/settings/public` | Public branding (store name, jargon) | No |
+| GET | `/settings/logo` | Store logo | No |
+| GET | `/settings` | All settings | `app_settings.view` |
+| PUT | `/settings` | Update settings | `app_settings.update` |
 | POST | `/settings/logo` | Upload logo | `app_settings.update` |
-| DELETE | `/settings/logo` | Hapus logo | `app_settings.update` |
+| DELETE | `/settings/logo` | Delete logo | `app_settings.update` |
 
 ##### System
 
@@ -576,7 +576,7 @@ web/src/
 ├── modules/           # Feature modules
 │   ├── admin/         # Users, roles, audit logs
 │   ├── auth/          # Login, session
-│   ├── consignment/   # Konsinyasi supplier (arrangements, receipts, returns, settlements)
+│   ├── consignment/   # Consignment supplier (arrangements, receipts, returns, settlements)
 │   ├── customer-groups/ # Customer groups management
 │   ├── customers/     # Customer management
 │   ├── dashboard/     # Charts, stats, live updates
@@ -595,18 +595,18 @@ web/src/
 │   ├── stores/        # Store management
 │   └── supplier/      # Supplier management
 ├── shared/            # API client (axios), websocket, services, stores, types, utils (Jakarta time, permissions)
-│   └── ui/            # Shared UI components (Modal, DataTable, Pagination, dll)
+│   └── ui/            # Shared UI components (Modal, DataTable, Pagination, etc.)
 ├── app.css            # Global styles & Tailwind imports
 └── main.js            # Entry point
 ```
 
 #### Jakarta Timezone
 
-Backend menyimpan data dalam UTC, namun **semua query menggunakan timezone Asia/Jakarta**. Frontend menghitung tanggal Jakarta dalam UTC sebelum mengirim ke API:
+Backend stores data in UTC, but **all queries use the Asia/Jakarta timezone**. The frontend calculates Jakarta dates in UTC before sending to the API:
 
-- Jakarta midnight = UTC 07:00 (offset 7 jam)
-- Util: `getTodayInJakarta()`, `getDateNDaysAgoInJakarta()` di `web/src/shared/utils/jakartaTime.ts`
-- Backend mem-parse date dengan `time.ParseInLocation("2006-01-02", dateStr, jakartaLoc)`
+- Jakarta midnight = UTC 07:00 (7-hour offset)
+- Utilities: `getTodayInJakarta()`, `getDateNDaysAgoInJakarta()` in `web/src/shared/utils/jakartaTime.ts`
+- Backend parses dates with `time.ParseInLocation("2006-01-02", dateStr, jakartaLoc)`
 
 ### Configuration
 
@@ -614,52 +614,52 @@ Backend menyimpan data dalam UTC, namun **semua query menggunakan timezone Asia/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `JWT_SECRET` | (required) | 256-bit secret untuk JWT signing. Generate: `openssl rand -hex 32` |
-| `JWT_SECRET_REFRESH` | `JWT_SECRET` | Secret terpisah untuk refresh token (direkomendasikan berbeda di produksi) |
-| `DATABASE_URL` | (empty) | URL lengkap PostgreSQL; jika kosong dibangun dari `DB_*` |
+| `JWT_SECRET` | (required) | 256-bit secret for JWT signing. Generate: `openssl rand -hex 32` |
+| `JWT_SECRET_REFRESH` | `JWT_SECRET` | Separate secret for refresh tokens (recommended to differ in production) |
+| `DATABASE_URL` | (empty) | Full PostgreSQL URL; if empty, built from `DB_*` |
 | `DB_HOST` | `localhost` | PostgreSQL host |
 | `DB_PORT` | `5433` (dev) | PostgreSQL port |
 | `DB_USER` | `pos` | Database username |
 | `DB_PASSWORD` | `admin123` | Database password |
 | `DB_NAME` | `retail_pos` | Database name |
-| `ENV` | `development` | `development` (log text) / `production` (log JSON, mode release, sslmode require) |
-| `LOG_LEVEL` | `debug`/`info` | Level log: debug, info, warn, error |
-| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin (tidak boleh `*` di production) |
-| `PORT` | `9095` | Port HTTP server |
+| `ENV` | `development` | `development` (text log) / `production` (JSON log, release mode, sslmode require) |
+| `LOG_LEVEL` | `debug`/`info` | Log level: debug, info, warn, error |
+| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin (must not be `*` in production) |
+| `PORT` | `9095` | HTTP server port |
 | `FRONTEND_PORT` | `5173` | Frontend dev server port (Vite) |
 | `BACKEND_PORT` | `9095` | Backend dev server port (Go) |
 | `DATABASE_PORT` | `5433` | Development database port (postgres-dev container) |
-| `COOKIE_DOMAIN` | (empty) | Domain cookie refresh token |
-| `COOKIE_SECURE` | `false` | Set `true` untuk HTTPS |
-| `LOGIN_RATE_LIMIT_RPM` | `5` | Rate limit login (per menit) |
-| `LOGIN_RATE_LIMIT_BURST` | `5` | Burst login |
-| `RATE_LIMIT_RPS` | `50` | Rate limit API umum (per detik) |
-| `RATE_LIMIT_BURST` | `100` | Burst API umum |
-| `REFRESH_RATE_LIMIT_RPM` | `10` | Rate limit refresh (per menit) |
-| `REFRESH_RATE_LIMIT_BURST` | `10` | Burst refresh |
-| `STOCK_WARNING_THRESHOLD` | `10` | Stok di bawah ini = "perlu perhatian" |
-| `STOCK_CRITICAL_THRESHOLD` | `5` | Stok di bawah ini = "low stock" |
-| `CART_HOLD_TTL_HOURS` | `24` | Berapa jam sesi keranjang ditahan sebelum dianggap kedaluwarsa |
-| `REPORT_REFRESH_DEBOUNCE` | `30` | Detik debounce refresh materialized views setelah `sale.created` |
+| `COOKIE_DOMAIN` | (empty) | Refresh token cookie domain |
+| `COOKIE_SECURE` | `false` | Set to `true` for HTTPS |
+| `LOGIN_RATE_LIMIT_RPM` | `5` | Login rate limit (per minute) |
+| `LOGIN_RATE_LIMIT_BURST` | `5` | Login burst |
+| `RATE_LIMIT_RPS` | `50` | General API rate limit (per second) |
+| `RATE_LIMIT_BURST` | `100` | General API burst |
+| `REFRESH_RATE_LIMIT_RPM` | `10` | Refresh rate limit (per minute) |
+| `REFRESH_RATE_LIMIT_BURST` | `10` | Refresh burst |
+| `STOCK_WARNING_THRESHOLD` | `10` | Stock below this = "needs attention" |
+| `STOCK_CRITICAL_THRESHOLD` | `5` | Stock below this = "low stock" |
+| `CART_HOLD_TTL_HOURS` | `24` | How many hours a cart session is held before considered expired |
+| `REPORT_REFRESH_DEBOUNCE` | `30` | Seconds debounce for materialized view refresh after `sale.created` |
 
-Copy `.env.example` ke `.env` untuk development lokal.
+Copy `.env.example` to `.env` for local development.
 
 ### Deployment
 
 #### Podman / Docker Compose (Recommended)
 
 ```bash
-make build-all                       # Build image backend + frontend
-./deploy/podman-deploy.sh start      # Start semua service
+make build-all                       # Build backend + frontend images
+./deploy/podman-deploy.sh start      # Start all services
 ./deploy/podman-deploy.sh status     # Check status
 ./deploy/podman-deploy.sh logs       # View logs
-./deploy/podman-deploy.sh migrate    # Jalankan migrasi
+./deploy/podman-deploy.sh migrate    # Run migrations
 ./deploy/podman-deploy.sh seed       # Seed data
-./deploy/podman-deploy.sh stop       # Stop semua service
+./deploy/podman-deploy.sh stop       # Stop all services
 ./deploy/podman-deploy.sh restart    # Restart
 ```
 
-Atau gunakan Makefile: `make deploy`, `make stop`, `make restart`, `make status`, `make logs`, `make db-backup`, `make db-restore`, `make db-shell`.
+Or use the Makefile: `make deploy`, `make stop`, `make restart`, `make status`, `make logs`, `make db-backup`, `make db-restore`, `make db-shell`.
 
 #### Systemd
 
@@ -671,56 +671,64 @@ sudo systemctl enable --now retail-pos
 
 #### Database Migrations
 
-Migrations adalah file SQL di `database/migrations/` (saat ini **`000_squash.sql`, `001`–`007`, `031`–`032`**). Migrations **tidak** berjalan otomatis oleh server — jalankan eksplisit via `./deploy/podman-deploy.sh migrate` (atau test harness, yang mengaplikasikan pending migrations ke test DB). Tracking file yang sudah ter-apply ada di tabel `schema_migrations`.
+Migrations are SQL files in `database/migrations/` (currently **`000_squash.sql`, `001`–`007`, `031`–`032`**). Migrations do **not** run automatically on server start — run them explicitly via `./deploy/podman-deploy.sh migrate` (or the test harness, which applies pending migrations to the test DB). Tracking of which migrations have been applied is in the `schema_migrations` table.
 
-**Fresh database (spin-up baru):** `migrate` melakukan bootstrap `pgcrypto`, `invoice_seq`, dan tabel `schema_migrations` terlebih dahulu, lalu mengaplikasikan setiap file secara berurutan dari `000_squash.sql` dengan `ON_ERROR_STOP=1`. Hasilnya: schema lengkap + reference data (roles, 74 permissions, grants, 5 user default, payment methods, customer groups). Data bisnis (stores, products, customers, sales) harus diisi via `./seed-dev.sh` atau `./deploy/podman-deploy.sh seed`.
+**Fresh database (new spin-up):** `migrate` bootstraps `pgcrypto`, `invoice_seq`, and the `schema_migrations` table first, then applies each file sequentially from `000_squash.sql` with `ON_ERROR_STOP=1`. Result: complete schema + reference data (roles, 85 permissions, grants, 5 default users, payment methods, customer groups). Business data (stores, products, customers, sales) must be seeded via `./seed-dev.sh` or `./deploy/podman-deploy.sh seed`.
 
-> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Migrations bersifat idempoten (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`) dan harus dijalankan secara berurutan dari `000_squash.sql`. Migrasi terkini: `001_consignment.sql`, `002_settlement_items_product_id.sql`, `003_settlement_updated_at.sql`, `004_supplier_code_sequence.sql`, `005_app_settings.sql`, `006_user_preferences.sql`, `007_sale_lookup.sql`, `031_revoke_sale_lookup_manager.sql`, `032_sale_detail_and_receipt_print.sql` — lihat AGENTS.md untuk detail deployment ordering.
+> **Important:** Apply migrations **before** deploying a new server binary. Migrations are idempotent (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`) and must be run sequentially from `000_squash.sql`. Current migrations: `001`–`007`, `031`–`039` — see AGENTS.md for deployment ordering details.
 
-Migrations terkini:
-- `000_squash.sql` — Baseline schema + seed data awal (roles, 74 permissions, grants, 5 user default, payment methods, customer groups, tombstone sequences)
-- `001_consignment.sql` — Konsinyasi supplier: tabel `consignment_*`, sequence (`consignment_receipt_seq`, `consignment_return_seq`, `consignment_settlement_seq`, `consignment_payout_seq`, `consignment_stock_seq`), permission `consignment.*`
-- `002_settlement_items_product_id.sql` — Kolom `consignment_settlement_items.product_id` (FK ke products, NULL-able)
-- `003_settlement_updated_at.sql` — Kolom `consignment_settlements.updated_at`
-- `004_supplier_code_sequence.sql` — Sequence `supplier_seq` untuk auto-generate kode supplier (`SUP-%06d`)
-- `005_app_settings.sql` — Tabel `app_settings` (key-value global: branding, receipt text), seed defaults, permission `app_settings.view`/`app_settings.update`
-- `006_user_preferences.sql` — Kolom `users.language` dan `users.theme` untuk preferensi per-user, hapus `default_language` dari `app_settings`
-- `007_sale_lookup.sql` — Permission `sale.lookup` + grant ke `cashier` (grant `manager` kemudian dicabut oleh `031`)
-- `031_revoke_sale_lookup_manager.sql` — Cabut grant `sale.lookup` dari role `manager` (Find Transaction hanya untuk kasir); terapkan sebelum binary yang menyembunyikan tab tersebut untuk manager
-- `032_sale_detail_and_receipt_print.sql` — Permission `sale.detail` dan `receipt.print`; grant ke `cashier`, `manager`, `admin`, `superadmin`
+Current migrations:
+- `000_squash.sql` — Baseline schema + initial seed data (roles, 85 permissions, grants, 5 default users, payment methods, customer groups, tombstone sequences)
+- `001_consignment.sql` — Consignment supplier: `consignment_*` tables, sequence, `consignment.*` permissions
+- `002_settlement_items_product_id.sql` — `consignment_settlement_items.product_id` column (FK to products, NULL-able)
+- `003_settlement_updated_at.sql` — `consignment_settlements.updated_at` column
+- `004_supplier_code_sequence.sql` — `supplier_seq` sequence for auto-generating supplier codes (`SUP-%06d`)
+- `005_app_settings.sql` — `app_settings` table (global key-value: branding, receipt text), seed defaults, `app_settings.view`/`app_settings.update` permissions
+- `006_user_preferences.sql` — `users.language` and `users.theme` columns for per-user preferences
+- `007_sale_lookup.sql` — `sale.lookup` permission + grant to `cashier` (grant to `manager` later revoked by `031`)
+- `031_revoke_sale_lookup_manager.sql` — Revoke `sale.lookup` grant from `manager` role
+- `032_sale_detail_and_receipt_print.sql` — `sale.detail` and `receipt.print` permissions; grant to `cashier`, `manager`, `admin`, `superadmin`
+- `033_*` — Audit log store FK + immutability trigger + cash_change table
+- `034_audit_immutable_bypass.sql` — GUC-aware bypass for audit immutability trigger
+- `035_audit_correlation_id.sql` — `audit_logs.correlation_id` column
+- `036_audit_export_permission.sql` — `audit.export` permission; grant to `superadmin`, `admin`
+- `037_audit_immutable_fk_bypass.sql` — Allow FK-cascade updates through append-only trigger
+- `038_grant_audit_view_to_admin.sql` — Grant `audit.view` to `admin` (fix: admin had export but not view)
+- `039_business_permission_audit.sql` — Business-perspective audit: +12 manager, +4 cashier, +1 staff permissions
 
 ### Default Credentials
 
-| Role | Username | Password | Deskripsi |
-|------|----------|----------|-----------|
-| Superadmin | `superadmin` | `admin123` | Semua permission (termasuk app_settings, consignment) |
-| Admin | `admin` | `admin123` | User management, reports, PO, pricing, consignment view/settle (tanpa audit.view / role.update / user.delete / app_settings.update / consignment.pay) |
-| Manager | `manager` | `admin123` | Inventory, sales, PO, pricing, shifts, consignment view/create/update/settle |
-| Cashier | `cashier` | `admin123` | POS only (create/view sales, park, shift, Find Transaction lookup + cross-cashier reprint) |
-| Staff | `staff` | `admin123` | Produk (view) + stock opname counting |
+| Role | Username | Password | Description |
+|------|----------|----------|-------------|
+| Superadmin | `superadmin` | `admin123` | All permissions (84 including consignment.*, app_settings.*, audit.*) |
+| Admin | `admin` | `admin123` | Operational management: user CRUD, product/category/customer/pricing full CRUD, PO, stock opname, audit view+export (without user.delete, role.update/delete, app_settings.update, purchase_order.delete) |
+| Manager | `manager` | `admin123` | Store operator: product/category/customer full CRUD, pricing, PO, stock opname, consignment view/create/update/settle, shifts |
+| Cashier | `cashier` | `admin123` | POS: create/view sales, park, shift, stock count, dashboard, category/pricing/customer_group view, Find Transaction lookup |
+| Staff | `staff` | `admin123` | View-only: product + stock opname counting + category view |
 
-Ganti password di production via UI change-password. (Default user password seeds previously lived in `database/seeds/`, which was retired; the default `admin123` users are created in `database/migrations/000_squash.sql`.)
+Change password in production via the UI change-password. (Default user password seeds previously lived in `database/seeds/`, which was retired; the default `admin123` users are created in `database/migrations/000_squash.sql`.)
 
 ### Permission Matrix
 
-Permission memakai **dot-notation** (`entity.action`), contoh: `user.view`, `product.create`, `stock_opname.post`. Tabel ini adalah konfigurasi default dari seeds; dapat diubah via Role Management UI. Total 84 permissions (termasuk `consignment.*`, `app_settings.*`, `sale.lookup`, `sale.detail`, `receipt.print`).
+Permissions use **dot-notation** (`entity.action`), e.g.: `user.view`, `product.create`, `stock_opname.post`. This table is the default configuration from seeds; it can be changed via the Role Management UI. Total 85 permissions (including `consignment.*`, `app_settings.*`, `sale.lookup`, `sale.detail`, `receipt.print`, `audit.export`).
 
 | Permission | Superadmin | Admin | Manager | Cashier | Staff |
 |------------|:---:|:---:|:---:|:---:|:---:|
-| `dashboard.view` | ✅ | ✅ | ✅ | – | – |
+| `dashboard.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `product.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `product.create` | ✅ | ✅ | ✅ | – | – |
 | `product.update` | ✅ | ✅ | ✅ | – | – |
-| `product.create`, `product.delete` | ✅ | ✅ | – | – | – |
+| `product.delete` | ✅ | ✅ | – | – | – |
 | `product.import`, `product.export` | ✅ | ✅ | – | – | – |
 | `product.history.view` | ✅ | ✅ | – | – | – |
 | `product.cost.view` | ✅ | ✅ | ✅ | – | – |
-| `category.view` | ✅ | ✅ | ✅ | – | – |
+| `category.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `category.create` | ✅ | ✅ | ✅ | – | – |
-| `category.update`, `category.delete` | ✅ | ✅ | – | – | – |
+| `category.update`, `category.delete` | ✅ | ✅ | ✅ | – | – |
 | `category.import`, `category.export` | ✅ | ✅ | – | – | – |
 | `sale.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `sale.create`, `sale.park` | ✅ | ✅ | – | ✅ | – |
-| `sale.lookup` | ✅ | ✅ | – | ✅ | – |
+| `sale.lookup` | – | – | – | ✅ | – |
 | `sale.detail`, `receipt.print` | ✅ | ✅ | ✅ | ✅ | – |
 | `shift.view`, `shift.create` | ✅ | ✅ | ✅ | ✅ | – |
 | `shift.review`, `shift.audit` | ✅ | ✅ | ✅ | – | – |
@@ -728,22 +736,22 @@ Permission memakai **dot-notation** (`entity.action`), contoh: `user.view`, `pro
 | `report.view` | ✅ | ✅ | ✅ | – | – |
 | `customer.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `customer.create`, `customer.update` | ✅ | ✅ | ✅ | – | – |
-| `customer.delete` | ✅ | ✅ | – | – | – |
-| `customer.import`, `customer.export` | ✅ | ✅ | – | – | – |
-| `customer_group.view` | ✅ | ✅ | ✅ | – | – |
-| `customer_group.create/update/delete` | ✅ | ✅ | – | – | – |
+| `customer.delete` | ✅ | ✅ | ✅ | – | – |
+| `customer.import`, `customer.export` | ✅ | ✅ | ✅ | – | – |
+| `customer_group.view` | ✅ | ✅ | ✅ | ✅ | – |
+| `customer_group.create/update/delete` | ✅ | ✅ | ✅ | – | – |
 | `store.view` | ✅ | ✅ | – | – | – |
 | `store.create/update/delete` | ✅ | ✅ | – | – | – |
 | `storage_location.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `storage_location.create/update/delete` | ✅ | ✅ | – | – | – |
 | `stock_opname.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `stock_opname.count`, `stock_opname.submit` | ✅ | ✅ | – | ✅ | ✅ |
+| `stock_opname.count`, `stock_opname.submit` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `stock_opname.create`, `stock_opname.assign` | ✅ | ✅ | ✅ | – | – |
 | `stock_opname.verify`, `stock_opname.post`, `stock_opname.close`, `stock_opname.report` | ✅ | ✅ | ✅ | – | – |
 | `stock_opname.cancel`, `stock_opname.export`, `stock_opname.recount` | ✅ | ✅ | ✅ | – | – |
-| `pricing.view` | ✅ | ✅ | ✅ | – | – |
+| `pricing.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `pricing.create`, `pricing.update` | ✅ | ✅ | ✅ | – | – |
-| `pricing.delete` | ✅ | ✅ | – | – | – |
+| `pricing.delete` | ✅ | ✅ | ✅ | – | – |
 | `purchase_order.view/create/update/confirm/receive` | ✅ | ✅ | ✅ | – | – |
 | `purchase_order.delete` | ✅ | – | – | – | – |
 | `purchase_order.cancel` | ✅ | ✅ | ✅ | – | – |
@@ -757,7 +765,7 @@ Permission memakai **dot-notation** (`entity.action`), contoh: `user.view`, `pro
 | `user.delete` | ✅ | – | – | – | – |
 | `role.view`, `role.create` | ✅ | ✅ | – | – | – |
 | `role.update`, `role.delete` | ✅ | – | – | – | – |
-| `audit.view` | ✅ | – | – | – | – |
+| `audit.view`, `audit.export` | ✅ | ✅ | – | – | – |
 
 ### Testing
 
@@ -769,7 +777,7 @@ DB_USER=pos DB_PASSWORD=admin123 JWT_SECRET=test-secret-for-testing-only \
 go test -p 1 -count=1 ./...
 ```
 
-#### Coverage (exclude `cmd/` dan `tools/`)
+#### Coverage (excluding `cmd/` and `tools/`)
 
 ```bash
 TEST_DB_PORT=5433 DB_PORT=5433 TEST_DB_USER=pos DB_PASSWORD=admin123 JWT_SECRET=test-secret-for-testing-only \
@@ -788,11 +796,11 @@ cd web && npm run test:run
 npx playwright test --reporter=list
 ```
 
-> Jalankan dari root repositori (di mana `playwright.config.js` berada). E2E membutuhkan server backend + frontend yang berjalan (`./run-dev.sh` dan `npm run dev`).
+> Run from the repository root (where `playwright.config.js` is located). E2E requires the backend + frontend servers to be running (`./run-dev.sh` and `npm run dev`).
 
 #### Test Database
 
-Tests terhubung ke database `retail_pos_test` (konfigurasi via `TEST_DB_*` env vars). Framework test auto-apply migrasi pending. Jika schema test tidak sinkron: `dropdb retail_pos_test && createdb retail_pos_test`, lalu jalankan ulang tests.
+Tests connect to the `retail_pos_test` database (configured via `TEST_DB_*` env vars). The test framework auto-applies pending migrations. If the test schema is out of sync: `dropdb retail_pos_test && createdb retail_pos_test`, then re-run the tests.
 
 ### Print Agent (Go)
 
@@ -1094,7 +1102,7 @@ The POS is the cash register screen. It has two areas: a **product search panel*
 
 If you are a **cashier**, you must open a shift first:
 
-1. When you reach the POS without an open shift, you'll see *"Anda harus membuka shift terlebih dahulu"* and be redirected to **Shifts**.
+1. When you reach the POS without an open shift, you'll see *"Anda harus membuka shift terlebih dahulu"* (You must open a shift first) and be redirected to **Shifts**.
 2. Click **Open Shift** and enter your **opening balance** — the amount of cash in the drawer at the start of the shift.
 3. Confirm. You are taken to the POS.
 
@@ -1133,14 +1141,14 @@ You can park a sale and resume it later — stock is **not** reduced while held.
 
 #### Checkout & Payment
 
-1. Press **F4** or click the green **Bayar [F4]** button. The **Pembayaran** (Payment) modal opens with a default **CASH** row of Rp 0.
-2. Click the payment-method buttons to add an **Alokasi Pembayaran** (payment allocation) row for each method. The available methods are **Cash (CASH)**, **Card (CARD)**, **E-Wallet (E_WALLET)**, **Transfer (TRANSFER)**, and **QRIS**.
-   - For non-cash methods a **No. Referensi** (reference number) field is pre-filled; you can edit it.
-   - For cash, use the quick buttons **5rb / 10rb / 20rb / 50rb / 100rb** to add denominations, or press **F7 (Tepat)** to set cash to exactly the total.
-   - Use **Reset** to zero a row and **Hapus semua** to remove all allocations.
+1. Press **F4** or click the green **Bayar [F4]** (Pay) button. The **Pembayaran** (Payment) modal opens with a default **CASH** row of Rp 0.
+2. Click the payment-method buttons to add an **Alokasi Pembayaran** (Payment Allocation) row for each method. The available methods are **Cash (CASH)**, **Card (CARD)**, **E-Wallet (E_WALLET)**, **Transfer (TRANSFER)**, and **QRIS**.
+   - For non-cash methods a **No. Referensi** (Reference Number) field is pre-filled; you can edit it.
+   - For cash, use the quick buttons **5rb / 10rb / 20rb / 50rb / 100rb** to add denominations, or press **F7 (Tepat)** (Exact) to set cash to exactly the total.
+   - Use **Reset** to zero a row and **Hapus semua** (Clear All) to remove all allocations.
 3. Split payment is supported — add multiple allocations as long as they sum to the total.
-4. Press **Enter** or click **Selesai** to complete the sale. This button is only enabled when the allocations equal the total.
-5. Press **Esc** (or click **Batal**) to cancel the checkout and return to the cart.
+4. Press **Enter** or click **Selesai** (Done) to complete the sale. This button is only enabled when the allocations equal the total.
+5. Press **Esc** (or click **Batal** (Cancel)) to cancel the checkout and return to the cart.
 
 On success you'll see *"Sale completed"*, the cart clears, and a receipt is printed automatically according to the selected **print mode** (see below).
 
@@ -1149,7 +1157,7 @@ On success you'll see *"Sale completed"*, the cart clears, and a receipt is prin
 By default the sale is to **Walk-in / General**. To attach a customer:
 
 1. Click the customer row in the checkout modal.
-2. In the **Pilih Customer** dialog, search by **name or phone**, or choose **Walk-in / Umum**.
+2. In the **Pilih Customer** (Select Customer) dialog, search by **name or phone**, or choose **Walk-in / Umum** (Walk-in / General).
 3. Selecting a customer applies that customer's group pricing to the items in the cart.
 
 #### Reprinting a Receipt
@@ -1241,7 +1249,7 @@ The **My Transactions** tab shows only the cashier's own sales. The **Find Trans
 Click a row to open the **Transaction Details** drawer:
 - Invoice number, date/time, customer, and payment methods (with per-method amounts and reference numbers).
 - The item list with quantities, prices, and subtotals (original price struck through when discounted).
-- Totals: **Hemat** (savings), **Subtotal (DPP)**, **PPN 11%**, and **TOTAL**.
+- Totals: **Hemat** (Savings), **Subtotal (DPP)**, **PPN 11%**, and **TOTAL**.
 - Actions: **Print Receipt** (thermal receipt) and **Download Invoice** (a PDF invoice).
 
 **Exporting**
@@ -1285,7 +1293,7 @@ The **Products** page (Inventory → Products, or Master Data → Products) is y
 #### Browsing Products
 
 - **Search** — by name, SKU, or barcode.
-- **Kategori** — filter by one or more categories.
+- **Kategori** (Category) — filter by one or more categories.
 - **Status** — All / Active / Inactive / Archived.
 - **Low Stock** toggle — show only products at or below the critical threshold.
 - **Supplier** — filter to a specific supplier's products (arrived via the Suppliers page).
@@ -1323,9 +1331,9 @@ This records an inventory adjustment; the note is kept as the reason.
 
 #### Rack Stock (Stok Rak)
 
-Opening a product's **detail drawer** shows a **Stok Rak (Lokasi)** panel listing how much of the product sits in each storage location (rack/shelf). Rack rows are a *sub-account* of the global stock — set/transfer operations never change the global stock number.
+Opening a product's **detail drawer** shows a **Stok Rak (Lokasi)** (Rack Stock (Location)) panel listing how much of the product sits in each storage location (rack/shelf). Rack rows are a *sub-account* of the global stock — set/transfer operations never change the global stock number.
 
-- **Tambah Stok / Set** — records the exact quantity of the product in a chosen location (upsert; overwrites the current rack figure).
+- **Tambah Stok / Set** (Add Stock / Set) — records the exact quantity of the product in a chosen location (upsert; overwrites the current rack figure).
 - **Transfer** — moves a quantity from one location to another (requires the source to have enough stock).
 
 Rack stock is reconciled automatically when a **stock opname scoped to a storage location** is posted: the rack row is corrected to the physical count, and the global stock is recomputed from that count (see §13), so a rack count reconciles the sub-account with the global number.
@@ -1381,9 +1389,9 @@ There is no credit/balance feature; customers are used mainly to attach group pr
 
 Groups allow you to apply group-specific pricing at the POS.
 
-**Create:** **Tambah Group** → **Group Name** (required), **Description**, and an avatar **color**.
-**Edit / Delete / Duplicate:** via the row's kebab menu (Duplicate pre-fills the name as `{name} (Salinan)`).
-**View members:** kebab menu → **Lihat Anggota** jumps to the Customers page filtered to that group; a **Kembali** banner returns to the group list.
+**Create:** **Tambah Group** (Add Group) → **Group Name** (required), **Description**, and an avatar **color**.
+**Edit / Delete / Duplicate:** via the row's kebab menu (Duplicate pre-fills the name as `{name} (Salinan)` (Copy)).
+**View members:** kebab menu → **Lihat Anggota** (View Members) jumps to the Customers page filtered to that group; a **Kembali** (Back) banner returns to the group list.
 
 Clicking a row opens a drawer with group details and an **activity history** (created/updated/deleted by whom and when).
 
@@ -1399,7 +1407,7 @@ The **Suppliers** page manages the vendors you purchase from.
 
 **Edit:** change details and toggle **Active**.
 
-**View:** the detail drawer shows supplier info and their products. A **products** link filters the Products page to this supplier (with a **Kembali ke Suppliers** banner).
+**View:** the detail drawer shows supplier info and their products. A **products** link filters the Products page to this supplier (with a **Kembali ke Suppliers** (Back to Suppliers) banner).
 
 Suppliers are used by Purchase Orders — when creating a PO you pick a supplier and choose only products linked to that supplier.
 
@@ -1409,9 +1417,9 @@ Suppliers are used by Purchase Orders — when creating a PO you pick a supplier
 
 **Storage Locations** (`/storage-locations`, Indonesian UI) are master data for where products are physically kept (racks/shelves), scoped to a **warehouse** or a **store**.
 
-- **Search** by code or name; filter **Semua / Aktif / Nonaktif**.
-- **Tambah Lokasi** → **Kode** (required, e.g. `RAK-A-01`) and **Nama** (required, e.g. `Rak A - Baris 1`), a scope (**Gudang**/warehouse or **Toko**/store), and optional **Catatan** (notes).
-- **Edit** and **Delete** via the row's action menu; bulk **Aktifkan / Nonaktifkan / Hapus**.
+- **Search** by code or name; filter **Semua / Aktif / Nonaktif** (All / Active / Inactive).
+- **Tambah Lokasi** (Add Location) → **Kode** (Code, required, e.g. `RAK-A-01`) and **Nama** (Name, required, e.g. `Rak A - Baris 1`), a scope (**Gudang**/Warehouse or **Toko**/Store), and optional **Catatan** (Notes).
+- **Edit** and **Delete** via the row's action menu; bulk **Aktifkan / Nonaktifkan / Hapus** (Activate / Deactivate / Delete).
 
 This is master data only for the location itself. Rack-level stock tracking is live — see **Rack Stock (Stok Rak)** in §6 — and rack-aware stock counts are available via the **Storage Location (Rack)** scope in §13.
 
@@ -1423,28 +1431,28 @@ Pricing Rules define special prices, promotions, and markups. They are applied a
 
 **Rule types**
 - **Default** — the product's base price.
-- **Harga Khusus** (`special_price`) — a specific price.
-- **Promosi** (`promotion`) — a discount or markup.
+- **Harga Khusus** (Special Price, `special_price`) — a specific price.
+- **Promosi** (Promotion, `promotion`) — a discount or markup.
 
 **Methods**
-- **Harga Tetap** (`fixed_price`) — set an exact price.
-- **Diskon (%)** (`discount_percent`) — percentage off.
-- **Diskon (Rp)** (`discount_amount`) — fixed amount off.
+- **Harga Tetap** (Fixed Price, `fixed_price`) — set an exact price.
+- **Diskon (%)** (Discount Percent, `discount_percent`) — percentage off.
+- **Diskon (Rp)** (Discount Amount, `discount_amount`) — fixed amount off.
 - **Markup (%)** (`markup_percent`) — percentage added.
 
 #### Creating a Pricing Rule
 
-Click **Tambah Rule** and complete the five-step form:
+Click **Tambah Rule** (Add Rule) and complete the five-step form:
 
-1. **Informasi Rule** — Name (required), Price Type, Method, and Value.
+1. **Informasi Rule** (Rule Information) — Name (required), Price Type, Method, and Value.
 2. **Kondisi** (Conditions) — minimum/maximum quantity (empty = unlimited), customer group (All Groups), outlet (All Outlets).
 3. **Target** — choose products, categories, and/or brands (at least one target is required; leave unused fields empty).
-4. **Jadwal** (Schedule) — All Days / Weekdays / Weekend, active hours (Dari Jam–Sampai Jam), and validity dates (empty = always).
-5. **Ringkasan Rule** — a live 12-row preview of the rule.
+4. **Jadwal** (Schedule) — All Days / Weekdays / Weekend, active hours (Dari Jam–Sampai Jam) (From Hour – To Hour), and validity dates (empty = always).
+5. **Ringkasan Rule** (Rule Summary) — a live 12-row preview of the rule.
 
-You can tick **"Boleh digabung (stacking)"** to allow the rule to combine with other rules.
+You can tick **"Boleh digabung (stacking)"** (Allow stacking) to allow the rule to combine with other rules.
 
-On save, the system checks for **conflicts** with existing rules. If a conflict is found, a **Konflik Ditemukan** warning lists the conflicting rules and lets you choose **Tetap Simpan** (save anyway) or go back.
+On save, the system checks for **conflicts** with existing rules. If a conflict is found, a **Konflik Ditemukan** (Conflict Found) warning lists the conflicting rules and lets you choose **Tetap Simpan** (Save Anyway) or go back.
 
 #### Approval Workflow
 
@@ -1459,17 +1467,17 @@ Draft → Pending → Approved
 - **Approve** — approves a pending rule (making it active).
 - **Reject** — rejects a pending rule (back to draft).
 
-You can also **Edit**, **Duplikasi** (duplicate), **Hapus** (delete), and **Aktifkan/Nonaktifkan** (enable/disable) rules, and use the bulk bar.
+You can also **Edit**, **Duplikasi** (Duplicate), **Hapus** (Delete), and **Aktifkan/Nonaktifkan** (Enable/Disable) rules, and use the bulk bar.
 
-**Filters:** search, All/Aktif/Nonaktif, approval status (Semua Approval), rule type, and method.
+**Filters:** search, All/Aktif/Nonaktif (All/Active/Inactive), approval status (Semua Approval) (All Approval), rule type, and method.
 
 #### Simulating a Price
 
 The **Simulasi** (Simulation) tool answers "what will this cost?":
 
-1. Click **Simulasi**.
-2. Select a **product** (type at least 2 characters), **Jumlah** (quantity), **Customer Group**, and **Toko** (store).
-3. Click **Hitung**.
+1. Click **Simulasi** (Simulate).
+2. Select a **product** (type at least 2 characters), **Jumlah** (Quantity), **Customer Group**, and **Toko** (Store).
+3. Click **Hitung** (Calculate).
 4. The result shows the original price, the final price, and the rule applied (discounted, markup, or normal).
 
 The Product edit form also shows the rules attached to each product.
@@ -1605,7 +1613,7 @@ Posting is deliberately separate from verification (separation of duties) — th
 
 ### 14. Konsinyasi Supplier
 
-The **Konsinyasi Supplier** module (`/consignment`) manages consignment stock — goods owned by a supplier that sit on your shelves. You sell them at terms you agree on, and the supplier is paid only after the goods are sold and a settlement is processed.
+The **Konsinyasi Supplier** (Consignment Supplier) module (`/consignment`) manages consignment stock — goods owned by a supplier that sit on your shelves. You sell them at terms you agree on, and the supplier is paid only after the goods are sold and a settlement is processed.
 
 #### Core Concept — How Consignment Works
 
@@ -1660,25 +1668,25 @@ Open **Konsinyasi Supplier** from the sidebar. You'll see the **Arrangements Lis
 
 | Column | Meaning |
 |--------|---------|
-| Supplier | Name of the konsinyasi supplier |
-| Status | **Aktif** (active — can receive stock and sell) or **Berakhir** (ended — read-only) |
+| Supplier | Name of the consignment supplier |
+| Status | **Aktif** (Active — can receive stock and sell) or **Berakhir** (Ended — read-only) |
 | Terms | Number of products with agreed pricing terms |
 | Last Visit | When the supplier last delivered goods |
 
 **Filtering:**
 - **Search bar** — type a supplier name to filter.
-- **Status buttons** — toggle between **Semua** (all), **Aktif** (active only), **Berakhir** (ended only).
+- **Status buttons** — toggle between **Semua** (All), **Aktif** (Active only), **Berakhir** (Ended only).
 
 **Creating a new arrangement:**
-1. Click **Arrangement Baru** (top-right).
-2. In the modal, select the **Supplier** from the dropdown (only konsinyasi suppliers appear).
+1. Click **Arrangement Baru** (New Arrangement) (top-right).
+2. In the modal, select the **Supplier** from the dropdown (only consignment suppliers appear).
 3. The **Store** defaults to your current store (superadmin/admin can change it).
 4. Click **Create**. The arrangement appears in the list with status **Aktif**.
 
-> If no konsinyasi suppliers appear in the dropdown, go to **Suppliers** first and toggle the **Supplier Konsinyasi** flag on the supplier you want to use.
+> If no consignment suppliers appear in the dropdown, go to **Suppliers** first and toggle the **Supplier Konsinyasi** (Consignment Supplier) flag on the supplier you want to use.
 
 **Opening an arrangement:**
-Click the **Buka** (Open) button on any row. This opens the arrangement detail view with six tabs. A back arrow (< Kembali) at the top-left returns you to the list.
+Click the **Buka** (Open) button on any row. This opens the arrangement detail view with six tabs. A back arrow (< Kembali (Back)) at the top-left returns you to the list.
 
 The arrangement header shows the supplier name, status badge (**Aktif** / **Berakhir**), and the last visit date.
 
@@ -1692,16 +1700,16 @@ This is the **default tab** when you open an arrangement. It records goods deliv
 
 **Recording a new receipt:**
 
-1. Click **Catat Penerimaan** (top-right).
+1. Click **Catat Penerimaan** (Record Receipt) (top-right).
 2. The receipt form opens with one empty product line. For each line:
-   - **Produk** (required) — search and select the product.
+   - **Produk** (Product, required) — search and select the product.
    - **Dibawa** (Brought) — the quantity the supplier delivered (default: 1).
    - **Ditolak** (Rejected) — units you refuse (damaged, wrong item, etc.). Default: 0.
    - **Accepted** = Dibawa minus Ditolak (shown automatically below the fields).
-3. If the product has a term, the agreed price per unit is displayed (e.g. "Terms: Rp 50,000 per unit"). If there is **no term** for the product, a yellow warning "Belum ada terms" appears — go to the Terms tab first to add one.
-4. Click **+ Tambah Baris** to add more product lines.
-5. Optionally add **Catatan** (notes) at the bottom.
-6. Click **Simpan** to save. A toast confirms the receipt number and the receipt appears in the history.
+3. If the product has a term, the agreed price per unit is displayed (e.g. "Terms: Rp 50,000 per unit"). If there is **no term** for the product, a yellow warning "Belum ada terms" (No terms yet) appears — go to the Terms tab first to add one.
+4. Click **+ Tambah Baris** (Add Row) to add more product lines.
+5. Optionally add **Catatan** (Notes) at the bottom.
+6. Click **Simpan** (Save) to save. A toast confirms the receipt number and the receipt appears in the history.
 
 > **Stock impact:** accepted quantities are added to the supplier's consignment stock immediately.
 
@@ -1715,15 +1723,15 @@ Terms define the pricing agreement for each product on consignment. **You must s
 
 **Adding a term:**
 
-1. Click **Tambah Term** (top-right).
+1. Click **Tambah Term** (Add Term) (top-right).
 2. Fill in the form:
-   - **Produk** (required) — search and select the product.
-   - **Harga (Rp)** (required) — the agreed retail price per unit.
-   - **Jenis Share** (required) — choose one:
-     - **Persentase (%)** — the store keeps a percentage of each sale (e.g. 20%). Must be between 0 and 100 (exclusive).
-     - **Nominal Tetap (Rp)** — the store keeps a fixed Rp amount per unit sold. Must be greater than 0.
-   - **Nilai Share** — the share value (percentage or Rp amount, depending on the type above).
-3. Click **Simpan**.
+   - **Produk** (Product, required) — search and select the product.
+   - **Harga (Rp)** (Price, required) — the agreed retail price per unit.
+   - **Jenis Share** (Share Type, required) — choose one:
+     - **Persentase (%)** (Percentage) — the store keeps a percentage of each sale (e.g. 20%). Must be between 0 and 100 (exclusive).
+     - **Nominal Tetap (Rp)** (Fixed Amount) — the store keeps a fixed Rp amount per unit sold. Must be greater than 0.
+   - **Nilai Share** (Share Value) — the share value (percentage or Rp amount, depending on the type above).
+3. Click **Simpan** (Save).
 
 > **Example:** Price = Rp 50,000, Share Type = Persentase, Share Value = 20. When one unit is sold, the store keeps Rp 10,000 and the supplier is owed Rp 40,000.
 
@@ -1735,21 +1743,21 @@ Terms define the pricing agreement for each product on consignment. **You must s
 
 A **Retur Tertunda** (Pending Return) records items pulled off the display **before** they are physically handed back to the supplier. This removes them from available stock while keeping them as supplier ownership until the formal return.
 
-**The list shows:** Product (name + SKU), Quantity, Reason, Status (**Terbuka** = open / **Diproses** = returned/fulfilled), and Date.
+**The list shows:** Product (name + SKU), Quantity, Reason, Status (**Terbuka** = Open / **Diproses** = Returned/Fulfilled), and Date.
 
 **Recording a pending return:**
 
-1. Click **Catat Retur Tertunda** (top-right).
+1. Click **Catat Retur Tertunda** (Record Pending Return) (top-right).
 2. Fill in the form:
-   - **Produk dari Stok** (required) — the dropdown shows only products with available consignment stock, along with their available quantity (e.g. "Kopi ABC (SKU-001) — Stok tersedia 50").
-   - **Jumlah** (required) — how many units to pull from display. Cannot exceed the available stock (a "Maks: XX" hint appears below the field).
-   - **Alasan** (required) — pick one: **Rusak** (damaged), **Kadaluarsa** (expired), **Retur Pelanggan** (customer return), or **Lainnya** (other).
-   - **Catatan** (optional) — free-text notes.
-3. Click **Simpan**.
+   - **Produk dari Stok** (Product from Stock, required) — the dropdown shows only products with available consignment stock, along with their available quantity (e.g. "Kopi ABC (SKU-001) — Stok tersedia 50" (Available stock 50)).
+   - **Jumlah** (Quantity, required) — how many units to pull from display. Cannot exceed the available stock (a "Maks: XX" (Max: XX) hint appears below the field).
+   - **Alasan** (Reason, required) — pick one: **Rusak** (Damaged), **Kadaluarsa** (Expired), **Retur Pelanggan** (Customer Return), or **Lainnya** (Other).
+   - **Catatan** (Notes, optional) — free-text notes.
+3. Click **Simpan** (Save).
 
 > **Stock impact:** the product's available stock decreases by the pending return quantity. The pending return quantity is tracked separately until a formal return is created.
 
-**Cancelling a pending return:** A pending return in **Terbuka** (open) status can be cancelled via the API, which restores the available stock.
+**Cancelling a pending return:** A pending return in **Terbuka** (Open) status can be cancelled via the API, which restores the available stock.
 
 ---
 
@@ -1759,20 +1767,20 @@ A formal return records the **physical hand-back** of goods to the supplier. It 
 
 **The list shows:** Return Number (RT-xxxxxx), Date, Item count, and Total quantity returned.
 
-If there are open pending returns, a yellow notice appears at the top: *"X retur tertunda terbuka"* — reminding you to link them.
+If there are open pending returns, a yellow notice appears at the top: *"X retur tertunda terbuka"* (X pending returns open) — reminding you to link them.
 
 **Recording a formal return:**
 
-1. Click **Catat Retur** (top-right).
+1. Click **Catat Retur** (Record Return) (top-right).
 2. The form opens with one empty product line. For each line:
-   - **Produk** (required) — search and select the product.
-   - **Jumlah** — the quantity being returned.
-   - **Alasan** — pick one: **Rusak**, **Kadaluarsa**, **Retur Pelanggan**, or **Lainnya**.
-   - **Link ke Retur Tertunda** (optional) — if this return corresponds to an existing pending return, select it from the dropdown. This closes the pending return and reduces the pending_return_qty. You can leave it as "Tidak ada link" if no pending return applies.
-   - **Catatan** (optional) — notes for this line.
-3. Click **+ Tambah Baris** to return multiple products at once.
-4. Optionally add **Catatan Keseluruhan** (overall notes) at the bottom.
-5. Click **Simpan**. A toast confirms the return number (RT-xxxxxx).
+   - **Produk** (Product, required) — search and select the product.
+   - **Jumlah** (Quantity) — the quantity being returned.
+   - **Alasan** (Reason) — pick one: **Rusak** (Damaged), **Kadaluarsa** (Expired), **Retur Pelanggan** (Customer Return), or **Lainnya** (Other).
+   - **Link ke Retur Tertunda** (Link to Pending Return, optional) — if this return corresponds to an existing pending return, select it from the dropdown. This closes the pending return and reduces the pending_return_qty. You can leave it as "Tidak ada link" (No link) if no pending return applies.
+   - **Catatan** (Notes, optional) — notes for this line.
+3. Click **+ Tambah Baris** (Add Row) to return multiple products at once.
+4. Optionally add **Catatan Keseluruhan** (Overall Notes) at the bottom.
+5. Click **Simpan** (Save). A toast confirms the return number (RT-xxxxxx).
 
 > **Stock impact:** the product's total consignment stock decreases by the returned quantity. If a pending return was linked, the pending_return_qty is also reduced.
 
@@ -1791,36 +1799,36 @@ This shows all completed POS sales of consignment items that have **not yet been
 **The preview table shows per product:** Product name, Quantity sold, Unit Price, Subtotal, and Store Share amount.
 
 **The footer row shows three totals:**
-- **Total Penjualan** — total sale value of unsettled items.
-- **Hak Toko** — your store's total share.
-- **Terhutang ke Supplier** — the amount you owe the supplier (= Total Penjualan minus Hak Toko).
+- **Total Penjualan** (Total Sales) — total sale value of unsettled items.
+- **Hak Toko** (Store Share) — your store's total share.
+- **Terhutang ke Supplier** (Owed to Supplier) — the amount you owe the supplier (= Total Penjualan minus Hak Toko).
 
 **Creating a settlement:**
 
 1. Review the unsettled items in the preview.
-2. Click **Buat Settlement** (top-right). The button is disabled when there are no unsettled items.
+2. Click **Buat Settlement** (Create Settlement) (top-right). The button is disabled when there are no unsettled items.
 3. A confirmation modal shows the number of items and the total payable amount.
-4. Click **Buat Settlement** to confirm. A toast confirms the settlement number (CS-xxxxxx).
+4. Click **Buat Settlement** (Create Settlement) to confirm. A toast confirms the settlement number (CS-xxxxxx).
 5. The unsettled preview clears (all items are now part of the settlement) and the settlement appears in the history below.
 
 > Settlement covers **all** unsettled sales — you cannot settle only some items.
 
 ##### Settlement History (bottom card)
 
-This lists all past settlements with columns: Settlement Number (CS-xxxxxx), Date, Total amount, and Status (**Menunggu Pembayaran** = pending payment / **Dibayar** = paid).
+This lists all past settlements with columns: Settlement Number (CS-xxxxxx), Date, Total amount, and Status (**Menunggu Pembayaran** = Pending Payment / **Dibayar** = Paid).
 
 **Recording a payout (paying the supplier):**
 
-1. On a settlement with status **Menunggu Pembayaran**, click **Bayar**.
+1. On a settlement with status **Menunggu Pembayaran** (Pending Payment), click **Bayar** (Pay).
 2. The payout modal shows the outstanding amount at the top.
 3. Fill in:
-   - **Metode Pembayaran** (required) — select from the available payment methods (Cash, Card, E-Wallet, Transfer, QRIS, etc.).
-   - **Jumlah** (required) — defaults to the full outstanding amount. You can enter a lower amount for partial payment; the settlement remains pending until fully paid.
-   - **No. Referensi** (optional) — a reference number (e.g. transfer receipt number).
-   - **Catatan** (optional) — notes about the payment.
-4. Click **Bayar**. A toast confirms the payout number (CP-xxxxxx).
+   - **Metode Pembayaran** (Payment Method, required) — select from the available payment methods (Cash, Card, E-Wallet, Transfer, QRIS, etc.).
+   - **Jumlah** (Amount, required) — defaults to the full outstanding amount. You can enter a lower amount for partial payment; the settlement remains pending until fully paid.
+   - **No. Referensi** (Reference Number, optional) — a reference number (e.g. transfer receipt number).
+   - **Catatan** (Notes, optional) — notes about the payment.
+4. Click **Bayar** (Pay). A toast confirms the payout number (CP-xxxxxx).
 
-> The settlement status changes to **Dibayar** only when the total paid equals the total payable. Until then, the **Bayar** button remains available for additional payments.
+> The settlement status changes to **Dibayar** (Paid) only when the total paid equals the total payable. Until then, the **Bayar** (Pay) button remains available for additional payments.
 
 ---
 
@@ -1833,8 +1841,8 @@ This is a read-only view of the consignment stock for this supplier.
 | Column | Meaning |
 |--------|---------|
 | Product | Product name and SKU |
-| Stok Tersedia | Available quantity (can be sold) |
-| Retur Tertunda | Quantity pending return (pulled from display, not yet handed back) |
+| Stok Tersedia (Available Stock) | Available quantity (can be sold) |
+| Retur Tertunda (Pending Return) | Quantity pending return (pulled from display, not yet handed back) |
 
 > **How stock changes:** Receipts increase available stock. POS sales decrease both total and available stock. Pending returns decrease available stock and increase pending_return_qty. Formal returns decrease total stock and decrease pending_return_qty.
 
@@ -1864,20 +1872,20 @@ This is a read-only view of the consignment stock for this supplier.
 Here is a full example of a consignment flow for a supplier "Toko Kopi Maju":
 
 **Step 1 — Setup**
-1. Go to **Suppliers**. Create or edit "Toko Kopi Maju" and toggle **Supplier Konsinyasi** on.
+1. Go to **Suppliers**. Create or edit "Toko Kopi Maju" and toggle **Supplier Konsinyasi** (Consignment Supplier) on.
 2. Link the products this supplier will provide (e.g. "Kopi Robusta 250g", "Teh Hijau 100g").
-3. Go to **Konsinyasi Supplier**. Click **Arrangement Baru**, select "Toko Kopi Maju", and create.
+3. Go to **Konsinyasi Supplier** (Consignment Supplier). Click **Arrangement Baru** (New Arrangement), select "Toko Kopi Maju", and create.
 
 **Step 2 — Set Terms**
 1. Open the arrangement. Go to the **Terms** tab.
-2. Add a term for "Kopi Robusta 250g": Price = Rp 45,000, Share = Persentase 25%.
-3. Add a term for "Teh Hijau 100g": Price = Rp 25,000, Share = Nominal Tetap Rp 5,000.
+2. Add a term for "Kopi Robusta 250g": Price = Rp 45,000, Share = Persentase (Percentage) 25%.
+3. Add a term for "Teh Hijau 100g": Price = Rp 25,000, Share = Nominal Tetap (Fixed Amount) Rp 5,000.
 
 **Step 3 — Receive Goods**
-1. Switch to the **Penerimaan** tab. Click **Catat Penerimaan**.
-2. Line 1: Kopi Robusta 250g, Dibawa = 100, Ditolak = 2. Accepted = 98.
-3. Line 2: Teh Hijau 100g, Dibawa = 200, Ditolak = 0. Accepted = 200.
-4. Click **Simpan**. Receipt CR-000001 is created. Stock increases.
+1. Switch to the **Penerimaan** (Receiving) tab. Click **Catat Penerimaan** (Record Receipt).
+2. Line 1: Kopi Robusta 250g, Dibawa (Brought) = 100, Ditolak (Rejected) = 2. Accepted = 98.
+3. Line 2: Teh Hijau 100g, Dibawa (Brought) = 200, Ditolak (Rejected) = 0. Accepted = 200.
+4. Click **Simpan** (Save). Receipt CR-000001 is created. Stock increases.
 
 **Step 4 — Sell at POS**
 1. A cashier sells 5 Kopi Robusta at the POS register. The sale completes normally.
@@ -1886,20 +1894,20 @@ Here is a full example of a consignment flow for a supplier "Toko Kopi Maju":
 
 **Step 5 — Handle a Return (if needed)**
 1. 3 units of Teh Hijau are found expired on the shelf.
-2. Go to the arrangement -> **Retur Tertunda** tab -> **Catat Retur Tertunda**.
-3. Product = Teh Hijau 100g, Jumlah = 3, Alasan = Kadaluarsa. Save.
-4. Later, when the supplier picks them up, go to **Retur** tab -> **Catat Retur**.
-5. Line: Teh Hijau 100g, Jumlah = 3, Alasan = Kadaluarsa, Link = select the pending return. Save.
+2. Go to the arrangement -> **Retur Tertunda** (Pending Return) tab -> **Catat Retur Tertunda** (Record Pending Return).
+3. Product = Teh Hijau 100g, Jumlah (Quantity) = 3, Alasan (Reason) = Kadaluarsa (Expired). Save.
+4. Later, when the supplier picks them up, go to **Retur** (Return) tab -> **Catat Retur** (Record Return).
+5. Line: Teh Hijau 100g, Jumlah (Quantity) = 3, Alasan (Reason) = Kadaluarsa (Expired), Link = select the pending return. Save.
 
 **Step 6 — Settle and Pay**
 1. Go to the **Settlement** tab. The preview shows 5 units of Kopi Robusta sold.
-   - Total Penjualan: Rp 225,000 (5 x Rp 45,000)
-   - Hak Toko: Rp 56,250 (5 x Rp 11,250)
-   - Terhutang ke Supplier: Rp 168,750
-2. Click **Buat Settlement** and confirm. Settlement CS-000001 is created.
-3. Finance pays the supplier via bank transfer. Click **Bayar** on CS-000001.
-4. Select Transfer, enter the full amount Rp 168,750, add the transfer reference number. Click **Bayar**.
-5. Settlement status changes to **Dibayar**. Done.
+   - Total Penjualan (Total Sales): Rp 225,000 (5 x Rp 45,000)
+   - Hak Toko (Store Share): Rp 56,250 (5 x Rp 11,250)
+   - Terhutang ke Supplier (Owed to Supplier): Rp 168,750
+2. Click **Buat Settlement** (Create Settlement) and confirm. Settlement CS-000001 is created.
+3. Finance pays the supplier via bank transfer. Click **Bayar** (Pay) on CS-000001.
+4. Select Transfer, enter the full amount Rp 168,750, add the transfer reference number. Click **Bayar** (Pay).
+5. Settlement status changes to **Dibayar** (Paid). Done.
 
 ---
 
@@ -1927,8 +1935,8 @@ The **Reports** page is the revenue analytics dashboard.
 
 The **Stores** page (`/stores`, Indonesian UI) manages store branches.
 
-- **Tambah Toko** → **Nama Toko** (required, e.g. "Cabang Bandung"), optional **Alamat** (address) and **Telepon** (phone).
-- **Edit** — change details and toggle **Aktif**.
+- **Tambah Toko** (Add Store) → **Nama Toko** (Store Name, required, e.g. "Cabang Bandung"), optional **Alamat** (Address) and **Telepon** (Phone).
+- **Edit** — change details and toggle **Aktif** (Active).
 - **Delete** — the confirmation suggests deactivating instead of deleting.
 
 Active stores are used elsewhere in the system (e.g. as a scope for storage locations and stock opname, and as the outlet filter for pricing rules).
@@ -1986,29 +1994,30 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 
 | Capability | Superadmin | Admin | Manager | Cashier | Staff |
 |------------|:---:|:---:|:---:|:---:|:---:|
-| Dashboard | ✓ | ✓ | ✓ | — | — |
+| Dashboard | ✓ | ✓ | ✓ | ✓ | — |
 | Point of Sale (create sale) | ✓ | ✓ | — | ✓ | — |
 | View transactions | ✓ | ✓ | ✓ | ✓ (own) | — |
 | Reports | ✓ | ✓ | ✓ | — | — |
 | Shifts — open/close own | ✓ | ✓ | ✓ | ✓ | — |
 | Shifts — view/review all | ✓ | ✓ | ✓ | — | — |
 | Products — view | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Products — create/edit | ✓ | ✓ | ✓ (edit) | — | — |
+| Products — create/edit | ✓ | ✓ | ✓ | — | — |
 | Products — delete | ✓ | ✓ | — | — | — |
 | Inventory adjustment | ✓ | ✓ | ✓ | — | — |
-| Categories — view/create | ✓ | ✓ | ✓ | — | — |
-| Categories — edit/delete | ✓ | ✓ | — | — | — |
+| Categories — view | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Categories — create | ✓ | ✓ | ✓ | — | — |
+| Categories — edit/delete | ✓ | ✓ | ✓ | — | — |
 | Customers — view | ✓ | ✓ | ✓ | ✓ | — |
 | Customers — create/update | ✓ | ✓ | ✓ | — | — |
-| Customers — delete | ✓ | ✓ | — | — | — |
-| Customer groups — view | ✓ | ✓ | ✓ | — | — |
-| Customer groups — manage | ✓ | ✓ | — | — | — |
+| Customers — delete/export/import | ✓ | ✓ | ✓ | — | — |
+| Customer groups — view | ✓ | ✓ | ✓ | ✓ | — |
+| Customer groups — manage | ✓ | ✓ | ✓ | — | — |
 | Suppliers (use module) | ✓ | ✓ | ✓ | — | — |
 | Storage locations — manage | ✓ | ✓ | — | — | — |
-| Pricing rules — create/manage | ✓ | ✓ | ✓ | — | — |
+| Pricing rules — create/manage | ✓ | ✓ | ✓ | ✓ (view) | — |
 | Purchase orders — create/confirm/receive | ✓ | ✓ | ✓ | — | — |
 | Stock opname — create/assign/verify/post/close | ✓ | ✓ | ✓ | — | — |
-| Stock opname — count/submit | ✓ | ✓ | — | ✓ | ✓ |
+| Stock opname — count/submit | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Stock opname — export/report | ✓ | ✓ | ✓ | — | — |
 | Konsinyasi — view | ✓ | ✓ | ✓ | — | — |
 | Konsinyasi — create/update terms | ✓ | ✓ | ✓ | — | — |
@@ -2017,14 +2026,15 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 | Stores — manage | ✓ | ✓ | — | — | — |
 | Users — create/edit | ✓ | ✓ | — | — | — |
 | Users — delete | ✓ | — | — | — | — |
-| Roles — create/edit | ✓ | ✓ | — | — | — |
-| Roles — delete | ✓ | — | — | — | — |
-| Audit logs | ✓ | — | — | — | — |
+| Roles — create | ✓ | ✓ | — | — | — |
+| Roles — update/delete | ✓ | — | — | — | — |
+| Audit logs — view | ✓ | ✓ | — | — | — |
+| Audit logs — export | ✓ | ✓ | — | — | — |
 | Application settings — view | ✓ | ✓ | — | — | — |
 | Application settings — update | ✓ | — | — | — | — |
-| Import/Export | ✓ | ✓ | — | — | — |
+| Import/Export (product, category, customer) | ✓ | ✓ | ✓ (customer) | — | — |
 
-> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions-1)). Exact permission codes per action: `dashboard.view`, `sale.create/view/lookup`, `product.view/create/update/delete`, `category.view/create/update/delete`, `customer.view/create/update/delete`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel`, `shift.view/create`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `consignment.view/create/update/settle/pay`, `app_settings.view/update`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view`, `product.export/import`, `product.history.view`, `product.cost.view`, `category.export/import`, `customer.export/import`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, admin, and manager can use it.
+> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions-1)). Exact permission codes per action: `dashboard.view`, `sale.create/view/lookup/detail/park`, `product.view/create/update/delete/export/import/history.view/cost.view`, `category.view/create/update/delete/export/import`, `customer.view/create/update/delete/export/import`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel/delete`, `shift.view/create/review/audit`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `consignment.view/create/update/settle/pay`, `app_settings.view/update`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view/export`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, admin, and manager can use it.
 
 ---
 

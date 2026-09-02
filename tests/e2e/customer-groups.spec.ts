@@ -129,10 +129,10 @@ test.describe('Customer Groups API - RBAC', () => {
     expect(res.ok()).toBeTruthy();
   });
 
-  test('cashier CANNOT list groups (403)', async ({ request }) => {
+  test('cashier CAN list groups (200)', async ({ request }) => {
     const t = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
     const res = await request.get(`${API_BASE}/api/customer-groups`, { headers: authHeader(t) });
-    expect(res.status()).toBe(403);
+    expect(res.status()).toBe(200);
   });
 
   test('cashier CANNOT create group (403)', async ({ request }) => {

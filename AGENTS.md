@@ -2,7 +2,7 @@
 
 ## Codebase Investigation & Semantic Index
 
-This project uses a semantic codebase index at `.opencode/index`. The current working tree is always the source of truth.
+This project uses a semantic codebase index at `.opencode/index`, use semantic tools provided as much as possible. The current working tree is always the source of truth.
 
 ### Tool selection
 
@@ -165,6 +165,8 @@ Migrations must be applied **before** deploying a new server binary. The server 
 | `035_audit_correlation_id.sql` | Adds `audit_logs.correlation_id` column |
 | `036_audit_export_permission.sql` | Seeds `audit.export` permission |
 | `037_audit_immutable_fk_bypass.sql` | Allows FK-cascade updates through append-only trigger |
+| `038_grant_audit_view_to_admin.sql` | Grants `audit.view` to `admin` (fix: export without view) |
+| `039_business_permission_audit.sql` | Business-perspective audit: +12 manager, +4 cashier, +1 staff permissions |
 
 ## Filesystem Convention
 

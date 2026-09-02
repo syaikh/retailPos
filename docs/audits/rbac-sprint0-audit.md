@@ -1,5 +1,7 @@
 # LAPORAN AUDIT RBAC — Sprint 0 (v4)
 
+> **Catatan Historis:** Dokumen ini adalah snapshot Sprint 0 (2026-08-04) yang mencakup 72 permission. Jumlah permission di DB saat ini adalah **85** (lihat `permission-matrix-final.md` yang sudah diupdate 2026-09-02 untuk state terkini).
+
 **Tanggal:** 2026-08-04 (revisi v4)
 **Status:** FINAL — menunggu approval dokumen Fase 0
 **Tujuan:** Fondasi RBAC — single source of truth untuk authorization di frontend, permission-based, tanpa mengubah workflow/business behavior.
