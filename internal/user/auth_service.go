@@ -101,16 +101,24 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*Lo
 
 	user, err := s.repo.GetByUsername(ctx, username)
 	if err != nil {
-		s.logFailure(ctx, username, ip, ua, "user not found")
-		return nil, ErrInvalidCredentials
+		if errors.Is(err, pgx.ErrNoRows) {
+			s.logFailure(ctx, username, ip, ua, "user not found")
+			return nil, ErrInvalidCredentials
+		}
+		slog.Error("failed to get user for login", "username", username, "error", err)
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 	if !user.IsActive {
 		s.logFailure(ctx, username, ip, ua, "inactive account")
 		return nil, ErrInvalidCredentials
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		s.logFailure(ctx, username, ip, ua, "invalid password")
-		return nil, ErrInvalidCredentials
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			s.logFailure(ctx, username, ip, ua, "invalid password")
+			return nil, ErrInvalidCredentials
+		}
+		slog.Error("bcrypt compare failed", "error", err)
+		return nil, fmt.Errorf("password check failed: %w", err)
 	}
 
 	if err := s.repo.UpdateLastLogin(ctx, user.ID); err != nil {
