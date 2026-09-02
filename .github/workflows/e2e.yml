@@ -1,0 +1,68 @@
+name: e2e
+on: [push, pull_request]
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pos
+          POSTGRES_PASSWORD: admin123
+          POSTGRES_DB: retail_pos
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+      - name: Install web deps
+        working-directory: web
+        run: npm ci
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Start backend
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5433
+          DB_USER: pos
+          DB_PASSWORD: admin123
+          DB_NAME: retail_pos
+          JWT_SECRET: ci-test-secret-for-github-actions-only-32b
+          ENV: development
+        run: |
+          go run cmd/server/main.go &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9095/health && break
+            sleep 2
+          done
+          curl -sf http://localhost:9095/health
+      - name: Start frontend
+        working-directory: web
+        env:
+          VITE_API_BASE_URL: http://localhost:9095
+        run: |
+          npm run dev -- --host 0.0.0.0 --port 5173 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:5173/ && break
+            sleep 2
+          done
+      - name: Run e2e shard ${{ matrix.shard }}/4
+        run: npx playwright test --shard=${{ matrix.shard }}/4
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-${{ matrix.shard }}
+          path: playwright-report
+          retention-days: 7
