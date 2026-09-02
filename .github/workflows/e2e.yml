@@ -28,7 +28,7 @@ jobs:
           node-version: 24
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.22'
+          go-version: '1.26'
       - name: Install deps (root + web)
         run: npm ci
       - name: Install web deps
@@ -53,7 +53,11 @@ jobs:
           RATE_LIMIT_BURST: "200"
         run: |
           go run cmd/server/main.go &
-          npx wait-on http://localhost:9095/health --timeout 60000
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:9095/health && echo "backend ready" && break
+            echo "waiting for backend $i/60"
+            sleep 2
+          done
           curl -sf http://localhost:9095/health
       - name: Start frontend
         working-directory: web
@@ -61,7 +65,11 @@ jobs:
           VITE_API_BASE_URL: http://localhost:9095
         run: |
           npm run dev -- --host 0.0.0.0 --port 5173 &
-          npx wait-on http://localhost:5173 --timeout 60000
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:5173/ && echo "frontend ready" && break
+            echo "waiting for frontend $i/60"
+            sleep 2
+          done
       - name: Run e2e shard ${{ matrix.shard }}/4
         run: npx playwright test --shard=${{ matrix.shard }}/4
       - name: List reports
