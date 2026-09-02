@@ -138,12 +138,25 @@ export function cashPayments(total: number): Array<{ payment_method_code: string
   return [{ payment_method_code: 'CASH', amount: total }];
 }
 
-/** Finds an active product matching `search` and boosts its stock. */
+/** Finds an active product matching `search` and boosts its stock. Deterministic: creates the product if search misses. */
 export async function findProductWithStock(request: any, admin: AuthCtx | ApiDriver, search: string, stockBoost = 500): Promise<{ id: number; price: number }> {
   const api = asApi(request, admin);
   const res = await api.get(`/api/products?search=${encodeURIComponent(search)}&status=active&limit=1`);
-  const product = res.body?.data?.[0];
-  if (!product) throw new Error(`no product found for search "${search}"`);
+  let product = res.body?.data?.[0];
+  if (!product) {
+    const cr = await api.post('/api/products', {
+      name: `${search} E2E ${Date.now()}`,
+      sku: `E2E-QM-${Date.now()}`,
+      price: 10000,
+      cost: 5000,
+      stock: 10,
+      status: 'active',
+      category_id: 1,
+    });
+    if (!cr.ok) throw new Error(`create fallback product for "${search}" failed (${cr.status}): ${JSON.stringify(cr.body)}`);
+    product = cr.body?.data ?? cr.body;
+    // New product already has stock 10, no need to re-fetch
+  }
   await api.post('/api/inventory/adjust', {
     product_id: product.id,
     quantity_change: stockBoost,
