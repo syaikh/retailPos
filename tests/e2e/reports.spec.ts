@@ -1,10 +1,10 @@
 import { test, expect } from './fixtures';
-import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken } from './fixtures';
+import { TEST_USERS, API_BASE, FRONTEND_BASE, loginUI, logoutUI, getToken } from './fixtures';
 
 test.describe('Reports & Analytics', () => {
   test.beforeEach(async ({ page }) => {
     await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    await page.goto('http://localhost:5173/reports');
+    await page.goto(`${FRONTEND_BASE}/reports`);
     await expect(page).toHaveURL(/\/reports/);
   });
 

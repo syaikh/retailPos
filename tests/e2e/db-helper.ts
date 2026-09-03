@@ -131,6 +131,16 @@ export class TestDataTracker {
       execSQL(`DELETE FROM shifts WHERE id IN (${shifts})`);
     }
     if (users) {
+      // Delete ALL shifts for tracked users (including untracked ones created
+      // by ensureOpenShift) before deleting users — shifts_user_id_fkey is
+      // RESTRICT and would otherwise block user deletion.
+      execSQL(`DELETE FROM sale_payments WHERE sale_id IN (SELECT id FROM sales WHERE shift_id IN (SELECT id FROM shifts WHERE user_id IN (${users})))`);
+      execSQL(`DELETE FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE shift_id IN (SELECT id FROM shifts WHERE user_id IN (${users})))`);
+      execSQL(`DELETE FROM sales WHERE shift_id IN (SELECT id FROM shifts WHERE user_id IN (${users}))`);
+      execSQL(`DELETE FROM cart_sessions WHERE shift_id IN (SELECT id FROM shifts WHERE user_id IN (${users}))`);
+      execSQL(`DELETE FROM shifts WHERE user_id IN (${users})`);
+    }
+    if (users) {
       // audit_logs has an append-only trigger; bypass it via the GUC the
       // migration (034) introduced for maintenance operations. Combine SET
       // and DELETE in one psql invocation so the GUC persists.

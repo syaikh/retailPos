@@ -839,6 +839,9 @@ func ensureBrands(ctx context.Context, db *sql.DB) {
 	if err != nil {
 		fmt.Printf("Warning: failed to ensure brands: %v\n", err)
 	}
+	if _, err := db.ExecContext(ctx, `SELECT setval('brands_id_seq', (SELECT COALESCE(MAX(id), 1) FROM brands))`); err != nil {
+		fmt.Printf("Warning: failed to reset brands_id_seq: %v\n", err)
+	}
 }
 
 func ensurePaymentMethods(ctx context.Context, db *sql.DB) {
@@ -1161,6 +1164,9 @@ func ensureUnitsOfMeasure(ctx context.Context, db *sql.DB) {
 		ON CONFLICT (id) DO NOTHING`)
 	if err != nil {
 		fmt.Printf("Warning: failed to ensure units of measure: %v\n", err)
+	}
+	if _, err := db.ExecContext(ctx, `SELECT setval('units_of_measure_id_seq', (SELECT COALESCE(MAX(id), 1) FROM units_of_measure))`); err != nil {
+		fmt.Printf("Warning: failed to reset units_of_measure_id_seq: %v\n", err)
 	}
 }
 

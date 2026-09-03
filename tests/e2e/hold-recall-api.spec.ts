@@ -59,7 +59,9 @@ test.describe('Hold & Recall API Flow', () => {
 
     const listRes1 = await api.get('/api/sales/parked');
     expect(listRes1.ok).toBeTruthy();
-    expect(data(listRes1.body).some((s: any) => s.id === parkedSale.id)).toBeTruthy();
+    const parkedList = data(listRes1.body);
+    expect(Array.isArray(parkedList)).toBeTruthy();
+    expect(parkedList.some((s: any) => s.id === parkedSale.id)).toBeTruthy();
 
     const recallRes = await api.post(`/api/sales/parked/${parkedSale.id}/recall`);
     expect(recallRes.ok).toBeTruthy();
@@ -75,7 +77,9 @@ test.describe('Hold & Recall API Flow', () => {
     expect(data(completeRes.body).status).toBe('completed');
 
     const listRes2 = await api.get('/api/sales/parked');
-    expect(data(listRes2.body).some((s: any) => s.id === parkedSale.id)).toBeFalsy();
+    const listAfterRecall = data(listRes2.body);
+    expect(Array.isArray(listAfterRecall)).toBeTruthy();
+    expect(listAfterRecall.some((s: any) => s.id === parkedSale.id)).toBeFalsy();
 
     const reRecallRes = await api.post(`/api/sales/parked/${parkedSale.id}/recall`);
     expect(reRecallRes.ok).toBeFalsy();
@@ -104,6 +108,7 @@ test.describe('Hold & Recall API Flow', () => {
 
     const listRes = await api.get('/api/sales/parked');
     const list = data(listRes.body);
+    expect(Array.isArray(list)).toBeTruthy();
     expect(list.some((s: any) => s.id === saleA.id)).toBeFalsy();
     expect(list.some((s: any) => s.id === saleB.id)).toBeTruthy();
   });
