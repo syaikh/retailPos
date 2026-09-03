@@ -107,13 +107,11 @@ jobs:
           done
       - name: Start print-agent
         run: |
-          go run ./tools/print-agent/cmd/print-agent --port 9124 &
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:9124/health && echo "print-agent ready" && break
-            echo "waiting for print-agent $i/30"
-            sleep 2
-          done
-          curl -sf http://localhost:9124/health || echo "print-agent health check skipped (no /health)"
+          cd tools/print-agent && go run ./cmd/print-agent --port 9124 &
+          AGENT_PID=$!
+          npx wait-on http://localhost:9124/health --timeout 30000
+          kill -0 $AGENT_PID 2>/dev/null || { echo "print-agent crashed on startup"; exit 1; }
+          echo "print-agent ready"
       - name: Run e2e shard ${{ matrix.shard }}/4
         run: npx playwright test --shard=${{ matrix.shard }}/4
       - name: List reports
