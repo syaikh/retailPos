@@ -12,7 +12,7 @@ import { join } from 'path';
 // Requires `go` on PATH (the agent is started with `go run`). Uses a non-default
 // port (9124) so it does not clash with a dev agent on 9123.
 
-const AGENT_PORT = 9124;
+const AGENT_PORT = 9125;
 const AGENT_URL = `http://localhost:${AGENT_PORT}`;
 const AGENT_DIR = join(__dirname, '..', '..', 'tools', 'print-agent');
 const FRONTEND = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
@@ -61,7 +61,7 @@ test.describe('Silent receipt printing (real print-agent)', () => {
       // window.print so we can prove the browser dialog never opens.
       localStorage.setItem(
         'pos.printConfig',
-        JSON.stringify({ mode: 'silent', agentUrl: 'http://localhost:9124' }),
+        JSON.stringify({ mode: 'silent', agentUrl: 'http://localhost:9125' }),
       );
       (window as any)._printCallCount = 0;
       const orig = window.print;
