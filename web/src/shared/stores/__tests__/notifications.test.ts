@@ -1,9 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
+import { setLocale } from '$shared/i18n';
 import type { Notification } from '../notifications.svelte.ts';
 import type { notifications as NotificationsStore } from '../notifications.svelte.ts';
 
 describe('notifications store', () => {
   let notifications: typeof NotificationsStore;
+
+  beforeAll(() => setLocale('id'));
+  afterAll(() => setLocale('en'));
 
   beforeEach(() => {
     vi.resetModules();

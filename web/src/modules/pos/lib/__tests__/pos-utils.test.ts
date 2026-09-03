@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { setLocale } from '$shared/i18n';
 import type { CartItem } from '../../types';
 
 const mockCart: CartItem[] = [
@@ -7,6 +8,9 @@ const mockCart: CartItem[] = [
 ];
 
 describe('pos-utils', () => {
+  beforeAll(() => setLocale('id'));
+  afterAll(() => setLocale('en'));
+
   describe('formatCurrency', () => {
     it('formats number as IDR', async () => {
       const { formatCurrency } = await import('../pos-utils');

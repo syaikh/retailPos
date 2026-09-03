@@ -1,6 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { setLocale } from '$shared/i18n';
 
 describe('reporting-utils', () => {
+  beforeAll(() => setLocale('id'));
+  afterAll(() => setLocale('en'));
+
   describe('formatCurrencyShort', () => {
     it('formats billions', async () => {
       const { formatCurrencyShort } = await import('../reporting-utils');
