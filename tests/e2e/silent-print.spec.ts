@@ -1,4 +1,4 @@
-import { test, expect, TEST_USERS } from './fixtures';
+import { test, expect, TEST_USERS, loginUI, FRONTEND_BASE } from './fixtures';
 import { spawn } from 'child_process';
 import { mkdtempSync, rmSync, existsSync, readdirSync } from 'fs';
 import { tmpdir } from 'os';
@@ -10,12 +10,11 @@ import { join } from 'path';
 // `.bin` file, and that NO browser print dialog was opened (no fallback).
 //
 // Requires `go` on PATH (the agent is started with `go run`). Uses a non-default
-// port (9124) so it does not clash with a dev agent on 9123.
+// port (9125) so it does not clash with a dev agent on 9123 or 9124.
 
 const AGENT_PORT = 9125;
 const AGENT_URL = `http://localhost:${AGENT_PORT}`;
 const AGENT_DIR = join(__dirname, '..', '..', 'tools', 'print-agent');
-const FRONTEND = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
 
 test.describe('Silent receipt printing (real print-agent)', () => {
   let agentProc: any = null;
@@ -57,7 +56,7 @@ test.describe('Silent receipt printing (real print-agent)', () => {
     await page.addInitScript(() => {
       localStorage.clear();
       localStorage.setItem('pos.locale', 'en');
-      // Force silent mode against the agent we spawned on 9124, and trap
+      // Force silent mode against the agent we spawned on 9125, and trap
       // window.print so we can prove the browser dialog never opens.
       localStorage.setItem(
         'pos.printConfig',
@@ -71,15 +70,11 @@ test.describe('Silent receipt printing (real print-agent)', () => {
       };
     });
     await page.context().clearCookies();
-    await page.goto(FRONTEND + '/', { waitUntil: 'domcontentloaded' });
+    await page.goto(`${FRONTEND_BASE}/`, { waitUntil: 'domcontentloaded' });
   });
 
   async function completeSale(page: any) {
-    await expect(page).toHaveURL(/\/login$/);
-    await page.fill('#username', TEST_USERS.superadmin.username);
-    await page.fill('#password', TEST_USERS.superadmin.password);
-    await page.click('button[type="submit"]');
-    await page.waitForURL(/\/$/, { timeout: 10000 });
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     await page.click('nav button:has-text("Point of Sale")');
     await page.waitForSelector('#pos-search-input', { state: 'visible', timeout: 15000 });
 
@@ -87,17 +82,24 @@ test.describe('Silent receipt printing (real print-agent)', () => {
     await rows.first().waitFor({ state: 'visible', timeout: 10000 });
     for (let i = 0; i < 2; i++) {
       await rows.nth(i).dblclick();
-      await page.waitForTimeout(400);
+      await page.waitForTimeout(500);
     }
 
+    // Open payment dialog (F4) and select exact cash (F7)
     await page.keyboard.press('F4');
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
     await page.keyboard.press('F7');
     await expect(page.getByRole('dialog').locator('button:has-text("Enter")')).toBeEnabled({ timeout: 5000 });
-    await page.getByRole('dialog').locator('button:has-text("Enter")').click();
 
+    // Click Done — finalizeSale fires processCheckout() as fire-and-forget,
+    // so we must wait for the cart to clear (indicating the sale completed).
+    await page.getByRole('dialog').locator('button:has-text("Enter")').click();
+    await expect(page.locator('text=Your cart is empty')).toBeVisible({ timeout: 10000 });
+
+    // Now lastSale should be set. The Print button in CartPanel shows the
+    // invoice number — wait for it.
     const printBtn = page.getByRole('button', { name: /Print/ });
-    await printBtn.waitFor({ state: 'visible', timeout: 8000 });
+    await expect(printBtn).toBeEnabled({ timeout: 5000 });
     const label = (await printBtn.textContent()) || '';
     const m = label.match(/INV[-\w]+/i);
     return m ? m[0] : null;
