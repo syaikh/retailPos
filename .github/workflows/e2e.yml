@@ -33,7 +33,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             web/package-lock.json
-      - uses: actions/cache@v6
+      - uses: actions/cache/restore@v6
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('go.sum') }}
