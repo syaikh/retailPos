@@ -107,7 +107,7 @@ jobs:
           done
       - name: Start print-agent
         run: |
-          cd tools/print-agent && go run ./cmd/print-agent --port 9124 &
+          cd tools/print-agent && PORT=9124 go run ./cmd/print-agent &
           AGENT_PID=$!
           npx wait-on http://localhost:9124/health --timeout 30000
           kill -0 $AGENT_PID 2>/dev/null || { echo "print-agent crashed on startup"; exit 1; }
