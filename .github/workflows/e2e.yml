@@ -126,6 +126,7 @@ jobs:
           path: |
             playwright-report
             test-results
+            reports
           retention-days: 7
           if-no-files-found: warn
   merge:
@@ -136,12 +137,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
+          pattern: report-*
           path: reports
+          merge-multiple: true
       - uses: actions/setup-node@v4
         with:
           node-version: 24
       - run: npm ci
-      - run: npx playwright merge-reports reports --reporter html || npx playwright merge-reports reports/report-* --reporter html || echo "merge failed, listing reports" && ls -R reports | head -50
+      - run: npx playwright merge-reports reports --reporter html
       - uses: actions/upload-artifact@v4
         with:
           name: all-reports

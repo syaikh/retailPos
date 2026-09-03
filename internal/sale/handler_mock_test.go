@@ -1201,6 +1201,27 @@ func TestSaleHandler_GetParkedSales_Success(t *testing.T) {
 	assert.Len(t, resp.Data, 2)
 }
 
+func TestSaleHandler_GetParkedSales_Empty(t *testing.T) {
+	svc := &mockService{
+		listParkedSalesFn: func(ctx context.Context, caller Caller) ([]Sale, error) {
+			return nil, nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/sales/parked", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data []Sale `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.NotNil(t, resp.Data)
+	assert.Len(t, resp.Data, 0)
+}
+
 func TestSaleHandler_GetParkedSaleByID_Success(t *testing.T) {
 	svc := &mockService{
 		getParkedSaleByIDFn: func(ctx context.Context, id int, caller Caller) (*Sale, error) {

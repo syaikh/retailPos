@@ -32,7 +32,8 @@ const config = {
   reporter: [
     ['list'],
     ['html', { outputFolder: 'playwright-report' }],
-    ['json', { outputFile: 'test-results.json' }]
+    ['json', { outputFile: 'test-results.json' }],
+    ...(process.env.CI ? [['blob', { outputDir: 'reports' }]] : []),
   ],
 
   // Global test timeout (increased for container startup)

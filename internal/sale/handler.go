@@ -1052,6 +1052,9 @@ func (h *Handler) ListParkedSales(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
+	if sales == nil {
+		sales = []Sale{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": sales})
 }
 
