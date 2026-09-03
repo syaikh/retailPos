@@ -11,8 +11,6 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
-    env:
-      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     services:
       postgres:
         image: postgres:18
@@ -27,20 +25,20 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
             web/package-lock.json
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('go.sum') }}
           restore-keys: ${{ runner.os }}-go-
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.26'
       - name: Install deps (root + web)
@@ -128,7 +126,7 @@ jobs:
       - name: List reports
         if: always()
         run: ls -la playwright-report 2>&1 || ls -la test-results 2>&1 || echo "no report found"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: report-${{ matrix.shard }}
@@ -143,18 +141,18 @@ jobs:
     needs: e2e
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: report-*
           path: .
           merge-multiple: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       - run: npm ci
       - run: npx playwright merge-reports blob-reports --reporter html
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: all-reports
           path: playwright-report
