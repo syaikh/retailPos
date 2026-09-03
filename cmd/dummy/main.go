@@ -597,13 +597,26 @@ type ProductInfo struct {
 
 // truncateAllData removes all business and master data while preserving admin data (roles, permissions, users, stores)
 func truncateAllData(ctx context.Context, db *sql.DB) error {
+	// Pin a single connection so SET/RESET session_replication_role stays on
+	// the same session. Using db.ExecContext() would hand the connection back
+	// to the pool after each call, meaning the deferred RESET could land on a
+	// different connection than the SET, leaving one connection stuck in
+	// 'replica' mode.  That leaked connection disables BEFORE INSERT triggers,
+	// causing ON CONFLICT … DO NOTHING RETURNING id to swallow the inserted
+	// row's id and return sql.ErrNoRows for every product.
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to pin connection for truncation: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
 	// Disable triggers temporarily to avoid FK constraint issues
-	_, err := db.ExecContext(ctx, "SET session_replication_role = 'replica'")
+	_, err = conn.ExecContext(ctx, "SET session_replication_role = 'replica'")
 	if err != nil {
 		return fmt.Errorf("failed to disable triggers: %w", err)
 	}
 	defer func() {
-		if _, err := db.ExecContext(ctx, "SET session_replication_role = 'origin'"); err != nil {
+		if _, err := conn.ExecContext(ctx, "SET session_replication_role = 'origin'"); err != nil {
 			log.Printf("failed to reset replication role: %v", err)
 		}
 	}()
@@ -616,7 +629,7 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		isActive                      bool
 	}
 	var systemUsers []sysUser
-	rows, err := db.QueryContext(ctx, `
+	rows, err := conn.QueryContext(ctx, `
 		SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.reports_to, u.is_active
 		FROM users u
 		JOIN roles r ON r.id = u.role_id
@@ -692,7 +705,7 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 	}
 
 	for _, table := range tables {
-		_, err := db.ExecContext(ctx, fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", table))
+		_, err := conn.ExecContext(ctx, fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", table))
 		if err != nil {
 			return fmt.Errorf("failed to truncate %s: %w", table, err)
 		}
@@ -704,7 +717,7 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		if u.reportsTo != nil {
 			reportsTo = *u.reportsTo
 		}
-		_, err := db.ExecContext(ctx,
+		_, err := conn.ExecContext(ctx,
 			`INSERT INTO users (id, username, email, password_hash, role_id, reports_to, is_active, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) ON CONFLICT (id) DO NOTHING`,
 			u.id, u.username, u.email, u.passwordHash, u.roleID, reportsTo, u.isActive,
 		)
@@ -714,7 +727,7 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 	}
 
 	// Resync sequences after explicit ID inserts to prevent duplicate key errors
-	if _, err := db.ExecContext(ctx, `SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 1) FROM users))`); err != nil {
+	if _, err := conn.ExecContext(ctx, `SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 1) FROM users))`); err != nil {
 		log.Printf("Warning: failed to resync users_id_seq: %v", err)
 	}
 
@@ -1440,11 +1453,12 @@ func cleanupTestRoles(ctx context.Context, db *sql.DB) {
 
 // productWorkerJob represents a job for a worker in the concurrent product injection pool
 type productWorkerJob struct {
-	workerID      int
-	startProduct  int
-	endProduct    int
-	categoryIDs   []int
-	categoryNames map[int]string
+	workerID             int
+	startProduct         int
+	endProduct           int
+	categoryIDs          []int
+	categoryNames        map[int]string
+	loggedFirstErrNoRows bool // one-time flag: log first ErrNoRows with SKU details
 }
 
 // injectProducts generates products using concurrent workers for better performance
@@ -1530,6 +1544,20 @@ func injectProducts(ctx context.Context, db *sql.DB, categoryIDs []int, count in
 		}
 	}
 
+	// Resilience: if workers reported 0 products but the DB actually has rows
+	// (the ON CONFLICT … RETURNING id path can silently lose inserts when a
+	// leaked session_replication_role='replica' connection disables BEFORE
+	// INSERT triggers), re-query the DB to recover the product list.
+	if len(allProducts) == 0 {
+		var dbCount int
+		if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM products WHERE status = 'active'").Scan(&dbCount); err != nil {
+			fmt.Printf("   ⚠️  could not verify DB product count: %v\n", err)
+		} else if dbCount > 0 {
+			fmt.Printf("   ⚠️  Workers returned 0 products but DB has %d — re-fetching from DB\n", dbCount)
+			allProducts = getExistingProducts(ctx, db)
+		}
+	}
+
 	fmt.Printf("   ✅ %d products injected concurrently\n", len(allProducts))
 	return allProducts, nil
 }
@@ -1600,6 +1628,12 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, catID, brandID, uomID, createdAt).Scan(&id)
 		if err != nil {
 			if err == sql.ErrNoRows {
+				// Log the first ErrNoRows per worker with details for debugging
+				if !job.loggedFirstErrNoRows {
+					job.loggedFirstErrNoRows = true
+					fmt.Printf("   🔍 worker %d: first sql.ErrNoRows at product %d (sku=%s, cat=%s, brandID=%d, uomID=%d)\n",
+						job.workerID, i, sku, catName, brandID, uomID)
+				}
 				continue
 			}
 			// Detect transaction poisoning: a prior failure (e.g. product_stock FK) aborts
