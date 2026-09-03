@@ -1,6 +1,7 @@
 package product
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,13 +21,17 @@ func TestValidateProduct(t *testing.T) {
 		product Product
 		wantErr string
 	}{
-		{"valid product", Product{Name: "Widget", Price: 1000, Cost: 500, Stock: 10}, ""},
-		{"zero price/cost/stock", Product{Name: "Free Item", Price: 0, Cost: 0, Stock: 0}, ""},
-		{"empty name", Product{Name: "", Price: 1000}, "name is required"},
-		{"whitespace name", Product{Name: "   ", Price: 1000}, "name is required"},
-		{"negative price", Product{Name: "Bad", Price: -1}, "price must not be negative"},
-		{"negative cost", Product{Name: "Bad", Cost: -1}, "cost must not be negative"},
-		{"negative stock", Product{Name: "Bad", Stock: -1}, "stock must not be negative"},
+		{"valid product", Product{SKU: "SKU-2026-000001", Name: "Widget", Price: 1000, Cost: 500, Stock: 10}, ""},
+		{"zero price/cost/stock", Product{SKU: "SKU-2026-000002", Name: "Free Item", Price: 0, Cost: 0, Stock: 0}, ""},
+		{"empty sku", Product{SKU: "", Name: "Widget", Price: 1000}, "sku is required"},
+		{"whitespace sku", Product{SKU: "   ", Name: "Widget", Price: 1000}, "sku is required"},
+		{"sku too long", Product{SKU: strings.Repeat("A", 51), Name: "Widget", Price: 1000}, "sku must not exceed 50 characters"},
+		{"sku at max length", Product{SKU: strings.Repeat("A", 50), Name: "Widget", Price: 1000}, ""},
+		{"empty name", Product{SKU: "SKU-2026-000003", Name: "", Price: 1000}, "name is required"},
+		{"whitespace name", Product{SKU: "SKU-2026-000004", Name: "   ", Price: 1000}, "name is required"},
+		{"negative price", Product{SKU: "SKU-2026-000005", Name: "Bad", Price: -1}, "price must not be negative"},
+		{"negative cost", Product{SKU: "SKU-2026-000006", Name: "Bad", Cost: -1}, "cost must not be negative"},
+		{"negative stock", Product{SKU: "SKU-2026-000007", Name: "Bad", Stock: -1}, "stock must not be negative"},
 	}
 
 	for _, tt := range tests {
@@ -316,4 +322,25 @@ func TestGetStoreID(t *testing.T) {
 		c.Set("storeID", "not-an-int")
 		assert.Nil(t, shared.GetStoreID(c))
 	})
+}
+
+func TestIsDuplicateKeyError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil error", nil, false},
+		{"non-pg error", fmt.Errorf("some error"), false},
+		{"unique violation on non-sku constraint", &pgconn.PgError{Code: "23505", ConstraintName: "products_name_key"}, false},
+		{"unique violation on sku constraint", &pgconn.PgError{Code: "23505", ConstraintName: "products_sku_key"}, true},
+		{"non-unique pg error", &pgconn.PgError{Code: "23502", ConstraintName: "products_sku_key"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isDuplicateKeyError(tt.err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

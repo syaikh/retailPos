@@ -466,6 +466,12 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 			return fmt.Errorf("failed to inject products: %w", err)
 		}
 		fmt.Printf("   ✅ %d products injected\n", len(productData))
+		// Sync sku_seq past the highest seeded SKU to avoid collisions
+		if _, err := db.ExecContext(ctx, `SELECT setval('sku_seq',
+			GREATEST(COALESCE((SELECT MAX(CAST(substring(sku FROM 'SKU-\d+-(\d+)') AS bigint))
+			                   FROM products WHERE sku ~ '^SKU-\d+-\d+$'), 1), 1))`); err != nil {
+			fmt.Printf("   ⚠️  Warning: failed to sync sku_seq: %v\n", err)
+		}
 	} else {
 		// Get existing products
 		productData = getExistingProducts(ctx, db)
@@ -2440,8 +2446,13 @@ func generateProductName(template ProductTemplate) string {
 }
 
 func generateSKU(category string, index int) string {
-	// Format: SKU-XXXXX where XXXXX is sequential starting from 00001
-	return fmt.Sprintf("SKU-%05d", index+1)
+	// Format: SKU-YYYY-NNNNNN where YYYY is current year (Jakarta time)
+	jakartaLoc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		jakartaLoc = time.UTC
+	}
+	year := time.Now().In(jakartaLoc).Year()
+	return fmt.Sprintf("SKU-%d-%06d", year, index+1)
 }
 
 func generateBarcode(index int) string {

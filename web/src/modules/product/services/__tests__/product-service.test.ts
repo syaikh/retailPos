@@ -310,4 +310,21 @@ describe('product-service', () => {
     expect(mockGet).toHaveBeenCalledTimes(1);
     expect(a).toEqual(b);
   });
+
+  it('getNextSku returns SKU string from /products/next-sku', async () => {
+    mockGet.mockResolvedValueOnce({ data: { data: 'SKU-2026-000042' } });
+
+    const { getNextSku } = await import('../product-service');
+    const result = await getNextSku();
+
+    expect(mockGet).toHaveBeenCalledWith('/products/next-sku');
+    expect(result).toBe('SKU-2026-000042');
+  });
+
+  it('getNextSku throws on error', async () => {
+    mockGet.mockRejectedValueOnce(new Error('gen error'));
+
+    const { getNextSku } = await import('../product-service');
+    await expect(getNextSku()).rejects.toThrow('gen error');
+  });
 });

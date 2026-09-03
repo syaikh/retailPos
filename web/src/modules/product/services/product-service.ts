@@ -67,6 +67,11 @@ export function clearProductCache() {
   productCache.clear();
 }
 
+export async function getNextSku(): Promise<string> {
+  const r = await apiClient.get('/products/next-sku');
+  return r.data.data;
+}
+
 export async function createProduct(data: ProductFormData & { category_name?: string }): Promise<void> {
   await apiClient.post('/products', data);
 }

@@ -22,7 +22,7 @@
   import type { Product, Brand, TaxClass, UnitOfMeasure, ProductFormData } from '$modules/product/types';
   import { labels, t } from '$shared/i18n';
   import { useSortable } from '$shared/composables/useSortable.svelte';
-  import { getProductById } from '$modules/product/services/product-service';
+  import { getProductById, getNextSku } from '$modules/product/services/product-service';
 
   const rbac = useRBAC();
 
@@ -622,6 +622,7 @@
   {taxClasses}
   {categories}
   {saving}
+  {getNextSku}
   onSubmit={() => { modalMode === 'add' ? handleAdd() : handleUpdate(); }}
   onCancel={() => { showModal = false; }}
 />

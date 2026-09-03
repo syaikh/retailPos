@@ -83,7 +83,8 @@ describe('ProductsPage.svelte source-structure guards', () => {
   });
 
   it('imports getProductById for deep-link fallback', () => {
-    expect(src).toContain("import { getProductById } from '$modules/product/services/product-service'");
+    expect(src).toContain("getProductById");
+    expect(src).toContain("from '$modules/product/services/product-service'");
   });
 
   it('falls back to getProductById when deep-linked product is not on the loaded page', () => {

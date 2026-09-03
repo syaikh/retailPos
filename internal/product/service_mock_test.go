@@ -231,7 +231,7 @@ func TestMockHandler_UpdateProduct_WithStoreID(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("PUT", "/products/5", strings.NewReader(`{"name":"Updated","price":2000,"cost":1000,"stock":20}`))
+	req := httptest.NewRequest("PUT", "/products/5", strings.NewReader(`{"sku":"MK-SID-001","name":"Updated","price":2000,"cost":1000,"stock":20}`))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -367,7 +367,7 @@ func TestMockHandler_UpdateProduct_NotFound(t *testing.T) {
 	}
 	r := setupMockProductRouter(svc)
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("PUT", "/products/999", strings.NewReader(`{"name":"X","price":100,"cost":50,"stock":10}`))
+	req := httptest.NewRequest("PUT", "/products/999", strings.NewReader(`{"sku":"MK-NFD-001","name":"X","price":100,"cost":50,"stock":10}`))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)

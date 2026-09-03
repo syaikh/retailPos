@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, CurrencyInput, Input, Modal } from '$shared/ui';
-  import { Search, X, ChevronDown, Percent } from 'lucide-svelte';
+  import { Search, X, ChevronDown, Percent, RefreshCw } from 'lucide-svelte';
   import { getPricingRules } from '$modules/pricing/services/pricing-service';
   import type { PricingRule } from '$modules/pricing/types';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
@@ -32,19 +32,22 @@
     categories = [] as string[],
     modalCategorySearch = $bindable(''),
     saving = false,
+    getNextSku = undefined as (() => Promise<string>) | undefined,
     onSubmit,
     onCancel,
   } = $props();
 
   let fieldErrors = $state<Record<string, string>>({});
+  let skuLoading = $state(false);
 
   const rbac = useRBAC();
   let canArchive = $derived(rbac.can(Permissions.product.delete));
 
   function validate(): boolean {
     const errors: Record<string, string> = {};
-    if (!form.name.trim()) errors.name = labels.errorNameRequired;
     if (!form.sku.trim()) errors.sku = labels.errorSkuRequired;
+    if (form.sku.length > 50) errors.sku = labels.errorSkuTooLong;
+    if (!form.name.trim()) errors.name = labels.errorNameRequired;
     if (!form.category.trim()) errors.category = labels.errorCategoryRequired;
     if (form.price <= 0) errors.price = labels.errorPricePositive;
     if (form.stock < 0) errors.stock = labels.errorStockNonNegative;
@@ -120,6 +123,23 @@
     }, 150);
   }
 
+  async function refreshSku() {
+    if (!getNextSku) return;
+    skuLoading = true;
+    try {
+      const sku = await getNextSku();
+      form.sku = sku;
+    } finally {
+      skuLoading = false;
+    }
+  }
+
+  $effect(() => {
+    if (open && mode === 'add' && getNextSku) {
+      refreshSku();
+    }
+  });
+
   function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
     if (!validate()) return;
@@ -136,7 +156,24 @@
       </div>
       <div>
         <label for="prod-sku" class="block text-sm font-medium text-text-secondary mb-2">{labels.sku} <span class="text-destructive">*</span></label>
-<Input id="prod-sku" bind:value={form.sku} type="text" error={fieldErrors.sku} required />
+        <div class="relative">
+          <Input id="prod-sku" bind:value={form.sku} type="text" error={fieldErrors.sku} required class="pr-10" maxlength={50} />
+          {#if mode === 'add' && getNextSku}
+            <button
+              type="button"
+              onclick={refreshSku}
+              disabled={skuLoading}
+              class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-primary transition-colors rounded-lg hover:bg-surface-hover disabled:opacity-50"
+              title={labels.refreshSku}
+              aria-label={labels.refreshSku}
+            >
+              <RefreshCw size={14} class={skuLoading ? 'animate-spin' : ''} />
+            </button>
+          {/if}
+        </div>
+        {#if mode === 'add'}
+          <p class="text-[11px] text-text-muted mt-1">{labels.skuFormatHint}</p>
+        {/if}
       </div>
     </div>
 

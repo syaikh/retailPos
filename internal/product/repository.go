@@ -517,7 +517,8 @@ func (r *Repository) GetNextSKU(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get next SKU: %w", err)
 	}
-	return fmt.Sprintf("SKU-%06d", skuNum), nil
+	year := time.Now().In(shared.JakartaLocation()).Year()
+	return fmt.Sprintf("SKU-%d-%06d", year, skuNum), nil
 }
 
 // Tax class operations

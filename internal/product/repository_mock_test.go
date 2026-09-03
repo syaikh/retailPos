@@ -2,6 +2,7 @@ package product
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -250,7 +251,8 @@ func TestRepo_GetNextSKU(t *testing.T) {
 	repo := NewRepository(mock)
 	sku, err := repo.GetNextSKU(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, "SKU-000042", sku)
+	year := time.Now().In(shared.JakartaLocation()).Year()
+	assert.Equal(t, fmt.Sprintf("SKU-%d-000042", year), sku)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

@@ -13,6 +13,7 @@ import (
 	"retail-pos-system/internal/permissions"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -356,7 +357,7 @@ func TestMockHandler_CreateProduct(t *testing.T) {
 			},
 		}
 		r := setupMockProductRouter(svc)
-		body := `{"name":"New Product","price":1000,"cost":500,"stock":10}`
+		body := `{"sku":"MK-CRT-001","name":"New Product","price":1000,"cost":500,"stock":10}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/products", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -373,9 +374,32 @@ func TestMockHandler_CreateProduct(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
+	t.Run("empty sku", func(t *testing.T) {
+		r := setupMockProductRouter(&mockProductService{})
+		body := `{"sku":"","name":"Product","price":1000}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/products", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "sku is required")
+	})
+
+	t.Run("sku too long", func(t *testing.T) {
+		r := setupMockProductRouter(&mockProductService{})
+		longSKU := strings.Repeat("A", 51)
+		body := fmt.Sprintf(`{"sku":"%s","name":"Product","price":1000}`, longSKU)
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/products", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "sku must not exceed 50 characters")
+	})
+
 	t.Run("empty name", func(t *testing.T) {
 		r := setupMockProductRouter(&mockProductService{})
-		body := `{"name":"","price":1000}`
+		body := `{"sku":"MK-CRT-002","name":"","price":1000}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/products", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -386,7 +410,7 @@ func TestMockHandler_CreateProduct(t *testing.T) {
 
 	t.Run("negative price", func(t *testing.T) {
 		r := setupMockProductRouter(&mockProductService{})
-		body := `{"name":"Product","price":-1}`
+		body := `{"sku":"MK-CRT-003","name":"Product","price":-1}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/products", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -397,7 +421,7 @@ func TestMockHandler_CreateProduct(t *testing.T) {
 
 	t.Run("negative cost", func(t *testing.T) {
 		r := setupMockProductRouter(&mockProductService{})
-		body := `{"name":"Product","price":100,"cost":-1}`
+		body := `{"sku":"MK-CRT-004","name":"Product","price":100,"cost":-1}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/products", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -408,13 +432,29 @@ func TestMockHandler_CreateProduct(t *testing.T) {
 
 	t.Run("negative stock", func(t *testing.T) {
 		r := setupMockProductRouter(&mockProductService{})
-		body := `{"name":"Product","price":100,"stock":-1}`
+		body := `{"sku":"MK-CRT-005","name":"Product","price":100,"stock":-1}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/products", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.Contains(t, w.Body.String(), "stock must not be negative")
+	})
+
+	t.Run("duplicate sku returns conflict", func(t *testing.T) {
+		svc := &mockProductService{
+			createFn: func(ctx context.Context, product *Product) error {
+				return &pgconn.PgError{Code: "23505", ConstraintName: "products_sku_key"}
+			},
+		}
+		r := setupMockProductRouter(svc)
+		body := `{"sku":"MK-DUP-001","name":"Product","price":1000}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/products", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "SKU already exists")
 	})
 }
 
@@ -427,7 +467,7 @@ func TestMockHandler_UpdateProduct(t *testing.T) {
 			},
 		}
 		r := setupMockProductRouter(svc)
-		body := `{"name":"Updated","price":2000,"cost":1000,"stock":20}`
+		body := `{"sku":"MK-UPD-001","name":"Updated","price":2000,"cost":1000,"stock":20}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("PUT", "/products/5", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -438,7 +478,7 @@ func TestMockHandler_UpdateProduct(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		r := setupMockProductRouter(&mockProductService{})
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("PUT", "/products/abc", strings.NewReader(`{"name":"X","price":100}`))
+		req := httptest.NewRequest("PUT", "/products/abc", strings.NewReader(`{"sku":"MK-UPD-002","name":"X","price":100}`))
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -447,10 +487,36 @@ func TestMockHandler_UpdateProduct(t *testing.T) {
 	t.Run("validation error", func(t *testing.T) {
 		r := setupMockProductRouter(&mockProductService{})
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("PUT", "/products/5", strings.NewReader(`{"name":"","price":100}`))
+		req := httptest.NewRequest("PUT", "/products/5", strings.NewReader(`{"sku":"MK-UPD-003","name":"","price":100}`))
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("empty sku validation", func(t *testing.T) {
+		r := setupMockProductRouter(&mockProductService{})
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/products/5", strings.NewReader(`{"sku":"","name":"Product","price":100}`))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "sku is required")
+	})
+
+	t.Run("duplicate sku returns conflict", func(t *testing.T) {
+		svc := &mockProductService{
+			updateFn: func(ctx context.Context, product *Product) error {
+				return &pgconn.PgError{Code: "23505", ConstraintName: "products_sku_key"}
+			},
+		}
+		r := setupMockProductRouter(svc)
+		body := `{"sku":"MK-DUP-002","name":"Product","price":1000}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/products/5", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "SKU already exists")
 	})
 }
 
@@ -660,7 +726,7 @@ func TestMockHandler_CreateProduct_ServiceError(t *testing.T) {
 		},
 	}
 	r := setupMockProductRouter(svc)
-	body := `{"name":"New Product","price":1000,"cost":500,"stock":10}`
+	body := `{"sku":"MK-SVC-001","name":"New Product","price":1000,"cost":500,"stock":10}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/products", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -675,7 +741,7 @@ func TestMockHandler_UpdateProduct_ServiceError(t *testing.T) {
 		},
 	}
 	r := setupMockProductRouter(svc)
-	body := `{"name":"Updated","price":2000,"cost":1000,"stock":20}`
+	body := `{"sku":"MK-SVC-002","name":"Updated","price":2000,"cost":1000,"stock":20}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("PUT", "/products/5", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

@@ -2,6 +2,7 @@ package product
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func parseIDs(raw string) []int {
@@ -81,6 +83,12 @@ func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
 }
 
 func validateProduct(p *Product) error {
+	if strings.TrimSpace(p.SKU) == "" {
+		return fmt.Errorf("sku is required")
+	}
+	if len(p.SKU) > 50 {
+		return fmt.Errorf("sku must not exceed 50 characters")
+	}
 	if strings.TrimSpace(p.Name) == "" {
 		return fmt.Errorf("name is required")
 	}
@@ -94,6 +102,17 @@ func validateProduct(p *Product) error {
 		return fmt.Errorf("stock must not be negative")
 	}
 	return nil
+}
+
+func isDuplicateKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return strings.Contains(pgErr.ConstraintName, "sku")
+	}
+	return false
 }
 
 // GetProducts godoc
@@ -232,6 +251,10 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 	}
 
 	if err := h.svc.CreateProduct(c.Request.Context(), &product); err != nil {
+		if isDuplicateKeyError(err) {
+			c.JSON(http.StatusConflict, gin.H{"error": "SKU already exists"})
+			return
+		}
 		shared.InternalError(c, err)
 		return
 	}
@@ -296,6 +319,10 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 	}
 
 	if err := h.svc.UpdateProduct(c.Request.Context(), &product); err != nil {
+		if isDuplicateKeyError(err) {
+			c.JSON(http.StatusConflict, gin.H{"error": "SKU already exists"})
+			return
+		}
 		shared.InternalError(c, err)
 		return
 	}
