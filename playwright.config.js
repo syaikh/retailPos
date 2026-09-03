@@ -33,7 +33,7 @@ const config = {
     ['list'],
     ['html', { outputFolder: 'playwright-report' }],
     ['json', { outputFile: 'test-results.json' }],
-    ...(process.env.CI ? [['blob', { outputDir: 'reports' }]] : []),
+    ...(process.env.CI ? [['blob', { outputDir: 'blob-reports' }]] : []),
   ],
 
   // Global test timeout (increased for container startup)
