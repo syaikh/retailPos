@@ -572,7 +572,7 @@ Barang titipan supplier: barang milik supplier yang dijual di toko, dengan terms
 
 ## Catatan
 
-- **Returns & Refund:** Tidak akan diimplementasikan. Kebijakan toko: barang yang sudah dibeli tidak dapat direfund atau dikembalikan.
+- **Returns & Refund (Damaged Items):** Sedang direncanakan — Phase 1. Pelanggan dapat meretur barang rusak dalam batas waktu yang dikonfigurasi (default 1 hari) untuk pengembalian penuh ke metode pembayaran asli. Persetujuan manager diperlukan untuk retur bernilai tinggi. Lihat `docs/prd/PRD-Sales-Return.md` dan `docs/design/sales-return-plan.md`.
 - **Supplier Returns:** Baru relevan setelah Purchase Order terbangun.
 - **Product Image Upload:** Dibatalkan untuk saat ini (tidak diprioritaskan).
 - **Admin Change Freeze & Time-based Pricing Update:** Ditolak di BDR — memblokir perubahan master data saat shift aktif menghambat operasional. Digantikan oleh *Price Consistency During Active Transactions* (snapshot dibuat saat add item; master data tetap mutable).
