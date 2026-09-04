@@ -105,6 +105,9 @@ func (s *service) CreateProduct(ctx context.Context, product *Product) error {
 	if err := s.resolveCategoryID(ctx, product); err != nil {
 		return err
 	}
+	if err := s.resolveBrandID(ctx, product); err != nil {
+		return err
+	}
 	return s.repo.CreateProduct(ctx, product)
 }
 
@@ -116,6 +119,9 @@ func (s *service) UpdateProduct(ctx context.Context, product *Product) error {
 		return err
 	}
 	if err := s.resolveCategoryID(ctx, product); err != nil {
+		return err
+	}
+	if err := s.resolveBrandID(ctx, product); err != nil {
 		return err
 	}
 	if err := s.repo.UpdateProduct(ctx, product, product.StoreID); err != nil {
@@ -162,6 +168,18 @@ func (s *service) resolveCategoryID(ctx context.Context, product *Product) error
 		return fmt.Errorf("category %q not found: %w", *product.CategoryName, err)
 	}
 	product.CategoryID = &id
+	return nil
+}
+
+func (s *service) resolveBrandID(ctx context.Context, product *Product) error {
+	if product.BrandID != nil || product.BrandName == nil || *product.BrandName == "" {
+		return nil
+	}
+	id, err := s.brandRepo.GetIDByName(ctx, *product.BrandName)
+	if err != nil {
+		return fmt.Errorf("brand %q not found: %w", *product.BrandName, err)
+	}
+	product.BrandID = &id
 	return nil
 }
 

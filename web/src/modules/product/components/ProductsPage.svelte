@@ -66,6 +66,7 @@
   const { sortState, handleSort } = useSortable('name', 'asc', sortProducts);
   let showFilterDrawer = $state(false);
   let modalCategorySearch = $state('');
+  let modalBrandSearch = $state('');
 
   let selectedIds = $state(new Set<number>());
   let showBulkStatusModal = $state(false);
@@ -317,6 +318,7 @@
       const payload = {
         ...form,
         category_name: form.category,
+        brand_name: modalBrandSearch || undefined,
         barcode: form.barcode?.trim() || undefined,
         description: form.description?.trim() || undefined,
         cost: form.cost >= 0 ? form.cost : undefined,
@@ -350,6 +352,7 @@
       const payload = {
         ...form,
         category_name: form.category,
+        brand_name: modalBrandSearch || undefined,
         barcode: form.barcode?.trim() || undefined,
         description: form.description?.trim() || undefined,
         cost: form.cost >= 0 ? form.cost : undefined,
@@ -398,6 +401,7 @@
       weight_grams: null, status: 'draft'
     };
     modalCategorySearch = '';
+    modalBrandSearch = '';
   }
 
   let canCreate = $derived(rbac.can(Permissions.product.create));
@@ -591,6 +595,7 @@
           description: product.description || '', status: product.status || 'draft'
         };
         modalCategorySearch = product.category_name || '';
+        modalBrandSearch = product.brand_name || '';
         modalMode = 'edit';
         showModal = true;
       }}
@@ -617,6 +622,7 @@
   bind:mode={modalMode}
   bind:form
   bind:modalCategorySearch
+  bind:modalBrandSearch
   {brands}
   {unitsOfMeasure}
   {taxClasses}
@@ -687,6 +693,7 @@
       description: p.description || '', status: p.status || 'draft'
     };
     modalCategorySearch = p.category_name || '';
+    modalBrandSearch = p.brand_name || '';
     showModal = true;
   }}
   ondelete={() => { showDetailDrawer = false; showDeleteModal = true; }}

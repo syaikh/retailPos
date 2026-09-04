@@ -648,6 +648,8 @@ export const id = {
   toastFailedDeleteCategory: 'Gagal menghapus kategori',
   createCategoryInline: 'Buat "{name}"',
   creatingCategory: 'Membuat kategori...',
+  createBrandInline: 'Buat "{name}"',
+  creatingBrand: 'Membuat merek...',
   toastUnitAdded: 'Unit berhasil ditambahkan',
   toastUnitUpdated: 'Unit berhasil diperbarui',
   toastUnitDeleted: 'Unit "{name}" berhasil dihapus',

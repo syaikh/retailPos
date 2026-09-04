@@ -7,7 +7,7 @@
   import { Permissions } from '$shared/constants/permissions';
   import { labels, t } from '$shared/i18n';
   import { formatCurrency } from '$shared/utils/currency';
-  import { createCategory } from '../services/product-service';
+  import { createCategory, createBrand } from '../services/product-service';
   import { toast } from '$shared/stores/toast.svelte';
 
   let {
@@ -33,6 +33,7 @@
     taxClasses = [] as Array<{id: number, name: string, rate_percent: number}>,
     categories = [] as string[],
     modalCategorySearch = $bindable(''),
+    modalBrandSearch = $bindable(''),
     saving = false,
     getNextSku = undefined as (() => Promise<string>) | undefined,
     onSubmit,
@@ -43,10 +44,16 @@
   let skuLoading = $state(false);
   let creatingCategory = $state(false);
   let localCategories = $state<string[]>([]);
+  let creatingBrand = $state(false);
+  let localBrands = $state<Array<{id: number, name: string}>>([]);
+  let showModalBrandDropdown = $state(false);
+  let brandContainer: HTMLDivElement;
+  let brandMenuStyle = $state('');
 
   const rbac = useRBAC();
   let canArchive = $derived(rbac.can(Permissions.product.delete));
   let canCreateCategory = $derived(rbac.can(Permissions.category.create));
+  let canCreateBrand = $derived(rbac.can(Permissions.product.create));
 
   const allCategories = $derived([
     ...categories,
@@ -62,6 +69,26 @@
     modalCategorySearch.trim() !== '' &&
     !exactCategoryMatch &&
     !creatingCategory
+  );
+
+  const allBrands = $derived([
+    ...brands,
+    ...localBrands.filter(b => !brands.some(existing => existing.id === b.id))
+  ]);
+
+  const filteredBrands = $derived(
+    allBrands.filter(b => b.name.toLowerCase().includes(modalBrandSearch.toLowerCase()))
+  );
+
+  const exactBrandMatch = $derived(
+    allBrands.some(b => b.name.toLowerCase() === modalBrandSearch.toLowerCase())
+  );
+
+  const showCreateBrandOption = $derived(
+    canCreateBrand &&
+    modalBrandSearch.trim() !== '' &&
+    !exactBrandMatch &&
+    !creatingBrand
   );
 
   function validate(): boolean {
@@ -162,6 +189,61 @@
       toast.error(msg);
     } finally {
       creatingCategory = false;
+    }
+  }
+
+  function computeBrandPosition() {
+    if (!brandContainer) return;
+    const r = brandContainer.getBoundingClientRect();
+    brandMenuStyle = `position:fixed;top:${r.bottom + 8}px;left:${r.left}px;width:${r.width}px`;
+  }
+
+  $effect(() => {
+    if (!showModalBrandDropdown) return;
+    computeBrandPosition();
+    function reposition() { computeBrandPosition(); }
+    window.addEventListener('scroll', reposition, { passive: true, capture: true });
+    window.addEventListener('resize', reposition, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', reposition, { capture: true } as EventListenerOptions);
+      window.removeEventListener('resize', reposition);
+    };
+  });
+
+  function selectBrand(brand: {id: number, name: string}) {
+    form.brand_id = brand.id;
+    modalBrandSearch = brand.name;
+    showModalBrandDropdown = false;
+  }
+
+  function handleBrandFocus() {
+    showModalBrandDropdown = true;
+  }
+
+  function handleBrandBlur() {
+    setTimeout(() => {
+      showModalBrandDropdown = false;
+    }, 150);
+  }
+
+  async function handleCreateBrand() {
+    if (creatingBrand) return;
+    const name = modalBrandSearch.trim();
+    if (!name) return;
+
+    creatingBrand = true;
+    try {
+      const newBrand = await createBrand(name);
+      localBrands = [...localBrands, newBrand];
+      form.brand_id = newBrand.id;
+      modalBrandSearch = newBrand.name;
+      showModalBrandDropdown = false;
+      toast.success(labels.toastBrandAdded);
+    } catch (err: any) {
+      const msg = err.response?.data?.error || labels.toastFailedSaveBrand;
+      toast.error(msg);
+    } finally {
+      creatingBrand = false;
     }
   }
 
@@ -325,12 +407,75 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
       <div>
         <label for="prod-brand" class="block text-sm font-medium text-text-secondary mb-1.5">{labels.brand}</label>
-        <Input tag="select" id="prod-brand" bind:value={form.brand_id}>
-          <option value={null}>{labels.selectBrand}</option>
-          {#each brands as brand}
-            <option value={brand.id}>{brand.name}</option>
-          {/each}
-        </Input>
+        <div bind:this={brandContainer} class="relative">
+          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          <Input
+            type="text"
+            id="prod-brand"
+            placeholder={labels.selectBrand}
+            bind:value={modalBrandSearch}
+            onfocus={handleBrandFocus}
+            onblur={handleBrandBlur}
+            class="pl-10 pr-10"
+          />
+          {#if modalBrandSearch}
+            <button
+              type="button"
+              onclick={() => { modalBrandSearch = ''; form.brand_id = null; }}
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+              title={labels.clear}
+              aria-label={labels.clear}
+            >
+              <X size={14} />
+            </button>
+          {:else}
+            <ChevronDown size={16} class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          {/if}
+          {#if showModalBrandDropdown}
+            <div style={brandMenuStyle} class="fixed z-50 card-glass p-1.5 min-w-0 flex flex-col gap-0.5 max-h-56 overflow-y-auto">
+              <button
+                type="button"
+                onmousedown={() => { form.brand_id = null; modalBrandSearch = ''; showModalBrandDropdown = false; }}
+                class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-muted hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
+                role="menuitem"
+              >
+                {labels.selectBrand}
+              </button>
+              {#if filteredBrands.length === 0}
+                <div class="px-3 py-2 text-sm text-text-muted">{labels.noBrandsFound}</div>
+              {:else}
+                {#each filteredBrands as brand}
+                  <button
+                    type="button"
+                    onmousedown={() => selectBrand(brand)}
+                    class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
+                    role="menuitem"
+                  >
+                    {brand.name}
+                  </button>
+                {/each}
+              {/if}
+              {#if showCreateBrandOption}
+                <div class="border-t border-border my-0.5"></div>
+                <button
+                  type="button"
+                  onmousedown={(e) => { e.preventDefault(); handleCreateBrand(); }}
+                  onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCreateBrand(); } }}
+                  class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-xl transition-all duration-200 w-full text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={creatingBrand}
+                >
+                  {#if creatingBrand}
+                    <Loader2 size={14} class="animate-spin" />
+                    <span>{labels.creatingBrand}</span>
+                  {:else}
+                    <Plus size={14} />
+                    <span>{t('createBrandInline', { name: modalBrandSearch.trim() })}</span>
+                  {/if}
+                </button>
+              {/if}
+            </div>
+          {/if}
+        </div>
       </div>
       <div>
         <label for="prod-uom" class="block text-sm font-medium text-text-secondary mb-1.5">{labels.unitOfMeasure}</label>

@@ -103,6 +103,11 @@ export async function getBrands(): Promise<Brand[]> {
   return r.data.data || [];
 }
 
+export async function createBrand(name: string): Promise<Brand> {
+  const r = await apiClient.post('/brands', { name });
+  return r.data.data;
+}
+
 export async function getTaxClasses(): Promise<TaxClass[]> {
   const r = await apiClient.get('/tax-classes');
   return r.data.data || [];
