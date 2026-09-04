@@ -543,12 +543,18 @@ Barang titipan supplier: barang milik supplier yang dijual di toko, dengan terms
 - DB: `001_consignment.sql`, `002_settlement_items_product_id.sql`, `003_settlement_updated_at.sql`.
 - Frontend: `web/src/modules/consignment/` — halaman arrangement (daftar + detail 6 tab), terms, penerimaan, retur tertunda, retur, stok, settlement & payout; toggle konsinyasi di modul supplier.
 - Permission: `consignment.view/create/update/settle/pay` (Superadmin/Admin semua; Manager tanpa `pay`).
+- UX improvements (2026-09-04):
+  - **Smart default tab:** arrangement tanpa terms otomatis buka di tab Terms + banner peringatan "Set pricing terms before receiving goods".
+  - **Terms sync fix:** `TermsEditor` tidak lagi pakai `$effect` — `onMount` → `load()` handle initial sync, `submitAdd()` set local state langsung.
+  - **Supplier consignment filter:** tombol "Konsinyasi" di toolbar Suppliers page, badge kolom, URL deep-link (`?is_consignment=true`).
+  - **Back button:** Suppliers page tampilkan tombol kembali jika navigasi dari Consignment → View Suppliers (`?referrer=consignment`).
+  - **View Suppliers link:** tombol "Lihat Pemasok" di ArrangementsPage, visible untuk semua role (tidak terbatas `canCreate`).
 
 ### Test Coverage
 
 - `internal/consignment/` — arrangement, receipt, pending return, return, settlement, payout, checkout-insufficient-stock, store scope, PRD §9 scenario matrix.
-- `internal/supplier/` — passthrough `is_consignment`.
-- Frontend: `web/src/modules/consignment/` + build.
+- `internal/supplier/` — passthrough `is_consignment`, `is_consignment` filter (repository + handler + service tests).
+- Frontend: `web/src/modules/consignment/` + build; `web/src/modules/supplier/services/__tests__/supplier-service.test.ts` (filter param tests).
 
 ---
 
