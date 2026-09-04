@@ -2,6 +2,7 @@ package product
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"retail-pos-system/internal/events"
@@ -101,6 +102,9 @@ func (s *service) GetAllProducts(ctx context.Context, limit, offset int, search,
 }
 
 func (s *service) CreateProduct(ctx context.Context, product *Product) error {
+	if err := s.resolveCategoryID(ctx, product); err != nil {
+		return err
+	}
 	return s.repo.CreateProduct(ctx, product)
 }
 
@@ -109,6 +113,9 @@ func (s *service) UpdateProduct(ctx context.Context, product *Product) error {
 	// published anymore (the DTO carries only the new state), but the lookup
 	// preserves the prior behavior of failing instead of silently succeeding.
 	if _, err := s.repo.GetProductByID(ctx, product.ID, product.StoreID); err != nil {
+		return err
+	}
+	if err := s.resolveCategoryID(ctx, product); err != nil {
 		return err
 	}
 	if err := s.repo.UpdateProduct(ctx, product, product.StoreID); err != nil {
@@ -144,6 +151,18 @@ func (s *service) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) {
 }
 func (s *service) GetActiveProductOptions(ctx context.Context) ([]Option, error) {
 	return s.repo.GetActiveProductOptions(ctx)
+}
+
+func (s *service) resolveCategoryID(ctx context.Context, product *Product) error {
+	if product.CategoryID != nil || product.CategoryName == nil || *product.CategoryName == "" {
+		return nil
+	}
+	id, err := s.categoryRepo.GetCategoryIDByName(ctx, *product.CategoryName)
+	if err != nil {
+		return fmt.Errorf("category %q not found: %w", *product.CategoryName, err)
+	}
+	product.CategoryID = &id
+	return nil
 }
 
 func strPtr(s string) *string {

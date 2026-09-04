@@ -144,3 +144,103 @@ func TestService_GetAllProducts_NoCategory(t *testing.T) {
 	_, _, err := svc.GetAllProducts(ctx, 10, 0, "", "", "", "", nil, nil, nil, "", nil, nil)
 	assert.NoError(t, err)
 }
+
+func TestService_ResolveCategoryID(t *testing.T) {
+	t.Run("resolves category by name when CategoryID is nil", func(t *testing.T) {
+		catRepo := &testCategoryRepo{
+			getByIDFn: func(ctx context.Context, name string) (int, error) {
+				assert.Equal(t, "Electronics", name)
+				return 42, nil
+			},
+		}
+		svc := &service{categoryRepo: catRepo}
+		ctx := context.Background()
+
+		p := &Product{CategoryName: strPtr("Electronics")}
+		err := svc.resolveCategoryID(ctx, p)
+		assert.NoError(t, err)
+		assert.NotNil(t, p.CategoryID)
+		assert.Equal(t, 42, *p.CategoryID)
+	})
+
+	t.Run("skips resolution when CategoryID is already set", func(t *testing.T) {
+		catRepo := &testCategoryRepo{
+			getByIDFn: func(ctx context.Context, name string) (int, error) {
+				t.Fatal("should not be called when CategoryID is set")
+				return 0, nil
+			},
+		}
+		svc := &service{categoryRepo: catRepo}
+		ctx := context.Background()
+
+		existingID := 10
+		p := &Product{CategoryID: &existingID, CategoryName: strPtr("Electronics")}
+		err := svc.resolveCategoryID(ctx, p)
+		assert.NoError(t, err)
+		assert.Equal(t, 10, *p.CategoryID)
+	})
+
+	t.Run("skips resolution when CategoryName is nil", func(t *testing.T) {
+		catRepo := &testCategoryRepo{
+			getByIDFn: func(ctx context.Context, name string) (int, error) {
+				t.Fatal("should not be called when CategoryName is nil")
+				return 0, nil
+			},
+		}
+		svc := &service{categoryRepo: catRepo}
+		ctx := context.Background()
+
+		p := &Product{}
+		err := svc.resolveCategoryID(ctx, p)
+		assert.NoError(t, err)
+		assert.Nil(t, p.CategoryID)
+	})
+
+	t.Run("skips resolution when CategoryName is empty", func(t *testing.T) {
+		catRepo := &testCategoryRepo{
+			getByIDFn: func(ctx context.Context, name string) (int, error) {
+				t.Fatal("should not be called when CategoryName is empty")
+				return 0, nil
+			},
+		}
+		svc := &service{categoryRepo: catRepo}
+		ctx := context.Background()
+
+		p := &Product{CategoryName: strPtr("")}
+		err := svc.resolveCategoryID(ctx, p)
+		assert.NoError(t, err)
+		assert.Nil(t, p.CategoryID)
+	})
+
+	t.Run("returns error when category not found", func(t *testing.T) {
+		catRepo := &testCategoryRepo{
+			getByIDFn: func(ctx context.Context, name string) (int, error) {
+				return 0, errors.New("category not found")
+			},
+		}
+		svc := &service{categoryRepo: catRepo}
+		ctx := context.Background()
+
+		p := &Product{CategoryName: strPtr("Nonexistent")}
+		err := svc.resolveCategoryID(ctx, p)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "category \"Nonexistent\" not found")
+		assert.Nil(t, p.CategoryID)
+	})
+
+	t.Run("preserves error chain with %w", func(t *testing.T) {
+		innerErr := errors.New("connection refused")
+		catRepo := &testCategoryRepo{
+			getByIDFn: func(ctx context.Context, name string) (int, error) {
+				return 0, innerErr
+			},
+		}
+		svc := &service{categoryRepo: catRepo}
+		ctx := context.Background()
+
+		p := &Product{CategoryName: strPtr("Test")}
+		err := svc.resolveCategoryID(ctx, p)
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, innerErr)
+	})
+}

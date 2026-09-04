@@ -93,6 +93,11 @@ export async function getCategories(): Promise<Category[]> {
   return r.data.data || [];
 }
 
+export async function createCategory(name: string): Promise<Category> {
+  const r = await apiClient.post('/categories', { name });
+  return r.data.data;
+}
+
 export async function getBrands(): Promise<Brand[]> {
   const r = await apiClient.get('/brands', { params: { limit: 1000, offset: 0 } });
   return r.data.data || [];

@@ -646,6 +646,8 @@ export const en: Labels = {
   toastCategoryDeleted: 'Category "{name}" deleted successfully',
   toastFailedSaveCategory: 'Failed to save category',
   toastFailedDeleteCategory: 'Failed to delete category',
+  createCategoryInline: 'Create "{name}"',
+  creatingCategory: 'Creating category...',
   toastUnitAdded: 'Unit added successfully',
   toastUnitUpdated: 'Unit updated successfully',
   toastUnitDeleted: 'Unit "{name}" deleted successfully',

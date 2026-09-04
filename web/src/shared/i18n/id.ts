@@ -646,6 +646,8 @@ export const id = {
   toastCategoryDeleted: 'Kategori "{name}" berhasil dihapus',
   toastFailedSaveCategory: 'Gagal menyimpan kategori',
   toastFailedDeleteCategory: 'Gagal menghapus kategori',
+  createCategoryInline: 'Buat "{name}"',
+  creatingCategory: 'Membuat kategori...',
   toastUnitAdded: 'Unit berhasil ditambahkan',
   toastUnitUpdated: 'Unit berhasil diperbarui',
   toastUnitDeleted: 'Unit "{name}" berhasil dihapus',
