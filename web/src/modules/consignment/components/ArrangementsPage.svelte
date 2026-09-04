@@ -285,10 +285,10 @@
             aria-pressed={statusFilter === ARRANGEMENT_STATUS_ENDED}
           >{labels[ARRANGEMENT_STATUS_LABELS[ARRANGEMENT_STATUS_ENDED]]}</button>
         </div>
+        <Button variant="secondary" class="shrink-0 px-5" onclick={() => goto('/suppliers?is_consignment=true&referrer=consignment')}>
+          <ExternalLink size={16} /> {labels.viewSuppliers}
+        </Button>
         {#if canCreate}
-          <Button variant="secondary" class="shrink-0 px-5" onclick={() => goto('/suppliers?is_consignment=true&referrer=consignment')}>
-            <ExternalLink size={16} /> {labels.viewSuppliers}
-          </Button>
           <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openCreate}>
             <Plus size={18} /> {labels.consignmentNewArrangement}
           </Button>

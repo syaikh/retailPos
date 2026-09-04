@@ -71,8 +71,17 @@
   const debouncedSearch = debounce(() => { offset = 0; load(); }, 300);
 
   function handleSearch() { debouncedSearch(); }
-  function handleStatusChange() { offset = 0; load(); }
-  function handleConsignmentChange() { offset = 0; load(); }
+  function handleStatusChange() { offset = 0; syncUrl(); load(); }
+  function handleConsignmentChange() { offset = 0; syncUrl(); load(); }
+
+  function syncUrl() {
+    const params = new URLSearchParams(window.location.search);
+    if (consignmentFilter) params.set('is_consignment', 'true');
+    else params.delete('is_consignment');
+    const qs = params.toString();
+    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+    window.history.replaceState({}, '', url);
+  }
   function handlePageChange(newOffset: number, newLimit: number) {
     limit = newLimit;
     offset = newOffset;
