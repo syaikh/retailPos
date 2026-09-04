@@ -37,6 +37,26 @@ describe('supplier-service', () => {
       expect(url).toContain('is_active=true');
     });
 
+    it('includes is_consignment filter', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ data: [], total: 0 }) });
+
+      const { getSuppliers } = await import('../supplier-service');
+      await getSuppliers({ limit: 10, offset: 0, is_consignment: true });
+
+      const url = mockApiFetch.mock.calls[0][0] as string;
+      expect(url).toContain('is_consignment=true');
+    });
+
+    it('does not include is_consignment when undefined', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ data: [], total: 0 }) });
+
+      const { getSuppliers } = await import('../supplier-service');
+      await getSuppliers({ limit: 10, offset: 0 });
+
+      const url = mockApiFetch.mock.calls[0][0] as string;
+      expect(url).not.toContain('is_consignment');
+    });
+
     it('includes sort_by and sort_dir', async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ data: [], total: 0 }) });
 

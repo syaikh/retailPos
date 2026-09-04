@@ -3,9 +3,11 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
   import { goto } from '$app/router';
+  import { labels } from '$shared/i18n';
   import { getSuppliers, createSupplier, updateSupplier, deleteSupplier, bulkUpdateSuppliers, bulkDeleteSuppliers } from '../services/supplier-service';
   import type { Supplier } from '../types';
   import { Pagination } from '$shared/ui';
+  import { ArrowLeft } from 'lucide-svelte';
   import { debounce } from '$shared/utils/debounce';
   import { useSortable } from '$shared/composables/useSortable.svelte';
   import SuppliersToolbar from './SuppliersToolbar.svelte';
@@ -31,6 +33,8 @@
   let offset = $state(0);
   let searchQuery = $state('');
   let statusFilter = $state('all');
+  let consignmentFilter = $state(false);
+  let referrer = $state<string | null>(null);
   const { sortState, handleSort } = useSortable('name', 'asc', load);
 
   let showFormModal = $state(false);
@@ -52,6 +56,7 @@
       const params: any = { limit, offset, search: searchQuery, sort_by: sortState.sortBy, sort_dir: sortState.sortDir };
       if (statusFilter === 'active') params.is_active = true;
       else if (statusFilter === 'inactive') params.is_active = false;
+      if (consignmentFilter) params.is_consignment = true;
 
       const result = await getSuppliers(params);
       suppliers = result.data;
@@ -67,6 +72,7 @@
 
   function handleSearch() { debouncedSearch(); }
   function handleStatusChange() { offset = 0; load(); }
+  function handleConsignmentChange() { offset = 0; load(); }
   function handlePageChange(newOffset: number, newLimit: number) {
     limit = newLimit;
     offset = newOffset;
@@ -190,18 +196,35 @@
     goto(`/inventory/products?${params.toString()}`);
   }
 
-  onMount(() => { load(); });
+  onMount(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('is_consignment') === 'true') {
+      consignmentFilter = true;
+    }
+    referrer = urlParams.get('referrer');
+    load();
+  });
 </script>
 
 <div class="space-y-5">
+  {#if referrer === 'consignment'}
+    <button
+      class="inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-text-secondary transition-colors"
+      onclick={() => goto('/consignment/arrangements')}
+    >
+      <ArrowLeft size={16} /> {labels.back}
+    </button>
+  {/if}
   <SuppliersToolbar
     bind:searchQuery
     bind:statusFilter
+    bind:consignmentFilter
     {canCreate}
     {canExport}
     {canImport}
     onsearch={handleSearch}
     onstatuschange={handleStatusChange}
+    onconsignmentchange={handleConsignmentChange}
     oncreate={openAdd}
     onimport={handleImport}
   />

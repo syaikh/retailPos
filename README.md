@@ -1409,6 +1409,8 @@ The **Suppliers** page manages the vendors you purchase from.
 
 **View:** the detail drawer shows supplier info and their products. A **products** link filters the Products page to this supplier (with a **Kembali ke Suppliers** (Back to Suppliers) banner).
 
+**Consignment filter:** click **Konsinyasi** in the toolbar to show only suppliers flagged as consignment suppliers. This filter stacks with the Active/Inactive status filter. The URL `/suppliers?is_consignment=true` deep-links to this filtered view. When navigating from the Consignment module's **View Suppliers** link, a back arrow appears above the toolbar to return to the arrangements list.
+
 Suppliers are used by Purchase Orders — when creating a PO you pick a supplier and choose only products linked to that supplier.
 
 ---
@@ -1690,11 +1692,15 @@ Click the **Buka** (Open) button on any row. This opens the arrangement detail v
 
 The arrangement header shows the supplier name, status badge (**Aktif** / **Berakhir**), and the last visit date.
 
+> **First-time setup:** If the arrangement has no pricing terms yet, the Terms tab opens automatically with a warning banner: "Set pricing terms before receiving goods." Once terms are added, subsequent opens land on the Receiving tab as usual.
+
+**View Suppliers:** the arrangement list header has a **Lihat Pemasok** (View Suppliers) button that navigates to the Suppliers page filtered to show only consignment suppliers. A back button on the Suppliers page returns you to the arrangements list.
+
 ---
 
 #### Tab 1: Penerimaan (Receiving Goods)
 
-This is the **default tab** when you open an arrangement. It records goods delivered by the supplier.
+This tab records goods delivered by the supplier. It is the default tab when you open an existing arrangement that already has pricing terms set.
 
 **The receipt history** shows all past receipts with columns: Receipt Number (CR-xxxxxx), Date, Items count, and Total Value.
 

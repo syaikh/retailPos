@@ -574,6 +574,39 @@ func TestHandler_ListSuppliers_IsActiveFilter(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestHandler_ListSuppliers_IsConsignmentFilter(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupSupplierRouter(t)
+
+	t.Run("is_consignment=true", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/suppliers?is_consignment=true", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("is_consignment=false", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/suppliers?is_consignment=false", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("is_consignment=1", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/suppliers?is_consignment=1", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("combined filters", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/suppliers?is_active=true&is_consignment=true", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
 func TestHandler_UpdateSupplier_ErrorBranches(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupSupplierRouter(t)
@@ -672,7 +705,7 @@ func setupSupplierMockRouter(svc Service) *gin.Engine {
 
 func TestHandler_MockErrorBranches(t *testing.T) {
 	t.Run("list error", func(t *testing.T) {
-		svc := &mockSupplierServiceForAudit{getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error) {
+		svc := &mockSupplierServiceForAudit{getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, isConsignment *bool) ([]Supplier, int, error) {
 			return nil, 0, assert.AnError
 		}}
 		w := httptest.NewRecorder()
@@ -682,7 +715,7 @@ func TestHandler_MockErrorBranches(t *testing.T) {
 	})
 
 	t.Run("list nil suppliers", func(t *testing.T) {
-		svc := &mockSupplierServiceForAudit{getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error) {
+		svc := &mockSupplierServiceForAudit{getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, isConsignment *bool) ([]Supplier, int, error) {
 			return nil, 0, nil
 		}}
 		w := httptest.NewRecorder()

@@ -12,7 +12,7 @@ var (
 )
 
 type Repo interface {
-	GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error)
+	GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, isConsignment *bool) ([]Supplier, int, error)
 	GetByID(ctx context.Context, id int) (*Supplier, error)
 	GetByCode(ctx context.Context, code string) (*Supplier, error)
 	GetNextSupplierCode(ctx context.Context) (string, error)
@@ -47,8 +47,8 @@ func (s *service) GetByCode(ctx context.Context, code string) (*Supplier, error)
 	return s.repo.GetByCode(ctx, code)
 }
 
-func (s *service) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error) {
-	return s.repo.GetAll(ctx, limit, offset, search, isActive)
+func (s *service) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, isConsignment *bool) ([]Supplier, int, error) {
+	return s.repo.GetAll(ctx, limit, offset, search, isActive, isConsignment)
 }
 
 func (s *service) Create(ctx context.Context, supplier *Supplier) error {

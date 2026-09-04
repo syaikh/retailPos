@@ -189,7 +189,7 @@ func (r *Repository) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error) {
+func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, isConsignment *bool) ([]Supplier, int, error) {
 	countQuery := `SELECT COUNT(*) FROM suppliers WHERE deleted_at IS NULL`
 	dataQuery := `
 		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_at, updated_at
@@ -210,6 +210,13 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 		countQuery += filter
 		dataQuery += filter
 		args = append(args, *isActive)
+		argIdx++
+	}
+	if isConsignment != nil {
+		filter := fmt.Sprintf(" AND is_consignment = $%d", argIdx)
+		countQuery += filter
+		dataQuery += filter
+		args = append(args, *isConsignment)
 		argIdx++
 	}
 

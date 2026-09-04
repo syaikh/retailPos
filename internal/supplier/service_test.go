@@ -276,7 +276,7 @@ func TestService_GetAll(t *testing.T) {
 	s := &Supplier{Name: "SVC-GetAll", Code: "SUP-SVC-GA-" + time.Now().Format("0102150405"), IsActive: true}
 	require.NoError(t, repo.Create(ctx, s))
 
-	suppliers, total, err := svc.GetAll(ctx, 10, 0, "", nil)
+	suppliers, total, err := svc.GetAll(ctx, 10, 0, "", nil, nil)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, total, 1)
 	assert.NotEmpty(t, suppliers)

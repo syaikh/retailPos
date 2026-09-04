@@ -6,6 +6,7 @@ export interface SupplierListParams {
   offset: number;
   search?: string;
   is_active?: boolean;
+  is_consignment?: boolean;
   sort_by?: string;
   sort_dir?: string;
 }
@@ -22,6 +23,7 @@ export async function getSuppliers(params: SupplierListParams): Promise<Supplier
   });
   if (params.search) urlParams.append('search', params.search);
   if (params.is_active !== undefined) urlParams.append('is_active', params.is_active.toString());
+  if (params.is_consignment !== undefined) urlParams.append('is_consignment', params.is_consignment.toString());
   if (params.sort_by) urlParams.append('sort_by', params.sort_by);
   if (params.sort_dir) urlParams.append('sort_dir', params.sort_dir);
 

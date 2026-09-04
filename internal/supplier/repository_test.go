@@ -147,23 +147,36 @@ func TestSupplierRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("GetAll", func(t *testing.T) {
-		suppliers, total, err := repo.GetAll(ctx, 10, 0, "", nil)
+		suppliers, total, err := repo.GetAll(ctx, 10, 0, "", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.NotNil(t, suppliers)
 	})
 
 	t.Run("GetAll with search", func(t *testing.T) {
-		suppliers, _, err := repo.GetAll(ctx, 10, 0, "After", nil)
+		suppliers, _, err := repo.GetAll(ctx, 10, 0, "After", nil, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, suppliers)
 	})
 
 	t.Run("GetAll with active filter", func(t *testing.T) {
 		active := true
-		suppliers, _, err := repo.GetAll(ctx, 10, 0, "", &active)
+		suppliers, _, err := repo.GetAll(ctx, 10, 0, "", &active, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, suppliers)
+	})
+
+	t.Run("GetAll with consignment filter", func(t *testing.T) {
+		isConsignment := true
+		_, _, err := repo.GetAll(ctx, 10, 0, "", nil, &isConsignment)
+		require.NoError(t, err)
+	})
+
+	t.Run("GetAll with both filters", func(t *testing.T) {
+		active := true
+		isConsignment := false
+		_, _, err := repo.GetAll(ctx, 10, 0, "", &active, &isConsignment)
+		require.NoError(t, err)
 	})
 }
 
@@ -294,7 +307,7 @@ func TestSupplierRepository_GetAllInactiveFilter(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, s))
 
 	inactive := false
-	suppliers, total, err := repo.GetAll(ctx, 10, 0, "", &inactive)
+	suppliers, total, err := repo.GetAll(ctx, 10, 0, "", &inactive, nil)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, total, 1)
 	assert.NotNil(t, suppliers)

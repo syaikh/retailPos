@@ -18,7 +18,7 @@ import (
 type Service interface {
 	GetByID(ctx context.Context, id int) (*Supplier, error)
 	GetByCode(ctx context.Context, code string) (*Supplier, error)
-	GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error)
+	GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, isConsignment *bool) ([]Supplier, int, error)
 	Create(ctx context.Context, supplier *Supplier) error
 	Update(ctx context.Context, supplier *Supplier) error
 	Delete(ctx context.Context, id int) error
@@ -72,6 +72,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 // @Param offset query int false "Offset" default(0)
 // @Param search query string false "Search by name, code, or contact name"
 // @Param is_active query string false "Filter by active status (true/false)"
+// @Param is_consignment query string false "Filter by consignment status (true/false)"
 // @Success 200 {object} map[string]interface{}
 // @Router /suppliers [get]
 func (h *Handler) ListSuppliers(c *gin.Context) {
@@ -84,7 +85,13 @@ func (h *Handler) ListSuppliers(c *gin.Context) {
 		isActive = &b
 	}
 
-	suppliers, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, isActive)
+	var isConsignment *bool
+	if v := c.Query("is_consignment"); v != "" {
+		b := strings.EqualFold(v, "true") || v == "1"
+		isConsignment = &b
+	}
+
+	suppliers, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, isActive, isConsignment)
 	if err != nil {
 		shared.InternalError(c, err)
 		return

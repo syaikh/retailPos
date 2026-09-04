@@ -132,11 +132,12 @@
     <table class="w-full min-w-[800px]" style="table-layout: fixed;" role="grid" aria-label={labels.suppliers}>
       <colgroup>
         <col style="width: 3%;" />
-        <col style="width: 22%;" />
-        <col style="width: 18%;" />
-        <col style="width: 15%;" />
         <col style="width: 20%;" />
-        <col style="width: 10%;" />
+        <col style="width: 16%;" />
+        <col style="width: 13%;" />
+        <col style="width: 18%;" />
+        <col style="width: 9%;" />
+        <col style="width: 9%;" />
         <col style="width: 12%;" />
       </colgroup>
       <thead class="bg-muted/50">
@@ -166,6 +167,7 @@
           <th class="px-4 py-3 font-semibold" scope="col">
             <SortableHeader label={labels.statusLabel} column="is_active" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
           </th>
+          <th class="px-4 py-3 font-semibold" scope="col">{labels.consignmentFilter}</th>
           <th class="px-4 py-3 font-semibold text-right" scope="col">{labels.actionsLabel}</th>
         </tr>
       </thead>
@@ -199,6 +201,11 @@
               <Badge variant={supplier.is_active ? 'success' : 'muted'}>
                 {supplier.is_active ? labels.active : labels.inactive}
               </Badge>
+            </td>
+            <td class="px-4 py-3">
+              {#if supplier.is_consignment}
+                <Badge variant="warning">{labels.consignmentFilter}</Badge>
+              {/if}
             </td>
             <td class="px-4 py-3 text-right" onclick={(e) => e.stopPropagation()}>
               <div class="flex items-center justify-center" role="group" aria-label={t('actionsFor', { name: supplier.name })}>

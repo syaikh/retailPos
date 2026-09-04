@@ -32,7 +32,7 @@ func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) e
 
 type mockSupplierServiceForAudit struct {
 	getByIDFn                 func(ctx context.Context, id int) (*Supplier, error)
-	getAllFn                  func(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error)
+	getAllFn                  func(ctx context.Context, limit, offset int, search string, isActive *bool, isConsignment *bool) ([]Supplier, int, error)
 	createFn                  func(ctx context.Context, supplier *Supplier) error
 	updateFn                  func(ctx context.Context, supplier *Supplier) error
 	deleteFn                  func(ctx context.Context, id int) error
@@ -57,9 +57,9 @@ func (m *mockSupplierServiceForAudit) GetByCode(ctx context.Context, code string
 	return nil, nil
 }
 
-func (m *mockSupplierServiceForAudit) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error) {
+func (m *mockSupplierServiceForAudit) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, isConsignment *bool) ([]Supplier, int, error) {
 	if m.getAllFn != nil {
-		return m.getAllFn(ctx, limit, offset, search, isActive)
+		return m.getAllFn(ctx, limit, offset, search, isActive, isConsignment)
 	}
 	return []Supplier{}, 0, nil
 }

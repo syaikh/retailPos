@@ -6,21 +6,25 @@
   let {
     searchQuery = $bindable(''),
     statusFilter = $bindable('all'),
+    consignmentFilter = $bindable(false),
     canCreate = false,
     canExport = false,
     canImport = false,
     onsearch = () => {},
     onstatuschange = () => {},
+    onconsignmentchange = () => {},
     oncreate = () => {},
     onimport = () => {},
   }: {
     searchQuery?: string;
     statusFilter?: string;
+    consignmentFilter?: boolean;
     canCreate?: boolean;
     canExport?: boolean;
     canImport?: boolean;
     onsearch?: () => void;
     onstatuschange?: () => void;
+    onconsignmentchange?: () => void;
     oncreate?: () => void;
     onimport?: () => void;
   } = $props();
@@ -48,6 +52,11 @@
         aria-pressed={statusFilter === 'inactive'}
       >{labels.inactive}</button>
     </div>
+    <button
+      class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {consignmentFilter ? 'bg-warning-subtle text-warning-light border border-warning-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+      onclick={() => { consignmentFilter = !consignmentFilter; onconsignmentchange(); }}
+      aria-pressed={consignmentFilter}
+    >{labels.consignmentFilter}</button>
     <BulkActionDropdown module="suppliers" {canExport} {canImport} onImport={onimport} />
     {#if canCreate}
       <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={oncreate}>

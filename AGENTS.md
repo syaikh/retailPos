@@ -167,6 +167,7 @@ Migrations must be applied **before** deploying a new server binary. The server 
 | `037_audit_immutable_fk_bypass.sql` | Allows FK-cascade updates through append-only trigger |
 | `038_grant_audit_view_to_admin.sql` | Grants `audit.view` to `admin` (fix: export without view) |
 | `039_business_permission_audit.sql` | Business-perspective audit: +12 manager, +4 cashier, +1 staff permissions |
+| `040_sales_return.sql` | Creates `sale_returns`/`sale_return_items`/`sale_return_payments`/`return_approvals` tables, seeds `sale.return`/`sale.return.approve` permissions, adds return settings |
 
 ## Filesystem Convention
 

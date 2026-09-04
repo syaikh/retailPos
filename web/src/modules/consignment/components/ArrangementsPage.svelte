@@ -2,8 +2,9 @@
   import { onMount } from 'svelte';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
+  import { goto } from '$app/router';
   import { Button, Modal, Input, SelectSearch, EmptyState, Badge, SearchBar, Pagination } from '$shared/ui';
-  import { Plus, ClipboardList, Truck, RotateCcw, Wallet, ArrowLeft } from 'lucide-svelte';
+  import { Plus, ClipboardList, Truck, RotateCcw, Wallet, ArrowLeft, AlertTriangle, ExternalLink } from 'lucide-svelte';
   import { debounce } from '$shared/utils/debounce';
   import { labels, t } from '$shared/i18n';
   import {
@@ -122,7 +123,7 @@
 
   function openArrangement(a: Arrangement) {
     activeArrangement = a;
-    activeTab = 'receipt';
+    activeTab = (a.terms?.length ?? 0) > 0 ? 'receipt' : 'terms';
   }
 
   function backToList() {
@@ -165,6 +166,16 @@
         </div>
       </div>
     </div>
+
+    {#if (activeArrangement.terms?.length ?? 0) === 0}
+      <div class="rounded-xl border border-warning/40 bg-warning-subtle/20 p-4 flex items-start gap-3">
+        <AlertTriangle size={18} class="text-warning shrink-0 mt-0.5" />
+        <div>
+          <p class="text-sm font-semibold text-text-primary">{labels.consignmentTermsRequiredBanner}</p>
+          <p class="text-xs text-text-muted mt-1">{labels.consignmentTermsRequiredHint}</p>
+        </div>
+      </div>
+    {/if}
 
     <div class="flex flex-wrap gap-2 border-b border-border/50 pb-3">
       <Button
@@ -275,6 +286,9 @@
           >{labels[ARRANGEMENT_STATUS_LABELS[ARRANGEMENT_STATUS_ENDED]]}</button>
         </div>
         {#if canCreate}
+          <Button variant="secondary" class="shrink-0 px-5" onclick={() => goto('/suppliers?is_consignment=true&referrer=consignment')}>
+            <ExternalLink size={16} /> {labels.viewSuppliers}
+          </Button>
           <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openCreate}>
             <Plus size={18} /> {labels.consignmentNewArrangement}
           </Button>
