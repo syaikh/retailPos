@@ -9,6 +9,7 @@
   import { labels, t } from '$shared/i18n';
   import {
     listArrangements,
+    getArrangement,
     createArrangement,
     listConsignmentSuppliers,
   } from '../services/consignment-service';
@@ -121,9 +122,15 @@
     }
   }
 
-  function openArrangement(a: Arrangement) {
+  async function openArrangement(a: Arrangement) {
     activeArrangement = a;
-    activeTab = (a.terms?.length ?? 0) > 0 ? 'receipt' : 'terms';
+    try {
+      const full = await getArrangement(a.id);
+      activeArrangement = full;
+      activeTab = (full.terms?.length ?? 0) > 0 ? 'receipt' : 'terms';
+    } catch {
+      activeTab = 'terms';
+    }
   }
 
   function backToList() {
@@ -133,13 +140,19 @@
 
   async function refreshArrangement() {
     if (!activeArrangement) return;
+    const arrangementId = activeArrangement.id;
     const params: any = { limit: 100, offset: 0 };
     if (searchQuery) params.search = searchQuery;
     if (statusFilter !== 'all') params.status = statusFilter;
     const arrs = await listArrangements(params);
     arrangements = arrs.data;
-    const updated = arrs.data.find((a) => a.id === activeArrangement!.id);
-    if (updated) activeArrangement = updated;
+    try {
+      const updated = await getArrangement(arrangementId);
+      activeArrangement = updated;
+    } catch {
+      const updated = arrs.data.find((a) => a.id === arrangementId);
+      if (updated) activeArrangement = updated;
+    }
   }
 
   onMount(load);
