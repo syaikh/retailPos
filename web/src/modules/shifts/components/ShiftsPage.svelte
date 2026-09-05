@@ -226,6 +226,17 @@ import { useShiftStore } from '../stores/shift-store.svelte';
     }
   });
 
+  $effect(() => {
+    if (showOpenModal) {
+      getActiveStores().then((s) => {
+        stores = s;
+        if (s.length === 1) selectedStoreId = s[0].id;
+      }).catch(() => { stores = []; });
+    } else {
+      selectedStoreId = null;
+    }
+  });
+
   onDestroy(() => {
     stopPolling();
   });
@@ -464,12 +475,7 @@ import { useShiftStore } from '../stores/shift-store.svelte';
 </div>
 
 <!-- Open Shift Modal -->
-<Modal bind:open={showOpenModal} title={labels.openShift} size="sm" onOpen={async () => {
-  try {
-    stores = await getActiveStores();
-    if (stores.length === 1) selectedStoreId = stores[0].id;
-  } catch { stores = []; }
-}}>
+<Modal bind:open={showOpenModal} title={labels.openShift} size="sm">
   <form onsubmit={(e) => { e.preventDefault(); handleOpenShift(); }} class="space-y-4">
     {#if stores.length > 1}
       <div>

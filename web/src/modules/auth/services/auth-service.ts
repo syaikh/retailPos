@@ -23,11 +23,16 @@ const authApi = axios.create({
   withCredentials: true,
 });
 
-// --- Shared refresh lock (prevents race conditions) ---
+// --- Shared refresh lock (deduplication queue) ---
 let refreshPromise: Promise<string | null> | null = null;
+let refreshQueue: Array<{ resolve: (token: string | null) => void; reject: (err: unknown) => void }> = [];
 
 async function doRefresh(): Promise<string | null> {
-  if (refreshPromise) return refreshPromise;
+  if (refreshPromise) {
+    return new Promise<string | null>((resolve, reject) => {
+      refreshQueue.push({ resolve, reject });
+    });
+  }
 
   refreshPromise = (async () => {
     try {
@@ -35,14 +40,24 @@ async function doRefresh(): Promise<string | null> {
       const newAccessToken = response.data.access_token;
       setAccessToken(newAccessToken);
       return newAccessToken;
-    } catch {
-      return null;
-    } finally {
+    } catch (err) {
+      // Notify all queued callers of the failure
+      const queue = refreshQueue.splice(0);
+      queue.forEach((cb) => cb.reject(err));
       refreshPromise = null;
+      return null;
     }
   })();
 
-  return refreshPromise;
+  try {
+    const result = await refreshPromise;
+    // Notify all queued callers with the new token
+    const queue = refreshQueue.splice(0);
+    queue.forEach((cb) => cb.resolve(result));
+    return result;
+  } finally {
+    refreshPromise = null;
+  }
 }
 
 export async function refreshAccessToken(): Promise<string | null> {

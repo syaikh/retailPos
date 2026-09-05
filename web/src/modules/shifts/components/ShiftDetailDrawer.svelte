@@ -161,7 +161,7 @@
 </Drawer>
 
 {#if showReport && selectedShift}
-  <Drawer bind:open={showReport} title="Laporan Sif" size="lg">
+  <Drawer bind:open={showReport} title="Laporan Sif" width={640}>
     <ShiftReport shiftId={selectedShift.id} onClose={() => { showReport = false; }} />
   </Drawer>
 {/if}
