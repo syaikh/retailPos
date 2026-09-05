@@ -18,6 +18,9 @@ type Repo interface {
 	GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
 	GetShiftWithLiveSales(ctx context.Context, shiftID int) (*Shift, int, error)
 	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
+	CreateCashMovement(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
+	ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error)
+	ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error)
 }
 
 type service struct {
@@ -100,6 +103,28 @@ func (s *service) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Sh
 
 func (s *service) FlagForReview(ctx context.Context, shiftID int) error {
 	return s.repo.FlagForReview(ctx, shiftID)
+}
+
+func (s *service) CreateCashMovement(ctx context.Context, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error) {
+	if amount <= 0 {
+		return nil, fmt.Errorf("amount must be greater than zero")
+	}
+	return s.repo.CreateCashMovement(ctx, nil, shiftID, userID, movementType, amount, description)
+}
+
+func (s *service) CreateCashMovementTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error) {
+	if amount <= 0 {
+		return nil, fmt.Errorf("amount must be greater than zero")
+	}
+	return s.repo.CreateCashMovement(ctx, tx, shiftID, userID, movementType, amount, description)
+}
+
+func (s *service) ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error) {
+	return s.repo.ListCashMovements(ctx, shiftID)
+}
+
+func (s *service) ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error) {
+	return s.repo.ShiftCashMovementSummary(ctx, tx, shiftID)
 }
 
 func (s *service) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {

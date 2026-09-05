@@ -1867,6 +1867,22 @@ export const id = {
   transaction: 'transaksi',
   newTransactionsSince: 'transaksi baru sejak',
   view: 'Lihat',
+  cashDrop: 'Setor Kas',
+  paidIn: 'Tambah Kas',
+  paidOut: 'Ambil Kas',
+  recordCashMovement: 'Catat Pergerakan Kas',
+  cashMovementType: 'Tipe',
+  cashMovementAmount: 'Jumlah',
+  cashMovementDescription: 'Deskripsi (opsional)',
+  cashMovements: 'Pergerakan Kas',
+  cashDropDesc: 'Setor kelebihan kas ke brankas',
+  paidInDesc: 'Tambah kas ke laci (mis. setor awal)',
+  paidOutDesc: 'Ambil kas dari laci (mis. biaya)',
+  noCashMovements: 'Belum ada pergerakan kas',
+  cashMovementRecorded: 'Pergerakan kas berhasil dicatat',
+  cashMovementFailed: 'Gagal mencatat pergerakan kas',
+  cashMovementsSummary: 'Ringkasan Pergerakan Kas',
+  netEffect: 'Efek Bersih',
 } as const;
 
 export type IdLabels = typeof id;

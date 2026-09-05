@@ -3,6 +3,7 @@ package shift
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -32,6 +33,10 @@ type Service interface {
 	FlagForReview(ctx context.Context, shiftID int) error
 	AuditShift(ctx context.Context, shiftID int) (*Shift, int, error)
 	ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
+	CreateCashMovement(ctx context.Context, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
+	CreateCashMovementTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
+	ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error)
+	ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error)
 	InTx(ctx context.Context, fn func(tx pgx.Tx) error) error
 }
 
@@ -63,10 +68,12 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.POST("/shifts/:id/close", auth, perm(permissions.ShiftCreate), h.CloseShift)
 	r.POST("/shifts/:id/review", auth, perm(permissions.ShiftReview), h.ReviewShift)
 	r.POST("/shifts/:id/audit", auth, perm(permissions.ShiftAudit), h.AuditShift)
+	r.POST("/shifts/:id/cash-movements", auth, perm(permissions.ShiftCashMovement), h.CreateCashMovement)
 	r.GET("/shifts/active", auth, h.GetActiveShift)
 	r.GET("/shifts", auth, perm(permissions.ShiftView), h.ListShifts)
 	r.GET("/shifts/export", auth, perm(permissions.ShiftView), h.ExportShifts)
 	r.GET("/shifts/:id", auth, perm(permissions.ShiftView), h.GetShiftByID)
+	r.GET("/shifts/:id/cash-movements", auth, perm(permissions.ShiftView), h.ListCashMovements)
 }
 
 func (h *Handler) OpenShift(c *gin.Context) {
@@ -497,4 +504,72 @@ func (h *Handler) AuditShift(c *gin.Context) {
 		"off_by":            offBy,
 		"flagged_for_review": flaggedForReview,
 	})
+}
+
+func (h *Handler) CreateCashMovement(c *gin.Context) {
+	shiftID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid shift id"})
+		return
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req struct {
+		Type        string  `json:"type" binding:"required"`
+		Amount      int     `json:"amount" binding:"required"`
+		Description *string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	mov, err := h.svc.CreateCashMovement(c.Request.Context(), shiftID, userID, req.Type, req.Amount, req.Description)
+	if err != nil {
+		if errors.Is(err, ErrShiftClosed) || errors.Is(err, ErrInvalidMovementType) || errors.Is(err, ErrNotShiftOwner) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		shared.InternalError(c, err)
+		return
+	}
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "create",
+			EntityType:  "cash_movement",
+			EntityID:    &mov.ID,
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"shift_id": shiftID, "type": req.Type, "amount": req.Amount}),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Recorded %s of %d", req.Type, req.Amount),
+			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
+		})
+	}
+
+	shared.JSONSuccess(c, mov)
+}
+
+func (h *Handler) ListCashMovements(c *gin.Context) {
+	shiftID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid shift id"})
+		return
+	}
+
+	movements, err := h.svc.ListCashMovements(c.Request.Context(), shiftID)
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	shared.JSONSuccess(c, movements)
 }

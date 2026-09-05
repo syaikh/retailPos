@@ -3,8 +3,9 @@
   import { goto } from '$app/router';
 import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
 import { useShiftStore } from '../stores/shift-store.svelte';
-import ShiftDetailDrawer from './ShiftDetailDrawer.svelte';
-import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown, Pagination, SortableHeader, Skeleton } from '$shared/ui';
+  import ShiftDetailDrawer from './ShiftDetailDrawer.svelte';
+  import CashMovementModal from './CashMovementModal.svelte';
+  import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown, Pagination, SortableHeader, Skeleton } from '$shared/ui';
 import { useRBAC } from '$shared/composables/useRBAC.svelte';
 import { Permissions } from '$shared/constants/permissions';
 import { useAuthStore } from '$modules/auth';
@@ -16,6 +17,7 @@ import { useAuthStore } from '$modules/auth';
   ChevronDown,
   Loader2,
   Download,
+  ArrowLeftRight,
 } from 'lucide-svelte';
   import type { Shift } from '../types';
 
@@ -43,6 +45,7 @@ import { useAuthStore } from '$modules/auth';
   let showAuditModal = $state(false);
   let auditActualBalance = $state(0);
   let auditResult = $state<{ expected_cash: number; actual_balance: number; off_by: number } | null>(null);
+  let showCashMovementModal = $state(false);
 
   let prevFilters = '';
 
@@ -184,6 +187,7 @@ import { useAuthStore } from '$modules/auth';
       showCloseModal = false;
       showDetailDrawer = false;
       showAuditModal = false;
+      showCashMovementModal = false;
     }
   }
 
@@ -266,6 +270,12 @@ import { useAuthStore } from '$modules/auth';
           {/snippet}
         </Dropdown>
         {#if store.activeShift}
+          {#if rbac.can(Permissions.shift.cashMovement)}
+            <Button variant="secondary" onclick={() => { showCashMovementModal = true; }}>
+              <ArrowLeftRight size={16} class="mr-2" />
+              {labels.cashMovements}
+            </Button>
+          {/if}
           <Button variant="danger" onclick={() => { showCloseModal = true; closingBalance = store.activeShift?.opening_balance || 0; }}>
             <Lock size={16} class="mr-2" />
             {labels.closeShift}
@@ -565,3 +575,11 @@ import { useAuthStore } from '$modules/auth';
     {/if}
   {/snippet}
 </Modal>
+
+{#if store.activeShift}
+  <CashMovementModal
+    bind:open={showCashMovementModal}
+    shiftId={store.activeShift.id}
+    onrecord={() => { prevFilters = ''; store.loadShifts(store.currentFilters); }}
+  />
+{/if}

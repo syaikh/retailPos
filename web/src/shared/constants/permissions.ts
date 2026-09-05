@@ -59,6 +59,7 @@ export const Permissions = {
     create: 'shift.create',
     review: 'shift.review',
     audit: 'shift.audit',
+    cashMovement: 'shift.cash_movement',
   },
   customer: {
     view: 'customer.view',

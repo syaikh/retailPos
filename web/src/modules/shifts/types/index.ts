@@ -32,3 +32,21 @@ export interface ShiftFilters {
   sortBy: string;
   sortDir: string;
 }
+
+export interface CashMovement {
+  id: number;
+  shift_id: number;
+  user_id: number;
+  username?: string;
+  type: 'cash_drop' | 'paid_in' | 'paid_out';
+  amount: number;
+  description?: string;
+  created_at: string;
+}
+
+export interface CashMovementSummary {
+  cash_drops: number;
+  paid_ins: number;
+  paid_outs: number;
+  net_effect: number;
+}

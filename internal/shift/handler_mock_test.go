@@ -69,6 +69,19 @@ func (m *mockShiftService) ExportShifts(ctx context.Context, scope ownership.Sco
 	return nil, nil
 }
 
+func (m *mockShiftService) CreateCashMovement(ctx context.Context, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error) {
+	return nil, nil
+}
+func (m *mockShiftService) CreateCashMovementTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error) {
+	return nil, nil
+}
+func (m *mockShiftService) ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error) {
+	return nil, nil
+}
+func (m *mockShiftService) ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error) {
+	return CashMovementSummary{}, nil
+}
+
 func (m *mockShiftService) OpenShiftTx(ctx context.Context, tx pgx.Tx, userID int, storeID *int, openingBalance int) (*Shift, error) {
 	return m.openShiftFn(ctx, userID, storeID, openingBalance)
 }
@@ -242,14 +255,113 @@ func TestShiftHandler_AuditShift_Success(t *testing.T) {
 	assert.True(t, auditCalled, "audit log should be created")
 	var resp struct {
 		Data struct {
-			Shift        Shift `json:"shift"`
-			ExpectedCash int   `json:"expected_cash"`
+			Shift            Shift `json:"shift"`
+			ExpectedCash     int   `json:"expected_cash"`
+			OffBy            int   `json:"off_by"`
+			FlaggedForReview bool  `json:"flagged_for_review"`
 		} `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, 1, resp.Data.Shift.ID)
 	assert.Equal(t, 150000, resp.Data.ExpectedCash)
+	assert.Equal(t, 10000, resp.Data.OffBy)
+	assert.False(t, resp.Data.FlaggedForReview, "offBy=10000 must not exceed 50000 threshold")
+}
+
+func TestShiftHandler_AuditShift_FlaggedForReview(t *testing.T) {
+	var flagCalled bool
+	var flagShiftID int
+	svc := &mockShiftService{
+		auditShiftFn: func(ctx context.Context, shiftID int) (*Shift, int, error) {
+			return &Shift{ID: shiftID, Status: "closed", OpeningBalance: 100000}, 0, nil
+		},
+		flagForReviewFn: func(ctx context.Context, shiftID int) error {
+			flagCalled = true
+			flagShiftID = shiftID
+			return nil
+		},
+	}
+	r := setupShiftHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/shifts/1/audit", strings.NewReader(`{"actual_balance":160000}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, flagCalled, "FlagForReview must be called when offBy > 50000")
+	assert.Equal(t, 1, flagShiftID)
+	var resp struct {
+		Data struct {
+			FlaggedForReview bool `json:"flagged_for_review"`
+			OffBy            int  `json:"off_by"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.True(t, resp.Data.FlaggedForReview)
+	assert.Equal(t, 60000, resp.Data.OffBy)
+}
+
+func TestShiftHandler_AuditShift_NegativeOffByFlagged(t *testing.T) {
+	var flagCalled bool
+	svc := &mockShiftService{
+		auditShiftFn: func(ctx context.Context, shiftID int) (*Shift, int, error) {
+			return &Shift{ID: shiftID, Status: "closed", OpeningBalance: 100000}, 0, nil
+		},
+		flagForReviewFn: func(ctx context.Context, shiftID int) error {
+			flagCalled = true
+			return nil
+		},
+	}
+	r := setupShiftHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/shifts/1/audit", strings.NewReader(`{"actual_balance":40000}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, flagCalled, "FlagForReview must be called when |offBy| > 50000")
+	var resp struct {
+		Data struct {
+			FlaggedForReview bool `json:"flagged_for_review"`
+			OffBy            int  `json:"off_by"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.True(t, resp.Data.FlaggedForReview)
+	assert.Equal(t, -60000, resp.Data.OffBy)
+}
+
+func TestShiftHandler_AuditShift_ExactThreshold(t *testing.T) {
+	var flagCalled bool
+	svc := &mockShiftService{
+		auditShiftFn: func(ctx context.Context, shiftID int) (*Shift, int, error) {
+			return &Shift{ID: shiftID, Status: "closed", OpeningBalance: 100000}, 0, nil
+		},
+		flagForReviewFn: func(ctx context.Context, shiftID int) error {
+			flagCalled = true
+			return nil
+		},
+	}
+	r := setupShiftHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/shifts/1/audit", strings.NewReader(`{"actual_balance":150000}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.False(t, flagCalled, "FlagForReview must NOT be called when offBy == 50000")
+	var resp struct {
+		Data struct {
+			FlaggedForReview bool `json:"flagged_for_review"`
+			OffBy            int  `json:"off_by"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.False(t, resp.Data.FlaggedForReview)
 }
 
 func TestShiftHandler_AuditShift_ServiceError(t *testing.T) {

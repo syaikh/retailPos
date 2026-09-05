@@ -207,3 +207,49 @@ func TestShiftService_ExportShifts(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, shifts)
 }
+
+func TestShiftService_FlagForReview(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	repo.SetStoreNameProvider(store.NamesProvider{})
+	repo.SetUsernameProvider(user.UsernamesProvider{})
+	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	t.Run("flag closed shift sets needs_review", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		closed, err := svc.CloseShift(ctx, shift.ID, userID, 200000, nil)
+		require.NoError(t, err)
+		assert.True(t, closed.NeedsReview)
+
+		err = svc.FlagForReview(ctx, closed.ID)
+		require.NoError(t, err)
+
+		got, err := svc.GetShiftByID(ctx, ownership.Scope{}, closed.ID)
+		require.NoError(t, err)
+		assert.True(t, got.NeedsReview)
+	})
+
+	t.Run("flag open shift does nothing (no matching row)", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		err := svc.FlagForReview(ctx, shift.ID)
+		require.NoError(t, err)
+
+		got, err := svc.GetShiftByID(ctx, ownership.Scope{}, shift.ID)
+		require.NoError(t, err)
+		assert.False(t, got.NeedsReview, "open shift must not be affected")
+	})
+
+	t.Run("flag non-existent shift does nothing", func(t *testing.T) {
+		err := svc.FlagForReview(ctx, 999999)
+		require.NoError(t, err)
+	})
+}

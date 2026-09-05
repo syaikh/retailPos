@@ -1,5 +1,5 @@
 import apiClient from '$shared/api/http-client';
-import type { Shift, ShiftFilters } from '../types';
+import type { Shift, ShiftFilters, CashMovement } from '../types';
 
 export async function openShift(storeId: number | null, openingBalance: number): Promise<Shift> {
   const res = await apiClient.post('/shifts/open', {
@@ -78,7 +78,27 @@ export async function auditShift(shiftId: number, actualBalance: number): Promis
   expected_cash: number;
   actual_balance: number;
   off_by: number;
+  flagged_for_review: boolean;
 }> {
   const res = await apiClient.post(`/shifts/${shiftId}/audit`, { actual_balance: actualBalance });
   return res.data.data;
+}
+
+export async function recordCashMovement(
+  shiftId: number,
+  type: 'cash_drop' | 'paid_in' | 'paid_out',
+  amount: number,
+  description: string | null
+): Promise<CashMovement> {
+  const res = await apiClient.post(`/shifts/${shiftId}/cash-movements`, {
+    type,
+    amount,
+    description,
+  });
+  return res.data.data;
+}
+
+export async function listCashMovements(shiftId: number): Promise<CashMovement[]> {
+  const res = await apiClient.get(`/shifts/${shiftId}/cash-movements`);
+  return res.data.data || [];
 }

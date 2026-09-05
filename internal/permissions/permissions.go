@@ -63,10 +63,11 @@ const (
 	SaleDetail  Code = "sale.detail"
 	ReceiptPrint Code = "receipt.print"
 
-	ShiftView   Code = "shift.view"
-	ShiftCreate Code = "shift.create"
-	ShiftReview Code = "shift.review"
-	ShiftAudit  Code = "shift.audit"
+	ShiftView          Code = "shift.view"
+	ShiftCreate        Code = "shift.create"
+	ShiftReview        Code = "shift.review"
+	ShiftAudit         Code = "shift.audit"
+	ShiftCashMovement  Code = "shift.cash_movement"
 
 	CustomerView   Code = "customer.view"
 	CustomerCreate Code = "customer.create"
@@ -139,7 +140,7 @@ func All() []Code {
 		ProductView, ProductCreate, ProductUpdate, ProductDelete, ProductExport, ProductImport, ProductHistoryView, ProductCostView,
 		CategoryView, CategoryCreate, CategoryUpdate, CategoryDelete, CategoryExport, CategoryImport,
 		SaleView, SaleCreate, SalePark, SaleLookup, SaleDetail, ReceiptPrint,
-		ShiftView, ShiftCreate, ShiftReview, ShiftAudit,
+		ShiftView, ShiftCreate, ShiftReview, ShiftAudit, ShiftCashMovement,
 		CustomerView, CustomerCreate, CustomerUpdate, CustomerDelete, CustomerExport, CustomerImport,
 		PricingView, PricingCreate, PricingUpdate, PricingDelete,
 		InventoryAdjust,

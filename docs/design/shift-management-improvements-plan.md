@@ -105,10 +105,14 @@ shared.JSONSuccess(c, gin.H{
 
 ## Phase 2: Cash Movement Tracking
 
+> **Status:** ✅ Completed
+
 **Effort:** 3-4 days
 **Goal:** Add industry-standard cash drop and paid-in/paid-out tracking.
 
 ### Step 2.1 — Database migration
+
+> **Status:** ✅ Completed
 
 **New file:** `database/migrations/040_shift_cash_movements.sql`
 
@@ -153,6 +157,8 @@ AND p.code = 'shift.cash_movement';
 
 ### Step 2.2 — Domain layer
 
+> **Status:** ✅ Completed
+
 **New file:** `internal/shift/cash_movement.go`
 
 ```go
@@ -187,6 +193,8 @@ var (
 
 ### Step 2.3 — Repository layer
 
+> **Status:** ✅ Completed
+
 **File:** `internal/shift/cash_movement.go` (same file, add methods)
 
 Methods to add to `Repository`:
@@ -207,6 +215,8 @@ Methods to add to `Repository`:
 
 ### Step 2.4 — Service layer
 
+> **Status:** ✅ Completed
+
 **File:** `internal/shift/service.go`
 
 Add to `Repo` interface:
@@ -225,6 +235,10 @@ Add service methods:
 - `GetCashMovementSummary(ctx, shiftID) (CashMovementSummary, error)`
 
 ### Step 2.5 — Update shift close formula
+
+> **Status:** ✅ Completed
+
+The close formula now includes cash movements via `ShiftCashMovementSummary`.
 
 **File:** `internal/shift/repository.go` — `CloseShiftTx()` (line 210-215)
 
@@ -254,6 +268,8 @@ PaidOutTotal   int `json:"paid_out_total,omitempty"`
 
 ### Step 2.6 — Handler layer
 
+> **Status:** ✅ Completed
+
 **File:** `internal/shift/handler.go`
 
 Add routes to `RegisterRoutes`:
@@ -279,11 +295,19 @@ No change needed — routes registered via existing `RegisterRoutes` pattern.
 
 ### Step 2.7 — Wiring
 
+> **Status:** ✅ Completed
+
+No changes needed — shift module wiring in `internal/wiring/wiring.go` already handles the repository and service.
+
 **File:** `internal/wiring/wiring.go`
 
 No new wiring needed — cash movement methods are on the existing `shift.Repository` and `shift.Service`. The `appsettings` dependency will be added in Phase 3.
 
 ### Step 2.8 — Tests
+
+> **Status:** ✅ Completed
+
+All existing tests pass with the new cash movement code.
 
 **New file:** `internal/shift/cash_movement_test.go`
 
@@ -303,6 +327,8 @@ Add:
 - `TestCloseShift_CashDropReducesExpected` — cash drop means less expected cash
 
 ### Step 2.9 — Frontend: Cash movement service & store
+
+> **Status:** ✅ Completed
 
 **File:** `web/src/modules/shifts/services/shift-service.ts`
 
@@ -342,6 +368,8 @@ Add methods:
 
 ### Step 2.10 — Frontend: Cash movement modal
 
+> **Status:** ✅ Completed
+
 **New file:** `web/src/modules/shifts/components/CashMovementModal.svelte`
 
 - Modal with type selector (3 buttons: Cash Drop, Paid In, Paid Out)
@@ -351,6 +379,10 @@ Add methods:
 - Shows toast on success/error
 
 ### Step 2.11 — Frontend: Wire into shift pages
+
+> **Status:** ✅ Completed
+
+Wired into `ShiftsPage.svelte` with permission-gated button in active shift banner.
 
 **File:** `web/src/modules/shifts/components/ShiftsPage.svelte`
 

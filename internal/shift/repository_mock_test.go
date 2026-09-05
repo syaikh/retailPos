@@ -141,6 +141,21 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		assert.ErrorContains(t, err, "failed to review shift")
 	})
 
+	t.Run("review shift no rows affected", func(t *testing.T) {
+		mock, repo, ctx := newMockRepo(t)
+		mock.ExpectExec("UPDATE shifts").WithArgs(1, 2).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+		_, err := repo.ReviewShift(ctx, 2, 1)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not pending review or not found")
+	})
+
+	t.Run("flag for review exec error", func(t *testing.T) {
+		mock, repo, ctx := newMockRepo(t)
+		mock.ExpectExec("UPDATE shifts").WithArgs(1).WillReturnError(boom)
+		err := repo.FlagForReview(ctx, 1)
+		assert.ErrorContains(t, err, "failed to flag shift for review")
+	})
+
 	t.Run("get shift with live sales get error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1).WillReturnError(boom)
