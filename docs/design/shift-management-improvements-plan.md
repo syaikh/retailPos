@@ -2,8 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Planned** |
+| Status | **In Progress** |
 | Date | 2026-09-04 |
+| Updated | 2026-09-05 |
 | Review | `docs/reviews/shift-management-review.md` |
 | Estimated Effort | 8-10 days |
 
@@ -22,75 +23,19 @@ This document provides a step-by-step implementation plan for shift management i
 **Effort:** 1-1.5 days
 **Goal:** Fix correctness bugs in existing shift operations.
 
-### Step 1.1 — `CloseAll` open-cart guard
+### Step 1.1 — ~~`CloseAll` open-cart guard~~ REMOVED
 
-**Files:**
-- `internal/shift/repository.go` — `CloseAll()` method (line 481)
+> **Status:** Removed — `CloseAll` endpoint deleted in commit `54fa21d`. No longer applicable.
 
-**What to change:**
-1. Inside the `for _, shiftID := range shiftIDs` loop (line 507), before computing summary, add:
-   ```go
-   var openCarts int
-   err = tx.QueryRow(ctx,
-       `SELECT COUNT(*) FROM cart_sessions WHERE shift_id = $1 AND status = 'open'`,
-       shiftID,
-   ).Scan(&openCarts)
-   if err != nil {
-       return nil, fmt.Errorf("failed to check for active carts: %w", err)
-   }
-   if openCarts > 0 {
-       continue // skip this shift, collect its ID
-   }
-   ```
-2. Add a `var skippedIDs []int` before the loop, append `shiftIDs` that are skipped
-3. Return both `closedIDs` and `skippedIDs` from the repository method
-4. Update `CloseAll` in `service.go` to return `([]int, []int, error)` (closed, skipped, err)
+### Step 1.2 — ~~`CloseAll` record actual expected balance~~ REMOVED
 
-**Files:**
-- `internal/shift/handler.go` — `CloseAll()` (line 181)
-  - Update response to: `gin.H{"closed_shift_ids": closedIDs, "skipped_shift_ids": skippedIDs}`
-  - Update audit log description to include skipped count
-
-**Tests — `repository_test.go`:**
-- `TestCloseAll_SkipsOpenCarts` — create 2 shifts, open a cart on shift 1, CloseAll, assert shift 1 skipped and shift 2 closed
-- `TestCloseAll_NoOpenCarts` — all shifts close normally
-
-### Step 1.2 — `CloseAll` record actual expected balance
-
-**File:** `internal/shift/repository.go` — `CloseAll()` (line 526)
-
-**What to change:**
-1. Replace `closing_balance = 0` with:
-   ```go
-   expectedCash := 0 // computed from opening_balance + cash_sales in the summary
-   ```
-   Since the summary is already computed, the expected cash is `summary.TotalCashSales` (cash received). The closing balance should be the actual physical count — but in CloseAll (admin override), there's no physical count. Two options:
-   - **Option A (recommended):** Set `closing_balance = opening_balance + summary.TotalCashSales` (the expected amount), set `needs_review = true` so a manager must reconcile later
-   - **Option B:** Leave `closing_balance = NULL` and `discrepancy = NULL` (uncounted)
-
-2. Remove hardcoded `discrepancy = 0` — let it remain `NULL` (uncounted, pending manager review)
-3. Add `needs_review = true` to the UPDATE for all force-closed shifts
-
-**SQL change:**
-```sql
-UPDATE shifts
-SET status = 'closed',
-    closing_balance = $1,        -- opening_balance + cash_sales (expected)
-    cash_sales = $2,
-    non_cash_sales = $3,
-    total_sales = $4,
-    transaction_count = $5,
-    discrepancy = NULL,           -- uncounted, pending review
-    notes = $7,
-    needs_review = true,          -- always requires review
-    closed_at = NOW(),
-    updated_at = NOW()
-WHERE id = $8
-```
+> **Status:** Removed — `CloseAll` endpoint deleted in commit `54fa21d`. No longer applicable.
 
 ### Step 1.3 — `ReviewShift` status guard
 
-**File:** `internal/shift/repository.go` — `ReviewShift()` (line 611)
+> **Status:** Not started
+
+**File:** `internal/shift/repository.go` — `ReviewShift()` (line 554)
 
 **What to change:**
 ```go
@@ -119,7 +64,9 @@ func (r *Repository) ReviewShift(ctx context.Context, shiftID, reviewerID int) (
 
 ### Step 1.4 — Surprise audit flags for review
 
-**File:** `internal/shift/handler.go` — `AuditShift()` (line 483)
+> **Status:** Not started
+
+**File:** `internal/shift/handler.go` — `AuditShift()` (line 442)
 
 **What to change:**
 After computing `off_by` (line 505), add:
@@ -661,15 +608,9 @@ In the open modal (line 416):
 2. Add a dropdown selector (hidden if only 1 store)
 3. Pass selected `store_id` to `doOpenShift()`
 
-### Step 5.3 — `CloseAll` per-shift audit entries
+### Step 5.3 — ~~`CloseAll` per-shift audit entries~~ REMOVED
 
-**File:** `internal/shift/repository.go` — `CloseAll()` (line 507-531)
-
-Inside the loop, after closing each shift, create an individual audit entry. This requires the audit service to be passed into `CloseAll`. Alternatively, collect the data and create entries in the handler after the loop.
-
-**File:** `internal/shift/handler.go` — `CloseAll()` (line 204)
-
-Replace single `shift_close_all` audit entry with a loop creating individual `shift_closed` entries per shift.
+> **Status:** Removed — `CloseAll` endpoint deleted in commit `54fa21d`. No longer applicable.
 
 ### Step 5.4 — Auto-close abandoned shifts
 
@@ -752,9 +693,9 @@ onDestroy(() => {
 
 | Phase | File | Changes |
 |-------|------|---------|
-| 1 | `internal/shift/repository.go` | CloseAll cart guard + expected balance, ReviewShift guard, FlagForReview method |
-| 1 | `internal/shift/service.go` | CloseAll return type update, FlagForReview |
-| 1 | `internal/shift/handler.go` | CloseAll response, AuditShift flag, FlagForReview |
+| 1 | `internal/shift/repository.go` | ~~CloseAll cart guard + expected balance~~, ReviewShift guard, FlagForReview method |
+| 1 | `internal/shift/service.go` | ~~CloseAll return type update~~, FlagForReview |
+| 1 | `internal/shift/handler.go` | ~~CloseAll response~~, AuditShift flag, FlagForReview |
 | 2 | `internal/shift/repository.go` | Cash movement CRUD, updated close formula |
 | 2 | `internal/shift/service.go` | Cash movement service methods, updated interface |
 | 2 | `internal/shift/handler.go` | Cash movement endpoints, route registration |
@@ -787,7 +728,7 @@ onDestroy(() => {
 
 | Phase | Unit | Integration | E2E |
 |-------|------|-------------|-----|
-| 1 | `repository_test.go` (CloseAll carts, ReviewShift guard), `handler_extra_test.go` (audit flag) | — | — |
+| 1 | `repository_test.go` (~~CloseAll carts~~, ReviewShift guard), `handler_extra_test.go` (audit flag) | — | — |
 | 2 | `cash_movement_test.go` (CRUD, validation, ownership) | `repository_test.go` (close formula with movements) | `tests/e2e/shifts.spec.ts` (record movement) |
 | 3 | Service threshold test (mock settings) | Verify setting read at close time | Settings page save/load |
 | 4 | — | Report endpoint response shape | Print report flow |
