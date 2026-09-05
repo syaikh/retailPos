@@ -207,25 +207,3 @@ func TestShiftService_ExportShifts(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, shifts)
 }
-
-func TestShiftService_CloseAll(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("no database connection")
-	}
-	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.NamesProvider{})
-	repo.SetUsernameProvider(user.UsernamesProvider{})
-	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
-	svc := NewService(repo)
-	ctx := context.Background()
-
-	t.Run("returns closed shift ids", func(t *testing.T) {
-		userID := insertTestUser(ctx, t, 1)
-		createOpenShift(ctx, t, repo, userID)
-
-		ids, err := svc.CloseAll(ctx, userID)
-		require.NoError(t, err)
-		assert.Len(t, ids, 1)
-	})
-}

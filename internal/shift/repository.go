@@ -33,8 +33,7 @@ func NewRepository(db shared.DBPool) *Repository {
 
 // SetSalesSummaryProvider wires the sale-owned implementation of the
 // SalesSummaryProvider port. It MUST be called before any summary read runs
-// (close, close-all, live sales); an unwired repository fails fast at the read
-// point.
+// (close, live sales); an unwired repository fails fast at the read point.
 func (r *Repository) SetSalesSummaryProvider(p SalesSummaryProvider) {
 	r.summaryProvider = p
 }
@@ -476,62 +475,6 @@ func (r *Repository) ListShifts(ctx context.Context, scope ownership.Scope, stat
 	}
 
 	return shifts, total, nil
-}
-
-func (r *Repository) CloseAll(ctx context.Context, userID int) ([]int, error) {
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	rows, err := tx.Query(ctx, `
-		SELECT s.id FROM shifts s
-		WHERE s.user_id = $1 AND s.status = 'open'
-		FOR UPDATE OF s
-	`, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query open shifts: %w", err)
-	}
-	defer rows.Close()
-
-	var shiftIDs []int
-	for rows.Next() {
-		var id int
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("failed to scan shift id: %w", err)
-		}
-		shiftIDs = append(shiftIDs, id)
-	}
-
-	for _, shiftID := range shiftIDs {
-		summary, err := r.shiftSalesSummaryInTx(ctx, tx, shiftID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to calculate shift summary for shift %d: %w", shiftID, err)
-		}
-
-		_, err = tx.Exec(ctx, `
-			UPDATE shifts
-			SET status = 'closed',
-			    closing_balance = $1,
-			    cash_sales = $2,
-			    non_cash_sales = $3,
-			    total_sales = $4,
-			    transaction_count = $5,
-			    discrepancy = $6,
-			    notes = $7,
-			    closed_at = NOW(),
-			    updated_at = NOW()
-			WHERE id = $8
-		`, 0, summary.TotalCashSales, summary.TotalNonCashSales,
-			summary.TotalSales, summary.TotalTransactions, 0,
-			"Closed by admin via CloseAll", shiftID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to close shift %d: %w", shiftID, err)
-		}
-	}
-
-	return shiftIDs, tx.Commit(ctx)
 }
 
 func (r *Repository) GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error) {

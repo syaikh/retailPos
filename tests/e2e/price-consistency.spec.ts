@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures';
 import { API_BASE, FRONTEND_BASE, getToken, authHeader } from './fixtures';
+import { closeActiveShift } from './pos-api';
 
 const API_URLS = {
   PRODUCTS: `${API_BASE}/api/products`,
@@ -39,13 +40,12 @@ async function ensureFreshCart(token: string, request: any): Promise<number> {
       });
     }
   }
+  const ctx = { token, headers: authHeader(token) };
   let shiftRes = await request.get(`${API_BASE}/api/shifts/active`, {
     headers: authHeader(token),
   });
   if (!shiftRes.ok()) {
-    await request.post(`${API_BASE}/api/shifts/close-all`, {
-      headers: authHeader(token),
-    });
+    await closeActiveShift(request, ctx);
     const openShiftRes = await request.post(`${API_BASE}/api/shifts/open`, {
       headers: authHeader(token),
       data: { opening_balance: 100000, store_id: 1 },

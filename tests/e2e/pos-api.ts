@@ -71,6 +71,15 @@ export async function closeShift(request: any, ctx: AuthCtx | ApiDriver, shiftId
   }
 }
 
+/** Close the caller's active shift if one exists. No-op when already closed. */
+export async function closeActiveShift(request: any, ctx: AuthCtx | ApiDriver): Promise<void> {
+  const api = asApi(request, ctx);
+  const res = await api.get('/api/shifts/active');
+  if (res.ok && res.body?.data?.id) {
+    await closeShift(request, ctx, res.body.data.id);
+  }
+}
+
 /** Returns the caller's open cart, creating one when none exists. */
 export async function getOrCreateOpenCart(request: any, ctx: AuthCtx | ApiDriver, shiftId?: number): Promise<any> {
   const api = asApi(request, ctx);

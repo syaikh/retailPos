@@ -7,6 +7,7 @@ import {
   getToken,
   authHeader,
 } from './fixtures';
+import { authAs, closeActiveShift } from './pos-api';
 import { TestDataTracker } from './db-helper';
 
 const FT_TAB = 'Find Transaction';
@@ -57,8 +58,8 @@ async function createSale(
 
 /** Log in as cashier and open an active shift (required to load /transactions). */
 async function openCashierShift(page: any, request: any) {
-  const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
-  await request.post(`${API_BASE}/api/shifts/close-all`, { headers: authHeader(token) });
+  const ctx = await authAs(request, 'cashier');
+  await closeActiveShift(request, ctx);
 
   await loginUI(page, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
   await page.goto('/shifts');

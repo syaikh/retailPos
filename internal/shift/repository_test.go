@@ -355,68 +355,6 @@ func TestShiftRepository_ReviewShift(t *testing.T) {
 	})
 }
 
-func TestShiftRepository_CloseAll(t *testing.T) {
-	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.NamesProvider{})
-	repo.SetUsernameProvider(user.UsernamesProvider{})
-	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
-	ctx := context.Background()
-
-	t.Run("closes all open shifts for user", func(t *testing.T) {
-		userID := insertTestUser(ctx, t, 1)
-		shift1 := createOpenShift(ctx, t, repo, userID)
-
-		userID2 := insertTestUser(ctx, t, 1)
-		shift2 := createOpenShift(ctx, t, repo, userID2)
-
-		var custID int
-		err := dbPool.QueryRow(ctx, `
-			INSERT INTO customers (name, email, phone)
-			VALUES ('Test Customer', 'test@test.com', '08123456789')
-			RETURNING id
-		`).Scan(&custID)
-		require.NoError(t, err)
-
-		_, err = dbPool.Exec(ctx, `
-			INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, discount, tax, total_amount, created_at, shift_id)
-			VALUES
-				('INV-1', $1, $2, 'Cash', 'completed', 100000, 0, 10000, 110000, NOW(), $3),
-				('INV-2', $1, $2, 'Cash', 'completed', 200000, 0, 20000, 220000, NOW(), $4),
-				('INV-3', $1, $2, 'Card', 'completed', 150000, 0, 15000, 165000, NOW(), $4)
-		`, userID, custID, shift1.ID, shift2.ID)
-		require.NoError(t, err)
-
-		closedIDs, err := repo.CloseAll(ctx, userID)
-		require.NoError(t, err)
-		assert.Len(t, closedIDs, 1)
-		assert.Contains(t, closedIDs, shift1.ID)
-
-		closed1, _ := repo.GetShiftByID(ctx, ownership.Scope{}, shift1.ID)
-		assert.Equal(t, "closed", closed1.Status)
-		require.NotNil(t, closed1.ClosingBalance)
-		assert.Equal(t, 0, *closed1.ClosingBalance)
-		assert.Equal(t, 110000, closed1.CashSales)
-		assert.Equal(t, 0, closed1.NonCashSales)
-		assert.Equal(t, 110000, closed1.TotalSales)
-		assert.Equal(t, 1, closed1.TransactionCount)
-		assert.Equal(t, 0, *closed1.Discrepancy)
-		require.NotNil(t, closed1.Notes)
-		assert.Equal(t, "Closed by admin via CloseAll", *closed1.Notes)
-		require.NotNil(t, closed1.ClosedAt)
-
-		stillOpen, _ := repo.GetShiftByID(ctx, ownership.Scope{}, shift2.ID)
-		assert.Equal(t, "open", stillOpen.Status)
-	})
-
-	t.Run("no open shifts returns empty", func(t *testing.T) {
-		userID := insertTestUser(ctx, t, 1)
-		closedIDs, err := repo.CloseAll(ctx, userID)
-		require.NoError(t, err)
-		assert.Empty(t, closedIDs)
-	})
-}
-
 func TestShiftRepository_OpenShift_WithStore(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)

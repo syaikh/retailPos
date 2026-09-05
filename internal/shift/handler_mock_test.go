@@ -26,7 +26,6 @@ func init() {
 type mockShiftService struct {
 	openShiftFn      func(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
 	closeShiftFn     func(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
-	closeAllFn       func(ctx context.Context, userID int) ([]int, error)
 	getActiveShiftFn func(ctx context.Context, userID int) (*Shift, error)
 	listShiftsFn     func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	getShiftByIDFn   func(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
@@ -40,9 +39,6 @@ func (m *mockShiftService) OpenShift(ctx context.Context, userID int, storeID *i
 }
 func (m *mockShiftService) CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error) {
 	return m.closeShiftFn(ctx, shiftID, userID, closingBalance, notes)
-}
-func (m *mockShiftService) CloseAll(ctx context.Context, userID int) ([]int, error) {
-	return m.closeAllFn(ctx, userID)
 }
 func (m *mockShiftService) GetActiveShift(ctx context.Context, userID int) (*Shift, error) {
 	return m.getActiveShiftFn(ctx, userID)
@@ -210,46 +206,6 @@ func TestShiftHandler_CloseShift_InvalidID(t *testing.T) {
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "invalid shift id")
-}
-
-func TestShiftHandler_CloseAll_Success(t *testing.T) {
-	svc := &mockShiftService{
-		closeAllFn: func(ctx context.Context, userID int) ([]int, error) {
-			return []int{1, 2}, nil
-		},
-	}
-	auditCalled := false
-	auditSvc := &mockAudit{
-		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
-			auditCalled = true
-			assert.Equal(t, "shift_close_all", log.Action)
-			assert.Equal(t, "shift", log.EntityType)
-			assert.Contains(t, log.Description, "1, 2")
-			return nil
-		},
-	}
-	r := setupShiftHandler(svc, auditSvc)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/shifts/close-all", nil)
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, auditCalled, "audit log should be created")
-}
-
-func TestShiftHandler_CloseAll_ServiceError(t *testing.T) {
-	svc := &mockShiftService{
-		closeAllFn: func(ctx context.Context, userID int) ([]int, error) {
-			return nil, assert.AnError
-		},
-	}
-	r := setupShiftHandler(svc, nil)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/shifts/close-all", nil)
-	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "error")
 }
 
 func TestShiftHandler_AuditShift_Success(t *testing.T) {

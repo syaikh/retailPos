@@ -65,7 +65,7 @@
     uom: ['all', 'create', 'update', 'delete'],
     customer: ['all', 'create', 'update', 'delete'],
     stock: ['all', 'update'],
-    shift: ['all', 'shift_opened', 'shift_closed', 'shift_close_all'],
+    shift: ['all', 'shift_opened', 'shift_closed'],
     payment: ['all', 'payment.created'],
   };
 
@@ -82,7 +82,6 @@
     { id: 'logout', label: labels.logout },
     { id: 'shift_opened', label: 'Shift Opened' },
     { id: 'shift_closed', label: 'Shift Closed' },
-    { id: 'shift_close_all', label: 'Shift Close All' },
     { id: 'payment.created', label: 'Payment Created' },
   ];
 
@@ -99,7 +98,6 @@
     { id: 'logout', label: labels.logout },
     { id: 'shift_opened', label: 'Shift Opened' },
     { id: 'shift_closed', label: 'Shift Closed' },
-    { id: 'shift_close_all', label: 'Shift Close All' },
     { id: 'payment.created', label: 'Payment Created' },
   ];
 

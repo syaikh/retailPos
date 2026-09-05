@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,7 +25,6 @@ type Service interface {
 	OpenShiftTx(ctx context.Context, tx pgx.Tx, userID int, storeID *int, openingBalance int) (*Shift, error)
 	CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
 	CloseShiftTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
-	CloseAll(ctx context.Context, userID int) ([]int, error)
 	GetActiveShift(ctx context.Context, userID int) (*Shift, error)
 	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
@@ -62,7 +60,6 @@ func (h *Handler) shiftScope(c *gin.Context, requestedUserID *int) ownership.Sco
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	r.POST("/shifts/open", auth, perm(permissions.ShiftCreate), h.OpenShift)
 	r.POST("/shifts/:id/close", auth, perm(permissions.ShiftCreate), h.CloseShift)
-	r.POST("/shifts/close-all", auth, perm(permissions.ShiftCreate), h.CloseAll)
 	r.POST("/shifts/:id/review", auth, perm(permissions.ShiftReview), h.ReviewShift)
 	r.POST("/shifts/:id/audit", auth, perm(permissions.ShiftAudit), h.AuditShift)
 	r.GET("/shifts/active", auth, h.GetActiveShift)
@@ -176,44 +173,6 @@ func (h *Handler) CloseShift(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": shift})
-}
-
-func (h *Handler) CloseAll(c *gin.Context) {
-	userID, _ := c.Get("userID")
-	uid, ok := userID.(int)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
-		return
-	}
-
-	shiftIDs, err := h.svc.CloseAll(c.Request.Context(), uid)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	desc := "Closed all shifts"
-	if len(shiftIDs) > 0 {
-		ids := make([]string, len(shiftIDs))
-		for i, id := range shiftIDs {
-			ids[i] = strconv.Itoa(id)
-		}
-		desc = fmt.Sprintf("Closed shifts: %s", strings.Join(ids, ", "))
-	}
-
-	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
-			UserID:      middleware.UserIDFromContext(c.Request.Context()),
-			Username:    middleware.UsernameFromContext(c.Request.Context()),
-			Role:        middleware.RoleFromContext(c.Request.Context()),
-			Action:      "shift_close_all",
-			EntityType:  "shift",
-			Description: desc,
-			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
-		})
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 func (h *Handler) GetActiveShift(c *gin.Context) {

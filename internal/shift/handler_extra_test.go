@@ -53,13 +53,6 @@ func TestShiftHandler_InvalidUserBranches(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("close all", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/shifts/close-all", nil)
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-	})
-
 	t.Run("get active shift", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/shifts/active", nil)

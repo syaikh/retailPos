@@ -1,12 +1,11 @@
 import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, FRONTEND_BASE, loginUI, logoutUI, getToken } from './fixtures';
+import { authAs, closeActiveShift } from './pos-api';
 
 test.describe('Shifts Page', () => {
-  test.beforeEach(async ({ page }) => {
-    const token = await getToken(page.request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
-    await page.request.post(`${API_BASE}/api/shifts/close-all`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  test.beforeEach(async ({ page, request }) => {
+    const ctx = await authAs(request, 'cashier');
+    await closeActiveShift(request, ctx);
     await loginUI(page, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
   });
 
@@ -40,12 +39,8 @@ test.describe('Shifts Page', () => {
   });
 
   test('should open shift modal and display active shift banner', async ({ page, request }) => {
-    const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
-
-    const closeRes = await page.request.post(`${API_BASE}/api/shifts/close-all`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    expect(closeRes.ok()).toBe(true);
+    const ctx = await authAs(request, 'cashier');
+    await closeActiveShift(request, ctx);
 
     await page.goto(`${FRONTEND_BASE}/shifts`);
     await expect(page).toHaveURL(/\/shifts/);
@@ -131,10 +126,10 @@ test.describe('Shifts API - cashier_id filter', () => {
 
 test.describe('Shifts API - needs_review filter', () => {
   test('should filter shifts by needs_review=true', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const headers = { Authorization: `Bearer ${token}` };
+    const ctx = await authAs(request, 'superadmin');
+    const headers = ctx.headers;
 
-    await request.post(`${API_BASE}/api/shifts/close-all`, { headers });
+    await closeActiveShift(request, ctx);
 
     const openRes = await request.post(`${API_BASE}/api/shifts/open`, {
       headers,
@@ -182,10 +177,10 @@ test.describe('Shifts API - needs_review filter', () => {
 
 test.describe('Shifts API - discrepancy filter', () => {
   test('should filter shifts by discrepancy=balanced', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const headers = { Authorization: `Bearer ${token}` };
+    const ctx = await authAs(request, 'superadmin');
+    const headers = ctx.headers;
 
-    await request.post(`${API_BASE}/api/shifts/close-all`, { headers });
+    await closeActiveShift(request, ctx);
 
     const openRes = await request.post(`${API_BASE}/api/shifts/open`, {
       headers,
@@ -217,10 +212,10 @@ test.describe('Shifts API - discrepancy filter', () => {
   });
 
   test('should filter shifts by discrepancy=surplus', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const headers = { Authorization: `Bearer ${token}` };
+    const ctx = await authAs(request, 'superadmin');
+    const headers = ctx.headers;
 
-    await request.post(`${API_BASE}/api/shifts/close-all`, { headers });
+    await closeActiveShift(request, ctx);
 
     const openRes = await request.post(`${API_BASE}/api/shifts/open`, {
       headers,
@@ -250,10 +245,10 @@ test.describe('Shifts API - discrepancy filter', () => {
   });
 
   test('should filter shifts by discrepancy=shortage', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const headers = { Authorization: `Bearer ${token}` };
+    const ctx = await authAs(request, 'superadmin');
+    const headers = ctx.headers;
 
-    await request.post(`${API_BASE}/api/shifts/close-all`, { headers });
+    await closeActiveShift(request, ctx);
 
     const openRes = await request.post(`${API_BASE}/api/shifts/open`, {
       headers,

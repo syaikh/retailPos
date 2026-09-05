@@ -134,52 +134,6 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		assert.ErrorContains(t, err, "failed to commit shift close")
 	})
 
-	t.Run("close all begin error", func(t *testing.T) {
-		mock, repo, ctx := newMockRepo(t)
-		mock.ExpectBegin().WillReturnError(boom)
-		_, err := repo.CloseAll(ctx, 1)
-		assert.ErrorContains(t, err, "failed to begin transaction")
-	})
-
-	t.Run("close all query error", func(t *testing.T) {
-		mock, repo, ctx := newMockRepo(t)
-		mock.ExpectBegin()
-		mock.ExpectQuery("SELECT s.id FROM shifts").WithArgs(1).WillReturnError(boom)
-		_, err := repo.CloseAll(ctx, 1)
-		assert.ErrorContains(t, err, "failed to query open shifts")
-	})
-
-	t.Run("close all scan error", func(t *testing.T) {
-		mock, repo, ctx := newMockRepo(t)
-		mock.ExpectBegin()
-		mock.ExpectQuery("SELECT s.id FROM shifts").WithArgs(1).WillReturnRows(
-			pgxmock.NewRows([]string{"id", "extra"}).AddRow(1, 2))
-		_, err := repo.CloseAll(ctx, 1)
-		assert.ErrorContains(t, err, "failed to scan shift id")
-	})
-
-	t.Run("close all summary error", func(t *testing.T) {
-		mock, repo, ctx := newMockRepo(t)
-		mock.ExpectBegin()
-		mock.ExpectQuery("SELECT s.id FROM shifts").WithArgs(1).WillReturnRows(
-			pgxmock.NewRows([]string{"id"}).AddRow(1))
-		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnError(boom)
-		_, err := repo.CloseAll(ctx, 1)
-		assert.ErrorContains(t, err, "failed to calculate shift summary")
-	})
-
-	t.Run("close all update error", func(t *testing.T) {
-		mock, repo, ctx := newMockRepo(t)
-		mock.ExpectBegin()
-		mock.ExpectQuery("SELECT s.id FROM shifts").WithArgs(1).WillReturnRows(
-			pgxmock.NewRows([]string{"id"}).AddRow(1))
-		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnRows(
-			pgxmock.NewRows([]string{"cash", "non_cash", "total", "count"}).AddRow(0, 0, 0, 0))
-		mock.ExpectExec("UPDATE shifts").WithArgs(0, 0, 0, 0, 0, 0, "Closed by admin via CloseAll", 1).WillReturnError(boom)
-		_, err := repo.CloseAll(ctx, 1)
-		assert.ErrorContains(t, err, "failed to close shift 1")
-	})
-
 	t.Run("review shift exec error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectExec("UPDATE shifts").WithArgs(1, 2).WillReturnError(boom)
