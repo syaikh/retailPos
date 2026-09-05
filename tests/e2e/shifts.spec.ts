@@ -140,13 +140,13 @@ test.describe('Shifts API - needs_review filter', () => {
     const shiftId = openBody.data.id;
 
     const closeRes = await request.post(`${API_BASE}/api/shifts/${shiftId}/close`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
       data: { closing_balance: 200000 },
     });
     expect(closeRes.ok()).toBeTruthy();
 
     const res = await request.get(`${API_BASE}/api/shifts?limit=50&needs_review=true`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -191,13 +191,13 @@ test.describe('Shifts API - discrepancy filter', () => {
     const shiftId = openBody.data.id;
 
     const closeRes = await request.post(`${API_BASE}/api/shifts/${shiftId}/close`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
       data: { closing_balance: 100000 },
     });
     expect(closeRes.ok()).toBeTruthy();
 
     const res = await request.get(`${API_BASE}/api/shifts?limit=50&discrepancy=balanced`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -226,13 +226,13 @@ test.describe('Shifts API - discrepancy filter', () => {
     const shiftId = openBody.data.id;
 
     const closeRes = await request.post(`${API_BASE}/api/shifts/${shiftId}/close`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
       data: { closing_balance: 200000 },
     });
     expect(closeRes.ok()).toBeTruthy();
 
     const res = await request.get(`${API_BASE}/api/shifts?limit=50&discrepancy=surplus`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -259,13 +259,13 @@ test.describe('Shifts API - discrepancy filter', () => {
     const shiftId = openBody.data.id;
 
     const closeRes = await request.post(`${API_BASE}/api/shifts/${shiftId}/close`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
       data: { closing_balance: 0 },
     });
     expect(closeRes.ok()).toBeTruthy();
 
     const res = await request.get(`${API_BASE}/api/shifts?limit=50&discrepancy=shortage`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
