@@ -1,9 +1,10 @@
 <script lang="ts">
   import { Badge, Button, Drawer } from '$shared/ui';
-  import { CheckCircle, Clock } from 'lucide-svelte';
+  import { CheckCircle, Clock, FileText } from 'lucide-svelte';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
   import { labels } from '$shared/i18n';
   import type { Shift } from '../types';
+  import ShiftReport from './ShiftReport.svelte';
 
   let {
     selectedShift,
@@ -20,6 +21,8 @@
     onreview?: () => void;
     onaudit?: () => void;
   } = $props();
+
+  let showReport = $state(false);
 
   function formatMoney(amount: number) {
     return new Intl.NumberFormat('id-ID', {
@@ -129,6 +132,12 @@
   {#snippet footer()}
     {#if selectedShift}
       <div class="flex flex-col gap-3">
+        {#if selectedShift.status === 'closed'}
+          <Button variant="secondary" class="w-full rounded-xl h-11" onclick={() => { showReport = true; }}>
+            <FileText size={16} class="mr-2" />
+            Cetak Laporan
+          </Button>
+        {/if}
         {#if selectedShift.needs_review && canReview}
           <Button variant="primary" class="w-full rounded-xl h-11" onclick={onreview}>
             <CheckCircle size={16} class="mr-2" />
@@ -145,3 +154,9 @@
     {/if}
   {/snippet}
 </Drawer>
+
+{#if showReport && selectedShift}
+  <Drawer bind:open={showReport} title="Laporan Sif" size="lg">
+    <ShiftReport shiftId={selectedShift.id} onClose={() => { showReport = false; }} />
+  </Drawer>
+{/if}

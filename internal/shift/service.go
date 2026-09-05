@@ -3,6 +3,7 @@ package shift
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
 
@@ -21,14 +22,46 @@ type Repo interface {
 	CreateCashMovement(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
 	ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error)
 	ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error)
+	GetShiftReportData(ctx context.Context, shiftID int) (*ShiftReportData, error)
+}
+
+type SettingsProvider interface {
+	GetMultiple(ctx context.Context, keys []string) (map[string]string, error)
 }
 
 type service struct {
-	repo *Repository
+	repo     *Repository
+	settings SettingsProvider
 }
 
 func NewService(repo *Repository) Service {
 	return &service{repo: repo}
+}
+
+func (s *service) SetSettingsProvider(p SettingsProvider) {
+	s.settings = p
+}
+
+const defaultDiscrepancyThreshold = 50000
+
+func (s *service) getDiscrepancyThreshold(ctx context.Context) int {
+	if s.settings == nil {
+		return defaultDiscrepancyThreshold
+	}
+	settings, err := s.settings.GetMultiple(ctx, []string{"shift_discrepancy_threshold"})
+	if err != nil {
+		return defaultDiscrepancyThreshold
+	}
+	if v, ok := settings["shift_discrepancy_threshold"]; ok {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return defaultDiscrepancyThreshold
+}
+
+func (s *service) GetDiscrepancyThreshold(ctx context.Context) int {
+	return s.getDiscrepancyThreshold(ctx)
 }
 
 // InTx runs fn inside a single transaction on the shift database, committing on
@@ -129,4 +162,8 @@ func (s *service) ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shift
 
 func (s *service) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {
 	return s.repo.GetShiftWithLiveSales(ctx, shiftID)
+}
+
+func (s *service) GetShiftReportData(ctx context.Context, shiftID int) (*ShiftReportData, error) {
+	return s.repo.GetShiftReportData(ctx, shiftID)
 }

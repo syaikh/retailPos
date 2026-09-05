@@ -17,6 +17,8 @@
   let receiptFooter = $state('');
   let storeAddress = $state('');
   let storePhone = $state('');
+  let shiftDiscrepancyThreshold = $state(50000);
+  let shiftBlindClose = $state(false);
 
   let loading = $state(true);
   let saving = $state(false);
@@ -43,6 +45,13 @@
       storePhone = data.store_phone ?? '';
       receiptHeader = data.receipt_header ?? '';
       receiptFooter = data.receipt_footer ?? '';
+      if (data.shift_discrepancy_threshold) {
+        const n = parseInt(data.shift_discrepancy_threshold, 10);
+        shiftDiscrepancyThreshold = isNaN(n) ? 50000 : n;
+      }
+      if (data.shift_blind_close !== undefined) {
+        shiftBlindClose = data.shift_blind_close === 'true';
+      }
       if (data.logo_path) {
         logoPreview = `/api/settings/logo?v=${Date.now()}`;
       }
@@ -110,6 +119,8 @@
       store_phone: storePhone.trim(),
       receipt_header: receiptHeader.trim(),
       receipt_footer: receiptFooter.trim(),
+      shift_discrepancy_threshold: shiftDiscrepancyThreshold.toString(),
+      shift_blind_close: shiftBlindClose.toString(),
     };
 
     const ok = await updateSettings(settings);
@@ -342,6 +353,51 @@
                 placeholder={labels.receiptFooterPlaceholder}
                 rows="3"
               />
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+
+    <!-- ─── Shift Management ────────────────────────────────── -->
+    <div>
+      <Card variant="glass">
+        <div class="px-6 py-5">
+          <div class="flex items-center gap-2 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <span class="text-base">Shift</span>
+            </div>
+            <div>
+              <h3 class="text-sm font-semibold text-text-primary">{labels.shiftManagement}</h3>
+              <p class="text-xs text-text-muted">{labels.shiftManagementDesc}</p>
+            </div>
+          </div>
+          <div class="space-y-4">
+            <div>
+              <label for="discrepancy-threshold" class="block text-sm font-medium text-text-secondary mb-1.5">
+                {labels.discrepancyThreshold}
+              </label>
+              <Input
+                id="discrepancy-threshold"
+                type="number"
+                bind:value={shiftDiscrepancyThreshold}
+                placeholder="50000"
+              />
+              <p class="text-xs text-text-muted mt-1.5">{labels.discrepancyThresholdHint}</p>
+            </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-text-secondary">{labels.blindClose}</label>
+                <p class="text-xs text-text-muted">{labels.blindCloseDesc}</p>
+              </div>
+              <button
+                type="button"
+                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {shiftBlindClose ? 'bg-primary' : 'bg-border'}"
+                onclick={() => { shiftBlindClose = !shiftBlindClose; }}
+                disabled={!canUpdate}
+              >
+                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {shiftBlindClose ? 'translate-x-6' : 'translate-x-1'}" />
+              </button>
             </div>
           </div>
         </div>

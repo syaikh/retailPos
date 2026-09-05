@@ -1,5 +1,5 @@
 import apiClient from '$shared/api/http-client';
-import type { Shift, ShiftFilters, CashMovement } from '../types';
+import type { Shift, ShiftFilters, CashMovement, ShiftReportData } from '../types';
 
 export async function openShift(storeId: number | null, openingBalance: number): Promise<Shift> {
   const res = await apiClient.post('/shifts/open', {
@@ -101,4 +101,9 @@ export async function recordCashMovement(
 export async function listCashMovements(shiftId: number): Promise<CashMovement[]> {
   const res = await apiClient.get(`/shifts/${shiftId}/cash-movements`);
   return res.data.data || [];
+}
+
+export async function getShiftReport(shiftId: number): Promise<ShiftReportData> {
+  const res = await apiClient.get(`/shifts/${shiftId}/report`);
+  return res.data.data;
 }

@@ -14,6 +14,8 @@ export interface AllSettings {
   store_phone: string;
   receipt_header: string;
   receipt_footer: string;
+  shift_discrepancy_threshold: string;
+  shift_blind_close: string;
 }
 
 /**

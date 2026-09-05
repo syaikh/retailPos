@@ -8,6 +8,8 @@ class SettingsStore {
   storePhone = $state('');
   receiptHeader = $state('');
   receiptFooter = $state('Terima kasih atas kunjungan Anda!');
+  shiftDiscrepancyThreshold = $state(50000);
+  shiftBlindClose = $state(false);
 
   updateBranding(data: { store_name?: string; store_jargon?: string; logo_path?: string }) {
     if (data.store_name !== undefined) this.storeName = data.store_name;
@@ -23,6 +25,13 @@ class SettingsStore {
     if (data.store_phone !== undefined) this.storePhone = data.store_phone;
     if (data.receipt_header !== undefined) this.receiptHeader = data.receipt_header;
     if (data.receipt_footer !== undefined) this.receiptFooter = data.receipt_footer;
+    if (data.shift_discrepancy_threshold !== undefined) {
+      const n = parseInt(data.shift_discrepancy_threshold, 10);
+      this.shiftDiscrepancyThreshold = isNaN(n) ? 50000 : n;
+    }
+    if (data.shift_blind_close !== undefined) {
+      this.shiftBlindClose = data.shift_blind_close === 'true';
+    }
   }
 }
 

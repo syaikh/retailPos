@@ -6,9 +6,10 @@ import { useShiftStore } from '../stores/shift-store.svelte';
   import ShiftDetailDrawer from './ShiftDetailDrawer.svelte';
   import CashMovementModal from './CashMovementModal.svelte';
   import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown, Pagination, SortableHeader, Skeleton } from '$shared/ui';
-import { useRBAC } from '$shared/composables/useRBAC.svelte';
-import { Permissions } from '$shared/constants/permissions';
-import { useAuthStore } from '$modules/auth';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { Permissions } from '$shared/constants/permissions';
+  import { useAuthStore } from '$modules/auth';
+  import { settingsStore } from '$shared/stores/settings.svelte';
   import { labels } from '$shared/i18n';
   import {
   Clock,
@@ -46,6 +47,7 @@ import { useAuthStore } from '$modules/auth';
   let auditActualBalance = $state(0);
   let auditResult = $state<{ expected_cash: number; actual_balance: number; off_by: number } | null>(null);
   let showCashMovementModal = $state(false);
+  let showExpected = $state(false);
 
   let prevFilters = '';
 
@@ -188,6 +190,7 @@ import { useAuthStore } from '$modules/auth';
       showDetailDrawer = false;
       showAuditModal = false;
       showCashMovementModal = false;
+      showExpected = false;
     }
   }
 
@@ -467,10 +470,22 @@ import { useAuthStore } from '$modules/auth';
           <p class="text-xs text-text-muted">{labels.totalSales}</p>
           <p class="text-lg font-bold text-text-primary">{formatMoney(store.activeShift.total_sales)}</p>
         </div>
-        <div>
-          <p class="text-xs text-text-muted">{labels.expectedCash}</p>
-          <p class="text-lg font-bold text-primary">{formatMoney(store.activeShift.opening_balance + store.activeShift.cash_sales)}</p>
-        </div>
+        {#if !settingsStore.shiftBlindClose || showExpected}
+          <div>
+            <p class="text-xs text-text-muted">{labels.expectedCash}</p>
+            <p class="text-lg font-bold text-primary">{formatMoney(store.activeShift.opening_balance + store.activeShift.cash_sales)}</p>
+          </div>
+        {:else}
+          <div>
+            <button
+              type="button"
+              class="text-xs text-primary underline hover:text-primary/80"
+              onclick={() => { showExpected = true; }}
+            >
+              {labels.showExpected}
+            </button>
+          </div>
+        {/if}
       </div>
 
       <form onsubmit={(e) => { e.preventDefault(); handleCloseShift(); }} class="space-y-4">
@@ -500,7 +515,7 @@ import { useAuthStore } from '$modules/auth';
     </div>
   {/if}
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" disabled={isSubmitting} onclick={() => { showCloseModal = false; }}>{labels.cancel}</Button>
+    <Button variant="secondary" class="px-5" disabled={isSubmitting} onclick={() => { showCloseModal = false; showExpected = false; }}>{labels.cancel}</Button>
     <Button variant="danger" class="px-5" disabled={isSubmitting || closingBalance <= 0} onclick={handleCloseShift}>
       {#if isSubmitting}<Loader2 size={16} class="animate-spin mr-2" />{/if}
       {labels.closeShift}

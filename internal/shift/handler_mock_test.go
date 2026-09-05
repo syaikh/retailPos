@@ -24,15 +24,16 @@ func init() {
 }
 
 type mockShiftService struct {
-	openShiftFn      func(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
-	closeShiftFn     func(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
-	getActiveShiftFn func(ctx context.Context, userID int) (*Shift, error)
-	listShiftsFn     func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
-	getShiftByIDFn   func(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
-	reviewShiftFn    func(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
-	flagForReviewFn  func(ctx context.Context, shiftID int) error
-	auditShiftFn     func(ctx context.Context, shiftID int) (*Shift, int, error)
-	exportShiftsFn   func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
+	openShiftFn             func(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
+	closeShiftFn            func(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
+	getActiveShiftFn        func(ctx context.Context, userID int) (*Shift, error)
+	listShiftsFn            func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
+	getShiftByIDFn          func(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
+	reviewShiftFn           func(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
+	flagForReviewFn         func(ctx context.Context, shiftID int) error
+	getDiscrepancyThresholdFn func(ctx context.Context) int
+	auditShiftFn            func(ctx context.Context, shiftID int) (*Shift, int, error)
+	exportShiftsFn          func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
 }
 
 func (m *mockShiftService) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
@@ -59,6 +60,13 @@ func (m *mockShiftService) FlagForReview(ctx context.Context, shiftID int) error
 	}
 	return nil
 }
+func (m *mockShiftService) GetDiscrepancyThreshold(ctx context.Context) int {
+	if m.getDiscrepancyThresholdFn != nil {
+		return m.getDiscrepancyThresholdFn(ctx)
+	}
+	return defaultDiscrepancyThreshold
+}
+func (m *mockShiftService) SetSettingsProvider(p SettingsProvider) {}
 func (m *mockShiftService) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {
 	return m.auditShiftFn(ctx, shiftID)
 }
@@ -233,6 +241,9 @@ func TestShiftHandler_AuditShift_Success(t *testing.T) {
 		auditShiftFn: func(ctx context.Context, shiftID int) (*Shift, int, error) {
 			return &Shift{ID: shiftID, Status: "closed", OpeningBalance: 100000}, 50000, nil
 		},
+		getDiscrepancyThresholdFn: func(ctx context.Context) int {
+			return 50000
+		},
 	}
 	auditCalled := false
 	auditSvc := &mockAudit{
@@ -281,6 +292,9 @@ func TestShiftHandler_AuditShift_FlaggedForReview(t *testing.T) {
 			flagShiftID = shiftID
 			return nil
 		},
+		getDiscrepancyThresholdFn: func(ctx context.Context) int {
+			return 50000
+		},
 	}
 	r := setupShiftHandler(svc, nil)
 	w := httptest.NewRecorder()
@@ -313,6 +327,9 @@ func TestShiftHandler_AuditShift_NegativeOffByFlagged(t *testing.T) {
 			flagCalled = true
 			return nil
 		},
+		getDiscrepancyThresholdFn: func(ctx context.Context) int {
+			return 50000
+		},
 	}
 	r := setupShiftHandler(svc, nil)
 	w := httptest.NewRecorder()
@@ -343,6 +360,9 @@ func TestShiftHandler_AuditShift_ExactThreshold(t *testing.T) {
 		flagForReviewFn: func(ctx context.Context, shiftID int) error {
 			flagCalled = true
 			return nil
+		},
+		getDiscrepancyThresholdFn: func(ctx context.Context) int {
+			return 50000
 		},
 	}
 	r := setupShiftHandler(svc, nil)
@@ -376,6 +396,74 @@ func TestShiftHandler_AuditShift_ServiceError(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestShiftHandler_AuditShift_CustomThreshold(t *testing.T) {
+	var flagCalled bool
+	svc := &mockShiftService{
+		auditShiftFn: func(ctx context.Context, shiftID int) (*Shift, int, error) {
+			return &Shift{ID: shiftID, Status: "closed", OpeningBalance: 100000}, 0, nil
+		},
+		flagForReviewFn: func(ctx context.Context, shiftID int) error {
+			flagCalled = true
+			return nil
+		},
+		getDiscrepancyThresholdFn: func(ctx context.Context) int {
+			return 20000
+		},
+	}
+	r := setupShiftHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/shifts/1/audit", strings.NewReader(`{"actual_balance":125000}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, flagCalled, "FlagForReview must be called when offBy > 20000 custom threshold")
+	var resp struct {
+		Data struct {
+			FlaggedForReview bool `json:"flagged_for_review"`
+			OffBy            int  `json:"off_by"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.True(t, resp.Data.FlaggedForReview)
+	assert.Equal(t, 25000, resp.Data.OffBy)
+}
+
+func TestShiftHandler_AuditShift_CustomThresholdNotExceeded(t *testing.T) {
+	var flagCalled bool
+	svc := &mockShiftService{
+		auditShiftFn: func(ctx context.Context, shiftID int) (*Shift, int, error) {
+			return &Shift{ID: shiftID, Status: "closed", OpeningBalance: 100000}, 0, nil
+		},
+		flagForReviewFn: func(ctx context.Context, shiftID int) error {
+			flagCalled = true
+			return nil
+		},
+		getDiscrepancyThresholdFn: func(ctx context.Context) int {
+			return 20000
+		},
+	}
+	r := setupShiftHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/shifts/1/audit", strings.NewReader(`{"actual_balance":115000}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.False(t, flagCalled, "FlagForReview must NOT be called when offBy <= 20000 custom threshold")
+	var resp struct {
+		Data struct {
+			FlaggedForReview bool `json:"flagged_for_review"`
+			OffBy            int  `json:"off_by"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.False(t, resp.Data.FlaggedForReview)
+	assert.Equal(t, 15000, resp.Data.OffBy)
 }
 
 func TestShiftHandler_GetActiveShift_Success(t *testing.T) {

@@ -20,6 +20,8 @@ describe('SettingsStore', () => {
     settingsStore.storePhone = '';
     settingsStore.receiptHeader = '';
     settingsStore.receiptFooter = 'Terima kasih atas kunjungan Anda!';
+    settingsStore.shiftDiscrepancyThreshold = 50000;
+    settingsStore.shiftBlindClose = false;
     vi.resetAllMocks();
   });
 
@@ -31,6 +33,8 @@ describe('SettingsStore', () => {
     expect(settingsStore.storePhone).toBe('');
     expect(settingsStore.receiptHeader).toBe('');
     expect(settingsStore.receiptFooter).toBe('Terima kasih atas kunjungan Anda!');
+    expect(settingsStore.shiftDiscrepancyThreshold).toBe(50000);
+    expect(settingsStore.shiftBlindClose).toBe(false);
   });
 
   it('updateBranding updates storeName, storeJargon, logoPath', () => {
@@ -52,7 +56,7 @@ describe('SettingsStore', () => {
     expect(settingsStore.storeJargon).toBe('Updated Jargon');
   });
 
-  it('updateAll updates all fields', () => {
+  it('updateAll updates all fields including shift settings', () => {
     settingsStore.updateAll({
       store_name: 'Full Store',
       store_jargon: 'Full Jargon',
@@ -61,6 +65,8 @@ describe('SettingsStore', () => {
       store_phone: '021-1234567',
       receipt_header: 'Welcome!',
       receipt_footer: 'Come again!',
+      shift_discrepancy_threshold: '75000',
+      shift_blind_close: 'true',
     });
     expect(settingsStore.storeName).toBe('Full Store');
     expect(settingsStore.storeJargon).toBe('Full Jargon');
@@ -69,6 +75,21 @@ describe('SettingsStore', () => {
     expect(settingsStore.storePhone).toBe('021-1234567');
     expect(settingsStore.receiptHeader).toBe('Welcome!');
     expect(settingsStore.receiptFooter).toBe('Come again!');
+    expect(settingsStore.shiftDiscrepancyThreshold).toBe(75000);
+    expect(settingsStore.shiftBlindClose).toBe(true);
+  });
+
+  it('updateAll handles non-numeric threshold gracefully', () => {
+    settingsStore.updateAll({ shift_discrepancy_threshold: 'abc' });
+    expect(settingsStore.shiftDiscrepancyThreshold).toBe(50000);
+  });
+
+  it('updateAll parses blind_close string correctly', () => {
+    settingsStore.updateAll({ shift_blind_close: 'false' });
+    expect(settingsStore.shiftBlindClose).toBe(false);
+
+    settingsStore.updateAll({ shift_blind_close: 'true' });
+    expect(settingsStore.shiftBlindClose).toBe(true);
   });
 });
 
@@ -108,9 +129,11 @@ describe('loadFullSettings', () => {
     settingsStore.storeName = 'RetailPOS';
     settingsStore.storeAddress = '';
     settingsStore.receiptHeader = '';
+    settingsStore.shiftDiscrepancyThreshold = 50000;
+    settingsStore.shiftBlindClose = false;
   });
 
-  it('fetches all settings and updates store', async () => {
+  it('fetches all settings and updates store including shift settings', async () => {
     mockFetchAllSettings.mockResolvedValue({
       store_name: 'Full Store',
       store_jargon: 'Full Jargon',
@@ -119,6 +142,8 @@ describe('loadFullSettings', () => {
       store_phone: '021-1234567',
       receipt_header: 'Hello',
       receipt_footer: 'Goodbye',
+      shift_discrepancy_threshold: '30000',
+      shift_blind_close: 'true',
     });
 
     await loadFullSettings();
@@ -127,6 +152,8 @@ describe('loadFullSettings', () => {
     expect(settingsStore.storeAddress).toBe('Jl. Sudirman 123');
     expect(settingsStore.storePhone).toBe('021-1234567');
     expect(settingsStore.receiptHeader).toBe('Hello');
+    expect(settingsStore.shiftDiscrepancyThreshold).toBe(30000);
+    expect(settingsStore.shiftBlindClose).toBe(true);
     expect(mockFetchAllSettings).toHaveBeenCalledOnce();
   });
 

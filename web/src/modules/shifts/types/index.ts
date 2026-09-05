@@ -50,3 +50,32 @@ export interface CashMovementSummary {
   paid_outs: number;
   net_effect: number;
 }
+
+export interface PaymentMethodTotal {
+  method: string;
+  amount: number;
+  count: number;
+}
+
+export interface ShiftReportData {
+  id: number;
+  user_id: number;
+  username: string;
+  store_id: number | null;
+  store_name: string;
+  status: 'open' | 'closed';
+  opening_balance: number;
+  closing_balance: number | null;
+  cash_sales: number;
+  non_cash_sales: number;
+  total_sales: number;
+  transaction_count: number;
+  discrepancy: number | null;
+  notes: string | null;
+  needs_review: boolean;
+  opened_at: string;
+  closed_at: string | null;
+  duration_minutes: number;
+  payment_breakdown: PaymentMethodTotal[];
+  cash_movement_summary: CashMovementSummary;
+}

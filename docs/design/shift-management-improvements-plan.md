@@ -399,6 +399,8 @@ Wired into `ShiftsPage.svelte` with permission-gated button in active shift bann
 
 ## Phase 3: Configurable Settings
 
+> **Status:** ✅ Completed
+
 **Effort:** 1 day
 **Goal:** Make discrepancy threshold and blind close configurable.
 
@@ -500,7 +502,7 @@ shiftBlindClose: boolean;
 
 ---
 
-## Phase 4: Blind Close & Z-Report
+## Phase 4: Blind Close & Z-Report ✅ Completed
 
 **Effort:** 2-3 days
 **Goal:** Reduce anchoring bias in cash counting; add per-shift printable report.

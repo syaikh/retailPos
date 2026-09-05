@@ -2,9 +2,11 @@ package sale
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 
+	"retail-pos-system/internal/shift"
 	"retail-pos-system/internal/shared"
 )
 
@@ -62,4 +64,35 @@ func (ShiftSummaryProvider) ShiftSummaryInTx(ctx context.Context, tx pgx.Tx, shi
 		&s.TotalCashSales, &s.TotalNonCashSales, &s.TotalSales, &s.TotalTransactions,
 	)
 	return s, err
+}
+
+const paymentBreakdownSQL = `
+	SELECT
+		LOWER(COALESCE(sp.payment_method_code, '')) AS method,
+		COALESCE(SUM(sp.amount), 0) AS total,
+		COUNT(*)::int AS count
+	FROM sale_payments sp
+	JOIN sales s ON s.id = sp.sale_id
+	WHERE s.shift_id = $1
+	  AND s.status = 'completed'
+	GROUP BY LOWER(COALESCE(sp.payment_method_code, ''))
+	ORDER BY method
+`
+
+func (ShiftSummaryProvider) PaymentMethodBreakdown(ctx context.Context, db shared.DBPool, shiftID int) ([]shift.PaymentMethodTotal, error) {
+	rows, err := db.Query(ctx, paymentBreakdownSQL, shiftID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query payment breakdown: %w", err)
+	}
+	defer rows.Close()
+
+	var result []shift.PaymentMethodTotal
+	for rows.Next() {
+		var p shift.PaymentMethodTotal
+		if err := rows.Scan(&p.Method, &p.Amount, &p.Count); err != nil {
+			return nil, fmt.Errorf("failed to scan payment breakdown row: %w", err)
+		}
+		result = append(result, p)
+	}
+	return result, rows.Err()
 }

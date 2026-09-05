@@ -42,3 +42,9 @@ type StoreNameProvider interface {
 type UsernameProvider interface {
 	UsernamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error)
 }
+
+// PaymentBreakdownProvider returns payment method breakdowns for a shift.
+// Implemented by internal/sale (the canonical writer of sale_payments).
+type PaymentBreakdownProvider interface {
+	PaymentMethodBreakdown(ctx context.Context, db shared.DBPool, shiftID int) ([]PaymentMethodTotal, error)
+}

@@ -23,3 +23,16 @@ type Shift struct {
 	CreatedAt        string  `json:"created_at"`
 	UpdatedAt        string  `json:"updated_at"`
 }
+
+type PaymentMethodTotal struct {
+	Method string `json:"method"`
+	Amount int    `json:"amount"`
+	Count  int    `json:"count"`
+}
+
+type ShiftReportData struct {
+	Shift
+	DurationMinutes     int                  `json:"duration_minutes"`
+	PaymentBreakdown    []PaymentMethodTotal  `json:"payment_breakdown"`
+	CashMovementSummary CashMovementSummary   `json:"cash_movement_summary"`
+}

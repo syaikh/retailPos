@@ -31,12 +31,15 @@ type Service interface {
 	GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
 	ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
 	FlagForReview(ctx context.Context, shiftID int) error
+	GetDiscrepancyThreshold(ctx context.Context) int
+	SetSettingsProvider(p SettingsProvider)
 	AuditShift(ctx context.Context, shiftID int) (*Shift, int, error)
 	ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
 	CreateCashMovement(ctx context.Context, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
 	CreateCashMovementTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
 	ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error)
 	ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error)
+	GetShiftReportData(ctx context.Context, shiftID int) (*ShiftReportData, error)
 	InTx(ctx context.Context, fn func(tx pgx.Tx) error) error
 }
 
@@ -74,6 +77,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/shifts/export", auth, perm(permissions.ShiftView), h.ExportShifts)
 	r.GET("/shifts/:id", auth, perm(permissions.ShiftView), h.GetShiftByID)
 	r.GET("/shifts/:id/cash-movements", auth, perm(permissions.ShiftView), h.ListCashMovements)
+	r.GET("/shifts/:id/report", auth, perm(permissions.ShiftView), h.GetShiftReport)
 }
 
 func (h *Handler) OpenShift(c *gin.Context) {
@@ -491,8 +495,8 @@ func (h *Handler) AuditShift(c *gin.Context) {
 	if absOffBy < 0 {
 		absOffBy = -absOffBy
 	}
-	const discrepancyThreshold = 50000
-	flaggedForReview := absOffBy > discrepancyThreshold
+	threshold := h.svc.GetDiscrepancyThreshold(c.Request.Context())
+	flaggedForReview := absOffBy > threshold
 	if flaggedForReview {
 		_ = h.svc.FlagForReview(c.Request.Context(), shiftID)
 	}
@@ -572,4 +576,20 @@ func (h *Handler) ListCashMovements(c *gin.Context) {
 	}
 
 	shared.JSONSuccess(c, movements)
+}
+
+func (h *Handler) GetShiftReport(c *gin.Context) {
+	shiftID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid shift id"})
+		return
+	}
+
+	report, err := h.svc.GetShiftReportData(c.Request.Context(), shiftID)
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	shared.JSONSuccess(c, report)
 }

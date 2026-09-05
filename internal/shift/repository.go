@@ -21,10 +21,11 @@ import (
 const uniqueViolationCode = "23505"
 
 type Repository struct {
-	db                shared.DBPool
-	summaryProvider   SalesSummaryProvider
-	storeNameProvider StoreNameProvider
-	usernameProvider  UsernameProvider
+	db                     shared.DBPool
+	summaryProvider        SalesSummaryProvider
+	storeNameProvider      StoreNameProvider
+	usernameProvider       UsernameProvider
+	paymentBreakdownProvider PaymentBreakdownProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -52,6 +53,10 @@ func (r *Repository) SetStoreNameProvider(p StoreNameProvider) {
 // read point.
 func (r *Repository) SetUsernameProvider(p UsernameProvider) {
 	r.usernameProvider = p
+}
+
+func (r *Repository) SetPaymentBreakdownProvider(p PaymentBreakdownProvider) {
+	r.paymentBreakdownProvider = p
 }
 
 func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
@@ -595,4 +600,49 @@ func (r *Repository) GetShiftWithLiveSales(ctx context.Context, shiftID int) (*S
 	}
 
 	return shift, summary.TotalCashSales, nil
+}
+
+func (r *Repository) GetShiftReportData(ctx context.Context, shiftID int) (*ShiftReportData, error) {
+	shift, err := r.GetShiftByID(ctx, ownership.Scope{}, shiftID)
+	if err != nil {
+		return nil, err
+	}
+
+	report := &ShiftReportData{Shift: *shift}
+
+	if shift.ClosedAt != "" && shift.OpenedAt != "" {
+		opened, err := time.Parse(time.RFC3339, shift.OpenedAt)
+		if err == nil {
+			closed, err := time.Parse(time.RFC3339, shift.ClosedAt)
+			if err == nil {
+				report.DurationMinutes = int(closed.Sub(opened).Minutes())
+			}
+		}
+	}
+
+	if r.paymentBreakdownProvider != nil {
+		breakdown, err := r.paymentBreakdownProvider.PaymentMethodBreakdown(ctx, r.db, shiftID)
+		if err == nil {
+			report.PaymentBreakdown = breakdown
+		}
+	}
+
+	if r.usernameProvider != nil {
+		names, err := r.usernameProvider.UsernamesByIDs(ctx, r.db, []int{shift.UserID})
+		if err == nil {
+			if name, ok := names[shift.UserID]; ok {
+				report.Username = name
+			}
+		}
+	}
+	if r.storeNameProvider != nil && shift.StoreID != nil {
+		names, err := r.storeNameProvider.StoreNamesByIDs(ctx, r.db, []int{*shift.StoreID})
+		if err == nil {
+			if name, ok := names[*shift.StoreID]; ok {
+				report.StoreName = name
+			}
+		}
+	}
+
+	return report, nil
 }

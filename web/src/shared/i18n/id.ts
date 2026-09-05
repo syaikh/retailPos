@@ -1883,6 +1883,32 @@ export const id = {
   cashMovementFailed: 'Gagal mencatat pergerakan kas',
   cashMovementsSummary: 'Ringkasan Pergerakan Kas',
   netEffect: 'Efek Bersih',
+  shiftManagementDesc: 'Konfigurasi perilaku sif',
+  discrepancyThreshold: 'Batas Selisih (IDR)',
+  discrepancyThresholdHint: 'Sif dengan selisih di atas batas ini akan ditandai untuk review',
+  blindClose: 'Tutup Buta',
+  blindCloseDesc: 'Sembunyikan jumlah kas yang diharapkan saat tutup sif',
+  showExpected: 'Tampilkan Kas yang Diharapkan',
+
+  // Shift Report
+  shiftReport: 'Laporan Sif',
+  printReport: 'Cetak Laporan',
+  duration: 'Durasi',
+  hours: 'jam',
+  minutes: 'menit',
+  paymentBreakdown: 'Rincian Pembayaran',
+  method: 'Metode',
+  amount: 'Jumlah',
+  count: 'Hitung',
+  cashReconciliation: 'Rekonsiliasi Kas',
+  cashDrops: 'Setor Kas',
+  paidIns: 'Uang Masuk',
+  paidOuts: 'Uang Keluar',
+  netEffect: 'Efek Bersih',
+  expectedCashReport: 'Kas yang Diharapkan',
+  actualCash: 'Kas Aktual',
+  variance: 'Selisih',
+  reportGeneratedAt: 'Laporan Dibuat Pada',
 } as const;
 
 export type IdLabels = typeof id;
