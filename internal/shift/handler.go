@@ -29,6 +29,7 @@ type Service interface {
 	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
 	ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
+	FlagForReview(ctx context.Context, shiftID int) error
 	AuditShift(ctx context.Context, shiftID int) (*Shift, int, error)
 	ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
 	InTx(ctx context.Context, fn func(tx pgx.Tx) error) error
@@ -416,7 +417,7 @@ func (h *Handler) ReviewShift(c *gin.Context) {
 
 	shift, err := h.svc.ReviewShift(c.Request.Context(), shiftID, reviewerID)
 	if err != nil {
-		shared.InternalError(c, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -479,10 +480,21 @@ func (h *Handler) AuditShift(c *gin.Context) {
 		})
 	}
 
+	absOffBy := offBy
+	if absOffBy < 0 {
+		absOffBy = -absOffBy
+	}
+	const discrepancyThreshold = 50000
+	flaggedForReview := absOffBy > discrepancyThreshold
+	if flaggedForReview {
+		_ = h.svc.FlagForReview(c.Request.Context(), shiftID)
+	}
+
 	shared.JSONSuccess(c, gin.H{
-		"shift":          shift,
-		"expected_cash":  expected,
-		"actual_balance": req.ActualBalance,
-		"off_by":         offBy,
+		"shift":             shift,
+		"expected_cash":     expected,
+		"actual_balance":    req.ActualBalance,
+		"off_by":            offBy,
+		"flagged_for_review": flaggedForReview,
 	})
 }

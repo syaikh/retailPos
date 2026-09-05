@@ -353,6 +353,31 @@ func TestShiftRepository_ReviewShift(t *testing.T) {
 		_, err := repo.ReviewShift(ctx, 999999, 1)
 		assert.Error(t, err)
 	})
+
+	t.Run("review already reviewed shift fails", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		closed, err := repo.CloseShift(ctx, shift.ID, userID, 200000, nil)
+		require.NoError(t, err)
+
+		reviewerID := insertTestUser(ctx, t, 2)
+		_, err = repo.ReviewShift(ctx, closed.ID, reviewerID)
+		require.NoError(t, err)
+
+		_, err = repo.ReviewShift(ctx, closed.ID, reviewerID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not pending review")
+	})
+
+	t.Run("review open shift fails", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		_, err := repo.ReviewShift(ctx, shift.ID, 1)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not pending review")
+	})
 }
 
 func TestShiftRepository_OpenShift_WithStore(t *testing.T) {

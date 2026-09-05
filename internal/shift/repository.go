@@ -552,19 +552,35 @@ func (r *Repository) GetShiftByID(ctx context.Context, scope ownership.Scope, sh
 }
 
 func (r *Repository) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
-	_, err := r.db.Exec(ctx, `
+	result, err := r.db.Exec(ctx, `
 		UPDATE shifts
 		SET needs_review = false,
 		    reviewed_by = $1,
 		    reviewed_at = NOW(),
 		    updated_at = NOW()
-		WHERE id = $2
+		WHERE id = $2 AND needs_review = true AND status = 'closed'
 	`, reviewerID, shiftID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to review shift: %w", err)
 	}
+	if result.RowsAffected() == 0 {
+		return nil, fmt.Errorf("shift not pending review or not found")
+	}
 
 	return r.GetShiftByID(ctx, ownership.Scope{}, shiftID)
+}
+
+func (r *Repository) FlagForReview(ctx context.Context, shiftID int) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE shifts
+		SET needs_review = true,
+		    updated_at = NOW()
+		WHERE id = $1 AND status = 'closed'
+	`, shiftID)
+	if err != nil {
+		return fmt.Errorf("failed to flag shift for review: %w", err)
+	}
+	return nil
 }
 
 func (r *Repository) GetShiftWithLiveSales(ctx context.Context, shiftID int) (*Shift, int, error) {

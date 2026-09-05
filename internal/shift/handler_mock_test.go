@@ -30,6 +30,7 @@ type mockShiftService struct {
 	listShiftsFn     func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	getShiftByIDFn   func(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
 	reviewShiftFn    func(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
+	flagForReviewFn  func(ctx context.Context, shiftID int) error
 	auditShiftFn     func(ctx context.Context, shiftID int) (*Shift, int, error)
 	exportShiftsFn   func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
 }
@@ -51,6 +52,12 @@ func (m *mockShiftService) GetShiftByID(ctx context.Context, scope ownership.Sco
 }
 func (m *mockShiftService) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
 	return m.reviewShiftFn(ctx, shiftID, reviewerID)
+}
+func (m *mockShiftService) FlagForReview(ctx context.Context, shiftID int) error {
+	if m.flagForReviewFn != nil {
+		return m.flagForReviewFn(ctx, shiftID)
+	}
+	return nil
 }
 func (m *mockShiftService) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {
 	return m.auditShiftFn(ctx, shiftID)
@@ -160,7 +167,7 @@ func TestShiftHandler_ReviewShift_ServiceError(t *testing.T) {
 	req := httptest.NewRequest("POST", "/shifts/1/review", nil)
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestShiftHandler_ReviewShift_CreatesAuditLog(t *testing.T) {

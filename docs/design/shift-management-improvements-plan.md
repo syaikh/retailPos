@@ -20,6 +20,8 @@ This document provides a step-by-step implementation plan for shift management i
 
 ## Phase 1: Critical Fixes
 
+> **Status:** ✅ Completed
+
 **Effort:** 1-1.5 days
 **Goal:** Fix correctness bugs in existing shift operations.
 
@@ -33,7 +35,7 @@ This document provides a step-by-step implementation plan for shift management i
 
 ### Step 1.3 — `ReviewShift` status guard
 
-> **Status:** Not started
+> **Status:** ✅ Completed
 
 **File:** `internal/shift/repository.go` — `ReviewShift()` (line 554)
 
@@ -64,7 +66,7 @@ func (r *Repository) ReviewShift(ctx context.Context, shiftID, reviewerID int) (
 
 ### Step 1.4 — Surprise audit flags for review
 
-> **Status:** Not started
+> **Status:** ✅ Completed
 
 **File:** `internal/shift/handler.go` — `AuditShift()` (line 442)
 

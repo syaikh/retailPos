@@ -13,6 +13,7 @@ type Repo interface {
 	OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
 	CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
 	ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
+	FlagForReview(ctx context.Context, shiftID int) error
 	GetActiveShiftByUserID(ctx context.Context, userID int) (*Shift, error)
 	GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
 	GetShiftWithLiveSales(ctx context.Context, shiftID int) (*Shift, int, error)
@@ -95,6 +96,10 @@ func (s *service) GetShiftByID(ctx context.Context, scope ownership.Scope, shift
 
 func (s *service) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
 	return s.repo.ReviewShift(ctx, shiftID, reviewerID)
+}
+
+func (s *service) FlagForReview(ctx context.Context, shiftID int) error {
+	return s.repo.FlagForReview(ctx, shiftID)
 }
 
 func (s *service) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {
