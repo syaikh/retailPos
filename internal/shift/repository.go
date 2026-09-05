@@ -646,3 +646,33 @@ func (r *Repository) GetShiftReportData(ctx context.Context, shiftID int) (*Shif
 
 	return report, nil
 }
+
+func (r *Repository) ListOpenShiftsOlderThan(ctx context.Context, threshold time.Time) ([]Shift, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT s.id, s.user_id, s.store_id, s.status, s.opening_balance, s.opened_at
+		FROM shifts s
+		WHERE s.status = 'open' AND s.opened_at < $1
+		ORDER BY s.opened_at ASC
+	`, threshold)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list old open shifts: %w", err)
+	}
+	defer rows.Close()
+
+	var shifts []Shift
+	for rows.Next() {
+		var s Shift
+		var storeID sql.NullInt64
+		var openedAt time.Time
+		if err := rows.Scan(&s.ID, &s.UserID, &storeID, &s.Status, &s.OpeningBalance, &openedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan old open shift: %w", err)
+		}
+		if storeID.Valid {
+			sid := int(storeID.Int64)
+			s.StoreID = &sid
+		}
+		s.OpenedAt = openedAt.Format(time.RFC3339)
+		shifts = append(shifts, s)
+	}
+	return shifts, rows.Err()
+}

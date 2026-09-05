@@ -1069,6 +1069,7 @@ export const id = {
   // ===== Stores =====
   stores: 'Toko',
   store: 'Toko',
+  selectStore: 'Pilih Toko',
   storeName: 'Nama Toko',
   addStore: 'Tambah Toko',
   editStore: 'Edit Toko',
@@ -1465,6 +1466,7 @@ export const id = {
   createdAtLabel: 'DIBUAT PADA',
   updatedAtLabel: 'DIPERBARUI',
   closedAtLabel: 'DITUTUP PADA',
+  duration: 'DURASI',
   openedAtLabel: 'DIBUKA PADA',
   createdAtShort: 'DIBUAT',
   assignedToLabel: 'DITUGASKAN KE',

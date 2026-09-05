@@ -2,6 +2,7 @@
   import { Badge, Button, Drawer } from '$shared/ui';
   import { CheckCircle, Clock, FileText } from 'lucide-svelte';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
+  import { formatDuration } from '$shared/utils/duration';
   import { labels } from '$shared/i18n';
   import type { Shift } from '../types';
   import ShiftReport from './ShiftReport.svelte';
@@ -67,6 +68,10 @@
             <div>
               <span class="text-xs font-semibold tracking-wide text-text-muted/80">{labels.closedAt}</span>
               <p class="text-text-secondary text-sm mt-0.5">{formatDateTime(selectedShift.closed_at)}</p>
+            </div>
+            <div>
+              <span class="text-xs font-semibold tracking-wide text-text-muted/80">{labels.duration}</span>
+              <p class="text-text-secondary text-sm mt-0.5">{formatDuration(selectedShift.opened_at, selectedShift.closed_at)}</p>
             </div>
           {/if}
         </div>

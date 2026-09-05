@@ -243,3 +243,57 @@ func TestRepositoryMock_GetActiveShiftByUserID_FullData(t *testing.T) {
 func ownershipScopeEmpty() ownership.Scope {
 	return ownership.Scope{}
 }
+
+func TestRepositoryMock_ListOpenShiftsOlderThan(t *testing.T) {
+	t.Run("query error", func(t *testing.T) {
+		mock, repo, ctx := newMockRepo(t)
+		mock.ExpectQuery("SELECT s.id, s.user_id").WillReturnError(errors.New("boom"))
+		_, err := repo.ListOpenShiftsOlderThan(ctx, time.Now().Add(-24*time.Hour))
+		assert.ErrorContains(t, err, "failed to list old open shifts")
+	})
+
+	t.Run("scan error", func(t *testing.T) {
+		mock, repo, ctx := newMockRepo(t)
+		mock.ExpectQuery("SELECT s.id, s.user_id").WillReturnRows(
+			pgxmock.NewRows([]string{"id", "user_id", "store_id", "status", "opening_balance", "opened_at"}).
+				AddRow("not_an_int", 1, nil, "open", 100000, time.Now()))
+		_, err := repo.ListOpenShiftsOlderThan(ctx, time.Now().Add(-24*time.Hour))
+		assert.Error(t, err)
+	})
+
+	t.Run("empty result", func(t *testing.T) {
+		mock, repo, ctx := newMockRepo(t)
+		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(pgxmock.AnyArg()).WillReturnRows(
+			pgxmock.NewRows([]string{"id", "user_id", "store_id", "status", "opening_balance", "opened_at"}))
+		shifts, err := repo.ListOpenShiftsOlderThan(ctx, time.Now().Add(-24*time.Hour))
+		require.NoError(t, err)
+		assert.Len(t, shifts, 0)
+	})
+
+	t.Run("with store_id", func(t *testing.T) {
+		mock, repo, ctx := newMockRepo(t)
+		now := time.Now()
+		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(pgxmock.AnyArg()).WillReturnRows(
+			pgxmock.NewRows([]string{"id", "user_id", "store_id", "status", "opening_balance", "opened_at"}).
+				AddRow(1, 1, int64(5), "open", 100000, now))
+		shifts, err := repo.ListOpenShiftsOlderThan(ctx, now.Add(-1*time.Hour))
+		require.NoError(t, err)
+		require.Len(t, shifts, 1)
+		require.NotNil(t, shifts[0].StoreID)
+		assert.Equal(t, 5, *shifts[0].StoreID)
+		assert.Equal(t, 100000, shifts[0].OpeningBalance)
+	})
+
+	t.Run("without store_id", func(t *testing.T) {
+		mock, repo, ctx := newMockRepo(t)
+		now := time.Now()
+		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(pgxmock.AnyArg()).WillReturnRows(
+			pgxmock.NewRows([]string{"id", "user_id", "store_id", "status", "opening_balance", "opened_at"}).
+				AddRow(2, 2, nil, "open", 50000, now))
+		shifts, err := repo.ListOpenShiftsOlderThan(ctx, now.Add(-1*time.Hour))
+		require.NoError(t, err)
+		require.Len(t, shifts, 1)
+		assert.Nil(t, shifts[0].StoreID)
+		assert.Equal(t, 2, shifts[0].UserID)
+	})
+}

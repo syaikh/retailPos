@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **In Progress** |
+| Status | **Completed** |
 | Date | 2026-09-04 |
 | Updated | 2026-09-05 |
 | Review | `docs/reviews/shift-management-review.md` |
@@ -609,7 +609,7 @@ Add "Print Report" button that opens `ShiftReport` in a new window or modal.
 
 ---
 
-## Phase 5: Polish & Hardening
+## Phase 5: Polish & Hardening ✅ Completed
 
 **Effort:** 1.5-2 days
 **Goal:** UX improvements and edge case handling.

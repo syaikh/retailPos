@@ -14,6 +14,7 @@ import (
 	"retail-pos-system/internal/metrics"
 	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/shift"
 	"retail-pos-system/internal/wiring"
 	"retail-pos-system/pkg/websocket"
 
@@ -180,6 +181,17 @@ func main() {
 			"timestamp": time.Now().In(shared.JakartaLocation()).Format(time.RFC3339),
 		})
 	})
+
+	autoCloser := shift.NewAutoCloser(deps.ShiftRepo, deps.AppSettingsSvc)
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := autoCloser.Run(context.Background()); err != nil {
+				slog.Error("auto-close failed", "error", err)
+			}
+		}
+	}()
 
 	docs.SwaggerInfo.BasePath = "/api"
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

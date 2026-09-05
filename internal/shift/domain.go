@@ -1,5 +1,7 @@
 package shift
 
+import "retail-pos-system/internal/shared"
+
 type Shift struct {
 	ID               int     `json:"id"`
 	UserID           int     `json:"user_id"`
@@ -24,15 +26,9 @@ type Shift struct {
 	UpdatedAt        string  `json:"updated_at"`
 }
 
-type PaymentMethodTotal struct {
-	Method string `json:"method"`
-	Amount int    `json:"amount"`
-	Count  int    `json:"count"`
-}
-
 type ShiftReportData struct {
 	Shift
-	DurationMinutes     int                  `json:"duration_minutes"`
-	PaymentBreakdown    []PaymentMethodTotal  `json:"payment_breakdown"`
-	CashMovementSummary CashMovementSummary   `json:"cash_movement_summary"`
+	DurationMinutes     int                       `json:"duration_minutes"`
+	PaymentBreakdown    []shared.PaymentMethodTotal `json:"payment_breakdown"`
+	CashMovementSummary CashMovementSummary        `json:"cash_movement_summary"`
 }

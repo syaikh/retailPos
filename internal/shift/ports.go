@@ -46,5 +46,5 @@ type UsernameProvider interface {
 // PaymentBreakdownProvider returns payment method breakdowns for a shift.
 // Implemented by internal/sale (the canonical writer of sale_payments).
 type PaymentBreakdownProvider interface {
-	PaymentMethodBreakdown(ctx context.Context, db shared.DBPool, shiftID int) ([]PaymentMethodTotal, error)
+	PaymentMethodBreakdown(ctx context.Context, db shared.DBPool, shiftID int) ([]shared.PaymentMethodTotal, error)
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -743,4 +744,120 @@ func TestShiftRepository_OpenShift_Duplicate(t *testing.T) {
 	createOpenShift(ctx, t, repo, userID)
 	_, err := repo.OpenShift(ctx, userID, nil, 50000)
 	assert.ErrorContains(t, err, "already has an open shift")
+}
+
+func TestShiftRepository_ListOpenShiftsOlderThan(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	repo.SetStoreNameProvider(store.NamesProvider{})
+	repo.SetUsernameProvider(user.UsernamesProvider{})
+	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	ctx := context.Background()
+
+	t.Run("returns open shifts older than threshold", func(t *testing.T) {
+		_ = shared.TruncateTestData(dbPool)
+
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		// Backdate the shift to 25 hours ago
+		_, err := dbPool.Exec(ctx, `
+			UPDATE shifts SET opened_at = NOW() - INTERVAL '25 hours' WHERE id = $1
+		`, shift.ID)
+		require.NoError(t, err)
+
+		threshold := time.Now().Add(-24 * time.Hour)
+		shifts, err := repo.ListOpenShiftsOlderThan(ctx, threshold)
+		require.NoError(t, err)
+		assert.Len(t, shifts, 1)
+		assert.Equal(t, shift.ID, shifts[0].ID)
+	})
+
+	t.Run("excludes shifts younger than threshold", func(t *testing.T) {
+		_ = shared.TruncateTestData(dbPool)
+
+		userID := insertTestUser(ctx, t, 1)
+		createOpenShift(ctx, t, repo, userID)
+
+		threshold := time.Now().Add(-24 * time.Hour)
+		shifts, err := repo.ListOpenShiftsOlderThan(ctx, threshold)
+		require.NoError(t, err)
+		assert.Len(t, shifts, 0)
+	})
+
+	t.Run("excludes closed shifts", func(t *testing.T) {
+		_ = shared.TruncateTestData(dbPool)
+
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		// Close the shift
+		_, err := repo.CloseShift(ctx, shift.ID, userID, 100000, nil)
+		require.NoError(t, err)
+
+		// Backdate the opened_at
+		_, err = dbPool.Exec(ctx, `
+			UPDATE shifts SET opened_at = NOW() - INTERVAL '25 hours' WHERE id = $1
+		`, shift.ID)
+		require.NoError(t, err)
+
+		threshold := time.Now().Add(-24 * time.Hour)
+		shifts, err := repo.ListOpenShiftsOlderThan(ctx, threshold)
+		require.NoError(t, err)
+		assert.Len(t, shifts, 0)
+	})
+
+	t.Run("returns multiple old open shifts", func(t *testing.T) {
+		_ = shared.TruncateTestData(dbPool)
+
+		userA := insertTestUser(ctx, t, 1)
+		userB := insertTestUser(ctx, t, 1)
+		shiftA := createOpenShift(ctx, t, repo, userA)
+		shiftB := createOpenShift(ctx, t, repo, userB)
+
+		_, err := dbPool.Exec(ctx, `
+			UPDATE shifts SET opened_at = NOW() - INTERVAL '30 hours'
+			WHERE id IN ($1, $2)
+		`, shiftA.ID, shiftB.ID)
+		require.NoError(t, err)
+
+		threshold := time.Now().Add(-24 * time.Hour)
+		shifts, err := repo.ListOpenShiftsOlderThan(ctx, threshold)
+		require.NoError(t, err)
+		assert.Len(t, shifts, 2)
+	})
+
+	t.Run("returns empty when no shifts exist", func(t *testing.T) {
+		_ = shared.TruncateTestData(dbPool)
+
+		threshold := time.Now().Add(-24 * time.Hour)
+		shifts, err := repo.ListOpenShiftsOlderThan(ctx, threshold)
+		require.NoError(t, err)
+		assert.Len(t, shifts, 0)
+	})
+
+	t.Run("populates store_id and opened_at correctly", func(t *testing.T) {
+		_ = shared.TruncateTestData(dbPool)
+
+		var storeID int
+		err := dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ('Test Store') RETURNING id`).Scan(&storeID)
+		require.NoError(t, err)
+
+		userID := insertTestUser(ctx, t, 1)
+		shift, err := repo.OpenShift(ctx, userID, &storeID, 100000)
+		require.NoError(t, err)
+
+		_, err = dbPool.Exec(ctx, `
+			UPDATE shifts SET opened_at = NOW() - INTERVAL '25 hours' WHERE id = $1
+		`, shift.ID)
+		require.NoError(t, err)
+
+		threshold := time.Now().Add(-24 * time.Hour)
+		shifts, err := repo.ListOpenShiftsOlderThan(ctx, threshold)
+		require.NoError(t, err)
+		require.Len(t, shifts, 1)
+		require.NotNil(t, shifts[0].StoreID)
+		assert.Equal(t, storeID, *shifts[0].StoreID)
+		assert.NotEmpty(t, shifts[0].OpenedAt)
+	})
 }

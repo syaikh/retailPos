@@ -6,7 +6,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"retail-pos-system/internal/shift"
 	"retail-pos-system/internal/shared"
 )
 
@@ -79,16 +78,16 @@ const paymentBreakdownSQL = `
 	ORDER BY method
 `
 
-func (ShiftSummaryProvider) PaymentMethodBreakdown(ctx context.Context, db shared.DBPool, shiftID int) ([]shift.PaymentMethodTotal, error) {
+func (ShiftSummaryProvider) PaymentMethodBreakdown(ctx context.Context, db shared.DBPool, shiftID int) ([]shared.PaymentMethodTotal, error) {
 	rows, err := db.Query(ctx, paymentBreakdownSQL, shiftID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query payment breakdown: %w", err)
 	}
 	defer rows.Close()
 
-	var result []shift.PaymentMethodTotal
+	var result []shared.PaymentMethodTotal
 	for rows.Next() {
-		var p shift.PaymentMethodTotal
+		var p shared.PaymentMethodTotal
 		if err := rows.Scan(&p.Method, &p.Amount, &p.Count); err != nil {
 			return nil, fmt.Errorf("failed to scan payment breakdown row: %w", err)
 		}

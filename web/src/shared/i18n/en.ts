@@ -1069,6 +1069,7 @@ export const en: Labels = {
   // ===== Stores =====
   stores: 'Stores',
   store: 'Store',
+  selectStore: 'Select Store',
   storeName: 'Store Name',
   addStore: 'Add Store',
   editStore: 'Edit Store',
@@ -1465,6 +1466,7 @@ export const en: Labels = {
   createdAtLabel: 'CREATED AT',
   updatedAtLabel: 'UPDATED',
   closedAtLabel: 'CLOSED AT',
+  duration: 'DURATION',
   openedAtLabel: 'OPENED AT',
   createdAtShort: 'CREATED',
   assignedToLabel: 'ASSIGNED TO',

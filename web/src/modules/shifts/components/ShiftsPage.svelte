@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/router';
-import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
+  import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
+  import { formatDuration } from '$shared/utils/duration';
 import { useShiftStore } from '../stores/shift-store.svelte';
   import ShiftDetailDrawer from './ShiftDetailDrawer.svelte';
   import CashMovementModal from './CashMovementModal.svelte';
@@ -11,6 +12,8 @@ import { useShiftStore } from '../stores/shift-store.svelte';
   import { useAuthStore } from '$modules/auth';
   import { settingsStore } from '$shared/stores/settings.svelte';
   import { labels } from '$shared/i18n';
+  import { getActiveStores } from '$modules/stores/services/stores-service';
+  import type { Store } from '$modules/stores/types';
   import {
   Clock,
   Plus,
@@ -48,6 +51,8 @@ import { useShiftStore } from '../stores/shift-store.svelte';
   let auditResult = $state<{ expected_cash: number; actual_balance: number; off_by: number } | null>(null);
   let showCashMovementModal = $state(false);
   let showExpected = $state(false);
+  let stores = $state<Store[]>([]);
+  let selectedStoreId = $state<number | null>(null);
 
   let prevFilters = '';
 
@@ -91,11 +96,13 @@ import { useShiftStore } from '../stores/shift-store.svelte';
 
   async function handleOpenShift() {
     if (openingBalance <= 0) return;
+    if (stores.length > 1 && !selectedStoreId) return;
     isSubmitting = true;
     try {
-      await store.doOpenShift(null, openingBalance);
+      await store.doOpenShift(selectedStoreId, openingBalance);
       showOpenModal = false;
       openingBalance = 0;
+      selectedStoreId = null;
       prevFilters = '';
       goto('/pos');
     } catch (e: any) {
@@ -193,6 +200,35 @@ import { useShiftStore } from '../stores/shift-store.svelte';
       showExpected = false;
     }
   }
+
+  let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+  function startPolling() {
+    stopPolling();
+    if (store.activeShift) {
+      pollInterval = setInterval(() => store.loadActiveShift(), 30000);
+    }
+  }
+
+  function stopPolling() {
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = null;
+    }
+  }
+
+  $effect(() => {
+    const _ = store.activeShift;
+    if (store.activeShift) {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+  });
+
+  onDestroy(() => {
+    stopPolling();
+  });
 
   onMount(() => {
     store.loadActiveShift();
@@ -356,16 +392,17 @@ import { useShiftStore } from '../stores/shift-store.svelte';
             <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top w-[145px]">
               <SortableHeader label={labels.closedAtLabel} column="closed_at" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} />
             </th>
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[80px]">{labels.duration}</th>
           </tr>
         </thead>
         <tbody>
           {#if store.loading}
             {#each Array(5) as _}
-              <tr>{#each Array(isCashier ? 8 : 9) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>
+              <tr>{#each Array(isCashier ? 9 : 10) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>
             {/each}
           {:else if store.shifts.length === 0}
             <tr>
-              <td colspan={isCashier ? 8 : 9} class="px-4 py-12 text-center text-text-muted">
+              <td colspan={isCashier ? 9 : 10} class="px-4 py-12 text-center text-text-muted">
                 {labels.noShifts}
               </td>
             </tr>
@@ -400,6 +437,7 @@ import { useShiftStore } from '../stores/shift-store.svelte';
                   {/if}
                 </td>
                 <td class="px-3 py-3 text-text-secondary text-xs whitespace-nowrap">{formatDateTime(shift.closed_at)}</td>
+                <td class="px-3 py-3 text-right text-text-secondary text-xs tabular-nums">{formatDuration(shift.opened_at, shift.closed_at)}</td>
               </tr>
             {/each}
           {/if}
@@ -426,8 +464,30 @@ import { useShiftStore } from '../stores/shift-store.svelte';
 </div>
 
 <!-- Open Shift Modal -->
-<Modal bind:open={showOpenModal} title={labels.openShift} size="sm">
+<Modal bind:open={showOpenModal} title={labels.openShift} size="sm" onOpen={async () => {
+  try {
+    stores = await getActiveStores();
+    if (stores.length === 1) selectedStoreId = stores[0].id;
+  } catch { stores = []; }
+}}>
   <form onsubmit={(e) => { e.preventDefault(); handleOpenShift(); }} class="space-y-4">
+    {#if stores.length > 1}
+      <div>
+        <label for="store-select" class="block text-sm font-medium text-text-secondary mb-2">
+          {labels.store}
+        </label>
+        <select
+          id="store-select"
+          bind:value={selectedStoreId}
+          class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          <option value={null}>{labels.selectStore}</option>
+          {#each stores as s}
+            <option value={s.id}>{s.name}</option>
+          {/each}
+        </select>
+      </div>
+    {/if}
     <div>
       <label for="opening-balance" class="block text-sm font-medium text-text-secondary mb-2">
         {labels.openingBalanceRp}
@@ -438,7 +498,7 @@ import { useShiftStore } from '../stores/shift-store.svelte';
   </form>
   {#snippet footer()}
     <Button variant="secondary" class="px-5" disabled={isSubmitting} onclick={() => { showOpenModal = false; }}>{labels.cancel}</Button>
-    <Button variant="primary" class="px-5" disabled={isSubmitting || openingBalance <= 0} onclick={handleOpenShift}>
+    <Button variant="primary" class="px-5" disabled={isSubmitting || openingBalance <= 0 || (stores.length > 1 && !selectedStoreId)} onclick={handleOpenShift}>
       {#if isSubmitting}<Loader2 size={16} class="animate-spin mr-2" />{/if}
       {labels.openShift}
     </Button>

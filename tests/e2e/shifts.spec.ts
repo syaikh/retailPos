@@ -34,6 +34,7 @@ test.describe('Shifts Page', () => {
     await expect(page.locator('text=DISCREPANCY')).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'STATUS' })).toBeVisible();
     await expect(page.locator('text=CLOSED AT')).toBeVisible();
+    await expect(page.locator('text=DURATION')).toBeVisible();
 
     await expect(page.locator('th').filter({ hasText: 'CASHIER' })).toHaveCount(0);
   });

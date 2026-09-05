@@ -102,6 +102,10 @@ func (m *mockShiftService) InTx(ctx context.Context, fn func(tx pgx.Tx) error) e
 	return fn(nil)
 }
 
+func (m *mockShiftService) GetShiftReportData(ctx context.Context, shiftID int) (*ShiftReportData, error) {
+	return nil, nil
+}
+
 type mockAudit struct {
 	createAuditLogFn func(ctx context.Context, log *audit.Log) error
 }
