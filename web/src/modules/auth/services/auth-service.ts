@@ -5,6 +5,15 @@ import { setAccessToken, removeAccessToken, getAuthToken } from '../lib/session'
 import type { User } from '../types';
 import { applyTheme } from '$shared/utils/theme';
 import { setLocale } from '$shared/i18n';
+import {
+  initTabCoordination,
+  destroyTabCoordination,
+  isTabLeader,
+  requestRefresh,
+  onLeaderChange,
+  onCrossTabLogout,
+  broadcastLogout,
+} from '$shared/utils/tab-coordination';
 
 function decodeTokenPayload(token: string): Record<string, unknown> | null {
   try {
@@ -28,6 +37,17 @@ let refreshPromise: Promise<string | null> | null = null;
 let refreshQueue: Array<{ resolve: (token: string | null) => void; reject: (err: unknown) => void }> = [];
 
 async function doRefresh(): Promise<string | null> {
+  // Cross-tab: if follower, ask leader to refresh and wait for result
+  if (!isTabLeader()) {
+    try {
+      const token = await requestRefresh();
+      if (token) return token;
+    } catch {
+      // Leader refresh failed — fall through to direct refresh as fallback
+    }
+  }
+
+  // Leader or fallback: refresh directly
   if (refreshPromise) {
     return new Promise<string | null>((resolve, reject) => {
       refreshQueue.push({ resolve, reject });
@@ -68,23 +88,46 @@ export async function refreshAccessToken(): Promise<string | null> {
 let proactiveRefreshTimer: ReturnType<typeof setInterval> | null = null;
 const PROACTIVE_REFRESH_INTERVAL = 13 * 60 * 1000;
 
-export function startProactiveRefresh() {
-  stopProactiveRefresh();
+function startProactiveTimer() {
+  stopProactiveTimer();
   proactiveRefreshTimer = setInterval(async () => {
     const token = getAuthToken();
     if (!token) {
-      stopProactiveRefresh();
+      stopProactiveTimer();
       return;
     }
     await doRefresh();
   }, PROACTIVE_REFRESH_INTERVAL);
 }
 
-export function stopProactiveRefresh() {
+function stopProactiveTimer() {
   if (proactiveRefreshTimer) {
     clearInterval(proactiveRefreshTimer);
     proactiveRefreshTimer = null;
   }
+}
+
+export function startProactiveRefresh() {
+  initTabCoordination();
+
+  // Start timer only if this tab is the leader
+  if (isTabLeader()) {
+    startProactiveTimer();
+  }
+
+  // React to leadership changes
+  onLeaderChange((leader) => {
+    if (leader) {
+      startProactiveTimer();
+    } else {
+      stopProactiveTimer();
+    }
+  });
+}
+
+export function stopProactiveRefresh() {
+  stopProactiveTimer();
+  destroyTabCoordination();
 }
 
 export function setupAxiosInterceptors(apiClient: AxiosInstance) {
@@ -240,6 +283,7 @@ export async function login(username: string, password: string): Promise<{ acces
 
 export async function logout(): Promise<void> {
   stopProactiveRefresh();
+  broadcastLogout();
   try {
     await authApi.post('/logout', {}, { headers: getAuthHeaders() });
   } catch (err) {
@@ -248,6 +292,15 @@ export async function logout(): Promise<void> {
   const store = useAuthStore();
   store.clearUser();
   window.location.replace('/login');
+}
+
+export function handleCrossTabLogout(): void {
+  onCrossTabLogout(() => {
+    stopProactiveRefresh();
+    const store = useAuthStore();
+    store.clearUser();
+    window.location.replace('/login');
+  });
 }
 
 export async function updatePreferences(language: string, theme: string): Promise<boolean> {

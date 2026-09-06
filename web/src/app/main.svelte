@@ -1,6 +1,6 @@
 <script>
   import { goto, getPath, subscribe } from '$app/router';
-  import { restoreSession, useAuthStore, startProactiveRefresh } from '$modules/auth';
+  import { restoreSession, useAuthStore, startProactiveRefresh, handleCrossTabLogout } from '$modules/auth';
   import { initWebSocket } from '$app/providers/websocket';
   import { initAuth } from '$app/providers/auth-init';
   import ReceiptPrintOverlay from '$app/components/ReceiptPrintOverlay.svelte';
@@ -202,6 +202,7 @@
     wsInitialized = true;
     initWebSocket();
     startProactiveRefresh();
+    handleCrossTabLogout();
     loadFullSettings();
     subscribe(handleRoute);
 

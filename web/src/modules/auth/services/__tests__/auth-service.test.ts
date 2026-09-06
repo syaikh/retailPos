@@ -15,6 +15,16 @@ vi.mock('axios', () => ({
   },
 }));
 
+vi.mock('$shared/utils/tab-coordination', () => ({
+  initTabCoordination: vi.fn(),
+  destroyTabCoordination: vi.fn(),
+  isTabLeader: () => true,
+  requestRefresh: () => Promise.resolve(null),
+  onLeaderChange: () => () => {},
+  onCrossTabLogout: () => () => {},
+  broadcastLogout: vi.fn(),
+}));
+
 function makeAxiosError(status: number) {
   const err = new Error(`HTTP ${status}`) as any;
   err.isAxiosError = true;
