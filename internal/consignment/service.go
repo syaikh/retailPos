@@ -153,9 +153,31 @@ func (s *Service) SetTerms(ctx context.Context, arrangementID int, reqs []SetTer
 	}
 
 	terms := make([]Term, 0, len(reqs))
+	seen := make(map[int]bool, len(reqs))
 	for _, r := range reqs {
-		if err := validateShare(r.StoreShareType, r.StoreShareValue); err != nil {
+		if seen[r.ProductID] {
+			return nil, ErrDuplicateProduct
+		}
+		seen[r.ProductID] = true
+		if r.Price <= 0 {
+			return nil, ErrInvalidPrice
+		}
+		if err := validateShare(r.StoreShareType, r.StoreShareValue, float64(r.Price)); err != nil {
 			return nil, err
+		}
+		hasStock, err := s.hasStoreOwnedStock(ctx, r.ProductID)
+		if err != nil {
+			return nil, err
+		}
+		if hasStock {
+			return nil, ErrConflictStoreStock
+		}
+		row, err := s.repo.GetConsignmentStock(ctx, s.repo.db, r.ProductID)
+		if err != nil {
+			return nil, err
+		}
+		if row != nil && row.SupplierID != a.SupplierID && (row.AvailableQty > 0 || row.PendingReturnQty > 0) {
+			return nil, ErrConflictOtherSupplier
 		}
 		terms = append(terms, Term{
 			ProductID:       r.ProductID,
@@ -326,13 +348,24 @@ func (s *Service) resolveOwnership(ctx context.Context, tx pgx.Tx, a *Arrangemen
 	return nil
 }
 
-// hasStoreOwnedStock reports whether a product still has store-owned stock in
-// the global product_stock bucket. Consignment receipts also write the global
-// bucket, but a ledger row already exists in that case, so a non-nil row here
-// with no ledger row is store-owned.
+// hasStoreOwnedStock reports whether a product has store-owned stock that blocks
+// consignment. A product is store-owned when there is stock in the global
+// product_stock bucket BUT no consignment_stock ledger row exists. Consignment
+// receipts also write the global bucket, so the ledger row is the
+// differentiator.
 func (s *Service) hasStoreOwnedStock(ctx context.Context, productID int) (bool, error) {
-	var qty int
+	var hasLedger bool
 	err := s.repo.db.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM consignment_stock WHERE product_id = $1)
+	`, productID).Scan(&hasLedger)
+	if err != nil {
+		return false, err
+	}
+	if hasLedger {
+		return false, nil
+	}
+	var qty int
+	err = s.repo.db.QueryRow(ctx, `
 		SELECT COALESCE(quantity, 0)
 		FROM product_stock
 		WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL AND location_id IS NULL
@@ -359,10 +392,7 @@ func (s *Service) ListReceipts(ctx context.Context, supplierID int, claimsStore 
 	if err != nil {
 		return nil, err
 	}
-	if storeID == nil {
-		return nil, ErrStoreForbidden
-	}
-	return s.repo.ListReceipts(ctx, s.repo.db, supplierID, *storeID)
+	return s.repo.ListReceipts(ctx, s.repo.db, supplierID, storeID)
 }
 
 // --- Consignment stock ---
@@ -477,10 +507,7 @@ func (s *Service) ListPendingReturns(ctx context.Context, supplierID int, claims
 	if err != nil {
 		return nil, err
 	}
-	if storeID == nil {
-		return nil, ErrStoreForbidden
-	}
-	return s.repo.ListOpenPendingReturns(ctx, s.repo.db, supplierID, *storeID)
+	return s.repo.ListOpenPendingReturns(ctx, s.repo.db, supplierID, storeID)
 }
 
 // --- Returns ---
@@ -635,10 +662,7 @@ func (s *Service) ListReturns(ctx context.Context, supplierID int, claimsStore *
 	if err != nil {
 		return nil, err
 	}
-	if storeID == nil {
-		return nil, ErrStoreForbidden
-	}
-	return s.repo.ListReturns(ctx, s.repo.db, supplierID, *storeID)
+	return s.repo.ListReturns(ctx, s.repo.db, supplierID, storeID)
 }
 
 // --- Settlements ---
@@ -768,10 +792,7 @@ func (s *Service) ListSettlements(ctx context.Context, supplierID int, claimsSto
 	if err != nil {
 		return nil, err
 	}
-	if storeID == nil {
-		return nil, ErrStoreForbidden
-	}
-	return s.repo.ListSettlements(ctx, s.repo.db, supplierID, *storeID)
+	return s.repo.ListSettlements(ctx, s.repo.db, supplierID, storeID)
 }
 
 // ListPaymentMethods returns the active payment methods for the payout picker.
@@ -871,7 +892,7 @@ func buildSettlementPreview(supplierID, storeID int, items []SaleItemRecord) *Se
 	return settlement
 }
 
-func validateShare(shareType string, shareValue float64) error {
+func validateShare(shareType string, shareValue, price float64) error {
 	if shareType != ShareTypePercentage && shareType != ShareTypeFixedAmount {
 		return ErrInvalidShareType
 	}
@@ -880,6 +901,9 @@ func validateShare(shareType string, shareValue float64) error {
 	}
 	if shareType == ShareTypePercentage && shareValue >= 100 {
 		return ErrInvalidShareValueForType
+	}
+	if shareType == ShareTypeFixedAmount && shareValue >= price {
+		return ErrFixedShareExceedsPrice
 	}
 	return nil
 }

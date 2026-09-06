@@ -632,16 +632,24 @@ func (r *Repository) getReceiptItems(ctx context.Context, q queryer, receiptID i
 	return result, rows.Err()
 }
 
-func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID, storeID int) ([]Receipt, error) {
+func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int, storeID *int) ([]Receipt, error) {
+	var conds []string
+	var args []any
+	args = append(args, supplierID)
+	conds = append(conds, fmt.Sprintf("r.supplier_id = $%d", len(args)))
+	if storeID != nil {
+		args = append(args, *storeID)
+		conds = append(conds, fmt.Sprintf("r.store_id = $%d", len(args)))
+	}
+	where := " WHERE " + strings.Join(conds, " AND ")
+
 	rows, err := q.Query(ctx, `
 		SELECT r.id, r.receipt_number, r.supplier_id, COALESCE(s.name,''), r.store_id, r.arrangement_id,
 		       r.received_by, COALESCE(u.username,''), r.received_at, COALESCE(r.notes,''), r.created_at
 		FROM consignment_receipts r
 		JOIN suppliers s ON s.id = r.supplier_id
 		JOIN users u ON u.id = r.received_by
-		WHERE r.supplier_id = $1 AND r.store_id = $2
-		ORDER BY r.created_at DESC
-	`, supplierID, storeID)
+	`+where+` ORDER BY r.created_at DESC`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -741,16 +749,25 @@ func (r *Repository) InsertPendingReturn(ctx context.Context, tx pgx.Tx, pr *Pen
 	return nil
 }
 
-func (r *Repository) ListOpenPendingReturns(ctx context.Context, q queryer, supplierID, storeID int) ([]PendingReturn, error) {
+func (r *Repository) ListOpenPendingReturns(ctx context.Context, q queryer, supplierID int, storeID *int) ([]PendingReturn, error) {
+	var conds []string
+	var args []any
+	args = append(args, supplierID)
+	conds = append(conds, fmt.Sprintf("pr.supplier_id = $%d", len(args)))
+	conds = append(conds, "pr.status = 'open'")
+	if storeID != nil {
+		args = append(args, *storeID)
+		conds = append(conds, fmt.Sprintf("pr.store_id = $%d", len(args)))
+	}
+	where := " WHERE " + strings.Join(conds, " AND ")
+
 	rows, err := q.Query(ctx, `
 		SELECT pr.id, pr.supplier_id, pr.product_id, COALESCE(p.sku,''), COALESCE(p.name,''),
 		       pr.arrangement_id, pr.store_id, pr.qty, pr.reason, COALESCE(pr.notes,''), pr.status,
 		       pr.returned_at, pr.created_by, pr.created_at
 		FROM consignment_pending_returns pr
 		JOIN products p ON p.id = pr.product_id
-		WHERE pr.supplier_id = $1 AND pr.store_id = $2 AND pr.status = 'open'
-		ORDER BY pr.created_at ASC
-	`, supplierID, storeID)
+	`+where+` ORDER BY pr.created_at ASC`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -866,16 +883,24 @@ func (r *Repository) getReturnItems(ctx context.Context, q queryer, returnID int
 	return result, rows.Err()
 }
 
-func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID, storeID int) ([]Return, error) {
+func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID int, storeID *int) ([]Return, error) {
+	var conds []string
+	var args []any
+	args = append(args, supplierID)
+	conds = append(conds, fmt.Sprintf("rt.supplier_id = $%d", len(args)))
+	if storeID != nil {
+		args = append(args, *storeID)
+		conds = append(conds, fmt.Sprintf("rt.store_id = $%d", len(args)))
+	}
+	where := " WHERE " + strings.Join(conds, " AND ")
+
 	rows, err := q.Query(ctx, `
 		SELECT rt.id, rt.return_number, rt.supplier_id, COALESCE(s.name,''), rt.store_id, rt.arrangement_id,
 		       rt.returned_by, COALESCE(u.username,''), rt.returned_at, COALESCE(rt.notes,''), rt.created_at
 		FROM consignment_returns rt
 		JOIN suppliers s ON s.id = rt.supplier_id
 		JOIN users u ON u.id = rt.returned_by
-		WHERE rt.supplier_id = $1 AND rt.store_id = $2
-		ORDER BY rt.created_at DESC
-	`, supplierID, storeID)
+	`+where+` ORDER BY rt.created_at DESC`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1109,15 +1134,23 @@ func (r *Repository) getSettlementItems(ctx context.Context, q queryer, settleme
 	return result, rows.Err()
 }
 
-func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID, storeID int) ([]Settlement, error) {
+func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID int, storeID *int) ([]Settlement, error) {
+	var conds []string
+	var args []any
+	args = append(args, supplierID)
+	conds = append(conds, fmt.Sprintf("st.supplier_id = $%d", len(args)))
+	if storeID != nil {
+		args = append(args, *storeID)
+		conds = append(conds, fmt.Sprintf("st.store_id = $%d", len(args)))
+	}
+	where := " WHERE " + strings.Join(conds, " AND ")
+
 	rows, err := q.Query(ctx, `
 		SELECT st.id, st.settlement_number, st.supplier_id, COALESCE(sup.name,''), st.store_id,
 		       st.total_sale_value, st.total_store_share, st.total_payable, st.status, st.created_by, st.created_at, st.paid_at
 		FROM consignment_settlements st
 		JOIN suppliers sup ON sup.id = st.supplier_id
-		WHERE st.supplier_id = $1 AND st.store_id = $2
-		ORDER BY st.created_at DESC
-	`, supplierID, storeID)
+	`+where+` ORDER BY st.created_at DESC`, args...)
 	if err != nil {
 		return nil, err
 	}

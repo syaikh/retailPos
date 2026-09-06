@@ -16,6 +16,9 @@ var (
 	ErrInvalidShareType             = errors.New("store share type must be percentage or fixed_amount")
 	ErrInvalidShareValue            = errors.New("store share value must be greater than zero")
 	ErrInvalidShareValueForType     = errors.New("percentage store share value must be less than 100")
+	ErrInvalidPrice                 = errors.New("price must be greater than zero")
+	ErrFixedShareExceedsPrice       = errors.New("fixed_amount store share must be less than the product price")
+	ErrDuplicateProduct             = errors.New("duplicate product in terms request")
 	ErrArrangementEnded             = errors.New("consignment arrangement is ended")
 	ErrPendingReturnNotFound        = errors.New("pending return not found")
 	ErrReturnNotFound               = errors.New("consignment return not found")
@@ -260,7 +263,7 @@ type CreateArrangementRequest struct {
 
 type SetTermsRequest struct {
 	ProductID       int     `json:"product_id" binding:"required"`
-	Price           int     `json:"price" binding:"required,min=0"`
+	Price           int     `json:"price" binding:"required,min=1"`
 	StoreShareType  string  `json:"store_share_type" binding:"required"`
 	StoreShareValue float64 `json:"store_share_value" binding:"required"`
 }

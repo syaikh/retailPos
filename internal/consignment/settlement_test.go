@@ -267,3 +267,31 @@ func TestService_SettlementLifecycle(t *testing.T) {
 		require.Equal(t, 23000, preview.TotalPayable)
 	})
 }
+
+func TestService_ListSettlementsWithNilStore(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	product := insertTestProduct(ctx, t, "LIST-SETTLE")
+	svc, sup, store := setupArrangement(t, product)
+	userID := insertTestUser(ctx, t)
+
+	saleID := insertTestSale(ctx, t, store, "LIST-SETTLE-1")
+	insertConsignmentSaleItem(ctx, t, svc, shared.ConsignmentSaleRecord{
+		SaleID: saleID, InvoiceNumber: "LIST-SETTLE-1", ProductID: product,
+		SupplierID: sup, ArrangementID: arrID(t, svc, store), StoreID: store,
+		Quantity: 5, UnitPrice: 10000, Subtotal: 50000,
+		StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+	})
+
+	_, err := svc.CreateSettlement(ctx, &CreateSettlementRequest{SupplierID: sup}, userID, &store)
+	require.NoError(t, err)
+
+	scoped, err := svc.ListSettlements(ctx, sup, &store)
+	require.NoError(t, err)
+	require.Len(t, scoped, 1)
+
+	admin, err := svc.ListSettlements(ctx, sup, nil)
+	require.NoError(t, err)
+	require.Len(t, admin, 1)
+}

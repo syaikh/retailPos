@@ -190,3 +190,19 @@ func setupArrangement(t *testing.T, products ...int) (*Service, int, int) {
 	require.Len(t, created, len(products))
 	return svc, supplierID, storeID
 }
+
+// setupArrangementNoTerms creates a consignment arrangement without setting any
+// terms. Useful when the test needs to set terms separately (e.g. to test
+// ownership conflicts).
+func setupArrangementNoTerms(t *testing.T) (*Service, int, int, int) {
+	t.Helper()
+	ctx := context.Background()
+	userID := insertTestUser(ctx, t)
+	supplierID := insertTestSupplier(ctx, t, "Konsinyasi Test Supplier", true)
+	storeID := insertTestStore(ctx, t)
+	svc := newTestService(t)
+	arr, err := svc.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierID, StoreID: storeID}, userID, nil)
+	require.NoError(t, err)
+	require.Greater(t, arr.ID, 0)
+	return svc, supplierID, storeID, userID
+}

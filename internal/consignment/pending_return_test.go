@@ -357,7 +357,7 @@ func TestService_Return(t *testing.T) {
 		}, userID, &storeA)
 		require.NoError(t, err)
 
-		svcB, _, storeB := setupArrangement(t, product)
+		svcB, _, storeB, _ := setupArrangementNoTerms(t)
 		_, err = svcB.CreateReturn(ctx, &ReturnRequest{
 			ArrangementID: arrID(t, svcB, storeB),
 			Items:         []ReturnItemRequest{{ProductID: product, Qty: 2, Reason: ReasonOther}},
@@ -384,5 +384,83 @@ func TestService_Return(t *testing.T) {
 		row, err := svcA.repo.GetConsignmentStock(ctx, svcA.repo.db, product)
 		require.NoError(t, err)
 		require.Nil(t, row)
+	})
+}
+
+func TestService_ListWithNilStore(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	t.Run("ListReceipts with nil store returns all stores", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "LIST-RCPT")
+		svc, sup, store := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+
+		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		// Store-scoped user sees their receipts.
+		scoped, err := svc.ListReceipts(ctx, sup, &store)
+		require.NoError(t, err)
+		require.Len(t, scoped, 1)
+
+		// Admin (nil store) also sees them.
+		admin, err := svc.ListReceipts(ctx, sup, nil)
+		require.NoError(t, err)
+		require.Len(t, admin, 1)
+	})
+
+	t.Run("ListPendingReturns with nil store returns all stores", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "LIST-PR")
+		svc, sup, store := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+
+		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 10}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		_, err = svc.CreatePendingReturn(ctx, &CreatePendingReturnRequest{
+			ProductID: product, Qty: 3, Reason: ReasonDamaged,
+		}, userID, &store)
+		require.NoError(t, err)
+
+		scoped, err := svc.ListPendingReturns(ctx, sup, &store)
+		require.NoError(t, err)
+		require.Len(t, scoped, 1)
+
+		admin, err := svc.ListPendingReturns(ctx, sup, nil)
+		require.NoError(t, err)
+		require.Len(t, admin, 1)
+	})
+
+	t.Run("ListReturns with nil store returns all stores", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "LIST-RET")
+		svc, sup, store := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+
+		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		_, err = svc.CreateReturn(ctx, &ReturnRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReturnItemRequest{{ProductID: product, Qty: 2, Reason: ReasonOther}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		scoped, err := svc.ListReturns(ctx, sup, &store)
+		require.NoError(t, err)
+		require.Len(t, scoped, 1)
+
+		admin, err := svc.ListReturns(ctx, sup, nil)
+		require.NoError(t, err)
+		require.Len(t, admin, 1)
 	})
 }

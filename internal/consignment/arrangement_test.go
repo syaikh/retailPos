@@ -192,6 +192,124 @@ func TestService_SetTermsValidation(t *testing.T) {
 		require.ErrorIs(t, err, ErrInvalidShareValue)
 	})
 
+	t.Run("product with store-owned stock rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "TERMS-STORE-STOCK")
+		svc, _, store := setupArrangement(t, product)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+		seedStoreOwnedStock(ctx, t, product, 5)
+
+		_, err := svc.SetTerms(ctx, arrs[0].ID, []SetTermsRequest{
+			{ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20},
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrConflictStoreStock)
+	})
+
+	t.Run("product consigned to another supplier rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "TERMS-OTHER-SUP")
+		svcA, _, storeA := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+
+		// Supplier A receives stock.
+		_, err := svcA.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svcA, storeA),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
+		}, userID, &storeA)
+		require.NoError(t, err)
+
+		// Supplier B creates arrangement (no terms yet).
+		supplierB := insertTestSupplier(ctx, t, "Supplier B", true)
+		storeB := insertTestStore(ctx, t)
+		svcB := newTestService(t)
+		arrB, err := svcB.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierB, StoreID: storeB}, userID, nil)
+		require.NoError(t, err)
+
+		// Supplier B tries to set terms on the same product.
+		_, err = svcB.SetTerms(ctx, arrB.ID, []SetTermsRequest{
+			{ProductID: product, Price: 12000, StoreShareType: ShareTypePercentage, StoreShareValue: 30},
+		}, userID, &storeB)
+		require.ErrorIs(t, err, ErrConflictOtherSupplier)
+	})
+
+	t.Run("zero price rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "TERMS-ZERO-PRICE")
+		svc, _, store := setupArrangement(t, product)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.SetTerms(ctx, arrs[0].ID, []SetTermsRequest{
+			{ProductID: product, Price: 0, StoreShareType: ShareTypePercentage, StoreShareValue: 20},
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrInvalidPrice)
+	})
+
+	t.Run("fixed_amount share >= price rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "TERMS-SHARE-OVER")
+		svc, _, store := setupArrangement(t, product)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.SetTerms(ctx, arrs[0].ID, []SetTermsRequest{
+			{ProductID: product, Price: 10000, StoreShareType: ShareTypeFixedAmount, StoreShareValue: 10000},
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrFixedShareExceedsPrice)
+	})
+
+	t.Run("duplicate product rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "TERMS-DUP-PROD")
+		svc, _, store := setupArrangement(t, product)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.SetTerms(ctx, arrs[0].ID, []SetTermsRequest{
+			{ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20},
+			{ProductID: product, Price: 12000, StoreShareType: ShareTypeFixedAmount, StoreShareValue: 3000},
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrDuplicateProduct)
+	})
+
+	t.Run("negative price rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "TERMS-NEG-PRICE")
+		svc, _, store := setupArrangement(t, product)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.SetTerms(ctx, arrs[0].ID, []SetTermsRequest{
+			{ProductID: product, Price: -1000, StoreShareType: ShareTypePercentage, StoreShareValue: 20},
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrInvalidPrice)
+	})
+
+	t.Run("fixed_amount share less than price accepted", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "TERMS-FIXED-OK")
+		svc, _, store := setupArrangement(t, product)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		terms, err := svc.SetTerms(ctx, arrs[0].ID, []SetTermsRequest{
+			{ProductID: product, Price: 10000, StoreShareType: ShareTypeFixedAmount, StoreShareValue: 5000},
+		}, userID, &store)
+		require.NoError(t, err)
+		require.Len(t, terms, 1)
+		require.Equal(t, ShareTypeFixedAmount, terms[0].StoreShareType)
+		require.Equal(t, 5000.0, terms[0].StoreShareValue)
+	})
+
+	t.Run("consignment ledger prevents store-owned conflict", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "TERMS-LEDGER-OK")
+		svc, _, store := setupArrangement(t, product)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		// Receipt creates both the consignment_stock ledger AND product_stock qty.
+		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrs[0].ID,
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		// hasStoreOwnedStock must return false because the ledger exists,
+		// even though product_stock qty > 0.
+		terms, err := svc.SetTerms(ctx, arrs[0].ID, []SetTermsRequest{
+			{ProductID: product, Price: 12000, StoreShareType: ShareTypePercentage, StoreShareValue: 25},
+		}, userID, &store)
+		require.NoError(t, err)
+		require.Len(t, terms, 1)
+	})
+
 	t.Run("terms change replaces previous terms", func(t *testing.T) {
 		product := insertTestProduct(ctx, t, "TERMS-REPLACE-PROD")
 		svc, _, store := setupArrangement(t, product)

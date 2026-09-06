@@ -142,8 +142,8 @@ func TestService_ReceiptConflictMatrix(t *testing.T) {
 		}, userID, &storeA)
 		require.NoError(t, err)
 
-		// Supplier B in a different store tries to take the same SKU.
-		svcB, _, storeB := setupArrangement(t, product)
+		// Supplier B creates arrangement without terms (can't set terms on owned product).
+		svcB, _, storeB, _ := setupArrangementNoTerms(t)
 		_, err = svcB.CreateReceipt(ctx, &ReceiptRequest{
 			ArrangementID: arrID(t, svcB, storeB),
 			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 3}},
@@ -175,7 +175,7 @@ func TestService_ReceiptConflictMatrix(t *testing.T) {
 		require.Equal(t, 0, row.AvailableQty)
 		require.Equal(t, 5, row.PendingReturnQty)
 
-		svcB, _, storeB := setupArrangement(t, product)
+		svcB, _, storeB, _ := setupArrangementNoTerms(t)
 		_, err = svcB.CreateReceipt(ctx, &ReceiptRequest{
 			ArrangementID: arrID(t, svcB, storeB),
 			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 2}},

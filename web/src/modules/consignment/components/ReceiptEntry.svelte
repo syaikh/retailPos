@@ -4,7 +4,6 @@
   import { Button, Modal, Input, SelectSearch, EmptyState } from '$shared/ui';
   import { Plus, Trash2, Truck } from 'lucide-svelte';
   import { labels, t } from '$shared/i18n';
-  import { getProductOptions } from '$modules/product/services/product-service';
   import { createReceipt, listReceipts } from '../services/consignment-service';
   import type { Arrangement, Receipt } from '../types';
   import { formatCurrency, formatDateTime } from '../lib/format';
@@ -47,16 +46,14 @@
     }
   }
 
-  async function loadProducts() {
-    try {
-      const opts = await getProductOptions();
-      productOptions = opts.map((p) => ({
-        value: p.id,
-        label: p.sku ? `${p.name} (${p.sku})` : p.name,
-      }));
-    } catch {
-      productOptions = [];
-    }
+  function loadTermProducts() {
+    const terms = arrangement.terms || [];
+    productOptions = terms.map((term) => ({
+      value: term.product_id,
+      label: term.product_name
+        ? (term.product_sku ? `${term.product_name} (${term.product_sku})` : term.product_name)
+        : `Product #${term.product_id}`,
+    }));
   }
 
   function openEntry() {
@@ -122,7 +119,7 @@
 
   onMount(() => {
     load();
-    loadProducts();
+    loadTermProducts();
   });
 </script>
 
