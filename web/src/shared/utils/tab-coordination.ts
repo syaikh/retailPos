@@ -63,7 +63,7 @@ function notifyLogout() {
 // --- Message handling ---
 function handleMessage(event: MessageEvent<Message>) {
   const msg = event.data;
-  if (msg.tabId === tabId) return; // ignore own messages
+  if ('tabId' in msg && msg.tabId === tabId) return; // ignore own messages
 
   switch (msg.type) {
     case 'PING':

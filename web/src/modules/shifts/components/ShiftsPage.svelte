@@ -104,7 +104,7 @@ import { useShiftStore } from '../stores/shift-store.svelte';
       openingBalance = 0;
       selectedStoreId = null;
       prevFilters = '';
-      goto('/pos');
+      goto(rbac.can(Permissions.sale.create) ? '/pos' : '/shifts');
     } catch (e: any) {
       alert(e?.response?.data?.error || labels.failedToOpenShift);
     } finally {
