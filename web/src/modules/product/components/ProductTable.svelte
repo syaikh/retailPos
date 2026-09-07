@@ -194,7 +194,7 @@
                 </span>
               {/if}
               {#if product.ownership_type === 'consignment'}
-                <Badge variant="info" size="sm">{labels.consignment}</Badge>
+                <Badge variant="muted" size="sm">{labels.ownershipConsignment}</Badge>
               {/if}
             </div>
           </td>
