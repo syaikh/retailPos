@@ -37,8 +37,12 @@ func TestService_ReceiptConflictMatrix(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, rec.ReceiptNumber)
 		require.Equal(t, sup, rec.SupplierID)
+		require.NotEmpty(t, rec.SupplierName, "SupplierName should be hydrated")
+		require.NotEmpty(t, rec.ReceivedByUsername, "ReceivedByUsername should be hydrated")
 		require.Len(t, rec.Items, 1)
 		require.Equal(t, 10, rec.Items[0].AcceptedQty)
+		require.NotEmpty(t, rec.Items[0].ProductSKU, "ProductSKU should be hydrated")
+		require.NotEmpty(t, rec.Items[0].ProductName, "ProductName should be hydrated")
 
 		// Global sellable stock increased.
 		require.Equal(t, 10, globalStockQty(ctx, t, product))

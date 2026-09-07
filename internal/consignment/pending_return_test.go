@@ -96,6 +96,8 @@ func TestService_PendingReturn(t *testing.T) {
 		prD, err := svc.CreatePendingReturn(ctx, &CreatePendingReturnRequest{ProductID: skuD, Qty: 2, Reason: ReasonDamaged}, userID, &store)
 		require.NoError(t, err)
 		require.Equal(t, ReasonDamaged, prD.Reason)
+		require.NotEmpty(t, prD.ProductSKU, "ProductSKU should be hydrated")
+		require.NotEmpty(t, prD.ProductName, "ProductName should be hydrated")
 
 		prE, err := svc.CreatePendingReturn(ctx, &CreatePendingReturnRequest{ProductID: skuE, Qty: 3, Reason: ReasonExpired}, userID, &store)
 		require.NoError(t, err)
@@ -105,6 +107,10 @@ func TestService_PendingReturn(t *testing.T) {
 		list, err := svc.ListPendingReturns(ctx, sup, &store)
 		require.NoError(t, err)
 		require.Len(t, list, 2)
+		for _, pr := range list {
+			require.NotEmpty(t, pr.ProductSKU, "ProductSKU should be hydrated on list")
+			require.NotEmpty(t, pr.ProductName, "ProductName should be hydrated on list")
+		}
 	})
 
 	t.Run("EC-09 return does not create a settlement", func(t *testing.T) {
@@ -194,7 +200,11 @@ func TestService_Return(t *testing.T) {
 		}, userID, &store)
 		require.NoError(t, err)
 		require.NotEmpty(t, ret.ReturnNumber)
+		require.NotEmpty(t, ret.SupplierName, "SupplierName should be hydrated")
+		require.NotEmpty(t, ret.ReturnedByUsername, "ReturnedByUsername should be hydrated")
 		require.Len(t, ret.Items, 1)
+		require.NotEmpty(t, ret.Items[0].ProductSKU, "ProductSKU should be hydrated")
+		require.NotEmpty(t, ret.Items[0].ProductName, "ProductName should be hydrated")
 
 		row, err := svc.repo.GetConsignmentStock(ctx, svc.repo.db, product)
 		require.NoError(t, err)
@@ -406,11 +416,16 @@ func TestService_ListWithNilStore(t *testing.T) {
 		scoped, err := svc.ListReceipts(ctx, sup, &store)
 		require.NoError(t, err)
 		require.Len(t, scoped, 1)
+		require.NotEmpty(t, scoped[0].SupplierName, "SupplierName should be hydrated on list")
+		require.NotEmpty(t, scoped[0].ReceivedByUsername, "ReceivedByUsername should be hydrated on list")
+		require.Len(t, scoped[0].Items, 1, "Receipt items should be batch-loaded")
+		require.NotEmpty(t, scoped[0].Items[0].ProductSKU, "ProductSKU should be hydrated on receipt items")
 
 		// Admin (nil store) also sees them.
 		admin, err := svc.ListReceipts(ctx, sup, nil)
 		require.NoError(t, err)
 		require.Len(t, admin, 1)
+		require.NotEmpty(t, admin[0].SupplierName, "SupplierName should be hydrated on admin list")
 	})
 
 	t.Run("ListPendingReturns with nil store returns all stores", func(t *testing.T) {
@@ -458,9 +473,12 @@ func TestService_ListWithNilStore(t *testing.T) {
 		scoped, err := svc.ListReturns(ctx, sup, &store)
 		require.NoError(t, err)
 		require.Len(t, scoped, 1)
+		require.NotEmpty(t, scoped[0].SupplierName, "SupplierName should be hydrated on list")
+		require.NotEmpty(t, scoped[0].ReturnedByUsername, "ReturnedByUsername should be hydrated on list")
 
 		admin, err := svc.ListReturns(ctx, sup, nil)
 		require.NoError(t, err)
 		require.Len(t, admin, 1)
+		require.NotEmpty(t, admin[0].SupplierName, "SupplierName should be hydrated on admin list")
 	})
 }

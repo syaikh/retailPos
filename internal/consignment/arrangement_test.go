@@ -2,6 +2,7 @@ package consignment
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -66,6 +67,20 @@ func TestService_ArrangementLifecycle(t *testing.T) {
 		require.Len(t, arrs, 1)
 		require.Equal(t, sup, arrs[0].SupplierID)
 		require.Equal(t, StatusActive, arrs[0].Status)
+	})
+
+	t.Run("get arrangement hydrates term product names", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "ARR-TERM-HYD")
+		svc, _, store := setupArrangement(t, product)
+
+		arrs, _, err := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+		require.NoError(t, err)
+
+		got, err := svc.GetArrangement(ctx, arrs[0].ID, &store)
+		require.NoError(t, err)
+		require.Len(t, got.Terms, 1)
+		require.NotEmpty(t, got.Terms[0].ProductSKU, "Term ProductSKU should be hydrated")
+		require.NotEmpty(t, got.Terms[0].ProductName, "Term ProductName should be hydrated")
 	})
 }
 
@@ -147,6 +162,8 @@ func TestService_LazyEnded(t *testing.T) {
 		got, err := svc.GetArrangement(ctx, arrID, &store)
 		require.NoError(t, err)
 		require.Equal(t, StatusActive, got.Status)
+		require.NotEmpty(t, got.SupplierName, "SupplierName should be hydrated on GetArrangement")
+		require.NotEmpty(t, got.StoreName, "StoreName should be hydrated on GetArrangement")
 
 		lastVisit, err := time.Parse(time.RFC3339, *got.LastVisitAt)
 		require.NoError(t, err)
@@ -287,6 +304,8 @@ func TestService_SetTermsValidation(t *testing.T) {
 		require.Len(t, terms, 1)
 		require.Equal(t, ShareTypeFixedAmount, terms[0].StoreShareType)
 		require.Equal(t, 5000.0, terms[0].StoreShareValue)
+		require.NotEmpty(t, terms[0].ProductSKU, "ProductSKU should be hydrated after SetTerms")
+		require.NotEmpty(t, terms[0].ProductName, "ProductName should be hydrated after SetTerms")
 	})
 
 	t.Run("consignment ledger prevents store-owned conflict", func(t *testing.T) {
@@ -395,6 +414,35 @@ func TestService_ListArrangementsPaginationSearch(t *testing.T) {
 		require.Len(t, arrs, 3)
 		for _, a := range arrs {
 			require.Equal(t, StatusActive, a.Status)
+		}
+	})
+
+	t.Run("searches by numeric arrangement ID", func(t *testing.T) {
+		arrs, _, err := svc.ListArrangements(ctx, &claims, 0, 0, "", "")
+		require.NoError(t, err)
+		require.NotEmpty(t, arrs)
+		target := arrs[0]
+
+		arrs, total, err := svc.ListArrangements(ctx, &claims, 0, 0, fmt.Sprintf("%d", target.ID), "")
+		require.NoError(t, err)
+		require.Equal(t, 1, total)
+		require.Len(t, arrs, 1)
+		require.Equal(t, target.ID, arrs[0].ID)
+	})
+
+	t.Run("search by non-existent ID returns empty", func(t *testing.T) {
+		arrs, total, err := svc.ListArrangements(ctx, &claims, 0, 0, "999999", "")
+		require.NoError(t, err)
+		require.Equal(t, 0, total)
+		require.Empty(t, arrs)
+	})
+
+	t.Run("supplier name and store name are hydrated", func(t *testing.T) {
+		arrs, _, err := svc.ListArrangements(ctx, &claims, 0, 0, "", "")
+		require.NoError(t, err)
+		for _, a := range arrs {
+			require.NotEmpty(t, a.SupplierName, "SupplierName should be hydrated")
+			require.NotEmpty(t, a.StoreName, "StoreName should be hydrated")
 		}
 	})
 }

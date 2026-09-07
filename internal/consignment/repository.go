@@ -21,7 +21,9 @@ type queryer interface {
 type Repository struct {
 	db                  shared.DBPool
 	stockAdjuster       StockAdjuster
+	stockReader         StockReader
 	supplierStore       SupplierStore
+	storeNameProvider   StoreNameProvider
 	productMetaProvider ProductMetaProvider
 	usernameProvider    UsernameProvider
 	paymentMethods      PaymentMethodProvider
@@ -35,8 +37,16 @@ func (r *Repository) SetStockAdjuster(p StockAdjuster) {
 	r.stockAdjuster = p
 }
 
+func (r *Repository) SetStockReader(p StockReader) {
+	r.stockReader = p
+}
+
 func (r *Repository) SetSupplierStore(p SupplierStore) {
 	r.supplierStore = p
+}
+
+func (r *Repository) SetStoreNameProvider(p StoreNameProvider) {
+	r.storeNameProvider = p
 }
 
 func (r *Repository) SetProductMetaProvider(p ProductMetaProvider) {
@@ -58,6 +68,13 @@ func (r *Repository) stockAdjusterOrPanic() StockAdjuster {
 	return r.stockAdjuster
 }
 
+func (r *Repository) stockReaderOrPanic() StockReader {
+	if r.stockReader == nil {
+		panic("consignment.Repository: StockReader not wired (SetStockReader)")
+	}
+	return r.stockReader
+}
+
 func (r *Repository) supplierStoreOrPanic() SupplierStore {
 	if r.supplierStore == nil {
 		panic("consignment.Repository: SupplierStore not wired (SetSupplierStore)")
@@ -70,6 +87,27 @@ func (r *Repository) paymentMethodsOrPanic() PaymentMethodProvider {
 		panic("consignment.Repository: PaymentMethodProvider not wired (SetPaymentMethods)")
 	}
 	return r.paymentMethods
+}
+
+func (r *Repository) storeNameProviderOrPanic() StoreNameProvider {
+	if r.storeNameProvider == nil {
+		panic("consignment.Repository: StoreNameProvider not wired (SetStoreNameProvider)")
+	}
+	return r.storeNameProvider
+}
+
+func (r *Repository) productMetaProviderOrPanic() ProductMetaProvider {
+	if r.productMetaProvider == nil {
+		panic("consignment.Repository: ProductMetaProvider not wired (SetProductMetaProvider)")
+	}
+	return r.productMetaProvider
+}
+
+func (r *Repository) usernameProviderOrPanic() UsernameProvider {
+	if r.usernameProvider == nil {
+		panic("consignment.Repository: UsernameProvider not wired (SetUsernameProvider)")
+	}
+	return r.usernameProvider
 }
 
 func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
@@ -109,13 +147,11 @@ func (r *Repository) GetArrangementByID(ctx context.Context, q queryer, id int) 
 	var lastVisitAt, endedAt sql.NullTime
 	var createdAt, updatedAt time.Time
 	err := q.QueryRow(ctx, `
-		SELECT a.id, a.supplier_id, COALESCE(s.name,''), a.store_id, COALESCE(st.name,''), a.status,
+		SELECT a.id, a.supplier_id, a.store_id, a.status,
 		       a.last_visit_at, a.ended_at, a.created_by, a.created_at, a.updated_at
 		FROM consignment_arrangements a
-		LEFT JOIN suppliers s ON s.id = a.supplier_id
-		LEFT JOIN stores st ON st.id = a.store_id
 		WHERE a.id = $1
-	`, id).Scan(&a.ID, &a.SupplierID, &a.SupplierName, &a.StoreID, &a.StoreName, &a.Status,
+	`, id).Scan(&a.ID, &a.SupplierID, &a.StoreID, &a.Status,
 		&lastVisitAt, &endedAt, &a.CreatedBy, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -148,13 +184,11 @@ func (r *Repository) GetArrangementByIDQuery(ctx context.Context, q queryer, whe
 	var lastVisitAt, endedAt sql.NullTime
 	var createdAt, updatedAt time.Time
 	err := q.QueryRow(ctx, `
-		SELECT a.id, a.supplier_id, COALESCE(s.name,''), a.store_id, COALESCE(st.name,''), a.status,
+		SELECT a.id, a.supplier_id, a.store_id, a.status,
 		       a.last_visit_at, a.ended_at, a.created_by, a.created_at, a.updated_at
 		FROM consignment_arrangements a
-		LEFT JOIN suppliers s ON s.id = a.supplier_id
-		LEFT JOIN stores st ON st.id = a.store_id
 		`+where+`
-	`, args...).Scan(&a.ID, &a.SupplierID, &a.SupplierName, &a.StoreID, &a.StoreName, &a.Status,
+	`, args...).Scan(&a.ID, &a.SupplierID, &a.StoreID, &a.Status,
 		&lastVisitAt, &endedAt, &a.CreatedBy, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -182,8 +216,8 @@ func (r *Repository) ListArrangements(ctx context.Context, q queryer, storeID *i
 		conds = append(conds, fmt.Sprintf("a.store_id = $%d", len(args)))
 	}
 	if search != "" {
-		args = append(args, "%"+search+"%")
-		conds = append(conds, fmt.Sprintf("(s.name ILIKE $%d OR a.id::text = $%d)", len(args), len(args)))
+		args = append(args, search)
+		conds = append(conds, fmt.Sprintf("a.id::text = $%d", len(args)))
 	}
 	if status != "" {
 		args = append(args, status)
@@ -195,17 +229,15 @@ func (r *Repository) ListArrangements(ctx context.Context, q queryer, storeID *i
 	}
 
 	var total int
-	countQuery := `SELECT COUNT(*) FROM consignment_arrangements a LEFT JOIN suppliers s ON s.id = a.supplier_id` + where
+	countQuery := `SELECT COUNT(*) FROM consignment_arrangements a` + where
 	if err := q.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
 	query := `
-		SELECT a.id, a.supplier_id, COALESCE(s.name,''), a.store_id, COALESCE(st.name,''), ` + effStatus + `,
+		SELECT a.id, a.supplier_id, a.store_id, ` + effStatus + `,
 		       a.last_visit_at, a.ended_at, a.created_by, a.created_at, a.updated_at
 		FROM consignment_arrangements a
-		LEFT JOIN suppliers s ON s.id = a.supplier_id
-		LEFT JOIN stores st ON st.id = a.store_id
 	` + where + ` ORDER BY a.created_at DESC`
 	if limit > 0 {
 		args = append(args, limit, offset)
@@ -222,7 +254,7 @@ func (r *Repository) ListArrangements(ctx context.Context, q queryer, storeID *i
 		var a Arrangement
 		var lastVisitAt, endedAt sql.NullTime
 		var createdAt, updatedAt time.Time
-		if err := rows.Scan(&a.ID, &a.SupplierID, &a.SupplierName, &a.StoreID, &a.StoreName, &a.Status,
+		if err := rows.Scan(&a.ID, &a.SupplierID, &a.StoreID, &a.Status,
 			&lastVisitAt, &endedAt, &a.CreatedBy, &createdAt, &updatedAt); err != nil {
 			return nil, 0, err
 		}
@@ -284,10 +316,9 @@ func (r *Repository) EndArrangement(ctx context.Context, tx pgx.Tx, id int) erro
 
 func (r *Repository) ListTerms(ctx context.Context, q queryer, arrangementID int) ([]Term, error) {
 	rows, err := q.Query(ctx, `
-		SELECT t.id, t.arrangement_id, t.product_id, COALESCE(p.sku,''), COALESCE(p.name,''),
+		SELECT t.id, t.arrangement_id, t.product_id,
 		       t.price, t.store_share_type, t.store_share_value, t.effective_from, t.created_by, t.created_at
 		FROM consignment_terms t
-		JOIN products p ON p.id = t.product_id
 		WHERE t.arrangement_id = $1
 		ORDER BY t.id ASC
 	`, arrangementID)
@@ -300,7 +331,7 @@ func (r *Repository) ListTerms(ctx context.Context, q queryer, arrangementID int
 	for rows.Next() {
 		var t Term
 		var effectiveFrom, createdAt time.Time
-		if err := rows.Scan(&t.ID, &t.ArrangementID, &t.ProductID, &t.ProductSKU, &t.ProductName,
+		if err := rows.Scan(&t.ID, &t.ArrangementID, &t.ProductID,
 			&t.Price, &t.StoreShareType, &t.StoreShareValue, &effectiveFrom, &t.CreatedBy, &createdAt); err != nil {
 			return nil, err
 		}
@@ -315,12 +346,11 @@ func (r *Repository) GetTermByProduct(ctx context.Context, q queryer, arrangemen
 	var t Term
 	var effectiveFrom, createdAt time.Time
 	err := q.QueryRow(ctx, `
-		SELECT t.id, t.arrangement_id, t.product_id, COALESCE(p.sku,''), COALESCE(p.name,''),
+		SELECT t.id, t.arrangement_id, t.product_id,
 		       t.price, t.store_share_type, t.store_share_value, t.effective_from, t.created_by, t.created_at
 		FROM consignment_terms t
-		JOIN products p ON p.id = t.product_id
 		WHERE t.arrangement_id = $1 AND t.product_id = $2
-	`, arrangementID, productID).Scan(&t.ID, &t.ArrangementID, &t.ProductID, &t.ProductSKU, &t.ProductName,
+	`, arrangementID, productID).Scan(&t.ID, &t.ArrangementID, &t.ProductID,
 		&t.Price, &t.StoreShareType, &t.StoreShareValue, &effectiveFrom, &t.CreatedBy, &createdAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -369,12 +399,11 @@ func (r *Repository) GetConsignmentStock(ctx context.Context, q queryer, product
 	var s StockRow
 	var updatedAt sql.NullTime
 	err := q.QueryRow(ctx, `
-		SELECT cs.product_id, cs.supplier_id, COALESCE(sup.name,''), cs.arrangement_id, cs.store_id,
+		SELECT cs.product_id, cs.supplier_id, cs.arrangement_id, cs.store_id,
 		       cs.available_qty, cs.pending_return_qty, cs.updated_at
 		FROM consignment_stock cs
-		JOIN suppliers sup ON sup.id = cs.supplier_id
 		WHERE cs.product_id = $1
-	`, productID).Scan(&s.ProductID, &s.SupplierID, &s.SupplierName, &s.ArrangementID, &s.StoreID,
+	`, productID).Scan(&s.ProductID, &s.SupplierID, &s.ArrangementID, &s.StoreID,
 		&s.AvailableQty, &s.PendingReturnQty, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -392,13 +421,12 @@ func (r *Repository) LockConsignmentStock(ctx context.Context, tx pgx.Tx, produc
 	var s StockRow
 	var updatedAt sql.NullTime
 	err := tx.QueryRow(ctx, `
-		SELECT cs.product_id, cs.supplier_id, COALESCE(sup.name,''), cs.arrangement_id, cs.store_id,
+		SELECT cs.product_id, cs.supplier_id, cs.arrangement_id, cs.store_id,
 		       cs.available_qty, cs.pending_return_qty, cs.updated_at
 		FROM consignment_stock cs
-		JOIN suppliers sup ON sup.id = cs.supplier_id
 		WHERE cs.product_id = $1
 		FOR UPDATE
-	`, productID).Scan(&s.ProductID, &s.SupplierID, &s.SupplierName, &s.ArrangementID, &s.StoreID,
+	`, productID).Scan(&s.ProductID, &s.SupplierID, &s.ArrangementID, &s.StoreID,
 		&s.AvailableQty, &s.PendingReturnQty, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -506,11 +534,9 @@ func (r *Repository) ReleaseOwnership(ctx context.Context, tx pgx.Tx, productID 
 // when storeID is nil), optionally filtered by supplier.
 func (r *Repository) ListConsignmentStock(ctx context.Context, q queryer, supplierID *int, storeID *int) ([]StockRow, error) {
 	query := `
-		SELECT cs.product_id, COALESCE(p.sku,''), COALESCE(p.name,''), cs.supplier_id, COALESCE(sup.name,''),
+		SELECT cs.product_id, cs.supplier_id,
 		       cs.arrangement_id, cs.store_id, cs.available_qty, cs.pending_return_qty, cs.updated_at
 		FROM consignment_stock cs
-		JOIN suppliers sup ON sup.id = cs.supplier_id
-		JOIN products p ON p.id = cs.product_id
 	`
 	var conds []string
 	var args []any
@@ -525,7 +551,7 @@ func (r *Repository) ListConsignmentStock(ctx context.Context, q queryer, suppli
 	if len(conds) > 0 {
 		query += " WHERE " + joinConds(conds)
 	}
-	query += " ORDER BY p.name ASC"
+	query += " ORDER BY cs.product_id ASC"
 	rows, err := q.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -536,7 +562,7 @@ func (r *Repository) ListConsignmentStock(ctx context.Context, q queryer, suppli
 	for rows.Next() {
 		var s StockRow
 		var updatedAt sql.NullTime
-		if err := rows.Scan(&s.ProductID, &s.ProductSKU, &s.ProductName, &s.SupplierID, &s.SupplierName,
+		if err := rows.Scan(&s.ProductID, &s.SupplierID,
 			&s.ArrangementID, &s.StoreID, &s.AvailableQty, &s.PendingReturnQty, &updatedAt); err != nil {
 			return nil, err
 		}
@@ -582,14 +608,12 @@ func (r *Repository) GetReceiptByID(ctx context.Context, q queryer, id int) (*Re
 	var rec Receipt
 	var receivedAt, createdAt time.Time
 	err := q.QueryRow(ctx, `
-		SELECT r.id, r.receipt_number, r.supplier_id, COALESCE(s.name,''), r.store_id, r.arrangement_id,
-		       r.received_by, COALESCE(u.username,''), r.received_at, COALESCE(r.notes,''), r.created_at
+		SELECT r.id, r.receipt_number, r.supplier_id, r.store_id, r.arrangement_id,
+		       r.received_by, r.received_at, COALESCE(r.notes,''), r.created_at
 		FROM consignment_receipts r
-		JOIN suppliers s ON s.id = r.supplier_id
-		JOIN users u ON u.id = r.received_by
 		WHERE r.id = $1
-	`, id).Scan(&rec.ID, &rec.ReceiptNumber, &rec.SupplierID, &rec.SupplierName, &rec.StoreID, &rec.ArrangementID,
-		&rec.ReceivedBy, &rec.ReceivedByUsername, &receivedAt, &rec.Notes, &createdAt)
+	`, id).Scan(&rec.ID, &rec.ReceiptNumber, &rec.SupplierID, &rec.StoreID, &rec.ArrangementID,
+		&rec.ReceivedBy, &receivedAt, &rec.Notes, &createdAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrConsignmentNotFound
@@ -608,10 +632,9 @@ func (r *Repository) GetReceiptByID(ctx context.Context, q queryer, id int) (*Re
 
 func (r *Repository) getReceiptItems(ctx context.Context, q queryer, receiptID int) ([]ReceiptItem, error) {
 	rows, err := q.Query(ctx, `
-		SELECT i.id, i.consignment_receipt_id, i.product_id, COALESCE(p.sku,''), COALESCE(p.name,''),
+		SELECT i.id, i.consignment_receipt_id, i.product_id,
 		       i.accepted_qty, i.price, i.store_share_type, i.store_share_value, COALESCE(i.notes,'')
 		FROM consignment_receipt_items i
-		JOIN products p ON p.id = i.product_id
 		WHERE i.consignment_receipt_id = $1
 		ORDER BY i.id ASC
 	`, receiptID)
@@ -623,7 +646,7 @@ func (r *Repository) getReceiptItems(ctx context.Context, q queryer, receiptID i
 	var result []ReceiptItem
 	for rows.Next() {
 		var it ReceiptItem
-		if err := rows.Scan(&it.ID, &it.ConsignmentReceiptID, &it.ProductID, &it.ProductSKU, &it.ProductName,
+		if err := rows.Scan(&it.ID, &it.ConsignmentReceiptID, &it.ProductID,
 			&it.AcceptedQty, &it.Price, &it.StoreShareType, &it.StoreShareValue, &it.Notes); err != nil {
 			return nil, err
 		}
@@ -644,11 +667,9 @@ func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int
 	where := " WHERE " + strings.Join(conds, " AND ")
 
 	rows, err := q.Query(ctx, `
-		SELECT r.id, r.receipt_number, r.supplier_id, COALESCE(s.name,''), r.store_id, r.arrangement_id,
-		       r.received_by, COALESCE(u.username,''), r.received_at, COALESCE(r.notes,''), r.created_at
+		SELECT r.id, r.receipt_number, r.supplier_id, r.store_id, r.arrangement_id,
+		       r.received_by, r.received_at, COALESCE(r.notes,''), r.created_at
 		FROM consignment_receipts r
-		JOIN suppliers s ON s.id = r.supplier_id
-		JOIN users u ON u.id = r.received_by
 	`+where+` ORDER BY r.created_at DESC`, args...)
 	if err != nil {
 		return nil, err
@@ -659,15 +680,54 @@ func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int
 	for rows.Next() {
 		var rec Receipt
 		var receivedAt, createdAt time.Time
-		if err := rows.Scan(&rec.ID, &rec.ReceiptNumber, &rec.SupplierID, &rec.SupplierName, &rec.StoreID, &rec.ArrangementID,
-			&rec.ReceivedBy, &rec.ReceivedByUsername, &receivedAt, &rec.Notes, &createdAt); err != nil {
+		if err := rows.Scan(&rec.ID, &rec.ReceiptNumber, &rec.SupplierID, &rec.StoreID, &rec.ArrangementID,
+			&rec.ReceivedBy, &receivedAt, &rec.Notes, &createdAt); err != nil {
 			return nil, err
 		}
 		rec.ReceivedAt = receivedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		rec.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		result = append(result, rec)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(result) == 0 {
+		return result, nil
+	}
+
+	ids := make([]int, len(result))
+	for i := range result {
+		ids[i] = result[i].ID
+	}
+	itemRows, err := q.Query(ctx, `
+		SELECT i.consignment_receipt_id, i.id, i.product_id,
+		       i.accepted_qty, i.price, i.store_share_type, i.store_share_value, COALESCE(i.notes,'')
+		FROM consignment_receipt_items i
+		WHERE i.consignment_receipt_id = ANY($1)
+		ORDER BY i.id ASC
+	`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer itemRows.Close()
+
+	itemsByReceipt := make(map[int][]ReceiptItem)
+	for itemRows.Next() {
+		var it ReceiptItem
+		if err := itemRows.Scan(&it.ConsignmentReceiptID, &it.ID, &it.ProductID,
+			&it.AcceptedQty, &it.Price, &it.StoreShareType, &it.StoreShareValue, &it.Notes); err != nil {
+			return nil, err
+		}
+		itemsByReceipt[it.ConsignmentReceiptID] = append(itemsByReceipt[it.ConsignmentReceiptID], it)
+	}
+	if err := itemRows.Err(); err != nil {
+		return nil, err
+	}
+
+	for i := range result {
+		result[i].Items = itemsByReceipt[result[i].ID]
+	}
+	return result, nil
 }
 
 // --- Pending returns ---
@@ -676,13 +736,12 @@ func (r *Repository) GetPendingReturnByID(ctx context.Context, q queryer, id int
 	var pr PendingReturn
 	var returnedAt, createdAt sql.NullTime
 	err := q.QueryRow(ctx, `
-		SELECT pr.id, pr.supplier_id, pr.product_id, COALESCE(p.sku,''), COALESCE(p.name,''),
+		SELECT pr.id, pr.supplier_id, pr.product_id,
 		       pr.arrangement_id, pr.store_id, pr.qty, pr.reason, COALESCE(pr.notes,''), pr.status,
 		       pr.returned_at, pr.created_by, pr.created_at
 		FROM consignment_pending_returns pr
-		JOIN products p ON p.id = pr.product_id
 		WHERE pr.id = $1
-	`, id).Scan(&pr.ID, &pr.SupplierID, &pr.ProductID, &pr.ProductSKU, &pr.ProductName,
+	`, id).Scan(&pr.ID, &pr.SupplierID, &pr.ProductID,
 		&pr.ArrangementID, &pr.StoreID, &pr.Qty, &pr.Reason, &pr.Notes, &pr.Status,
 		&returnedAt, &pr.CreatedBy, &createdAt)
 	if err != nil {
@@ -762,11 +821,10 @@ func (r *Repository) ListOpenPendingReturns(ctx context.Context, q queryer, supp
 	where := " WHERE " + strings.Join(conds, " AND ")
 
 	rows, err := q.Query(ctx, `
-		SELECT pr.id, pr.supplier_id, pr.product_id, COALESCE(p.sku,''), COALESCE(p.name,''),
+		SELECT pr.id, pr.supplier_id, pr.product_id,
 		       pr.arrangement_id, pr.store_id, pr.qty, pr.reason, COALESCE(pr.notes,''), pr.status,
 		       pr.returned_at, pr.created_by, pr.created_at
 		FROM consignment_pending_returns pr
-		JOIN products p ON p.id = pr.product_id
 	`+where+` ORDER BY pr.created_at ASC`, args...)
 	if err != nil {
 		return nil, err
@@ -777,7 +835,7 @@ func (r *Repository) ListOpenPendingReturns(ctx context.Context, q queryer, supp
 	for rows.Next() {
 		var pr PendingReturn
 		var returnedAt, createdAt sql.NullTime
-		if err := rows.Scan(&pr.ID, &pr.SupplierID, &pr.ProductID, &pr.ProductSKU, &pr.ProductName,
+		if err := rows.Scan(&pr.ID, &pr.SupplierID, &pr.ProductID,
 			&pr.ArrangementID, &pr.StoreID, &pr.Qty, &pr.Reason, &pr.Notes, &pr.Status,
 			&returnedAt, &pr.CreatedBy, &createdAt); err != nil {
 			return nil, err
@@ -828,14 +886,12 @@ func (r *Repository) GetReturnByID(ctx context.Context, q queryer, id int) (*Ret
 	var ret Return
 	var returnedAt, createdAt time.Time
 	err := q.QueryRow(ctx, `
-		SELECT rt.id, rt.return_number, rt.supplier_id, COALESCE(s.name,''), rt.store_id, rt.arrangement_id,
-		       rt.returned_by, COALESCE(u.username,''), rt.returned_at, COALESCE(rt.notes,''), rt.created_at
+		SELECT rt.id, rt.return_number, rt.supplier_id, rt.store_id, rt.arrangement_id,
+		       rt.returned_by, rt.returned_at, COALESCE(rt.notes,''), rt.created_at
 		FROM consignment_returns rt
-		JOIN suppliers s ON s.id = rt.supplier_id
-		JOIN users u ON u.id = rt.returned_by
 		WHERE rt.id = $1
-	`, id).Scan(&ret.ID, &ret.ReturnNumber, &ret.SupplierID, &ret.SupplierName, &ret.StoreID, &ret.ArrangementID,
-		&ret.ReturnedBy, &ret.ReturnedByUsername, &returnedAt, &ret.Notes, &createdAt)
+	`, id).Scan(&ret.ID, &ret.ReturnNumber, &ret.SupplierID, &ret.StoreID, &ret.ArrangementID,
+		&ret.ReturnedBy, &returnedAt, &ret.Notes, &createdAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrReturnNotFound
@@ -854,10 +910,9 @@ func (r *Repository) GetReturnByID(ctx context.Context, q queryer, id int) (*Ret
 
 func (r *Repository) getReturnItems(ctx context.Context, q queryer, returnID int) ([]ReturnItem, error) {
 	rows, err := q.Query(ctx, `
-		SELECT i.id, i.consignment_return_id, i.product_id, COALESCE(p.sku,''), COALESCE(p.name,''),
+		SELECT i.id, i.consignment_return_id, i.product_id,
 		       i.qty, i.reason, i.pending_return_id, COALESCE(i.notes,'')
 		FROM consignment_return_items i
-		JOIN products p ON p.id = i.product_id
 		WHERE i.consignment_return_id = $1
 		ORDER BY i.id ASC
 	`, returnID)
@@ -870,7 +925,7 @@ func (r *Repository) getReturnItems(ctx context.Context, q queryer, returnID int
 	for rows.Next() {
 		var it ReturnItem
 		var pendingReturnID sql.NullInt64
-		if err := rows.Scan(&it.ID, &it.ConsignmentReturnID, &it.ProductID, &it.ProductSKU, &it.ProductName,
+		if err := rows.Scan(&it.ID, &it.ConsignmentReturnID, &it.ProductID,
 			&it.Qty, &it.Reason, &pendingReturnID, &it.Notes); err != nil {
 			return nil, err
 		}
@@ -895,11 +950,9 @@ func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID int,
 	where := " WHERE " + strings.Join(conds, " AND ")
 
 	rows, err := q.Query(ctx, `
-		SELECT rt.id, rt.return_number, rt.supplier_id, COALESCE(s.name,''), rt.store_id, rt.arrangement_id,
-		       rt.returned_by, COALESCE(u.username,''), rt.returned_at, COALESCE(rt.notes,''), rt.created_at
+		SELECT rt.id, rt.return_number, rt.supplier_id, rt.store_id, rt.arrangement_id,
+		       rt.returned_by, rt.returned_at, COALESCE(rt.notes,''), rt.created_at
 		FROM consignment_returns rt
-		JOIN suppliers s ON s.id = rt.supplier_id
-		JOIN users u ON u.id = rt.returned_by
 	`+where+` ORDER BY rt.created_at DESC`, args...)
 	if err != nil {
 		return nil, err
@@ -910,8 +963,8 @@ func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID int,
 	for rows.Next() {
 		var ret Return
 		var returnedAt, createdAt time.Time
-		if err := rows.Scan(&ret.ID, &ret.ReturnNumber, &ret.SupplierID, &ret.SupplierName, &ret.StoreID, &ret.ArrangementID,
-			&ret.ReturnedBy, &ret.ReturnedByUsername, &returnedAt, &ret.Notes, &createdAt); err != nil {
+		if err := rows.Scan(&ret.ID, &ret.ReturnNumber, &ret.SupplierID, &ret.StoreID, &ret.ArrangementID,
+			&ret.ReturnedBy, &returnedAt, &ret.Notes, &createdAt); err != nil {
 			return nil, err
 		}
 		ret.ReturnedAt = returnedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -949,10 +1002,9 @@ func (r *Repository) InsertConsignmentSaleItem(ctx context.Context, tx pgx.Tx, r
 // that are not yet covered by a settlement, newest first (BR-24).
 func (r *Repository) ListUnsettledSaleItems(ctx context.Context, q queryer, supplierID, storeID int) ([]SaleItemRecord, error) {
 	rows, err := q.Query(ctx, `
-		SELECT i.id, i.sale_id, i.invoice_number, i.product_id, COALESCE(p.name,''),
+		SELECT i.id, i.sale_id, i.invoice_number, i.product_id,
 		       i.quantity, i.unit_price, i.subtotal, i.store_share_type, i.store_share_value, i.created_at
 		FROM consignment_sale_items i
-		JOIN products p ON p.id = i.product_id
 		WHERE i.supplier_id = $1 AND i.store_id = $2 AND i.settlement_id IS NULL
 		ORDER BY i.created_at DESC
 	`, supplierID, storeID)
@@ -970,10 +1022,9 @@ func (r *Repository) ListSaleItemsByIDs(ctx context.Context, tx pgx.Tx, ids []in
 		return nil, nil
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT i.id, i.sale_id, i.invoice_number, i.product_id, COALESCE(p.name,''),
+		SELECT i.id, i.sale_id, i.invoice_number, i.product_id,
 		       i.quantity, i.unit_price, i.subtotal, i.store_share_type, i.store_share_value, i.created_at
 		FROM consignment_sale_items i
-		JOIN products p ON p.id = i.product_id
 		WHERE i.id = ANY($1)
 		ORDER BY i.id ASC
 	`, ids)
@@ -989,7 +1040,7 @@ func (r *Repository) scanSaleItemRecords(rows pgx.Rows) ([]SaleItemRecord, error
 	for rows.Next() {
 		var it SaleItemRecord
 		var createdAt time.Time
-		if err := rows.Scan(&it.ID, &it.SaleID, &it.InvoiceNumber, &it.ProductID, &it.ProductName,
+		if err := rows.Scan(&it.ID, &it.SaleID, &it.InvoiceNumber, &it.ProductID,
 			&it.Quantity, &it.UnitPrice, &it.Subtotal, &it.StoreShareType, &it.StoreShareValue, &createdAt); err != nil {
 			return nil, err
 		}
@@ -1050,12 +1101,11 @@ func (r *Repository) GetSettlementByID(ctx context.Context, q queryer, id int) (
 	var s Settlement
 	var paidAt, createdAt sql.NullTime
 	err := q.QueryRow(ctx, `
-		SELECT st.id, st.settlement_number, st.supplier_id, COALESCE(sup.name,''), st.store_id,
+		SELECT st.id, st.settlement_number, st.supplier_id, st.store_id,
 		       st.total_sale_value, st.total_store_share, st.total_payable, st.status, st.created_by, st.created_at, st.paid_at
 		FROM consignment_settlements st
-		JOIN suppliers sup ON sup.id = st.supplier_id
 		WHERE st.id = $1
-	`, id).Scan(&s.ID, &s.SettlementNumber, &s.SupplierID, &s.SupplierName, &s.StoreID,
+	`, id).Scan(&s.ID, &s.SettlementNumber, &s.SupplierID, &s.StoreID,
 		&s.TotalSaleValue, &s.TotalStoreShare, &s.TotalPayable, &s.Status, &s.CreatedBy, &createdAt, &paidAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -1087,12 +1137,11 @@ func (r *Repository) GetSettlementByIDQuery(ctx context.Context, q queryer, id i
 	var s Settlement
 	var paidAt, createdAt sql.NullTime
 	err := q.QueryRow(ctx, `
-		SELECT st.id, st.settlement_number, st.supplier_id, COALESCE(sup.name,''), st.store_id,
+		SELECT st.id, st.settlement_number, st.supplier_id, st.store_id,
 		       st.total_sale_value, st.total_store_share, st.total_payable, st.status, st.created_by, st.created_at, st.paid_at
 		FROM consignment_settlements st
-		JOIN suppliers sup ON sup.id = st.supplier_id
 		WHERE st.id = $1
-	`, id).Scan(&s.ID, &s.SettlementNumber, &s.SupplierID, &s.SupplierName, &s.StoreID,
+	`, id).Scan(&s.ID, &s.SettlementNumber, &s.SupplierID, &s.StoreID,
 		&s.TotalSaleValue, &s.TotalStoreShare, &s.TotalPayable, &s.Status, &s.CreatedBy, &createdAt, &paidAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -1110,10 +1159,9 @@ func (r *Repository) GetSettlementByIDQuery(ctx context.Context, q queryer, id i
 
 func (r *Repository) getSettlementItems(ctx context.Context, q queryer, settlementID int) ([]SettlementItem, error) {
 	rows, err := q.Query(ctx, `
-		SELECT i.id, i.consignment_settlement_id, i.consignment_sale_item_id, i.product_id, COALESCE(p.name,''),
+		SELECT i.id, i.consignment_settlement_id, i.consignment_sale_item_id, i.product_id,
 		       i.quantity, i.unit_price, i.subtotal, i.store_share
 		FROM consignment_settlement_items i
-		JOIN products p ON p.id = i.product_id
 		WHERE i.consignment_settlement_id = $1
 		ORDER BY i.id ASC
 	`, settlementID)
@@ -1125,7 +1173,7 @@ func (r *Repository) getSettlementItems(ctx context.Context, q queryer, settleme
 	var result []SettlementItem
 	for rows.Next() {
 		var it SettlementItem
-		if err := rows.Scan(&it.ID, &it.ConsignmentSettlementID, &it.ConsignmentSaleItemID, &it.ProductID, &it.ProductName,
+		if err := rows.Scan(&it.ID, &it.ConsignmentSettlementID, &it.ConsignmentSaleItemID, &it.ProductID,
 			&it.Quantity, &it.UnitPrice, &it.Subtotal, &it.StoreShare); err != nil {
 			return nil, err
 		}
@@ -1146,10 +1194,9 @@ func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID 
 	where := " WHERE " + strings.Join(conds, " AND ")
 
 	rows, err := q.Query(ctx, `
-		SELECT st.id, st.settlement_number, st.supplier_id, COALESCE(sup.name,''), st.store_id,
+		SELECT st.id, st.settlement_number, st.supplier_id, st.store_id,
 		       st.total_sale_value, st.total_store_share, st.total_payable, st.status, st.created_by, st.created_at, st.paid_at
 		FROM consignment_settlements st
-		JOIN suppliers sup ON sup.id = st.supplier_id
 	`+where+` ORDER BY st.created_at DESC`, args...)
 	if err != nil {
 		return nil, err
@@ -1160,7 +1207,7 @@ func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID 
 	for rows.Next() {
 		var s Settlement
 		var paidAt, createdAt sql.NullTime
-		if err := rows.Scan(&s.ID, &s.SettlementNumber, &s.SupplierID, &s.SupplierName, &s.StoreID,
+		if err := rows.Scan(&s.ID, &s.SettlementNumber, &s.SupplierID, &s.StoreID,
 			&s.TotalSaleValue, &s.TotalStoreShare, &s.TotalPayable, &s.Status, &s.CreatedBy, &createdAt, &paidAt); err != nil {
 			return nil, err
 		}
@@ -1192,11 +1239,9 @@ func (r *Repository) InsertPayout(ctx context.Context, tx pgx.Tx, p *Payout) err
 
 func (r *Repository) getPayoutsBySettlement(ctx context.Context, q queryer, settlementID int) ([]Payout, error) {
 	rows, err := q.Query(ctx, `
-		SELECT p.id, p.payout_number, p.settlement_id, p.payment_method_id, COALESCE(pm.code,''), COALESCE(pm.name,''),
-		       p.amount, COALESCE(p.reference_number,''), p.paid_by, COALESCE(u.username,''), p.paid_at, COALESCE(p.notes,''), p.created_at
+		SELECT p.id, p.payout_number, p.settlement_id, p.payment_method_id,
+		       p.amount, COALESCE(p.reference_number,''), p.paid_by, p.paid_at, COALESCE(p.notes,''), p.created_at
 		FROM consignment_payouts p
-		JOIN payment_methods pm ON pm.id = p.payment_method_id
-		JOIN users u ON u.id = p.paid_by
 		WHERE p.settlement_id = $1
 		ORDER BY p.id ASC
 	`, settlementID)
@@ -1209,8 +1254,8 @@ func (r *Repository) getPayoutsBySettlement(ctx context.Context, q queryer, sett
 	for rows.Next() {
 		var p Payout
 		var paidAt, createdAt time.Time
-		if err := rows.Scan(&p.ID, &p.PayoutNumber, &p.SettlementID, &p.PaymentMethodID, &p.PaymentMethodCode, &p.PaymentMethodName,
-			&p.Amount, &p.ReferenceNumber, &p.PaidBy, &p.PaidByUsername, &paidAt, &p.Notes, &createdAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.PayoutNumber, &p.SettlementID, &p.PaymentMethodID,
+			&p.Amount, &p.ReferenceNumber, &p.PaidBy, &paidAt, &p.Notes, &createdAt); err != nil {
 			return nil, err
 		}
 		p.PaidAt = paidAt.In(shared.JakartaLocation()).Format(time.RFC3339)

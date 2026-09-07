@@ -312,6 +312,26 @@ func (a *paymentMethodAdapter) PaymentMethodByID(ctx context.Context, id int) (*
 	return &consignment.PaymentMethod{ID: m.ID, Code: m.Code, Name: m.Name}, nil
 }
 
+func (a *paymentMethodAdapter) PaymentMethodsByIDs(ctx context.Context, ids []int) (map[int]consignment.PaymentMethod, error) {
+	if len(ids) == 0 {
+		return map[int]consignment.PaymentMethod{}, nil
+	}
+	methods, err := a.repo.GetAllActive(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int]consignment.PaymentMethod, len(ids))
+	for _, m := range methods {
+		for _, id := range ids {
+			if m.ID == id {
+				result[id] = consignment.PaymentMethod{ID: m.ID, Code: m.Code, Name: m.Name}
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
 type Dependencies struct {
 	UserRepo            *user.Repository
 	ProductRepo         *product.Repository
@@ -470,8 +490,10 @@ func Initialize(p Providers) *Dependencies {
 	d.StorageLocationRepo = storagelocation.NewRepository(p.DB)
 	d.StorageLocationRepo.SetStoreExistenceProvider(store.ExistenceProvider{})
 	d.ConsignmentRepo = consignment.NewRepository(p.DB)
-	d.ConsignmentRepo.SetStockAdjuster(inventory.ConsignmentAdjuster{})
+	d.ConsignmentRepo.SetStockAdjuster(inventory.ConsignmentAdjuster{DB: p.DB})
+	d.ConsignmentRepo.SetStockReader(inventory.ConsignmentAdjuster{DB: p.DB})
 	d.ConsignmentRepo.SetSupplierStore(supplier.ConsignmentSupplierProvider{})
+	d.ConsignmentRepo.SetStoreNameProvider(store.NamesProvider{})
 	d.ConsignmentRepo.SetProductMetaProvider(product.MetaLookup{})
 	d.ConsignmentRepo.SetUsernameProvider(user.UsernamesProvider{})
 	d.ConsignmentRepo.SetPaymentMethods(&paymentMethodAdapter{repo: d.SaleRepo})

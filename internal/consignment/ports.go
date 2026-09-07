@@ -18,6 +18,13 @@ type StockAdjuster interface {
 	ApplyConsignmentDelta(ctx context.Context, tx pgx.Tx, delta shared.ConsignmentStockDelta) error
 }
 
+// StockReader is the consumer-side port for product_stock reads, implemented
+// by internal/inventory. It answers ownership questions about the global
+// product_stock table without a direct cross-context query.
+type StockReader interface {
+	GetStoreOwnedQuantity(ctx context.Context, productID int) (int, error)
+}
+
 // SupplierStore is the supplier-side read port, implemented by
 // internal/supplier. It answers ownership questions about the suppliers table
 // (is_consignment flag) and supplier display names.
@@ -25,6 +32,12 @@ type SupplierStore interface {
 	IsConsignmentSupplier(ctx context.Context, db shared.DBPool, supplierID int) (bool, error)
 	ListConsignmentSuppliers(ctx context.Context, db shared.DBPool) ([]shared.SupplierRef, error)
 	SupplierNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error)
+}
+
+// StoreNameProvider is the store-side read port, implemented by
+// internal/store. It resolves store display names for consignment documents.
+type StoreNameProvider interface {
+	StoreNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error)
 }
 
 // ProductMetaProvider is the product-side read port, implemented by
@@ -46,6 +59,7 @@ type UsernameProvider interface {
 type PaymentMethodProvider interface {
 	ActivePaymentMethods(ctx context.Context) ([]PaymentMethod, error)
 	PaymentMethodByID(ctx context.Context, id int) (*PaymentMethod, error)
+	PaymentMethodsByIDs(ctx context.Context, ids []int) (map[int]PaymentMethod, error)
 }
 
 // PaymentMethod mirrors the shape of sale.PaymentMethod so the payout flow can

@@ -17,7 +17,7 @@ const modulePrefix = "retail-pos-system/internal/"
 // infrastructure (audit, config, events, eventbus, middleware, ownership,
 // permissions, shared) is intentionally importable from anywhere.
 var domainModules = []string{
-	"brand", "category", "customer", "customergroup", "inventory",
+	"brand", "category", "consignment", "customer", "customergroup", "inventory",
 	"platform", "pricing", "product", "purchase", "report", "sale",
 	"shift", "stockopname", "storagelocation", "store", "supplier", "uom", "user",
 }
@@ -26,7 +26,7 @@ var domainModules = []string{
 // must go through ports wired in internal/wiring; cross-module effects must go
 // through events in internal/events.
 var isolatedModules = []string{
-	"appsettings", "brand", "category", "customer", "customergroup",
+	"appsettings", "brand", "category", "consignment", "customer", "customergroup",
 	"inventory", "platform", "pricing", "product", "purchase", "report",
 	"sale", "shift", "stockopname", "storagelocation", "store", "supplier",
 	"uom", "user",
@@ -47,6 +47,20 @@ var tableContext = map[string]string{
 	"payment_methods":     "transaksional",
 	"cart_sessions":       "transaksional",
 	"cart_items":          "transaksional",
+	"cash_movements":      "transaksional",
+	// Consignment
+	"consignment_arrangements":     "transaksional",
+	"consignment_terms":            "transaksional",
+	"consignment_stock":            "transaksional",
+	"consignment_receipts":         "transaksional",
+	"consignment_receipt_items":    "transaksional",
+	"consignment_pending_returns":  "transaksional",
+	"consignment_returns":          "transaksional",
+	"consignment_return_items":     "transaksional",
+	"consignment_sale_items":       "transaksional",
+	"consignment_settlements":      "transaksional",
+	"consignment_settlement_items": "transaksional",
+	"consignment_payouts":          "transaksional",
 	// Katalog
 	"products":          "katalog",
 	"categories":        "katalog",
@@ -101,6 +115,7 @@ var tableContext = map[string]string{
 var moduleContext = map[string]string{
 	"brand":           "katalog",
 	"category":        "katalog",
+	"consignment":     "transaksional",
 	"product":         "katalog",
 	"uom":             "katalog",
 	"pricing":         "katalog",
@@ -134,7 +149,8 @@ var strictModuleTables = map[string]map[string]bool{
 		"goods_receipt_items":  true,
 	},
 	"shift": {
-		"shifts": true,
+		"shifts":         true,
+		"cash_movements": true,
 	},
 	"sale": {
 		"sales":           true,
@@ -217,12 +233,14 @@ var strictModuleTables = map[string]map[string]bool{
 // CI green while tracking the backlog. Remove an entry once its table access
 // is ported.
 var crossContextDebt = map[string]map[string]bool{
+	"consignment": {},
 	"sale": {
 		"customers": true, // sale reads customer data for invoices/receipts
 		"users":     true, // sale reads user data for cashier info
 	},
 	"shift": {
 		"cart_sessions": true, // shift reads active cart session to enforce close-before-logout
+		"users":         true, // shift reads user data for shift owner info
 	},
 }
 

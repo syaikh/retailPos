@@ -11,14 +11,16 @@ import (
 )
 
 // ConsignmentAdjuster is the inventory-owned implementation of the consignment
-// module's StockAdjuster port (structural typing — no import of
+// module's StockAdjuster and StockReader ports (structural typing — no import of
 // internal/consignment needed). internal/inventory is the canonical single-writer
 // of product_stock and the inventory_movements ledger
 // (ADR_Modular_Monolith_Module_Boundaries §2.8), so the product_stock writes
 // triggered by consignment receipts / pending-return holds / returns live here
 // rather than inside internal/consignment. The consignment ownership ledger
 // (consignment_stock) is separate and owned by internal/consignment.
-type ConsignmentAdjuster struct{}
+type ConsignmentAdjuster struct {
+	DB shared.DBPool
+}
 
 // ApplyConsignmentDelta applies a signed delta to a product's global
 // product_stock row and appends a matching inventory_movements ledger entry,
@@ -95,4 +97,22 @@ func (a ConsignmentAdjuster) writeMovement(ctx context.Context, tx pgx.Tx, delta
 		return fmt.Errorf("failed to insert inventory movement: %w", err)
 	}
 	return nil
+}
+
+// GetStoreOwnedQuantity returns the global product_stock quantity for a product
+// (warehouse_id IS NULL AND store_id IS NULL AND location_id IS NULL). This is
+// the consignment module's StockReader port — it answers ownership questions
+// about product_stock without a direct cross-context query inside
+// internal/consignment.
+func (a ConsignmentAdjuster) GetStoreOwnedQuantity(ctx context.Context, productID int) (int, error) {
+	var qty int
+	err := a.DB.QueryRow(ctx, `
+		SELECT COALESCE(quantity, 0)
+		FROM product_stock
+		WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL AND location_id IS NULL
+	`, productID).Scan(&qty)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return 0, fmt.Errorf("failed to read global stock: %w", err)
+	}
+	return qty, nil
 }

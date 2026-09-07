@@ -25,7 +25,7 @@ func movementCount(ctx context.Context, t *testing.T, productID, refID int) int 
 // must run against the caller's transaction.
 func TestConsignmentAdjuster_ApplyConsignmentDelta(t *testing.T) {
 	ctx := context.Background()
-	a := ConsignmentAdjuster{}
+	a := ConsignmentAdjuster{DB: dbPool}
 
 	t.Run("adds delta to existing global row + ledger", func(t *testing.T) {
 		insertTestUser(ctx, t, 1)
@@ -126,5 +126,61 @@ func TestConsignmentAdjuster_ApplyConsignmentDelta(t *testing.T) {
 
 		require.Equal(t, 10, stockQuantity(ctx, t, prodID))
 		require.Equal(t, 0, movementCount(ctx, t, prodID, 6))
+	})
+}
+
+// TestConsignmentAdjuster_GetStoreOwnedQuantity covers the StockReader port
+// that the consignment module uses to answer ownership questions about
+// product_stock without a direct cross-context query.
+func TestConsignmentAdjuster_GetStoreOwnedQuantity(t *testing.T) {
+	ctx := context.Background()
+	a := ConsignmentAdjuster{DB: dbPool}
+
+	t.Run("returns quantity for existing global row", func(t *testing.T) {
+		insertTestUser(ctx, t, 1)
+		prodID := insertTestProduct(ctx, t, "SR-EXIST")
+		insertTestStock(ctx, t, prodID, 25)
+
+		qty, err := a.GetStoreOwnedQuantity(ctx, prodID)
+		require.NoError(t, err)
+		require.Equal(t, 25, qty)
+	})
+
+	t.Run("returns zero for non-existent product", func(t *testing.T) {
+		qty, err := a.GetStoreOwnedQuantity(ctx, 999999)
+		require.NoError(t, err)
+		require.Equal(t, 0, qty)
+	})
+
+	t.Run("returns zero when quantity is zero", func(t *testing.T) {
+		prodID := insertTestProduct(ctx, t, "SR-ZERO")
+		insertTestStock(ctx, t, prodID, 0)
+
+		qty, err := a.GetStoreOwnedQuantity(ctx, prodID)
+		require.NoError(t, err)
+		require.Equal(t, 0, qty)
+	})
+
+	t.Run("reflects delta after receipt", func(t *testing.T) {
+		insertTestUser(ctx, t, 1)
+		prodID := insertTestProduct(ctx, t, "SR-DELTA")
+		insertTestStock(ctx, t, prodID, 5)
+
+		qty, err := a.GetStoreOwnedQuantity(ctx, prodID)
+		require.NoError(t, err)
+		require.Equal(t, 5, qty)
+
+		// Apply a consignment delta that increases global stock.
+		tx, err := dbPool.Begin(ctx)
+		require.NoError(t, err)
+		require.NoError(t, a.ApplyConsignmentDelta(ctx, tx, shared.ConsignmentStockDelta{
+			ProductID: prodID, Delta: 10, MovementType: "consignment_receipt",
+			ReferenceID: 100, ReferenceTable: "consignment_receipts", UserID: 1, Notes: "receipt",
+		}))
+		require.NoError(t, tx.Commit(ctx))
+
+		qty, err = a.GetStoreOwnedQuantity(ctx, prodID)
+		require.NoError(t, err)
+		require.Equal(t, 15, qty)
 	})
 }

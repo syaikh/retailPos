@@ -213,6 +213,8 @@ func TestService_SettlementLifecycle(t *testing.T) {
 		require.Equal(t, 40000, st.TotalPayable)
 		require.Equal(t, SettlementPendingPayment, st.Status)
 		require.Len(t, st.Items, 1)
+		require.NotEmpty(t, st.SupplierName, "SupplierName should be hydrated")
+		require.NotEmpty(t, st.Items[0].ProductName, "ProductName should be hydrated in settlement items")
 
 		// Items are settled now.
 		_, err = svc.GetSettlementPreview(ctx, sup, &store)
@@ -290,8 +292,10 @@ func TestService_ListSettlementsWithNilStore(t *testing.T) {
 	scoped, err := svc.ListSettlements(ctx, sup, &store)
 	require.NoError(t, err)
 	require.Len(t, scoped, 1)
+	require.NotEmpty(t, scoped[0].SupplierName, "SupplierName should be hydrated on list")
 
 	admin, err := svc.ListSettlements(ctx, sup, nil)
 	require.NoError(t, err)
 	require.Len(t, admin, 1)
+	require.NotEmpty(t, admin[0].SupplierName, "SupplierName should be hydrated on admin list")
 }

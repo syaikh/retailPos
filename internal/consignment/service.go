@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -115,7 +117,62 @@ func (s *Service) ListArrangements(ctx context.Context, claimsStore *int, limit,
 	if err != nil {
 		return nil, 0, err
 	}
-	return s.repo.ListArrangements(ctx, s.repo.db, storeID, limit, offset, search, status)
+
+	// No search or numeric search: use SQL pagination (fast, indexed).
+	if search == "" {
+		arrs, total, err := s.repo.ListArrangements(ctx, s.repo.db, storeID, limit, offset, "", status)
+		if err != nil {
+			return nil, 0, err
+		}
+		if err := s.hydrateArrangementNames(ctx, arrs); err != nil {
+			return nil, 0, err
+		}
+		return arrs, total, nil
+	}
+	if _, idErr := strconv.Atoi(search); idErr == nil {
+		arrs, total, err := s.repo.ListArrangements(ctx, s.repo.db, storeID, limit, offset, search, status)
+		if err != nil {
+			return nil, 0, err
+		}
+		if err := s.hydrateArrangementNames(ctx, arrs); err != nil {
+			return nil, 0, err
+		}
+		return arrs, total, nil
+	}
+
+	// Non-numeric search (supplier name): load all, hydrate, filter in Go,
+	// then paginate. Consignment has a bounded number of arrangements per
+	// store so this is acceptable.
+	arrs, _, err := s.repo.ListArrangements(ctx, s.repo.db, storeID, 0, 0, "", status)
+	if err != nil {
+		return nil, 0, err
+	}
+	if err := s.hydrateArrangementNames(ctx, arrs); err != nil {
+		return nil, 0, err
+	}
+
+	filtered := make([]Arrangement, 0)
+	lower := strings.ToLower(search)
+	for _, a := range arrs {
+		if strings.Contains(strings.ToLower(a.SupplierName), lower) {
+			filtered = append(filtered, a)
+		}
+	}
+	arrs = filtered
+
+	total := len(arrs)
+
+	if limit > 0 && offset < len(arrs) {
+		end := offset + limit
+		if end > len(arrs) {
+			end = len(arrs)
+		}
+		arrs = arrs[offset:end]
+	} else if limit > 0 && offset >= len(arrs) {
+		arrs = []Arrangement{}
+	}
+
+	return arrs, total, nil
 }
 
 func (s *Service) GetArrangement(ctx context.Context, id int, claimsStore *int) (*Arrangement, error) {
@@ -123,11 +180,17 @@ func (s *Service) GetArrangement(ctx context.Context, id int, claimsStore *int) 
 	if err != nil {
 		return nil, err
 	}
+	if err := s.hydrateArrangementNamesSingle(ctx, a); err != nil {
+		return nil, err
+	}
 	if err := checkArrangementStore(a, claimsStore); err != nil {
 		return nil, err
 	}
 	terms, err := s.repo.ListTerms(ctx, s.repo.db, id)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.hydrateTermProductNames(ctx, terms); err != nil {
 		return nil, err
 	}
 	a.Terms = terms
@@ -204,7 +267,14 @@ func (s *Service) SetTerms(ctx context.Context, arrangementID int, reqs []SetTer
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	return s.repo.ListTerms(ctx, s.repo.db, arrangementID)
+	terms, err = s.repo.ListTerms(ctx, s.repo.db, arrangementID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.hydrateTermProductNames(ctx, terms); err != nil {
+		return nil, err
+	}
+	return terms, nil
 }
 
 // --- Receipts ---
@@ -309,7 +379,19 @@ func (s *Service) CreateReceipt(ctx context.Context, req *ReceiptRequest, userID
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	return s.repo.GetReceiptByID(ctx, s.repo.db, rec.ID)
+	fetched, err := s.repo.GetReceiptByID(ctx, s.repo.db, rec.ID)
+	if err != nil {
+		return nil, err
+	}
+	recs := []Receipt{*fetched}
+	if err := s.hydrateReceiptNames(ctx, recs); err != nil {
+		return nil, err
+	}
+	if err := s.hydrateReceiptItemProductNames(ctx, fetched.Items); err != nil {
+		return nil, err
+	}
+	*fetched = recs[0]
+	return fetched, nil
 }
 
 // resolveOwnership enforces the SKU ownership rules against the ledger.
@@ -365,12 +447,8 @@ func (s *Service) hasStoreOwnedStock(ctx context.Context, productID int) (bool, 
 		return false, nil
 	}
 	var qty int
-	err = s.repo.db.QueryRow(ctx, `
-		SELECT COALESCE(quantity, 0)
-		FROM product_stock
-		WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL AND location_id IS NULL
-	`, productID).Scan(&qty)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	qty, err = s.repo.stockReaderOrPanic().GetStoreOwnedQuantity(ctx, productID)
+	if err != nil {
 		return false, err
 	}
 	return qty > 0, nil
@@ -381,6 +459,14 @@ func (s *Service) GetReceipt(ctx context.Context, id int, claimsStore *int) (*Re
 	if err != nil {
 		return nil, err
 	}
+	recs := []Receipt{*rec}
+	if err := s.hydrateReceiptNames(ctx, recs); err != nil {
+		return nil, err
+	}
+	if err := s.hydrateReceiptItemProductNames(ctx, rec.Items); err != nil {
+		return nil, err
+	}
+	*rec = recs[0]
 	if claimsStore != nil && rec.StoreID != *claimsStore {
 		return nil, ErrStoreForbidden
 	}
@@ -392,7 +478,19 @@ func (s *Service) ListReceipts(ctx context.Context, supplierID int, claimsStore 
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.ListReceipts(ctx, s.repo.db, supplierID, storeID)
+	recs, err := s.repo.ListReceipts(ctx, s.repo.db, supplierID, storeID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.hydrateReceiptNames(ctx, recs); err != nil {
+		return nil, err
+	}
+	for i := range recs {
+		if err := s.hydrateReceiptItemProductNames(ctx, recs[i].Items); err != nil {
+			return nil, err
+		}
+	}
+	return recs, nil
 }
 
 // --- Consignment stock ---
@@ -406,7 +504,14 @@ func (s *Service) ListStock(ctx context.Context, supplierID int, claimsStore *in
 	if supplierID > 0 {
 		sid = &supplierID
 	}
-	return s.repo.ListConsignmentStock(ctx, s.repo.db, sid, storeID)
+	rows, err := s.repo.ListConsignmentStock(ctx, s.repo.db, sid, storeID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.hydrateStockRowNames(ctx, rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 // ListSuppliers returns all suppliers flagged as consignment.
@@ -499,6 +604,11 @@ func (s *Service) CreatePendingReturn(ctx context.Context, req *CreatePendingRet
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
+	prs := []PendingReturn{*pr}
+	if err := s.hydratePendingReturnProductNames(ctx, prs); err != nil {
+		return nil, err
+	}
+	*pr = prs[0]
 	return pr, nil
 }
 
@@ -507,7 +617,14 @@ func (s *Service) ListPendingReturns(ctx context.Context, supplierID int, claims
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.ListOpenPendingReturns(ctx, s.repo.db, supplierID, storeID)
+	prs, err := s.repo.ListOpenPendingReturns(ctx, s.repo.db, supplierID, storeID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.hydratePendingReturnProductNames(ctx, prs); err != nil {
+		return nil, err
+	}
+	return prs, nil
 }
 
 // --- Returns ---
@@ -643,7 +760,19 @@ func (s *Service) CreateReturn(ctx context.Context, req *ReturnRequest, userID i
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	return s.repo.GetReturnByID(ctx, s.repo.db, ret.ID)
+	fetched, err := s.repo.GetReturnByID(ctx, s.repo.db, ret.ID)
+	if err != nil {
+		return nil, err
+	}
+	rets := []Return{*fetched}
+	if err := s.hydrateReturnNames(ctx, rets); err != nil {
+		return nil, err
+	}
+	if err := s.hydrateReturnItemProductNames(ctx, fetched.Items); err != nil {
+		return nil, err
+	}
+	*fetched = rets[0]
+	return fetched, nil
 }
 
 func (s *Service) GetReturn(ctx context.Context, id int, claimsStore *int) (*Return, error) {
@@ -651,6 +780,14 @@ func (s *Service) GetReturn(ctx context.Context, id int, claimsStore *int) (*Ret
 	if err != nil {
 		return nil, err
 	}
+	rets := []Return{*ret}
+	if err := s.hydrateReturnNames(ctx, rets); err != nil {
+		return nil, err
+	}
+	if err := s.hydrateReturnItemProductNames(ctx, ret.Items); err != nil {
+		return nil, err
+	}
+	*ret = rets[0]
 	if claimsStore != nil && ret.StoreID != *claimsStore {
 		return nil, ErrStoreForbidden
 	}
@@ -662,7 +799,19 @@ func (s *Service) ListReturns(ctx context.Context, supplierID int, claimsStore *
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.ListReturns(ctx, s.repo.db, supplierID, storeID)
+	rets, err := s.repo.ListReturns(ctx, s.repo.db, supplierID, storeID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.hydrateReturnNames(ctx, rets); err != nil {
+		return nil, err
+	}
+	for i := range rets {
+		if err := s.hydrateReturnItemProductNames(ctx, rets[i].Items); err != nil {
+			return nil, err
+		}
+	}
+	return rets, nil
 }
 
 // --- Settlements ---
@@ -773,7 +922,22 @@ func (s *Service) CreateSettlement(ctx context.Context, req *CreateSettlementReq
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	return s.repo.GetSettlementByID(ctx, s.repo.db, settlement.ID)
+	st, err := s.repo.GetSettlementByID(ctx, s.repo.db, settlement.ID)
+	if err != nil {
+		return nil, err
+	}
+	sts := []Settlement{*st}
+	if err := s.hydrateSettlementNames(ctx, sts); err != nil {
+		return nil, err
+	}
+	if err := s.hydrateSettlementItemProductNames(ctx, st.Items); err != nil {
+		return nil, err
+	}
+	if err := s.hydratePayoutNames(ctx, st.Payouts); err != nil {
+		return nil, err
+	}
+	*st = sts[0]
+	return st, nil
 }
 
 func (s *Service) GetSettlement(ctx context.Context, id int, claimsStore *int) (*Settlement, error) {
@@ -781,6 +945,17 @@ func (s *Service) GetSettlement(ctx context.Context, id int, claimsStore *int) (
 	if err != nil {
 		return nil, err
 	}
+	sts := []Settlement{*st}
+	if err := s.hydrateSettlementNames(ctx, sts); err != nil {
+		return nil, err
+	}
+	if err := s.hydrateSettlementItemProductNames(ctx, st.Items); err != nil {
+		return nil, err
+	}
+	if err := s.hydratePayoutNames(ctx, st.Payouts); err != nil {
+		return nil, err
+	}
+	*st = sts[0]
 	if claimsStore != nil && st.StoreID != *claimsStore {
 		return nil, ErrStoreForbidden
 	}
@@ -792,7 +967,22 @@ func (s *Service) ListSettlements(ctx context.Context, supplierID int, claimsSto
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.ListSettlements(ctx, s.repo.db, supplierID, storeID)
+	sts, err := s.repo.ListSettlements(ctx, s.repo.db, supplierID, storeID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.hydrateSettlementNames(ctx, sts); err != nil {
+		return nil, err
+	}
+	for i := range sts {
+		if err := s.hydrateSettlementItemProductNames(ctx, sts[i].Items); err != nil {
+			return nil, err
+		}
+		if err := s.hydratePayoutNames(ctx, sts[i].Payouts); err != nil {
+			return nil, err
+		}
+	}
+	return sts, nil
 }
 
 // ListPaymentMethods returns the active payment methods for the payout picker.
@@ -914,4 +1104,281 @@ func validPendingReturnReason(reason string) bool {
 		return true
 	}
 	return false
+}
+
+// --- Cross-module hydration helpers ---
+// These methods resolve display names from external modules (suppliers, stores,
+// products, users) via consumer-side ports, keeping the repository free of
+// cross-context SQL JOINs.
+
+func (s *Service) hydrateArrangementNames(ctx context.Context, arrs []Arrangement) error {
+	if len(arrs) == 0 {
+		return nil
+	}
+	supplierIDs := make([]int, 0, len(arrs))
+	storeIDs := make([]int, 0, len(arrs))
+	for i := range arrs {
+		supplierIDs = appendIfMissing(supplierIDs, arrs[i].SupplierID)
+		storeIDs = appendIfMissing(storeIDs, arrs[i].StoreID)
+	}
+	supplierNames, err := s.repo.supplierStoreOrPanic().SupplierNamesByIDs(ctx, s.repo.db, supplierIDs)
+	if err != nil {
+		return fmt.Errorf("lookup supplier names: %w", err)
+	}
+	storeNames, err := s.repo.storeNameProviderOrPanic().StoreNamesByIDs(ctx, s.repo.db, storeIDs)
+	if err != nil {
+		return fmt.Errorf("lookup store names: %w", err)
+	}
+	for i := range arrs {
+		arrs[i].SupplierName = supplierNames[arrs[i].SupplierID]
+		arrs[i].StoreName = storeNames[arrs[i].StoreID]
+	}
+	return nil
+}
+
+func (s *Service) hydrateArrangementNamesSingle(ctx context.Context, a *Arrangement) error {
+	arrs := []Arrangement{*a}
+	if err := s.hydrateArrangementNames(ctx, arrs); err != nil {
+		return err
+	}
+	*a = arrs[0]
+	return nil
+}
+
+func (s *Service) hydrateProductNames(ctx context.Context, ids []int, setter func(int, string, string)) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	metas, err := s.repo.productMetaProviderOrPanic().ProductMetasByIDs(ctx, s.repo.db, ids)
+	if err != nil {
+		return fmt.Errorf("lookup product metas: %w", err)
+	}
+	for _, id := range ids {
+		if m, ok := metas[id]; ok {
+			setter(id, m.SKU, m.Name)
+		}
+	}
+	return nil
+}
+
+func (s *Service) hydrateTermProductNames(ctx context.Context, terms []Term) error {
+	if len(terms) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(terms))
+	for _, t := range terms {
+		ids = appendIfMissing(ids, t.ProductID)
+	}
+	return s.hydrateProductNames(ctx, ids, func(id int, sku, name string) {
+		for i := range terms {
+			if terms[i].ProductID == id {
+				terms[i].ProductSKU = sku
+				terms[i].ProductName = name
+			}
+		}
+	})
+}
+
+func (s *Service) hydrateReceiptItemProductNames(ctx context.Context, items []ReceiptItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(items))
+	for _, it := range items {
+		ids = appendIfMissing(ids, it.ProductID)
+	}
+	return s.hydrateProductNames(ctx, ids, func(id int, sku, name string) {
+		for i := range items {
+			if items[i].ProductID == id {
+				items[i].ProductSKU = sku
+				items[i].ProductName = name
+			}
+		}
+	})
+}
+
+func (s *Service) hydrateReceiptNames(ctx context.Context, recs []Receipt) error {
+	if len(recs) == 0 {
+		return nil
+	}
+	supplierIDs := make([]int, 0, len(recs))
+	userIDs := make([]int, 0, len(recs))
+	for _, r := range recs {
+		supplierIDs = appendIfMissing(supplierIDs, r.SupplierID)
+		userIDs = appendIfMissing(userIDs, r.ReceivedBy)
+	}
+	supplierNames, err := s.repo.supplierStoreOrPanic().SupplierNamesByIDs(ctx, s.repo.db, supplierIDs)
+	if err != nil {
+		return fmt.Errorf("lookup supplier names: %w", err)
+	}
+	usernames, err := s.repo.usernameProviderOrPanic().UsernamesByIDs(ctx, s.repo.db, userIDs)
+	if err != nil {
+		return fmt.Errorf("lookup usernames: %w", err)
+	}
+	for i := range recs {
+		recs[i].SupplierName = supplierNames[recs[i].SupplierID]
+		recs[i].ReceivedByUsername = usernames[recs[i].ReceivedBy]
+	}
+	return nil
+}
+
+func (s *Service) hydrateReturnItemProductNames(ctx context.Context, items []ReturnItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(items))
+	for _, it := range items {
+		ids = appendIfMissing(ids, it.ProductID)
+	}
+	return s.hydrateProductNames(ctx, ids, func(id int, sku, name string) {
+		for i := range items {
+			if items[i].ProductID == id {
+				items[i].ProductSKU = sku
+				items[i].ProductName = name
+			}
+		}
+	})
+}
+
+func (s *Service) hydrateReturnNames(ctx context.Context, rets []Return) error {
+	if len(rets) == 0 {
+		return nil
+	}
+	supplierIDs := make([]int, 0, len(rets))
+	userIDs := make([]int, 0, len(rets))
+	for _, r := range rets {
+		supplierIDs = appendIfMissing(supplierIDs, r.SupplierID)
+		userIDs = appendIfMissing(userIDs, r.ReturnedBy)
+	}
+	supplierNames, err := s.repo.supplierStoreOrPanic().SupplierNamesByIDs(ctx, s.repo.db, supplierIDs)
+	if err != nil {
+		return fmt.Errorf("lookup supplier names: %w", err)
+	}
+	usernames, err := s.repo.usernameProviderOrPanic().UsernamesByIDs(ctx, s.repo.db, userIDs)
+	if err != nil {
+		return fmt.Errorf("lookup usernames: %w", err)
+	}
+	for i := range rets {
+		rets[i].SupplierName = supplierNames[rets[i].SupplierID]
+		rets[i].ReturnedByUsername = usernames[rets[i].ReturnedBy]
+	}
+	return nil
+}
+
+func (s *Service) hydratePendingReturnProductNames(ctx context.Context, prs []PendingReturn) error {
+	if len(prs) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(prs))
+	for _, pr := range prs {
+		ids = appendIfMissing(ids, pr.ProductID)
+	}
+	return s.hydrateProductNames(ctx, ids, func(id int, sku, name string) {
+		for i := range prs {
+			if prs[i].ProductID == id {
+				prs[i].ProductSKU = sku
+				prs[i].ProductName = name
+			}
+		}
+	})
+}
+
+func (s *Service) hydrateSettlementNames(ctx context.Context, sts []Settlement) error {
+	if len(sts) == 0 {
+		return nil
+	}
+	supplierIDs := make([]int, 0, len(sts))
+	for _, st := range sts {
+		supplierIDs = appendIfMissing(supplierIDs, st.SupplierID)
+	}
+	supplierNames, err := s.repo.supplierStoreOrPanic().SupplierNamesByIDs(ctx, s.repo.db, supplierIDs)
+	if err != nil {
+		return fmt.Errorf("lookup supplier names: %w", err)
+	}
+	for i := range sts {
+		sts[i].SupplierName = supplierNames[sts[i].SupplierID]
+	}
+	return nil
+}
+
+func (s *Service) hydrateSettlementItemProductNames(ctx context.Context, items []SettlementItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(items))
+	for _, it := range items {
+		ids = appendIfMissing(ids, it.ProductID)
+	}
+	return s.hydrateProductNames(ctx, ids, func(id int, sku, name string) {
+		for i := range items {
+			if items[i].ProductID == id {
+				items[i].ProductName = name
+			}
+		}
+	})
+}
+
+func (s *Service) hydrateStockRowNames(ctx context.Context, rows []StockRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	supplierIDs := make([]int, 0, len(rows))
+	productIDs := make([]int, 0, len(rows))
+	for _, r := range rows {
+		supplierIDs = appendIfMissing(supplierIDs, r.SupplierID)
+		productIDs = appendIfMissing(productIDs, r.ProductID)
+	}
+	supplierNames, err := s.repo.supplierStoreOrPanic().SupplierNamesByIDs(ctx, s.repo.db, supplierIDs)
+	if err != nil {
+		return fmt.Errorf("lookup supplier names: %w", err)
+	}
+	metas, err := s.repo.productMetaProviderOrPanic().ProductMetasByIDs(ctx, s.repo.db, productIDs)
+	if err != nil {
+		return fmt.Errorf("lookup product metas: %w", err)
+	}
+	for i := range rows {
+		rows[i].SupplierName = supplierNames[rows[i].SupplierID]
+		if m, ok := metas[rows[i].ProductID]; ok {
+			rows[i].ProductSKU = m.SKU
+			rows[i].ProductName = m.Name
+		}
+	}
+	return nil
+}
+
+func (s *Service) hydratePayoutNames(ctx context.Context, payouts []Payout) error {
+	if len(payouts) == 0 {
+		return nil
+	}
+	pmIDs := make([]int, 0, len(payouts))
+	userIDs := make([]int, 0, len(payouts))
+	for _, p := range payouts {
+		pmIDs = appendIfMissing(pmIDs, p.PaymentMethodID)
+		userIDs = appendIfMissing(userIDs, p.PaidBy)
+	}
+	pmMap, err := s.repo.paymentMethodsOrPanic().PaymentMethodsByIDs(ctx, pmIDs)
+	if err != nil {
+		return fmt.Errorf("lookup payment methods: %w", err)
+	}
+	usernames, err := s.repo.usernameProviderOrPanic().UsernamesByIDs(ctx, s.repo.db, userIDs)
+	if err != nil {
+		return fmt.Errorf("lookup usernames: %w", err)
+	}
+	for i := range payouts {
+		if pm, ok := pmMap[payouts[i].PaymentMethodID]; ok {
+			payouts[i].PaymentMethodCode = pm.Code
+			payouts[i].PaymentMethodName = pm.Name
+		}
+		payouts[i].PaidByUsername = usernames[payouts[i].PaidBy]
+	}
+	return nil
+}
+
+func appendIfMissing(s []int, v int) []int {
+	for _, x := range s {
+		if x == v {
+			return s
+		}
+	}
+	return append(s, v)
 }

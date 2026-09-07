@@ -43,6 +43,7 @@ func TestService_Payout(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 40000, st.TotalPayable)
 		require.Equal(t, SettlementPendingPayment, st.Status)
+		require.NotEmpty(t, st.SupplierName, "SupplierName should be hydrated on GetSettlement")
 
 		payout, err := svc.CreatePayout(ctx, stID, &CreatePayoutRequest{
 			PaymentMethodID: pmID,

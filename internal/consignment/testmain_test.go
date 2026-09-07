@@ -15,6 +15,7 @@ import (
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/store"
 	"retail-pos-system/internal/supplier"
 	"retail-pos-system/internal/user"
 )
@@ -53,9 +54,11 @@ func TestMain(m *testing.M) {
 func newTestService(t *testing.T) *Service {
 	t.Helper()
 	repo := NewRepository(dbPool)
-	repo.SetStockAdjuster(inventory.ConsignmentAdjuster{})
+	repo.SetStockAdjuster(inventory.ConsignmentAdjuster{DB: dbPool})
+	repo.SetStockReader(inventory.ConsignmentAdjuster{DB: dbPool})
 	repo.SetSupplierStore(supplier.ConsignmentSupplierProvider{})
 	repo.SetProductMetaProvider(product.MetaLookup{})
+	repo.SetStoreNameProvider(store.NamesProvider{})
 	repo.SetUsernameProvider(user.UsernamesProvider{})
 	repo.SetPaymentMethods(dbPaymentMethods{})
 	return NewService(repo)
@@ -90,6 +93,26 @@ func (dbPaymentMethods) PaymentMethodByID(ctx context.Context, id int) (*Payment
 		return nil, err
 	}
 	return &m, nil
+}
+
+func (dbPaymentMethods) PaymentMethodsByIDs(ctx context.Context, ids []int) (map[int]PaymentMethod, error) {
+	if len(ids) == 0 {
+		return map[int]PaymentMethod{}, nil
+	}
+	rows, err := dbPool.Query(ctx, `SELECT id, code, name FROM payment_methods WHERE id = ANY($1) AND is_active = true`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[int]PaymentMethod, len(ids))
+	for rows.Next() {
+		var m PaymentMethod
+		if err := rows.Scan(&m.ID, &m.Code, &m.Name); err != nil {
+			return nil, err
+		}
+		result[m.ID] = m
+	}
+	return result, rows.Err()
 }
 
 func insertTestStore(ctx context.Context, t *testing.T) int {
