@@ -26,7 +26,7 @@ type Shift struct {
 	UpdatedAt        string  `json:"updated_at"`
 }
 
-type ShiftReportData struct {
+type ReportData struct {
 	Shift
 	DurationMinutes     int                       `json:"duration_minutes"`
 	PaymentBreakdown    []shared.PaymentMethodTotal `json:"payment_breakdown"`

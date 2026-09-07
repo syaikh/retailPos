@@ -110,21 +110,21 @@ func (r *Repository) createAuditLog(ctx context.Context, qx queryExecer, log *Lo
 	// denormalized username/role, so the audit row is still persisted and the
 	// transaction is not rolled back over a user-data hiccup.
 	if log.UserID != nil && isForeignKeyViolation(err) {
-		if retryErr := r.insertAuditLog(ctx, qx, log, ipAddr, nil); retryErr == nil {
+		retryErr := r.insertAuditLog(ctx, qx, log, ipAddr, nil)
+		if retryErr == nil {
 			return nil
-		} else {
-			metrics.AuditWriteFailures.Inc()
-			shared.LogError(ctx, "failed to write audit log after dropping dangling user_id",
-				retryErr,
-				"action", log.Action,
-				"entity_type", log.EntityType,
-				"entity_id", log.EntityID,
-				"user_id", log.UserID,
-				"store_id", log.StoreID,
-				"username", log.Username,
-			)
-			return retryErr
 		}
+		metrics.AuditWriteFailures.Inc()
+		shared.LogError(ctx, "failed to write audit log after dropping dangling user_id",
+			retryErr,
+			"action", log.Action,
+			"entity_type", log.EntityType,
+			"entity_id", log.EntityID,
+			"user_id", log.UserID,
+			"store_id", log.StoreID,
+			"username", log.Username,
+		)
+		return retryErr
 	}
 
 	metrics.AuditWriteFailures.Inc()

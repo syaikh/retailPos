@@ -424,7 +424,7 @@ func TestInventoryRepository_AdjustStockBatch_InsufficientStock_Mock(t *testing.
 	assert.ErrorContains(t, err, "insufficient stock")
 }
 
-// mockConsignmentOwner implements ConsignmentOwnerChecker for testing.
+// mockConsignmentOwner implements OwnerChecker for testing.
 type mockConsignmentOwner struct {
 	ownedFn func(ctx context.Context, productID int) (bool, error)
 }
@@ -484,7 +484,7 @@ func TestInventoryRepository_AdjustStock_NoCheckerSkipsCheck_Mock(t *testing.T) 
 	defer mock.Close()
 
 	repo := newMockRepo(mock)
-	// No ConsignmentOwnerChecker set — should proceed normally.
+	// No OwnerChecker set — should proceed normally.
 
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(10))

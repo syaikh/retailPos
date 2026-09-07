@@ -13,10 +13,10 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-// ConsignmentOwnerChecker is the consumer-side port for checking whether a
-// product is owned by the consignment module. Implemented by
-// internal/consignment via Service.IsConsignmentOwned.
-type ConsignmentOwnerChecker interface {
+// OwnerChecker is the consumer-side port for checking whether a product is
+// owned by the consignment module. Implemented by internal/consignment via
+// Service.IsConsignmentOwned.
+type OwnerChecker interface {
 	IsConsignmentOwned(ctx context.Context, productID int) (bool, error)
 }
 
@@ -24,7 +24,7 @@ type Repository struct {
 	db                shared.DBPool
 	locProvider       LocationRackProvider
 	metaProvider      ProductMetaProvider
-	consignmentOwner  ConsignmentOwnerChecker
+	consignmentOwner  OwnerChecker
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -48,9 +48,9 @@ func (r *Repository) SetProductMetaProvider(p ProductMetaProvider) {
 }
 
 // SetConsignmentOwnerChecker wires the consignment ownership check port,
-// implemented by internal/consignment (see ConsignmentOwnerChecker). When
-// wired, AdjustStockTx rejects adjustments on consignment-owned products.
-func (r *Repository) SetConsignmentOwnerChecker(p ConsignmentOwnerChecker) {
+// implemented by internal/consignment (see OwnerChecker). When wired,
+// AdjustStockTx rejects adjustments on consignment-owned products.
+func (r *Repository) SetConsignmentOwnerChecker(p OwnerChecker) {
 	r.consignmentOwner = p
 }
 

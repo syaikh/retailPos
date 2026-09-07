@@ -602,13 +602,13 @@ func (r *Repository) GetShiftWithLiveSales(ctx context.Context, shiftID int) (*S
 	return shift, summary.TotalCashSales, nil
 }
 
-func (r *Repository) GetShiftReportData(ctx context.Context, shiftID int) (*ShiftReportData, error) {
+func (r *Repository) GetShiftReportData(ctx context.Context, shiftID int) (*ReportData, error) {
 	shift, err := r.GetShiftByID(ctx, ownership.Scope{}, shiftID)
 	if err != nil {
 		return nil, err
 	}
 
-	report := &ShiftReportData{Shift: *shift}
+	report := &ReportData{Shift: *shift}
 
 	if shift.ClosedAt != "" && shift.OpenedAt != "" {
 		opened, err := time.Parse(time.RFC3339, shift.OpenedAt)

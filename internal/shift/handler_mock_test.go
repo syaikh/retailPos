@@ -102,7 +102,7 @@ func (m *mockShiftService) InTx(ctx context.Context, fn func(tx pgx.Tx) error) e
 	return fn(nil)
 }
 
-func (m *mockShiftService) GetShiftReportData(ctx context.Context, shiftID int) (*ShiftReportData, error) {
+func (m *mockShiftService) GetShiftReportData(ctx context.Context, shiftID int) (*ReportData, error) {
 	return nil, nil
 }
 

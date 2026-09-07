@@ -22,7 +22,7 @@ type Repo interface {
 	CreateCashMovement(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
 	ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error)
 	ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error)
-	GetShiftReportData(ctx context.Context, shiftID int) (*ShiftReportData, error)
+	GetShiftReportData(ctx context.Context, shiftID int) (*ReportData, error)
 }
 
 type SettingsProvider interface {
@@ -164,6 +164,6 @@ func (s *service) AuditShift(ctx context.Context, shiftID int) (*Shift, int, err
 	return s.repo.GetShiftWithLiveSales(ctx, shiftID)
 }
 
-func (s *service) GetShiftReportData(ctx context.Context, shiftID int) (*ShiftReportData, error) {
+func (s *service) GetShiftReportData(ctx context.Context, shiftID int) (*ReportData, error) {
 	return s.repo.GetShiftReportData(ctx, shiftID)
 }
