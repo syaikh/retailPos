@@ -175,8 +175,13 @@
       stockAdjustProduct = null;
       await fetchProducts(offset, limit);
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || labels.toastFailedToAdjustStock;
-      toast.error(errorMsg);
+      const errorCode = err.response?.data?.error?.code;
+      const errorMsg = err.response?.data?.error?.message || err.message || labels.toastFailedToAdjustStock;
+      if (errorCode === 'CNS-402') {
+        toast.error(labels.toastConsignmentProductBlocked);
+      } else {
+        toast.error(errorMsg);
+      }
     } finally {
       adjustingStock = false;
     }

@@ -14,6 +14,7 @@ var (
 	ErrNegativeQuantity          = errors.New("quantity must not be negative")
 	ErrNonPositiveQuantity       = errors.New("quantity must be positive")
 	ErrStoreForbidden            = errors.New("product is not in your store")
+	ErrConsignmentProduct        = errors.New("consignment products cannot be adjusted via inventory; use the consignment module")
 )
 
 // LocationStockItem is a rack-level stock row: how much of a product sits in a

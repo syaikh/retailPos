@@ -6,6 +6,7 @@ import type {
   CreateArrangementPayload,
   CreatePayoutPayload,
   CreateSettlementPayload,
+  EditReceiptPayload,
   PaymentMethod,
   Payout,
   PendingReturn,
@@ -63,6 +64,11 @@ export async function getReceipt(id: number): Promise<Receipt> {
 
 export async function createReceipt(payload: ReceiptPayload): Promise<Receipt> {
   const res = await apiClient.post('/consignment/receipts', payload);
+  return res.data.data;
+}
+
+export async function editReceipt(receiptId: number, payload: EditReceiptPayload): Promise<Receipt> {
+  const res = await apiClient.put(`/consignment/receipts/${receiptId}`, payload);
   return res.data.data;
 }
 

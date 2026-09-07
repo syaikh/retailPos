@@ -2,10 +2,10 @@
   import { onMount } from 'svelte';
   import { toast } from '$shared/stores/toast.svelte';
   import { Button, Modal, Input, SelectSearch, EmptyState } from '$shared/ui';
-  import { Plus, Trash2, Truck } from 'lucide-svelte';
+  import { Plus, Trash2, Truck, Eye, Pencil } from 'lucide-svelte';
   import { labels, t } from '$shared/i18n';
-  import { createReceipt, listReceipts } from '../services/consignment-service';
-  import type { Arrangement, Receipt } from '../types';
+  import { createReceipt, editReceipt, listReceipts, getReceipt } from '../services/consignment-service';
+  import type { Arrangement, Receipt, ReceiptItem } from '../types';
   import { formatCurrency, formatDateTime } from '../lib/format';
 
   let {
@@ -34,6 +34,16 @@
   let lines = $state<Line[]>([]);
   let entryNotes = $state('');
   let termByProduct = $state<Record<number, { price: number; store_share_type: string; store_share_value: number }>>({});
+
+  let showDetailModal = $state(false);
+  let detailReceipt = $state<Receipt | null>(null);
+  let loadingDetail = $state(false);
+
+  let editMode = $state(false);
+  let editItems = $state<{ id: number; product_id: number; product_name: string; product_sku: string; accepted_qty: number; price: number; store_share_type: string; store_share_value: number; notes: string }[]>([]);
+  let editNotes = $state('');
+  let editReason = $state('');
+  let savingEdit = $state(false);
 
   async function load() {
     loading = true;
@@ -117,6 +127,82 @@
     }
   }
 
+  async function openDetail(receiptId: number) {
+    loadingDetail = true;
+    showDetailModal = true;
+    editMode = false;
+    try {
+      detailReceipt = await getReceipt(receiptId);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || e.message || labels.consignmentLoadError);
+      showDetailModal = false;
+    } finally {
+      loadingDetail = false;
+    }
+  }
+
+  function enterEditMode() {
+    if (!detailReceipt) return;
+    editItems = (detailReceipt.items || []).map((item) => ({
+      id: item.id,
+      product_id: item.product_id,
+      product_name: item.product_name || `Product #${item.product_id}`,
+      product_sku: item.product_sku || '',
+      accepted_qty: item.accepted_qty,
+      price: item.price,
+      store_share_type: item.store_share_type,
+      store_share_value: item.store_share_value,
+      notes: item.notes || '',
+    }));
+    editNotes = detailReceipt.notes || '';
+    editReason = '';
+    editMode = true;
+  }
+
+  function cancelEdit() {
+    editMode = false;
+    editItems = [];
+    editReason = '';
+  }
+
+  function updateEditItemQty(index: number, delta: number) {
+    const item = editItems[index];
+    if (!item) return;
+    const newQty = Math.max(0, item.accepted_qty + delta);
+    editItems = editItems.map((it, i) => i === index ? { ...it, accepted_qty: newQty } : it);
+  }
+
+  async function saveEdit() {
+    if (!detailReceipt) return;
+    if (!editReason.trim()) {
+      toast.error(labels.consignmentEditReasonRequired);
+      return;
+    }
+    const items = editItems.map((it) => ({
+      id: it.id,
+      accepted_qty: it.accepted_qty,
+      price: it.price,
+      store_share_type: it.store_share_type,
+      store_share_value: it.store_share_value,
+      notes: it.notes || undefined,
+    }));
+    savingEdit = true;
+    try {
+      await editReceipt(detailReceipt.id, {
+        items,
+        notes: editNotes || undefined,
+        reason: editReason.trim(),
+      });
+      toast.success(labels.consignmentReceiptUpdated);
+      detailReceipt = await getReceipt(detailReceipt.id);
+      editMode = false;
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || e.message || labels.consignmentEditError);
+    } finally {
+      savingEdit = false;
+    }
+  }
+
   onMount(() => {
     load();
     loadTermProducts();
@@ -155,7 +241,13 @@
           </thead>
           <tbody>
             {#each receipts as r}
-              <tr class="border-b border-border/40">
+              <tr
+                class="border-b border-border/40 cursor-pointer hover:bg-surface-subtle/50 transition-colors"
+                onclick={() => openDetail(r.id)}
+                role="button"
+                tabindex="0"
+                onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDetail(r.id); }}
+              >
                 <td class="px-4 py-3 font-medium text-text-primary">{r.receipt_number}</td>
                 <td class="px-4 py-3 text-text-secondary">{formatDateTime(r.received_at)}</td>
                 <td class="px-4 py-3 text-right text-text-secondary">{t('consignmentItemCount', { count: r.items?.length ?? 0 })}</td>
@@ -238,6 +330,151 @@
       <Button onclick={submitEntry} disabled={submitting}>
         {submitting ? labels.saving : labels.save}
       </Button>
+    </div>
+  {/snippet}
+</Modal>
+
+<Modal bind:open={showDetailModal} title={detailReceipt?.receipt_number || labels.consignmentReceiptDetail} size="lg">
+  {#snippet children()}
+    {#if loadingDetail}
+      <div class="p-8 text-center text-sm text-text-secondary">{labels.loading}</div>
+    {:else if detailReceipt}
+      <div class="space-y-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <div class="text-text-secondary text-xs uppercase tracking-wider">{labels.consignmentReceiptNo}</div>
+            <div class="font-medium text-text-primary">{detailReceipt.receipt_number}</div>
+          </div>
+          <div>
+            <div class="text-text-secondary text-xs uppercase tracking-wider">{labels.consignmentDate}</div>
+            <div class="font-medium text-text-primary">{formatDateTime(detailReceipt.received_at)}</div>
+          </div>
+          <div>
+            <div class="text-text-secondary text-xs uppercase tracking-wider">{labels.consignmentReceivedBy}</div>
+            <div class="font-medium text-text-primary">{detailReceipt.received_by_username || '-'}</div>
+          </div>
+          <div>
+            <div class="text-text-secondary text-xs uppercase tracking-wider">{labels.consignmentTotalValue}</div>
+            <div class="font-medium text-text-primary">
+              {formatCurrency((detailReceipt.items || []).reduce((s, i) => s + i.accepted_qty * i.price, 0))}
+            </div>
+          </div>
+        </div>
+
+        {#if editMode}
+          <div class="space-y-4">
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50">
+                    <th class="px-4 py-3">{labels.consignmentProduct}</th>
+                    <th class="px-4 py-3 text-right">{labels.consignmentAccepted}</th>
+                    <th class="px-4 py-3 text-right">{labels.consignmentPricePerUnit}</th>
+                    <th class="px-4 py-3 text-right">{labels.consignmentTotalValue}</th>
+                    <th class="px-4 py-3">{labels.consignmentStoreShare}</th>
+                    <th class="px-4 py-3">{labels.notes}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each editItems as item, idx (item.id)}
+                    <tr class="border-b border-border/40">
+                      <td class="px-4 py-3">
+                        <div class="font-medium text-text-primary">{item.product_name}</div>
+                        <div class="text-xs text-text-secondary">{item.product_sku}</div>
+                      </td>
+                      <td class="px-4 py-3 text-right">
+                        <div class="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="sm" onclick={() => updateEditItemQty(idx, -1)}>-</Button>
+                          <Input type="number" min="0" bind:value={item.accepted_qty} class="h-8 w-20 text-sm text-right" />
+                          <Button variant="ghost" size="sm" onclick={() => updateEditItemQty(idx, 1)}>+</Button>
+                        </div>
+                      </td>
+                      <td class="px-4 py-3 text-right text-text-primary">{formatCurrency(item.price)}</td>
+                      <td class="px-4 py-3 text-right text-text-primary">{formatCurrency(item.accepted_qty * item.price)}</td>
+                      <td class="px-4 py-3 text-text-secondary">
+                        {item.store_share_type === 'percentage'
+                          ? `${item.store_share_value}%`
+                          : formatCurrency(item.store_share_value)}
+                      </td>
+                      <td class="px-4 py-3">
+                        <Input type="text" bind:value={item.notes} class="h-8 text-sm" placeholder="-" />
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+
+            <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+              <span>{labels.notes}</span>
+              <Input tag="textarea" bind:value={editNotes} rows={2} placeholder={labels.consignmentReceiptNotesPlaceholder} class="text-sm" />
+            </label>
+
+            <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+              <span>{labels.consignmentEditReason} <span class="text-danger">*</span></span>
+              <Input type="text" bind:value={editReason} rows={2} placeholder={labels.consignmentEditReasonPlaceholder} class="text-sm" />
+            </label>
+          </div>
+        {:else}
+          {#if detailReceipt.notes}
+            <div class="text-sm">
+              <span class="text-text-secondary">{labels.notes}:</span>
+              <span class="text-text-primary ml-1">{detailReceipt.notes}</span>
+            </div>
+          {/if}
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50">
+                  <th class="px-4 py-3">{labels.consignmentProduct}</th>
+                  <th class="px-4 py-3 text-right">{labels.consignmentAccepted}</th>
+                  <th class="px-4 py-3 text-right">{labels.consignmentPricePerUnit}</th>
+                  <th class="px-4 py-3 text-right">{labels.consignmentTotalValue}</th>
+                  <th class="px-4 py-3">{labels.consignmentStoreShare}</th>
+                  <th class="px-4 py-3">{labels.notes}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each detailReceipt.items || [] as item}
+                  <tr class="border-b border-border/40">
+                    <td class="px-4 py-3">
+                      <div class="font-medium text-text-primary">{item.product_name || `Product #${item.product_id}`}</div>
+                      <div class="text-xs text-text-secondary">{item.product_sku || ''}</div>
+                    </td>
+                    <td class="px-4 py-3 text-right text-text-primary">{item.accepted_qty}</td>
+                    <td class="px-4 py-3 text-right text-text-primary">{formatCurrency(item.price)}</td>
+                    <td class="px-4 py-3 text-right text-text-primary">{formatCurrency(item.accepted_qty * item.price)}</td>
+                    <td class="px-4 py-3 text-text-secondary">
+                      {item.store_share_type === 'percentage'
+                        ? `${item.store_share_value}%`
+                        : formatCurrency(item.store_share_value)}
+                    </td>
+                    <td class="px-4 py-3 text-text-secondary">{item.notes || '-'}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+      </div>
+    {/if}
+  {/snippet}
+  {#snippet footer()}
+    <div class="flex justify-end gap-3 w-full">
+      {#if editMode}
+        <Button variant="secondary" onclick={cancelEdit}>{labels.cancel}</Button>
+        <Button onclick={saveEdit} disabled={savingEdit}>
+          {savingEdit ? labels.saving : labels.save}
+        </Button>
+      {:else}
+        <Button variant="secondary" onclick={() => (showDetailModal = false)}>{labels.close}</Button>
+        {#if detailReceipt}
+          <Button variant="secondary" onclick={enterEditMode}>
+            <Pencil class="w-4 h-4" /> {labels.consignmentEditReceipt}
+          </Button>
+        {/if}
+      {/if}
     </div>
   {/snippet}
 </Modal>

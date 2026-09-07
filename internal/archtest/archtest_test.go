@@ -61,6 +61,7 @@ var tableContext = map[string]string{
 	"consignment_settlements":      "transaksional",
 	"consignment_settlement_items": "transaksional",
 	"consignment_payouts":          "transaksional",
+	"consignment_receipt_edits":    "transaksional",
 	// Katalog
 	"products":          "katalog",
 	"categories":        "katalog",

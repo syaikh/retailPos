@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"retail-pos-system/internal/shared"
 )
@@ -16,6 +17,7 @@ import (
 type queryer interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
 type Repository struct {
@@ -1289,6 +1291,155 @@ func (r *Repository) SumPayoutsBySettlement(ctx context.Context, tx pgx.Tx, sett
 		WHERE settlement_id = $1
 	`, settlementID).Scan(&total)
 	return total, err
+}
+
+// --- Receipt editing ---
+
+// GetReceiptForEdit fetches a receipt and its items for editing purposes.
+func (r *Repository) GetReceiptForEdit(ctx context.Context, db queryer, receiptID int) (*Receipt, error) {
+	var rec Receipt
+	var receivedAt, createdAt time.Time
+	err := db.QueryRow(ctx, `
+		SELECT id, receipt_number, supplier_id, store_id, arrangement_id,
+		       received_by, received_at, COALESCE(notes,''), created_at
+		FROM consignment_receipts
+		WHERE id = $1
+	`, receiptID).Scan(&rec.ID, &rec.ReceiptNumber, &rec.SupplierID, &rec.StoreID,
+		&rec.ArrangementID, &rec.ReceivedBy, &receivedAt, &rec.Notes, &createdAt)
+	if err != nil {
+		return nil, ErrReceiptNotFound
+	}
+	rec.ReceivedAt = receivedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	rec.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+
+	rows, err := db.Query(ctx, `
+		SELECT id, consignment_receipt_id, product_id, accepted_qty, price,
+		       store_share_type, store_share_value, notes
+		FROM consignment_receipt_items
+		WHERE consignment_receipt_id = $1
+		ORDER BY id
+	`, receiptID)
+	if err != nil {
+		return nil, fmt.Errorf("list receipt items: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var item ReceiptItem
+		if err := rows.Scan(&item.ID, &item.ConsignmentReceiptID, &item.ProductID,
+			&item.AcceptedQty, &item.Price, &item.StoreShareType,
+			&item.StoreShareValue, &item.Notes); err != nil {
+			return nil, fmt.Errorf("scan receipt item: %w", err)
+		}
+		rec.Items = append(rec.Items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return &rec, nil
+}
+
+// CheckDownstreamActivity checks whether a receipt has been sold, has pending
+// returns, or has been settled. Any of these conditions blocks certain edits.
+func (r *Repository) CheckDownstreamActivity(ctx context.Context, db queryer, receiptID int) (*DownstreamCheck, error) {
+	check := &DownstreamCheck{}
+
+	err := db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM consignment_receipt_items cri
+			JOIN consignment_sale_items csi ON csi.product_id = cri.product_id
+				AND csi.arrangement_id = (SELECT arrangement_id FROM consignment_receipts WHERE id = $1)
+			WHERE cri.consignment_receipt_id = $1
+		)
+	`, receiptID).Scan(&check.HasSales)
+	if err != nil {
+		return nil, fmt.Errorf("check sales: %w", err)
+	}
+
+	err = db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM consignment_pending_returns cpr
+			JOIN consignment_receipt_items cri ON cri.product_id = cpr.product_id
+			WHERE cri.consignment_receipt_id = $1
+			AND cpr.status = 'open'
+			AND cpr.arrangement_id = (SELECT arrangement_id FROM consignment_receipts WHERE id = $1)
+		)
+	`, receiptID).Scan(&check.HasPendingReturns)
+	if err != nil {
+		return nil, fmt.Errorf("check pending returns: %w", err)
+	}
+
+	err = db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM consignment_receipt_items cri
+			JOIN consignment_sale_items csi ON csi.product_id = cri.product_id
+				AND csi.arrangement_id = (SELECT arrangement_id FROM consignment_receipts WHERE id = $1)
+			JOIN consignment_settlement_items csit ON csit.consignment_sale_item_id = csi.id
+			WHERE cri.consignment_receipt_id = $1
+		)
+	`, receiptID).Scan(&check.IsSettled)
+	if err != nil {
+		return nil, fmt.Errorf("check settlement: %w", err)
+	}
+
+	return check, nil
+}
+
+// UpdateReceiptItem updates a single receipt item's accepted_qty, price, and notes.
+func (r *Repository) UpdateReceiptItem(ctx context.Context, db queryer, item *ReceiptItem) error {
+	tag, err := db.Exec(ctx, `
+		UPDATE consignment_receipt_items
+		SET accepted_qty = $1, price = $2, store_share_type = $3, store_share_value = $4, notes = $5
+		WHERE id = $6
+	`, item.AcceptedQty, item.Price, item.StoreShareType, item.StoreShareValue, item.Notes, item.ID)
+	if err != nil {
+		return fmt.Errorf("update receipt item: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrReceiptEditItemNotFound
+	}
+	return nil
+}
+
+// UpdateReceiptNotes updates the receipt-level notes.
+func (r *Repository) UpdateReceiptNotes(ctx context.Context, db queryer, receiptID int, notes string) error {
+	_, err := db.Exec(ctx, `
+		UPDATE consignment_receipts SET notes = $1 WHERE id = $2
+	`, notes, receiptID)
+	if err != nil {
+		return fmt.Errorf("update receipt notes: %w", err)
+	}
+	return nil
+}
+
+// InsertReceiptEdit appends an immutable audit trail entry for a receipt edit.
+func (r *Repository) InsertReceiptEdit(ctx context.Context, db queryer, edit *ReceiptEdit) error {
+	_, err := db.Exec(ctx, `
+		INSERT INTO consignment_receipt_edits (receipt_id, edited_by, field, old_value, new_value, reason, ip_address)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, edit.ReceiptID, edit.EditedBy, edit.Field, edit.OldValue, edit.NewValue, edit.Reason, edit.IPAddress)
+	if err != nil {
+		return fmt.Errorf("insert receipt edit: %w", err)
+	}
+	return nil
+}
+
+// GetConsignmentStockQuantity returns the total consignment stock (available + pending)
+// for a product, or 0 if no consignment stock row exists.
+func (r *Repository) GetConsignmentStockQuantity(ctx context.Context, db queryer, productID int) (int, error) {
+	var qty int
+	err := db.QueryRow(ctx, `
+		SELECT COALESCE(available_qty + pending_return_qty, 0)
+		FROM consignment_stock
+		WHERE product_id = $1
+	`, productID).Scan(&qty)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("get consignment stock qty: %w", err)
+	}
+	return qty, nil
 }
 
 // --- Shared helpers ---

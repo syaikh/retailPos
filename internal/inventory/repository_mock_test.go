@@ -423,3 +423,100 @@ func TestInventoryRepository_AdjustStockBatch_InsufficientStock_Mock(t *testing.
 	}, nil, "batch test")
 	assert.ErrorContains(t, err, "insufficient stock")
 }
+
+// mockConsignmentOwner implements ConsignmentOwnerChecker for testing.
+type mockConsignmentOwner struct {
+	ownedFn func(ctx context.Context, productID int) (bool, error)
+}
+
+func (m *mockConsignmentOwner) IsConsignmentOwned(ctx context.Context, productID int) (bool, error) {
+	if m.ownedFn != nil {
+		return m.ownedFn(ctx, productID)
+	}
+	return false, nil
+}
+
+func TestInventoryRepository_AdjustStock_ConsignmentOwned_Mock(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	repo := newMockRepo(mock)
+	repo.SetConsignmentOwnerChecker(&mockConsignmentOwner{
+		ownedFn: func(ctx context.Context, productID int) (bool, error) {
+			assert.Equal(t, 42, productID)
+			return true, nil
+		},
+	})
+
+	// AdjustStock calls BeginTx before AdjustStockTx; set expectation.
+	mock.ExpectBegin()
+
+	err = repo.AdjustStock(context.Background(), 42, 5, nil, nil, "consignment adj")
+	assert.ErrorIs(t, err, ErrConsignmentProduct)
+}
+
+func TestInventoryRepository_AdjustStock_ConsignmentNotOwned_Mock(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	repo := newMockRepo(mock)
+	repo.SetConsignmentOwnerChecker(&mockConsignmentOwner{
+		ownedFn: func(ctx context.Context, productID int) (bool, error) {
+			return false, nil
+		},
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(10))
+	mock.ExpectExec("UPDATE product_stock").WithArgs(15, 1).WillReturnResult(pgxmock.NewResult("U", 1))
+	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
+	mock.ExpectCommit()
+
+	err = repo.AdjustStock(context.Background(), 1, 5, nil, nil, "non-consignment adj")
+	assert.NoError(t, err)
+}
+
+func TestInventoryRepository_AdjustStock_NoCheckerSkipsCheck_Mock(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	repo := newMockRepo(mock)
+	// No ConsignmentOwnerChecker set — should proceed normally.
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(10))
+	mock.ExpectExec("UPDATE product_stock").WithArgs(15, 1).WillReturnResult(pgxmock.NewResult("U", 1))
+	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
+	mock.ExpectCommit()
+
+	err = repo.AdjustStock(context.Background(), 1, 5, nil, nil, "no checker adj")
+	assert.NoError(t, err)
+}
+
+func TestInventoryRepository_AdjustStockBatch_ConsignmentOwned_Mock(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	repo := newMockRepo(mock)
+	repo.SetConsignmentOwnerChecker(&mockConsignmentOwner{
+		ownedFn: func(ctx context.Context, productID int) (bool, error) {
+			if productID == 1 {
+				return true, nil
+			}
+			return false, nil
+		},
+	})
+
+	// AdjustStockBatch calls BeginTx before processing adjustments.
+	mock.ExpectBegin()
+
+	err = repo.AdjustStockBatch(context.Background(), []StockAdjustment{
+		{ProductID: 1, QuantityChange: 5},
+		{ProductID: 2, QuantityChange: 10},
+	}, nil, "batch with consignment")
+	assert.ErrorIs(t, err, ErrConsignmentProduct)
+}

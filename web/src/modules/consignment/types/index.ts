@@ -238,6 +238,21 @@ export interface CreatePayoutPayload {
   notes?: string;
 }
 
+export interface EditReceiptItemPayload {
+  id: number;
+  accepted_qty: number;
+  price: number;
+  store_share_type?: string;
+  store_share_value?: number;
+  notes?: string;
+}
+
+export interface EditReceiptPayload {
+  items: EditReceiptItemPayload[];
+  notes?: string;
+  reason: string;
+}
+
 export const ARRANGEMENT_STATUS_ACTIVE = 'active';
 export const ARRANGEMENT_STATUS_ENDED = 'ended';
 

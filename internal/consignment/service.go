@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -491,6 +492,224 @@ func (s *Service) ListReceipts(ctx context.Context, supplierID int, claimsStore 
 		}
 	}
 	return recs, nil
+}
+
+// EditReceipt edits a consignment receipt in-place with guardrails. It validates
+// the 7-day edit window, checks downstream activity, calculates stock deltas,
+// and writes an immutable audit trail entry. Both product_stock and
+// consignment_stock are updated atomically in the same transaction.
+func (s *Service) EditReceipt(ctx context.Context, receiptID int, input EditReceiptInput, userID int, ipAddress string) (*Receipt, error) {
+	if input.Reason == "" {
+		return nil, ErrEditReasonRequired
+	}
+
+	// 1. Fetch current receipt state (outside tx — read-only).
+	rec, err := s.repo.GetReceiptForEdit(ctx, s.repo.db, receiptID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Check edit window (7 days from receipt date).
+	receivedAt, err := time.Parse(time.RFC3339, rec.ReceivedAt)
+	if err != nil {
+		return nil, fmt.Errorf("parse receipt date: %w", err)
+	}
+	if time.Since(receivedAt) > 7*24*time.Hour {
+		return nil, ErrEditWindowExpired
+	}
+
+	// 3. Build old-items lookup and validate input structure (outside tx).
+	oldItems := make(map[int]*ReceiptItem)
+	for i := range rec.Items {
+		oldItems[rec.Items[i].ID] = &rec.Items[i]
+	}
+	for _, editItem := range input.Items {
+		oldItem, ok := oldItems[editItem.ID]
+		if !ok {
+			return nil, ErrReceiptEditItemNotFound
+		}
+		if oldItem.ConsignmentReceiptID != receiptID {
+			return nil, ErrReceiptEditItemNotFound
+		}
+		if editItem.Price <= 0 {
+			return nil, ErrInvalidPrice
+		}
+	}
+
+	// 4. Begin transaction for atomicity.
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// 5. Re-check downstream activity inside the transaction to prevent TOCTOU.
+	downstream, err := s.repo.CheckDownstreamActivity(ctx, tx, receiptID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 6. Validate edits against downstream constraints (inside tx).
+	for _, editItem := range input.Items {
+		oldItem := oldItems[editItem.ID]
+		qtyChanged := editItem.AcceptedQty != oldItem.AcceptedQty
+		priceChanged := editItem.Price != oldItem.Price
+
+		if downstream.IsSettled {
+			return nil, ErrReceiptIsSettled
+		}
+		if qtyChanged && downstream.HasPendingReturns {
+			return nil, ErrReceiptHasPendingReturns
+		}
+		if qtyChanged && downstream.HasSales {
+			return nil, ErrReceiptHasSales
+		}
+		if priceChanged && downstream.HasSales {
+			return nil, ErrReceiptHasSales
+		}
+	}
+
+	// 7. Process each edited item: update item, calculate delta, update ledgers.
+	for _, editItem := range input.Items {
+		oldItem := oldItems[editItem.ID]
+		delta := editItem.AcceptedQty - oldItem.AcceptedQty
+
+		if delta != 0 {
+			// Validate that the new total won't go below zero.
+			currentStock, err := s.repo.GetConsignmentStockQuantity(ctx, tx, oldItem.ProductID)
+			if err != nil {
+				return nil, err
+			}
+			newTotal := currentStock + delta
+			if newTotal < 0 {
+				return nil, ErrNegativeStock
+			}
+
+			// Update consignment ownership ledger.
+			if _, err := s.repo.UpsertConsignmentStock(ctx, tx, oldItem.ProductID, rec.SupplierID, rec.ArrangementID, rec.StoreID, delta); err != nil {
+				return nil, err
+			}
+
+			// Update global product_stock via inventory port.
+			if err := s.repo.stockAdjusterOrPanic().ApplyConsignmentDelta(ctx, tx, shared.ConsignmentStockDelta{
+				ProductID:      oldItem.ProductID,
+				Delta:          delta,
+				MovementType:   MovementTypeConsignmentReceipt,
+				ReferenceID:    receiptID,
+				ReferenceTable: "consignment_receipts",
+				UserID:         userID,
+				Notes:          "receipt edit " + rec.ReceiptNumber,
+			}); err != nil {
+				return nil, err
+			}
+		}
+
+		// Update receipt item.
+		updatedItem := &ReceiptItem{
+			ID:                   editItem.ID,
+			ConsignmentReceiptID: receiptID,
+			ProductID:            oldItem.ProductID,
+			AcceptedQty:          editItem.AcceptedQty,
+			Price:                editItem.Price,
+			StoreShareType:       editItem.StoreShareType,
+			StoreShareValue:      editItem.StoreShareValue,
+		}
+		if editItem.Notes != nil {
+			updatedItem.Notes = *editItem.Notes
+		}
+		if updatedItem.StoreShareType == "" {
+			updatedItem.StoreShareType = oldItem.StoreShareType
+			updatedItem.StoreShareValue = oldItem.StoreShareValue
+		}
+		if err := s.repo.UpdateReceiptItem(ctx, tx, updatedItem); err != nil {
+			return nil, err
+		}
+
+		// Write audit trail entries for changed fields.
+		if editItem.AcceptedQty != oldItem.AcceptedQty {
+			if err := s.repo.InsertReceiptEdit(ctx, tx, &ReceiptEdit{
+				ReceiptID: receiptID,
+				EditedBy:  userID,
+				Field:     fmt.Sprintf("item_%d_accepted_qty", editItem.ID),
+				OldValue:  fmt.Sprintf("%d", oldItem.AcceptedQty),
+				NewValue:  fmt.Sprintf("%d", editItem.AcceptedQty),
+				Reason:    input.Reason,
+				IPAddress: ipAddress,
+			}); err != nil {
+				return nil, err
+			}
+		}
+		if editItem.Price != oldItem.Price {
+			if err := s.repo.InsertReceiptEdit(ctx, tx, &ReceiptEdit{
+				ReceiptID: receiptID,
+				EditedBy:  userID,
+				Field:     fmt.Sprintf("item_%d_price", editItem.ID),
+				OldValue:  fmt.Sprintf("%d", oldItem.Price),
+				NewValue:  fmt.Sprintf("%d", editItem.Price),
+				Reason:    input.Reason,
+				IPAddress: ipAddress,
+			}); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// 7. Update receipt-level notes if changed.
+	if input.Notes != nil && *input.Notes != rec.Notes {
+		if err := s.repo.UpdateReceiptNotes(ctx, tx, receiptID, *input.Notes); err != nil {
+			return nil, err
+		}
+		if err := s.repo.InsertReceiptEdit(ctx, tx, &ReceiptEdit{
+			ReceiptID: receiptID,
+			EditedBy:  userID,
+			Field:     "notes",
+			OldValue:  rec.Notes,
+			NewValue:  *input.Notes,
+			Reason:    input.Reason,
+			IPAddress: ipAddress,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	// 8. Touch arrangement visit timestamp.
+	if err := s.repo.TouchVisit(ctx, tx, rec.ArrangementID); err != nil {
+		return nil, err
+	}
+
+	// 9. Commit transaction.
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	// 10. Return updated receipt with hydrated names.
+	updated, err := s.repo.GetReceiptByID(ctx, s.repo.db, receiptID)
+	if err != nil {
+		return nil, err
+	}
+	recs := []Receipt{*updated}
+	if err := s.hydrateReceiptNames(ctx, recs); err != nil {
+		return nil, err
+	}
+	if err := s.hydrateReceiptItemProductNames(ctx, updated.Items); err != nil {
+		return nil, err
+	}
+	*updated = recs[0]
+	return updated, nil
+}
+
+// IsConsignmentOwned reports whether a product is owned by the consignment
+// module (has a row in consignment_stock). Used by internal/inventory as a
+// guardrail to prevent manual stock adjustments on consignment products.
+func (s *Service) IsConsignmentOwned(ctx context.Context, productID int) (bool, error) {
+	var owned bool
+	err := s.repo.db.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM consignment_stock WHERE product_id = $1)
+	`, productID).Scan(&owned)
+	if err != nil {
+		return false, fmt.Errorf("check consignment ownership: %w", err)
+	}
+	return owned, nil
 }
 
 // --- Consignment stock ---

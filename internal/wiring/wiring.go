@@ -533,6 +533,8 @@ func Initialize(p Providers) *Dependencies {
 	d.StorageLocationSvc = storagelocation.NewService(d.StorageLocationRepo)
 	d.ConsignmentSvc = consignment.NewService(d.ConsignmentRepo)
 
+	d.InventoryRepo.SetConsignmentOwnerChecker(d.ConsignmentSvc)
+
 	d.AppSettingsRepo = appsettings.NewRepository(p.DB)
 	d.AppSettingsSvc = appsettings.NewService(d.AppSettingsRepo)
 

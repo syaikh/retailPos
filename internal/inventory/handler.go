@@ -95,6 +95,10 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 				c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 				return
 			}
+			if errors.Is(err, ErrConsignmentProduct) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
 			shared.InternalError(c, err)
 			return
 		}
@@ -103,6 +107,10 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 		if err := h.svc.AdjustStock(c.Request.Context(), req.ProductID, req.QuantityChange, storeID, uid, req.Notes); err != nil {
 			if errors.Is(err, ErrStoreForbidden) {
 				c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+				return
+			}
+			if errors.Is(err, ErrConsignmentProduct) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
 			shared.InternalError(c, err)

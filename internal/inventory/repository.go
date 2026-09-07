@@ -13,10 +13,18 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
+// ConsignmentOwnerChecker is the consumer-side port for checking whether a
+// product is owned by the consignment module. Implemented by
+// internal/consignment via Service.IsConsignmentOwned.
+type ConsignmentOwnerChecker interface {
+	IsConsignmentOwned(ctx context.Context, productID int) (bool, error)
+}
+
 type Repository struct {
-	db           shared.DBPool
-	locProvider  LocationRackProvider
-	metaProvider ProductMetaProvider
+	db                shared.DBPool
+	locProvider       LocationRackProvider
+	metaProvider      ProductMetaProvider
+	consignmentOwner  ConsignmentOwnerChecker
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -37,6 +45,13 @@ func (r *Repository) SetLocationRackProvider(p LocationRackProvider) {
 // point.
 func (r *Repository) SetProductMetaProvider(p ProductMetaProvider) {
 	r.metaProvider = p
+}
+
+// SetConsignmentOwnerChecker wires the consignment ownership check port,
+// implemented by internal/consignment (see ConsignmentOwnerChecker). When
+// wired, AdjustStockTx rejects adjustments on consignment-owned products.
+func (r *Repository) SetConsignmentOwnerChecker(p ConsignmentOwnerChecker) {
+	r.consignmentOwner = p
 }
 
 func (r *Repository) locationProvider() LocationRackProvider {
@@ -103,6 +118,16 @@ func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 
 // AdjustStockTx applies a single stock adjustment within an existing transaction.
 func (r *Repository) AdjustStockTx(ctx context.Context, tx pgx.Tx, productID int, quantityChange int, storeID *int, userID *int, notes string) error {
+	if r.consignmentOwner != nil {
+		owned, err := r.consignmentOwner.IsConsignmentOwned(ctx, productID)
+		if err != nil {
+			return fmt.Errorf("check consignment ownership: %w", err)
+		}
+		if owned {
+			return ErrConsignmentProduct
+		}
+	}
+
 	if storeID != nil {
 		if err := r.checkProductStore(ctx, tx, productID, storeID); err != nil {
 			return err
@@ -175,6 +200,15 @@ func (r *Repository) AdjustStockBatch(ctx context.Context, adjustments []StockAd
 	}()
 
 	for _, adj := range adjustments {
+		if r.consignmentOwner != nil {
+			owned, err := r.consignmentOwner.IsConsignmentOwned(ctx, adj.ProductID)
+			if err != nil {
+				return fmt.Errorf("check consignment ownership: %w", err)
+			}
+			if owned {
+				return ErrConsignmentProduct
+			}
+		}
 		if adj.StoreID != nil {
 			if err := r.checkProductStore(ctx, tx, adj.ProductID, adj.StoreID); err != nil {
 				return err

@@ -33,6 +33,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/consignment/receipts", auth, perm(permissions.ConsignmentView), h.ListReceipts)
 	r.POST("/consignment/receipts", auth, perm(permissions.ConsignmentCreate), h.CreateReceipt)
 	r.GET("/consignment/receipts/:id", auth, perm(permissions.ConsignmentView), h.GetReceipt)
+	r.PUT("/consignment/receipts/:id", auth, perm(permissions.ConsignmentUpdate), h.EditReceipt)
 	r.GET("/consignment/stock", auth, perm(permissions.ConsignmentView), h.ListStock)
 	r.GET("/consignment/pending-returns", auth, perm(permissions.ConsignmentView), h.ListPendingReturns)
 	r.POST("/consignment/pending-returns", auth, perm(permissions.ConsignmentUpdate), h.CreatePendingReturn)
@@ -156,6 +157,31 @@ func (h *Handler) GetReceipt(c *gin.Context) {
 		return
 	}
 	rec, err := h.svc.GetReceipt(c.Request.Context(), id, shared.GetStoreID(c))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": rec})
+}
+
+func (h *Handler) EditReceipt(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var input EditReceiptInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	uid := userID(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
+		return
+	}
+	ipAddress := c.ClientIP()
+	rec, err := h.svc.EditReceipt(c.Request.Context(), id, input, uid, ipAddress)
 	if err != nil {
 		writeError(c, err)
 		return
@@ -441,12 +467,22 @@ func writeError(c *gin.Context, err error) {
 		errors.Is(err, ErrSettlementAlreadyPaid):
 		status, code = http.StatusConflict, "CNS-201"
 	case errors.Is(err, ErrInsufficientConsignmentStock),
-		errors.Is(err, ErrInvalidPayoutAmount):
+		errors.Is(err, ErrInvalidPayoutAmount),
+		errors.Is(err, ErrNegativeStock):
 		status, code = http.StatusUnprocessableEntity, "CNS-402"
-	case errors.Is(err, ErrArrangementEnded):
+	case errors.Is(err, ErrArrangementEnded),
+		errors.Is(err, ErrReceiptEditItemNotFound):
 		status, code = http.StatusBadRequest, "CNS-102"
 	case errors.Is(err, ErrStoreForbidden):
 		status, code = http.StatusForbidden, "CNS-303"
+	case errors.Is(err, ErrReceiptNotFound):
+		status, code = http.StatusNotFound, "CNS-103"
+	case errors.Is(err, ErrEditWindowExpired),
+		errors.Is(err, ErrReceiptHasSales),
+		errors.Is(err, ErrReceiptHasPendingReturns),
+		errors.Is(err, ErrReceiptIsSettled),
+		errors.Is(err, ErrEditReasonRequired):
+		status, code = http.StatusBadRequest, "CNS-102"
 	default:
 		shared.LogError(context.Background(), "consignment error", err)
 	}

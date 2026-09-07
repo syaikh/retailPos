@@ -245,6 +245,22 @@ func TestMockHandler_AdjustStock(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, w.Code)
 		assert.Contains(t, w.Body.String(), "not in your store")
 	})
+
+	t.Run("consignment product maps to 400", func(t *testing.T) {
+		svc := &mockService{
+			adjustStockFn: func(ctx context.Context, productID int, quantityChange int, storeID *int, userID int, notes string) error {
+				return ErrConsignmentProduct
+			},
+		}
+		r := setupMockInventoryRouter(svc)
+		body := `{"product_id":42,"quantity_change":10,"notes":"consignment adj"}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/inventory/adjust", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "consignment products cannot be adjusted")
+	})
 }
 
 func TestMockHandler_ListLocationStock(t *testing.T) {

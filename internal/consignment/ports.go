@@ -69,3 +69,11 @@ type PaymentMethod struct {
 	Code string `json:"code"`
 	Name string `json:"name"`
 }
+
+// ConsignmentOwnerChecker is the consumer-side port for checking whether a
+// product is owned by the consignment module. internal/inventory uses this
+// to prevent manual stock adjustments on consignment products (Phase 0
+// guardrail). Implemented by internal/consignment via Service.
+type ConsignmentOwnerChecker interface {
+	IsConsignmentOwned(ctx context.Context, productID int) (bool, error)
+}
