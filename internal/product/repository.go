@@ -66,7 +66,7 @@ const productSelectCols = `
 		       v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
 		       v.tax_class_id, v.tax_rate,
 		       v.supplier_id, v.supplier_name,
-		       v.created_at, v.updated_at
+		       v.created_at, v.updated_at, v.ownership_type
 		FROM v_products_full v`
 
 type rowScanner interface {
@@ -88,7 +88,7 @@ func scanProduct(row rowScanner) (*Product, error) {
 		&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &description,
 		&taxClassIDVal, &taxRateVal,
 		&supplierIDVal, &supplierNameVal,
-		&createdAt, &updatedAt)
+		&createdAt, &updatedAt, &p.OwnershipType)
 	if err != nil {
 		return nil, err
 	}

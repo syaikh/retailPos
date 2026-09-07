@@ -5,6 +5,7 @@
   import { labels, t } from '$shared/i18n';
   import { listStock } from '../services/consignment-service';
   import type { Arrangement, StockRow } from '../types';
+  import { formatCurrency } from '../lib/format';
 
   let {
     arrangement,
@@ -14,6 +15,14 @@
 
   let rows = $state<StockRow[]>([]);
   let loading = $state(true);
+
+  const priceByProduct = $derived.by(() => {
+    const map: Record<number, number> = {};
+    for (const term of arrangement.terms || []) {
+      map[term.product_id] = term.price;
+    }
+    return map;
+  });
 
   async function load() {
     loading = true;
@@ -52,6 +61,7 @@
             <th class="px-4 py-3">{labels.consignmentProduct}</th>
             <th class="px-4 py-3 text-right">{labels.consignmentAvailableStock}</th>
             <th class="px-4 py-3 text-right">{labels.consignmentPendingReturnQty}</th>
+            <th class="px-4 py-3 text-right">{labels.consignmentPricePerUnit}</th>
           </tr>
         </thead>
         <tbody>
@@ -65,6 +75,11 @@
                 <Badge variant={r.available_qty > 0 ? 'success' : 'muted'}>{r.available_qty}</Badge>
               </td>
               <td class="px-4 py-3 text-right text-text-secondary">{r.pending_return_qty}</td>
+              <td class="px-4 py-3 text-right text-text-primary">
+                {priceByProduct[r.product_id] != null
+                  ? formatCurrency(priceByProduct[r.product_id])
+                  : '-'}
+              </td>
             </tr>
           {/each}
         </tbody>

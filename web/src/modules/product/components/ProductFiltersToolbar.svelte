@@ -15,6 +15,7 @@
     supplierFilterId = $bindable(null),
     supplierFilterName = $bindable(''),
     selectedBrandIDs = $bindable<number[]>([]),
+    ownershipFilter = $bindable('all'),
     onsearch = () => {},
     onfilter = () => {},
     onrefresh = () => {},
@@ -33,6 +34,7 @@
     supplierFilterId?: number | null;
     supplierFilterName?: string;
     selectedBrandIDs?: number[];
+    ownershipFilter?: string;
     onsearch?: () => void;
     onfilter?: () => void;
     onrefresh?: () => void;
@@ -71,6 +73,9 @@
     if (selectedBrandIDs.length > 0) {
       chips.push({ type: 'brand', label: t('brandsCount', { count: selectedBrandIDs.length }) });
     }
+    if (ownershipFilter !== 'all') {
+      chips.push({ type: 'ownership', label: ownershipFilter === 'consignment' ? labels.ownershipConsignment : labels.ownershipStore });
+    }
     return chips;
   });
 
@@ -80,6 +85,7 @@
     if (type === 'stock') lowStockOnly = false;
     if (type === 'supplier') { supplierFilterId = null; supplierFilterName = ''; }
     if (type === 'brand') { selectedBrandIDs = []; }
+    if (type === 'ownership') { ownershipFilter = 'all'; }
     onrefresh();
   }
 </script>
@@ -125,6 +131,22 @@
           onclick={toggle}
         >
           <span>{statusLabel}</span>
+          <ChevronDown size={14} class="text-text-muted shrink-0" />
+        </button>
+      {/snippet}
+    </Dropdown>
+    <Dropdown placement="bottom-start" items={[
+      { label: labels.all, checked: ownershipFilter === 'all', onclick: () => { ownershipFilter = 'all'; onrefresh(); } },
+      { label: labels.ownershipStore, checked: ownershipFilter === 'store', onclick: () => { ownershipFilter = 'store'; onrefresh(); } },
+      { label: labels.ownershipConsignment, checked: ownershipFilter === 'consignment', onclick: () => { ownershipFilter = 'consignment'; onrefresh(); } },
+    ]}>
+      {#snippet trigger({ toggle })}
+        <button
+          type="button"
+          class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {ownershipFilter !== 'all' ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
+          onclick={toggle}
+        >
+          <span>{ownershipFilter === 'all' ? labels.allOwnership : ownershipFilter === 'consignment' ? labels.ownershipConsignment : labels.ownershipStore}</span>
           <ChevronDown size={14} class="text-text-muted shrink-0" />
         </button>
       {/snippet}

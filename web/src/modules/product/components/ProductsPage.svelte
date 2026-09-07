@@ -60,6 +60,7 @@
   let supplierFilterId = $state<number | null>(null);
   let supplierFilterName = $state('');
   let selectedBrandIDs = $state<number[]>([]);
+  let ownershipFilter = $state('all');
 
   let previousCategories = ['All'];
   let previousBrandIDs: number[] = [];
@@ -245,6 +246,7 @@
       if (filterStatus !== 'all') params.append('status', filterStatus);
       if (supplierFilterId !== null) params.append('supplier_id', supplierFilterId.toString());
       if (selectedBrandIDs.length > 0) params.append('brand_id', selectedBrandIDs.join(','));
+      if (ownershipFilter !== 'all') params.append('ownership_type', ownershipFilter);
       const r = await apiClient.get(`/products?${params.toString()}`);
       products = r.data.data || [];
       total = r.data.total || 0;
@@ -559,6 +561,7 @@
     bind:supplierFilterId
     bind:supplierFilterName
     bind:selectedBrandIDs
+    bind:ownershipFilter
     onsearch={handleSearchInput}
     onfilter={() => showFilterDrawer = true}
     onrefresh={() => { offset = 0; fetchProducts(0, limit); }}

@@ -169,6 +169,32 @@ func TestHandler_GetProducts_WithSupplierID(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestHandler_GetProducts_WithOwnershipType(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupProductRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/products?ownership_type=store", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data  []Product `json:"data"`
+		Total int       `json:"total"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	for _, p := range resp.Data {
+		assert.Equal(t, "store", p.OwnershipType)
+	}
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/products?ownership_type=consignment", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
 func TestHandler_GetProductByID(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupProductRouter()

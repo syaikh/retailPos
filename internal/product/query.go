@@ -10,7 +10,7 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error) {
+func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string, supplierID *int, brandIDs []int, ownershipType string) ([]Product, int, error) {
 	var products []Product
 	var total int
 
@@ -60,6 +60,12 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 	if supplierID != nil {
 		query += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM product_suppliers ps WHERE ps.product_id = v.id AND ps.supplier_id = $%d)", argIdx)
 		args = append(args, *supplierID)
+		argIdx++
+	}
+	if ownershipType != "" {
+		query += fmt.Sprintf(" AND v.ownership_type = $%d", argIdx)
+		args = append(args, ownershipType)
+		argIdx++
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
@@ -114,6 +120,11 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 		args2 = append(args2, *supplierID)
 		argIdx2++
 	}
+	if ownershipType != "" {
+		query2 += fmt.Sprintf(" AND v.ownership_type = $%d", argIdx2)
+		args2 = append(args2, ownershipType)
+		argIdx2++
+	}
 	allowedSortBy := map[string]bool{"v.id": true, "v.name": true, "v.sku": true, "v.barcode": true, "v.price": true, "v.status": true, "v.created_at": true, "v.updated_at": true, "v.stock": true, "category_name": true, "brand_name": true}
 	allowedSortDir := map[string]bool{"ASC": true, "DESC": true}
 	if sortBy != "" && allowedSortBy[sortBy] {
@@ -148,7 +159,7 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 			&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &descriptionVal,
 			&taxClassIDVal, &taxRateVal,
 			&supplierIDVal, &supplierNameVal,
-			&createdAt, &updatedAt)
+			&createdAt, &updatedAt, &p.OwnershipType)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan product: %w", err)
 		}

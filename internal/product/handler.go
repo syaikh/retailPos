@@ -42,7 +42,7 @@ func parseIDs(raw string) []int {
 }
 
 type Service interface {
-	GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int) ([]Product, int, error)
+	GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int, ownershipType string) ([]Product, int, error)
 	GetProductsByIDs(ctx context.Context, ids []int, storeID *int) ([]Product, error)
 	GetProductByID(ctx context.Context, id, storeID int) (*Product, error)
 	GetProductBySKU(ctx context.Context, sku string, storeID int) (*Product, error)
@@ -195,7 +195,13 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		brandIDs = parseIDs(bid)
 	}
 
-	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, storeID, isActive, maxStock, status, supplierID, brandIDs)
+	ownershipType := c.Query("ownership_type")
+	if ownershipType != "" && ownershipType != "store" && ownershipType != "consignment" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ownership_type: must be 'store' or 'consignment'"})
+		return
+	}
+
+	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, storeID, isActive, maxStock, status, supplierID, brandIDs, ownershipType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products"})
 		return

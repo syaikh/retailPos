@@ -111,6 +111,122 @@ Receipt edited → Calculate delta (new - old) → UpsertConsignmentStock(delta)
 
 ---
 
+### Q3.1: How does pricing work when supplier restocks at a different price?
+
+**Real-world scenario:**
+1. Supplier sends 10 units @ $100 (Receipt A)
+2. 3 units sold → 7 remaining
+3. Supplier sends 5 more units @ $120 (Receipt B)
+4. Now: 12 units total, but different receipt prices
+
+**Two business models for price changes:**
+
+| Model | Description | Example |
+|-------|-------------|---------|
+| **Return old stock** | Old stock returned, new stock at new price | Return 7 @ $100, receive 10 @ $120 |
+| **New price applies** | New price applies to all stock, regardless of return | 7 @ $100 + 5 @ $120, but price is now $120 |
+
+**Key insight:** In consignment, there's only ONE active price at any time — stored in `terms.price`.
+
+```
+terms.price = $120  ← Current agreed price
+```
+
+The receipt price is just **historical documentation**:
+```sql
+-- Receipt A (historical): price = $100
+-- Receipt B (historical): price = $120
+-- Current terms: price = $120
+```
+
+**Stock display decision:**
+- Show the **current terms price** alongside stock quantity
+- Do NOT show per-receipt price breakdown (would be misleading)
+- The terms price is the effective price for new sales
+
+**Rationale:**
+- In Model 1: Old stock is returned, only new stock remains at new price
+- In Model 2: New price applies to ALL stock, regardless of receipt date
+- In both cases, `terms.price` is the current agreed price
+- The receipt price is for audit trail / historical documentation only
+
+**Display example:**
+```
+Product X | 12 units | $120/unit (current)
+```
+
+NOT:
+```
+Product X | 12 units
+  ├── 7 units @ $100 (Receipt A)  ← misleading
+  └── 5 units @ $120 (Receipt B)
+```
+
+---
+
+### Q3.2: Should consignment products be separated from Product Master Data?
+
+**Problem:** How should consignment products coexist with store-owned products in the data model?
+
+**Two approaches:**
+
+| Approach | Description | User Experience |
+|----------|-------------|-----------------|
+| **Included (current)** | Consignment products in `products` table, flagged | Search finds all products |
+| **Separated** | Consignment products in separate table | Must go to Consignment page to find them |
+
+**Analysis:**
+
+| Factor | Included | Separated |
+|--------|----------|-----------|
+| Unified search | ✅ Find any product | ❌ Split search |
+| Data duplication | ✅ No duplication | ❌ Name/SKX in two tables |
+| POS lookup | ✅ One table | ⚠️ Two tables |
+| Category management | ✅ Unified | ⚠️ Complex |
+| Mental model | ⚠️ Confusing | ✅ Clear ownership |
+| Consignment-specific fields | ⚠️ Pollutes products table | ✅ Properly scoped |
+
+**Decision: Hybrid approach**
+
+Keep products unified in `products` table, but add clear visual separation:
+
+1. **Add `ownership_type` column:**
+```sql
+ALTER TABLE products ADD COLUMN ownership_type VARCHAR(20) DEFAULT 'store';
+-- Values: 'store', 'consignment'
+```
+
+2. **Add filter to Product page:**
+```
+Filter: [All] [Store] [Consignment]
+```
+
+3. **Add visual badge:**
+```
+Nike Shoes [Consignment]
+Adidas Shirt [Store]
+```
+
+4. **Consignment page** shows detailed consignment info (arrangement, supplier, terms)
+
+**Benefits:**
+1. Unified search (find any product from Product page)
+2. Clear ownership indication (badge/label)
+3. Filter capability (show only store/consignment)
+4. No data duplication
+5. POS works seamlessly (single lookup)
+6. Reports aggregate all sales easily
+
+**When to choose full separation:**
+- Consignment is a completely separate business unit
+- Different users manage store vs consignment products
+- No overlap in product types
+- Regulatory requirements separate the data
+
+For a typical retail POS system, the **hybrid approach** is recommended because POS needs to sell both types, users need unified search, and products share categories.
+
+---
+
 ### Q4: Is there an existing process we can reuse?
 
 **Decision:** Yes — reuse the **inventory module's stock adjustment process** from Product Master Data.

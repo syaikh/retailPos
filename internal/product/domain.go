@@ -15,6 +15,7 @@ type Product struct {
 	Stock              int      `json:"stock"`
 	StoreID            *int     `json:"store_id,omitempty"`
 	Status             string   `json:"status"`
+	OwnershipType      string   `json:"ownership_type"`
 	TaxClassID         *int     `json:"tax_class_id,omitempty"`
 	TaxRate            *float64 `json:"tax_rate,omitempty"`
 	WeightGrams        *int     `json:"weight_grams,omitempty"`

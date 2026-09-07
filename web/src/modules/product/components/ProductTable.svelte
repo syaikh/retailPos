@@ -193,6 +193,9 @@
                   </button>
                 </span>
               {/if}
+              {#if product.ownership_type === 'consignment'}
+                <Badge variant="info" size="sm">{labels.consignment}</Badge>
+              {/if}
             </div>
           </td>
           <td class="p-4 w-52">{product.category_name || '-'}</td>
