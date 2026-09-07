@@ -384,6 +384,12 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 			return fmt.Errorf("failed to truncate data: %w", err)
 		}
 		fmt.Println("✅ Data truncated successfully")
+
+		// Verify truncation actually emptied the products table
+		var remainingProducts int
+		if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM products").Scan(&remainingProducts); err == nil && remainingProducts > 0 {
+			fmt.Printf("   ⚠️  WARNING: %d products remain after truncation!\n", remainingProducts)
+		}
 	}
 
 	// Re-check product count after truncation — the pre-truncation count may
@@ -455,6 +461,18 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 		return fmt.Errorf("failed to ensure cashier users: %w", cashierErr)
 	}
 	fmt.Println("   ✅ Cashier users ensured")
+
+	// Reopen the connection pool to discard any connections with leaked
+	// session_replication_role='replica' from truncateAllData. Go's database/sql
+	// doesn't expose a pool-wide reset, so closing and reopening is the only
+	// reliable way to clear all cached connections.
+	if err := db.Close(); err != nil {
+		fmt.Printf("   ⚠️  Warning: failed to close old connection pool: %v\n", err)
+	}
+	db, err = sql.Open("postgres", getDSN())
+	if err != nil {
+		return fmt.Errorf("failed to reopen database connection pool: %w", err)
+	}
 
 	// 4. Inject products
 	var productData []ProductInfo
@@ -1465,6 +1483,7 @@ type productWorkerJob struct {
 	categoryIDs          []int
 	categoryNames        map[int]string
 	loggedFirstErrNoRows bool // one-time flag: log first ErrNoRows with SKU details
+	loggedFirstSuccess   bool // one-time flag: log first successful insert
 }
 
 // injectProducts generates products using concurrent workers for better performance
@@ -1639,6 +1658,16 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 					job.loggedFirstErrNoRows = true
 					fmt.Printf("   🔍 worker %d: first sql.ErrNoRows at product %d (sku=%s, cat=%s, brandID=%d, uomID=%d)\n",
 						job.workerID, i, sku, catName, brandID, uomID)
+					// Check if the SKU actually exists in DB to distinguish real conflict from false positive
+					var existsID int
+					checkErr := db.QueryRowContext(ctx, "SELECT id FROM products WHERE sku = $1", sku).Scan(&existsID)
+					if checkErr == nil {
+						fmt.Printf("   🔍 worker %d: SKU %s EXISTS in DB (id=%d) — truncation may not have worked\n",
+							job.workerID, sku, existsID)
+					} else {
+						fmt.Printf("   🔍 worker %d: SKU %s does NOT exist in DB — ON CONFLICT returned false positive\n",
+							job.workerID, sku)
+					}
 				}
 				continue
 			}
@@ -1657,6 +1686,12 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		// Insert into product_stock so v_products_full view returns correct stock
 		if _, err := stockStmt.ExecContext(ctx, id, stock); err != nil {
 			fmt.Printf("Warning: worker %d failed to insert product_stock for product %d: %v\n", job.workerID, i, err)
+		}
+
+		if !job.loggedFirstSuccess {
+			job.loggedFirstSuccess = true
+			fmt.Printf("   ✅ worker %d: first product inserted (id=%d, sku=%s, cat=%s)\n",
+				job.workerID, id, sku, catName)
 		}
 
 		taxClassID := 1
