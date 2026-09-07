@@ -62,7 +62,7 @@
 <Modal bind:open title={labels.recordCashMovement} size="sm">
   <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-4">
     <div>
-      <label class="block text-sm font-medium text-text-secondary mb-2">{labels.cashMovementType}</label>
+      <span class="block text-sm font-medium text-text-secondary mb-2">{labels.cashMovementType}</span>
       <div class="grid grid-cols-3 gap-2">
         {#each typeOptions as opt}
           <button

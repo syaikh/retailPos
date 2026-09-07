@@ -387,11 +387,13 @@
             </div>
             <div class="flex items-center justify-between">
               <div>
-                <label class="text-sm font-medium text-text-secondary">{labels.blindClose}</label>
+                <span id="blind-close-label" class="text-sm font-medium text-text-secondary">{labels.blindClose}</span>
                 <p class="text-xs text-text-muted">{labels.blindCloseDesc}</p>
               </div>
               <button
                 type="button"
+                aria-labelledby="blind-close-label"
+                aria-pressed={shiftBlindClose}
                 class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {shiftBlindClose ? 'bg-primary' : 'bg-border'}"
                 onclick={() => { shiftBlindClose = !shiftBlindClose; }}
                 disabled={!canUpdate}
