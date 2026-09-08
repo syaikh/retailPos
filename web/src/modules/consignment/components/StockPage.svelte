@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { EmptyState, Badge } from '$shared/ui';
+  import { EmptyState, Badge, Pagination } from '$shared/ui';
   import { Package } from 'lucide-svelte';
   import { labels, t } from '$shared/i18n';
   import { listStock } from '../services/consignment-service';
@@ -15,6 +15,10 @@
 
   let rows = $state<StockRow[]>([]);
   let loading = $state(true);
+
+  let pageLimit = $state(20);
+  let pageOffset = $state(0);
+  const pagedRows = $derived(rows.slice(pageOffset, pageOffset + pageLimit));
 
   const priceByProduct = $derived.by(() => {
     const map: Record<number, number> = {};
@@ -38,6 +42,11 @@
   onMount(() => {
     load();
   });
+
+  function handlePageChange(newOffset: number, newLimit: number) {
+    pageOffset = newOffset;
+    pageLimit = newLimit;
+  }
 </script>
 
 <div class="card">
@@ -56,26 +65,26 @@
   {:else}
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50">
-            <th class="px-4 py-3">{labels.consignmentProduct}</th>
-            <th class="px-4 py-3 text-right">{labels.consignmentAvailableStock}</th>
-            <th class="px-4 py-3 text-right">{labels.consignmentPendingReturnQty}</th>
-            <th class="px-4 py-3 text-right">{labels.consignmentPricePerUnit}</th>
+        <thead class="bg-muted/50">
+          <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+            <th class="p-4">{labels.consignmentProduct}</th>
+            <th class="p-4 text-right">{labels.consignmentAvailableStock}</th>
+            <th class="p-4 text-right">{labels.consignmentPendingReturnQty}</th>
+            <th class="p-4 text-right">{labels.consignmentPricePerUnit}</th>
           </tr>
         </thead>
         <tbody>
-          {#each rows as r}
-            <tr class="border-b border-border/40">
-              <td class="px-4 py-3">
+          {#each pagedRows as r}
+            <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+              <td class="p-4">
                 <div class="font-medium text-text-primary">{r.product_name}</div>
                 <div class="text-xs text-text-secondary">{r.product_sku}</div>
               </td>
-              <td class="px-4 py-3 text-right">
+              <td class="p-4 text-right">
                 <Badge variant={r.available_qty > 0 ? 'success' : 'muted'}>{r.available_qty}</Badge>
               </td>
-              <td class="px-4 py-3 text-right text-text-secondary">{r.pending_return_qty}</td>
-              <td class="px-4 py-3 text-right text-text-primary">
+              <td class="p-4 text-right text-text-secondary">{r.pending_return_qty}</td>
+              <td class="p-4 text-right text-text-primary">
                 {priceByProduct[r.product_id] != null
                   ? formatCurrency(priceByProduct[r.product_id])
                   : '-'}
@@ -84,6 +93,9 @@
           {/each}
         </tbody>
       </table>
+    </div>
+    <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+      <Pagination total={rows.length} limit={pageLimit} offset={pageOffset} onPageChange={handlePageChange} />
     </div>
   {/if}
 </div>
