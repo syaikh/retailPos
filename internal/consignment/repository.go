@@ -1307,7 +1307,10 @@ func (r *Repository) GetReceiptForEdit(ctx context.Context, db queryer, receiptI
 	`, receiptID).Scan(&rec.ID, &rec.ReceiptNumber, &rec.SupplierID, &rec.StoreID,
 		&rec.ArrangementID, &rec.ReceivedBy, &receivedAt, &rec.Notes, &createdAt)
 	if err != nil {
-		return nil, ErrReceiptNotFound
+		if err == pgx.ErrNoRows {
+			return nil, ErrReceiptNotFound
+		}
+		return nil, err
 	}
 	rec.ReceivedAt = receivedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	rec.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
