@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Button, Modal, Input, EmptyState, Badge, SelectSearch } from '$shared/ui';
+  import { Button, Modal, Input, NumberInput, EmptyState, Badge, SelectSearch, Pagination } from '$shared/ui';
   import { Wallet, Banknote } from 'lucide-svelte';
   import { labels, t } from '$shared/i18n';
   import {
@@ -39,6 +39,10 @@
   let paying = $state(false);
   let paymentMethods = $state<{ value: number; label: string }[]>([]);
   let payoutForm = $state({ payment_method_id: undefined as number | undefined, amount: 0, reference_number: '', notes: '' });
+
+  let pageLimit = $state(20);
+  let pageOffset = $state(0);
+  const pagedSettlements = $derived(settlements.slice(pageOffset, pageOffset + pageLimit));
 
   async function loadPreview() {
     previewLoading = true;
@@ -145,6 +149,11 @@
     loadPreview();
     loadPaymentMethods();
   });
+
+  function handlePageChange(newOffset: number, newLimit: number) {
+    pageOffset = newOffset;
+    pageLimit = newLimit;
+  }
 </script>
 
 <div class="space-y-4">
@@ -210,27 +219,27 @@
     {:else}
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50">
-              <th class="px-4 py-3">{labels.consignmentSettlementNo}</th>
-              <th class="px-4 py-3">{labels.consignmentDate}</th>
-              <th class="px-4 py-3 text-right">{labels.consignmentTotal}</th>
-              <th class="px-4 py-3">{labels.consignmentStatus}</th>
-              <th class="px-4 py-3 text-right">{labels.actions}</th>
+          <thead class="bg-muted/50">
+            <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+              <th class="p-4">{labels.consignmentSettlementNo}</th>
+              <th class="p-4">{labels.consignmentDate}</th>
+              <th class="p-4 text-right">{labels.consignmentTotal}</th>
+              <th class="p-4">{labels.consignmentStatus}</th>
+              <th class="p-4 text-right">{labels.actions}</th>
             </tr>
           </thead>
           <tbody>
-            {#each settlements as st}
-              <tr class="border-b border-border/40">
-                <td class="px-4 py-3 font-medium text-text-primary">{st.settlement_number}</td>
-                <td class="px-4 py-3 text-text-secondary">{formatDateTime(st.created_at)}</td>
-                <td class="px-4 py-3 text-right text-text-primary">{formatCurrency(st.total_payable)}</td>
-                <td class="px-4 py-3">
+            {#each pagedSettlements as st}
+              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+                <td class="p-4 font-medium text-text-primary">{st.settlement_number}</td>
+                <td class="p-4 text-text-secondary">{formatDateTime(st.created_at)}</td>
+                <td class="p-4 text-right text-text-primary">{formatCurrency(st.total_payable)}</td>
+                <td class="p-4">
                   <Badge variant={st.status === SETTLEMENT_PAID ? 'success' : 'warning'}>
                     {labels[SETTLEMENT_STATUS_LABELS[st.status]] || st.status}
                   </Badge>
                 </td>
-                <td class="px-4 py-3 text-right">
+                <td class="p-4 text-right">
                   {#if canPay && st.status !== SETTLEMENT_PAID}
                     <Button variant="secondary" size="sm" onclick={() => openPayout(st)}>
                       {labels.consignmentPay}
@@ -241,6 +250,9 @@
             {/each}
           </tbody>
         </table>
+      </div>
+      <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+        <Pagination total={settlements.length} limit={pageLimit} offset={pageOffset} onPageChange={handlePageChange} />
       </div>
     {/if}
   </div>
@@ -281,7 +293,7 @@
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
         <span>{labels.consignmentAmount} <span class="text-danger">*</span></span>
-        <Input type="number" min="1" bind:value={payoutForm.amount} class="h-9 text-sm" />
+        <NumberInput min="1" bind:value={payoutForm.amount} class="h-9 text-sm" />
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
         <span>{labels.consignmentReference}</span>

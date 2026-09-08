@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Modal, Button, Input } from '$shared/ui';
+  import { Modal, Button, Input, NumberInput } from '$shared/ui';
   import { SearchBar } from '$shared/ui';
   import { Calculator, Loader2, TrendingDown, TrendingUp, Minus } from 'lucide-svelte';
   import { labels, t } from '$shared/i18n';
@@ -142,7 +142,7 @@
     <div class="grid grid-cols-3 gap-3">
       <div>
         <label for="sim-qty" class="block text-sm font-medium text-text-primary mb-1.5">{labels.jumlah}</label>
-        <Input id="sim-qty" type="number" bind:value={quantity} min={1} />
+        <NumberInput id="sim-qty" bind:value={quantity} min={1} />
       </div>
       <div>
         <label for="sim-cg" class="block text-sm font-medium text-text-primary mb-1.5">{labels.customerGroup}</label>

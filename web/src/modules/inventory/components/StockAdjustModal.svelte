@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Input, Modal } from '$shared/ui';
+  import { Button, Input, Modal, NumberInput } from '$shared/ui';
   import { Loader2 } from 'lucide-svelte';
   import { labels } from '$shared/i18n';
 
@@ -44,9 +44,8 @@
     {/if}
     <div>
       <label for="adjust-qty" class="block text-sm font-medium text-text-secondary mb-2">{labels.quantityChange}</label>
-      <Input
+      <NumberInput
         id="adjust-qty"
-        type="number"
         bind:value={quantityChange}
         placeholder={labels.adjustQtyPlaceholder}
         error={fieldErrors.quantity}

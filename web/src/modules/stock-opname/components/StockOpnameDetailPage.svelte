@@ -4,7 +4,7 @@
   import { useStockOpnameStore } from '../stores/stock-opname-store.svelte';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Badge, Button, Card, Dropdown, EmptyState, Input, Modal, PageHeader, Pagination, SelectSearch, Skeleton } from '$shared/ui';
+  import { Badge, Button, Card, Dropdown, EmptyState, Input, Modal, NumberInput, PageHeader, Pagination, SelectSearch, Skeleton } from '$shared/ui';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
   import { ArrowLeft, CheckCircle2, ChevronDown, ClipboardCheck, RotateCcw, Send, XCircle } from 'lucide-svelte';
   import { labels, t } from '$shared/i18n';
@@ -38,7 +38,7 @@
 
   let showCountModal = $state(false);
   let countTarget = $state<{ id: number; product_name: string } | null>(null);
-  let countValue = $state('');
+  let countValue = $state(0);
   let countRemarks = $state('');
   let counting = $state(false);
 
@@ -188,13 +188,13 @@
 
   function openCount(itemId: number, productName: string) {
     countTarget = { id: itemId, product_name: productName };
-    countValue = '';
+    countValue = 0;
     countRemarks = '';
     showCountModal = true;
   }
 
   async function handleSaveCount() {
-    const qty = parseFloat(countValue);
+    const qty = Number(countValue);
     if (isNaN(qty) || qty < 0) {
       toast.error(labels.toastInvalidQuantity);
       return;
@@ -584,7 +584,7 @@
     <div class="space-y-4">
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
         <span>{labels.physicalQuantity}</span>
-        <Input type="number" bind:value={countValue} min={0} step="any" placeholder="0" autofocus />
+        <NumberInput bind:value={countValue} min={0} step="any" placeholder="0" autofocus />
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
         <span>{labels.remarks}</span>
@@ -595,7 +595,7 @@
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
       <Button variant="secondary" onclick={() => (showCountModal = false)}>{labels.cancel}</Button>
-      <Button onclick={handleSaveCount} disabled={counting || countValue === ''}>{labels.saveCount}</Button>
+      <Button onclick={handleSaveCount} disabled={counting}>{labels.saveCount}</Button>
     </div>
   {/snippet}
 </Modal>

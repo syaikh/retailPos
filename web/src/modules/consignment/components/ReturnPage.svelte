@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Button, Modal, Input, SelectSearch, EmptyState } from '$shared/ui';
+  import { Button, Modal, Input, NumberInput, SelectSearch, EmptyState, Pagination } from '$shared/ui';
   import { Plus, Trash2, RotateCcw } from 'lucide-svelte';
   import { labels, t } from '$shared/i18n';
   import { getProductOptions } from '$modules/product/services/product-service';
@@ -39,6 +39,10 @@
   let productOptions = $state<{ value: number; label: string }[]>([]);
   let lines = $state<Line[]>([]);
   let returnNotes = $state('');
+
+  let pageLimit = $state(20);
+  let pageOffset = $state(0);
+  const pagedReturns = $derived(returns.slice(pageOffset, pageOffset + pageLimit));
 
   async function load() {
     loading = true;
@@ -118,6 +122,11 @@
     load();
     loadProducts();
   });
+
+  function handlePageChange(newOffset: number, newLimit: number) {
+    pageOffset = newOffset;
+    pageLimit = newLimit;
+  }
 </script>
 
 <div class="space-y-4">
@@ -148,27 +157,30 @@
     {:else}
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50">
-              <th class="px-4 py-3">{labels.consignmentReturnNo}</th>
-              <th class="px-4 py-3">{labels.consignmentDate}</th>
-              <th class="px-4 py-3 text-right">{labels.consignmentReturnItem}</th>
-              <th class="px-4 py-3 text-right">{labels.consignmentQty}</th>
+          <thead class="bg-muted/50">
+            <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+              <th class="p-4">{labels.consignmentReturnNo}</th>
+              <th class="p-4">{labels.consignmentDate}</th>
+              <th class="p-4 text-right">{labels.consignmentReturnItem}</th>
+              <th class="p-4 text-right">{labels.consignmentQty}</th>
             </tr>
           </thead>
           <tbody>
-            {#each returns as r}
-              <tr class="border-b border-border/40">
-                <td class="px-4 py-3 font-medium text-text-primary">{r.return_number}</td>
-                <td class="px-4 py-3 text-text-secondary">{formatDateTime(r.returned_at)}</td>
-                <td class="px-4 py-3 text-right text-text-secondary">{r.items?.length ?? 0}</td>
-                <td class="px-4 py-3 text-right text-text-primary">
+            {#each pagedReturns as r}
+              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+                <td class="p-4 font-medium text-text-primary">{r.return_number}</td>
+                <td class="p-4 text-text-secondary">{formatDateTime(r.returned_at)}</td>
+                <td class="p-4 text-right text-text-secondary">{r.items?.length ?? 0}</td>
+                <td class="p-4 text-right text-text-primary">
                   {(r.items || []).reduce((s, i) => s + i.qty, 0)}
                 </td>
               </tr>
             {/each}
           </tbody>
         </table>
+      </div>
+      <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+        <Pagination total={returns.length} limit={pageLimit} offset={pageOffset} onPageChange={handlePageChange} />
       </div>
     {/if}
   </div>
@@ -199,7 +211,7 @@
             </label>
             <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
               <span>{labels.consignmentQty}</span>
-              <Input type="number" min="1" bind:value={line.qty} class="h-9 w-24 text-sm" />
+              <NumberInput min="1" bind:value={line.qty} class="h-9 w-24 text-sm" />
             </label>
             <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
               <span>{labels.consignmentReason}</span>

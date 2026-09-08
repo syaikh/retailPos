@@ -2,7 +2,7 @@
   import { slide } from 'svelte/transition';
   import { flip } from 'svelte/animate';
   import { tick } from 'svelte';
-  import { Badge, Button } from '$shared/ui';
+  import { Badge, Button, NumberInput } from '$shared/ui';
   import { ShoppingCart, X, Minus, Plus, Wallet, Printer, Hand, RotateCcw } from 'lucide-svelte';
    import { labels, t } from '$shared/i18n';
    import PrintModeToggle from '$app/components/PrintModeToggle.svelte';
@@ -134,19 +134,19 @@
             >
               <Minus size={14} />
             </button>
-            <input
-              type="number"
+            <NumberInput
               min="1"
               max={item.stock || 999}
               value={item.quantity}
-              onfocus={(e) => e.currentTarget.select()}
-              onchange={(e) => {
-                const parsed = Math.max(1, Math.min(item.stock || 999, Number(e.currentTarget.value) || 1));
+              onfocus={(e: FocusEvent) => (e.target as HTMLInputElement).select()}
+              onchange={(e: Event) => {
+                const el = e.target as HTMLInputElement;
+                const parsed = Math.max(1, Math.min(item.stock || 999, Number(el.value) || 1));
                 const delta = parsed - item.quantity;
                 if (delta !== 0) onupdateqty(item.id, delta);
-                else e.currentTarget.value = String(item.quantity);
+                else el.value = String(item.quantity);
               }}
-              onkeydown={(e) => {
+              onkeydown={(e: KeyboardEvent) => {
                 if (e.key === 'Enter') {
                   (e.target as HTMLInputElement)?.blur();
                 }

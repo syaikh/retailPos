@@ -1,7 +1,7 @@
 <script lang="ts">
   import { usePurchaseOrderStore } from '../stores/po-store.svelte';
   import { getPurchaseOrderById } from '../services/po-service';
-  import { Button, Input, Modal } from '$shared/ui';
+  import { Button, Input, Modal, NumberInput } from '$shared/ui';
   import { toast } from '$shared/stores/toast.svelte';
   import { labels, t } from '$shared/i18n';
   import { Loader2 } from 'lucide-svelte';
@@ -119,10 +119,10 @@
                     <td class="px-3 py-3 text-sm text-text-muted text-right tabular-nums" colspan="2">{t('fullyReceivedWithQty', { qty: item.qty_received })}</td>
                   {:else}
                     <td class="px-3 py-3">
-                      <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_good} class="w-20 text-sm ml-auto" selectOnFocus oninput={() => { const rem = getRemainingQty(item); if (item.qty_good > rem) item.qty_good = rem; if (item.qty_good + item.qty_damaged > rem) item.qty_damaged = Math.max(0, rem - item.qty_good); }} />
+                      <NumberInput min={0} max={getRemainingQty(item)} bind:value={item.qty_good} class="w-20 text-sm ml-auto" oninput={() => { const rem = getRemainingQty(item); if (item.qty_good > rem) item.qty_good = rem; if (item.qty_good + item.qty_damaged > rem) item.qty_damaged = Math.max(0, rem - item.qty_good); }} />
                     </td>
                     <td class="px-3 py-3">
-                      <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_damaged} class="w-20 text-sm ml-auto" selectOnFocus oninput={() => { const rem = getRemainingQty(item); if (item.qty_damaged > rem) item.qty_damaged = rem; if (item.qty_good + item.qty_damaged > rem) item.qty_good = Math.max(0, rem - item.qty_damaged); }} />
+                      <NumberInput min={0} max={getRemainingQty(item)} bind:value={item.qty_damaged} class="w-20 text-sm ml-auto" oninput={() => { const rem = getRemainingQty(item); if (item.qty_damaged > rem) item.qty_damaged = rem; if (item.qty_good + item.qty_damaged > rem) item.qty_good = Math.max(0, rem - item.qty_damaged); }} />
                     </td>
                   {/if}
                 </tr>

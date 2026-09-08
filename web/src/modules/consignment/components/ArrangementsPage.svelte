@@ -3,7 +3,7 @@
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
   import { goto } from '$app/router';
-  import { Button, Modal, Input, SelectSearch, EmptyState, Badge, SearchBar, Pagination } from '$shared/ui';
+  import { Button, Modal, Input, NumberInput, SelectSearch, EmptyState, Badge, SearchBar, Pagination } from '$shared/ui';
   import { Plus, ClipboardList, Truck, RotateCcw, Wallet, ArrowLeft, AlertTriangle, ExternalLink } from 'lucide-svelte';
   import { debounce } from '$shared/utils/debounce';
   import { labels, t } from '$shared/i18n';
@@ -374,7 +374,7 @@
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
         <span>{labels.consignmentStore}</span>
-        <Input type="number" bind:value={createStoreId} placeholder={labels.consignmentStorePlaceholder} class="h-9 text-sm" />
+        <NumberInput bind:value={createStoreId} placeholder={labels.consignmentStorePlaceholder} class="h-9 text-sm" />
       </label>
       {#if suppliers.length === 0}
         <p class="text-xs text-amber-600">

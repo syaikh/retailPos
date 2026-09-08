@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Button, Modal, Input, SelectSearch, EmptyState } from '$shared/ui';
+  import { Button, Modal, Input, NumberInput, SelectSearch, EmptyState, Pagination } from '$shared/ui';
   import { Plus, Trash2 } from 'lucide-svelte';
   import { labels } from '$shared/i18n';
   import { getProductOptions } from '$modules/product/services/product-service';
@@ -42,6 +42,10 @@
     store_share_type: SHARE_TYPE_PERCENTAGE,
     store_share_value: 20,
   });
+
+  let pageLimit = $state(20);
+  let pageOffset = $state(0);
+  const pagedTerms = $derived(terms.slice(pageOffset, pageOffset + pageLimit));
 
   async function load() {
     loading = true;
@@ -120,6 +124,11 @@
     return formatCurrency(t.store_share_value);
   }
 
+  function handlePageChange(newOffset: number, newLimit: number) {
+    pageOffset = newOffset;
+    pageLimit = newLimit;
+  }
+
   onMount(() => {
     load();
     loadProducts();
@@ -147,28 +156,31 @@
   {:else}
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50">
-            <th class="px-4 py-3">{labels.consignmentProduct}</th>
-            <th class="px-4 py-3 text-right">{labels.consignmentPrice}</th>
-            <th class="px-4 py-3">{labels.consignmentStoreShare}</th>
+        <thead class="bg-muted/50">
+          <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+            <th class="p-4">{labels.consignmentProduct}</th>
+            <th class="p-4 text-right">{labels.consignmentPrice}</th>
+            <th class="p-4">{labels.consignmentStoreShare}</th>
           </tr>
         </thead>
         <tbody>
-          {#each terms as t}
-            <tr class="border-b border-border/40">
-              <td class="px-4 py-3">
+          {#each pagedTerms as t}
+            <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+              <td class="p-4">
                 <div class="font-medium text-text-primary">{t.product_name}</div>
                 <div class="text-xs text-text-secondary">{t.product_sku}</div>
               </td>
-              <td class="px-4 py-3 text-right text-text-primary">{formatCurrency(t.price)}</td>
-              <td class="px-4 py-3 text-text-secondary">
+              <td class="p-4 text-right text-text-primary">{formatCurrency(t.price)}</td>
+              <td class="p-4 text-text-secondary">
                 {labels[SHARE_TYPE_LABELS[t.store_share_type]]} — {shareLabel(t)}
               </td>
             </tr>
           {/each}
         </tbody>
       </table>
+    </div>
+    <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+      <Pagination total={terms.length} limit={pageLimit} offset={pageOffset} onPageChange={handlePageChange} />
     </div>
   {/if}
 </div>
@@ -188,7 +200,7 @@
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
         <span>{labels.consignmentPrice} (Rp) <span class="text-danger">*</span></span>
-        <Input type="number" min="0" bind:value={newRow.price} class="h-9 text-sm" />
+        <NumberInput min="0" bind:value={newRow.price} class="h-9 text-sm" />
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
         <span>{labels.consignmentShareType} <span class="text-danger">*</span></span>
@@ -201,7 +213,7 @@
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
         <span>{newRow.store_share_type === SHARE_TYPE_PERCENTAGE ? labels.consignmentSharePercentLabel : labels.consignmentShareFixedLabel} <span class="text-danger">*</span></span>
-        <Input type="number" min="0" bind:value={newRow.store_share_value} class="h-9 text-sm" />
+        <NumberInput min="0" bind:value={newRow.store_share_value} class="h-9 text-sm" />
       </label>
       <p class="text-xs text-text-muted">{labels.consignmentTermsNote}</p>
     </div>

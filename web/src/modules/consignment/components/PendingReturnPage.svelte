@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Button, Modal, Input, SelectSearch, EmptyState, Badge } from '$shared/ui';
+  import { Button, Modal, Input, NumberInput, SelectSearch, EmptyState, Badge, Pagination } from '$shared/ui';
   import { Plus, RotateCcw } from 'lucide-svelte';
   import { labels, t } from '$shared/i18n';
   import { getProductOptions } from '$modules/product/services/product-service';
@@ -32,6 +32,10 @@
   let productOptions = $state<{ value: number; label: string }[]>([]);
   let stockOptions = $state<{ value: number; label: string }[]>([]);
   let form = $state({ product_id: undefined as number | undefined, qty: 1, reason: 'damaged', notes: '' });
+
+  let pageLimit = $state(20);
+  let pageOffset = $state(0);
+  const pagedReturns = $derived(pendingReturns.slice(pageOffset, pageOffset + pageLimit));
 
   async function load() {
     loading = true;
@@ -114,6 +118,11 @@
     load();
     loadProducts();
   });
+
+  function handlePageChange(newOffset: number, newLimit: number) {
+    pageOffset = newOffset;
+    pageLimit = newLimit;
+  }
 </script>
 
 <div class="space-y-4">
@@ -138,34 +147,37 @@
     {:else}
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50">
-              <th class="px-4 py-3">{labels.consignmentProduct}</th>
-              <th class="px-4 py-3 text-right">{labels.consignmentQty}</th>
-              <th class="px-4 py-3">{labels.consignmentReason}</th>
-              <th class="px-4 py-3">{labels.consignmentStatus}</th>
-              <th class="px-4 py-3">{labels.consignmentDate}</th>
+          <thead class="bg-muted/50">
+            <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+              <th class="p-4">{labels.consignmentProduct}</th>
+              <th class="p-4 text-right">{labels.consignmentQty}</th>
+              <th class="p-4">{labels.consignmentReason}</th>
+              <th class="p-4">{labels.consignmentStatus}</th>
+              <th class="p-4">{labels.consignmentDate}</th>
             </tr>
           </thead>
           <tbody>
-            {#each pendingReturns as pr}
-              <tr class="border-b border-border/40">
-                <td class="px-4 py-3">
+            {#each pagedReturns as pr}
+              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+                <td class="p-4">
                   <div class="font-medium text-text-primary">{pr.product_name}</div>
                   <div class="text-xs text-text-secondary">{pr.product_sku}</div>
                 </td>
-                <td class="px-4 py-3 text-right text-text-primary">{pr.qty}</td>
-                <td class="px-4 py-3 text-text-secondary">{labels[RETURN_REASON_LABELS[pr.reason]] || pr.reason}</td>
-                <td class="px-4 py-3">
+                <td class="p-4 text-right text-text-primary">{pr.qty}</td>
+                <td class="p-4 text-text-secondary">{labels[RETURN_REASON_LABELS[pr.reason]] || pr.reason}</td>
+                <td class="p-4">
                   <Badge variant={pr.status === 'open' ? 'warning' : 'success'}>
                     {labels[PENDING_RETURN_STATUS_LABELS[pr.status]] || pr.status}
                   </Badge>
                 </td>
-                <td class="px-4 py-3 text-text-secondary">{formatDateTime(pr.created_at)}</td>
+                <td class="p-4 text-text-secondary">{formatDateTime(pr.created_at)}</td>
               </tr>
             {/each}
           </tbody>
         </table>
+      </div>
+      <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+        <Pagination total={pendingReturns.length} limit={pageLimit} offset={pageOffset} onPageChange={handlePageChange} />
       </div>
     {/if}
   </div>
@@ -191,7 +203,7 @@
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
         <span>{labels.consignmentQty} <span class="text-danger">*</span></span>
-        <Input type="number" min="1" bind:value={form.qty} class="h-9 text-sm" />
+        <NumberInput min="1" bind:value={form.qty} class="h-9 text-sm" />
         {#if form.product_id && maxQtyFor(form.product_id) > 0}
           <span class="text-xs text-text-muted">{t('consignmentMax', { max: maxQtyFor(form.product_id) })}</span>
         {/if}

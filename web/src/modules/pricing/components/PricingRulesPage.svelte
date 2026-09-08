@@ -6,7 +6,7 @@
   import { getCategories, getBrands, getProductsByIds } from '$modules/product/services/product-service';
   import type { PricingRule } from '../types';
   import type { ConflictRule } from '../services/pricing-service';
-  import { Button, Input, Modal, Pagination, ConfirmDeleteModal, Badge, ImportWizard } from '$shared/ui';
+  import { Button, Input, Modal, NumberInput, Pagination, ConfirmDeleteModal, Badge, ImportWizard } from '$shared/ui';
   import { Loader2, AlertTriangle } from 'lucide-svelte';
   import { labels, t } from '$shared/i18n';
   import { useSortable } from '$shared/composables/useSortable.svelte';
@@ -728,9 +728,8 @@
               {#if getMethodConfig(form.pricing_method).prefix}
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-text-muted pointer-events-none select-none">{getMethodConfig(form.pricing_method).prefix}</span>
               {/if}
-              <Input
+              <NumberInput
                 id="pricing-value"
-                type="number"
                 bind:value={form.pricing_value}
                 required
                 min="0"
@@ -757,7 +756,7 @@
       <div class="grid grid-cols-4 gap-3">
         <div>
           <label for="min-qty" class="block text-xs font-medium text-text-secondary mb-1">{labels.minQty}</label>
-          <Input id="min-qty" type="number" bind:value={form.minimum_quantity} min="1" placeholder="1" class="h-9 text-sm" />
+          <NumberInput id="min-qty" bind:value={form.minimum_quantity} min="1" placeholder="1" class="h-9 text-sm" />
         </div>
         <div>
           <label for="max-qty" class="block text-xs font-medium text-text-secondary mb-1">{labels.maxQty}</label>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Button, Modal, Input, SelectSearch, EmptyState } from '$shared/ui';
+  import { Button, Modal, Input, NumberInput, SelectSearch, EmptyState, Pagination } from '$shared/ui';
   import { Plus, Trash2, Truck, Eye, Pencil } from 'lucide-svelte';
   import { labels, t } from '$shared/i18n';
   import { createReceipt, editReceipt, listReceipts, getReceipt } from '../services/consignment-service';
@@ -44,6 +44,10 @@
   let editNotes = $state('');
   let editReason = $state('');
   let savingEdit = $state(false);
+
+  let pageLimit = $state(20);
+  let pageOffset = $state(0);
+  const pagedReceipts = $derived(receipts.slice(pageOffset, pageOffset + pageLimit));
 
   async function load() {
     loading = true;
@@ -207,6 +211,11 @@
     load();
     loadTermProducts();
   });
+
+  function handlePageChange(newOffset: number, newLimit: number) {
+    pageOffset = newOffset;
+    pageLimit = newLimit;
+  }
 </script>
 
 <div class="space-y-4">
@@ -231,33 +240,36 @@
     {:else}
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50">
-              <th class="px-4 py-3">{labels.consignmentReceiptNo}</th>
-              <th class="px-4 py-3">{labels.consignmentDate}</th>
-              <th class="px-4 py-3 text-right">{labels.consignmentItems}</th>
-              <th class="px-4 py-3">{labels.consignmentTotalValue}</th>
+          <thead class="bg-muted/50">
+            <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+              <th class="p-4">{labels.consignmentReceiptNo}</th>
+              <th class="p-4">{labels.consignmentDate}</th>
+              <th class="p-4 text-right">{labels.consignmentItems}</th>
+              <th class="p-4">{labels.consignmentTotalValue}</th>
             </tr>
           </thead>
           <tbody>
-            {#each receipts as r}
+            {#each pagedReceipts as r}
               <tr
-                class="border-b border-border/40 cursor-pointer hover:bg-surface-subtle/50 transition-colors"
+                class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
                 onclick={() => openDetail(r.id)}
                 role="button"
                 tabindex="0"
                 onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDetail(r.id); }}
               >
-                <td class="px-4 py-3 font-medium text-text-primary">{r.receipt_number}</td>
-                <td class="px-4 py-3 text-text-secondary">{formatDateTime(r.received_at)}</td>
-                <td class="px-4 py-3 text-right text-text-secondary">{t('consignmentItemCount', { count: r.items?.length ?? 0 })}</td>
-                <td class="px-4 py-3 text-text-primary">
+                <td class="p-4 font-medium text-text-primary">{r.receipt_number}</td>
+                <td class="p-4 text-text-secondary">{formatDateTime(r.received_at)}</td>
+                <td class="p-4 text-right text-text-secondary">{t('consignmentItemCount', { count: r.items?.length ?? 0 })}</td>
+                <td class="p-4 text-text-primary">
                   {formatCurrency((r.items || []).reduce((s, i) => s + i.accepted_qty * i.price, 0))}
                 </td>
               </tr>
             {/each}
           </tbody>
         </table>
+      </div>
+      <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+        <Pagination total={receipts.length} limit={pageLimit} offset={pageOffset} onPageChange={handlePageChange} />
       </div>
     {/if}
   </div>
@@ -288,11 +300,11 @@
             </label>
             <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
               <span>{labels.consignmentBrought}</span>
-              <Input type="number" min="0" bind:value={line.brought_qty} class="h-9 w-24 text-sm" />
+              <NumberInput min="0" bind:value={line.brought_qty} class="h-9 w-24 text-sm" />
             </label>
             <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
               <span>{labels.consignmentRejected}</span>
-              <Input type="number" min="0" bind:value={line.rejected_qty} class="h-9 w-24 text-sm" />
+              <NumberInput min="0" bind:value={line.rejected_qty} class="h-9 w-24 text-sm" />
             </label>
             {#if lines.length > 1}
               <Button variant="ghost" size="sm" aria-label={labels.consignmentDeleteLine} onclick={() => removeLine(i)}>
@@ -334,7 +346,7 @@
   {/snippet}
 </Modal>
 
-<Modal bind:open={showDetailModal} title={detailReceipt?.receipt_number || labels.consignmentReceiptDetail} size="lg">
+<Modal bind:open={showDetailModal} title={detailReceipt?.receipt_number || labels.consignmentReceiptDetail} size="xl">
   {#snippet children()}
     {#if loadingDetail}
       <div class="p-8 text-center text-sm text-text-secondary">{labels.loading}</div>
@@ -385,7 +397,7 @@
                       <td class="px-4 py-3 text-right">
                         <div class="flex items-center justify-end gap-1">
                           <Button variant="ghost" size="sm" onclick={() => updateEditItemQty(idx, -1)}>-</Button>
-                          <Input type="number" min="0" bind:value={item.accepted_qty} class="h-8 w-20 text-sm text-right" />
+                          <NumberInput min="0" bind:value={item.accepted_qty} class="h-8 w-20 text-sm text-right" />
                           <Button variant="ghost" size="sm" onclick={() => updateEditItemQty(idx, 1)}>+</Button>
                         </div>
                       </td>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Input, Modal, SelectSearch, Skeleton } from '$shared/ui';
+  import { Button, Input, Modal, NumberInput, SelectSearch, Skeleton } from '$shared/ui';
   import { Loader2, PackageX } from 'lucide-svelte';
   import { toast } from '$shared/stores/toast.svelte';
   import { labels } from '$shared/i18n';
@@ -224,7 +224,7 @@
     </label>
     <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
       <span>{labels.jumlahEksak}</span>
-      <Input type="number" bind:value={setQuantity} placeholder="0" min={0} />
+      <NumberInput bind:value={setQuantity} placeholder="0" min={0} />
       {#if setErrors.quantity}<p class="text-xs text-destructive">{setErrors.quantity}</p>{/if}
       <p class="text-xs text-text-muted">{labels.menimpaStokRak}</p>
     </label>
@@ -257,7 +257,7 @@
     </label>
     <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
       <span>{labels.jumlah}</span>
-      <Input type="number" bind:value={transferQuantity} placeholder="0" min={1} />
+      <NumberInput bind:value={transferQuantity} placeholder="0" min={1} />
       {#if transferErrors.quantity}<p class="text-xs text-destructive">{transferErrors.quantity}</p>{/if}
       <p class="text-xs text-text-muted">{labels.stokGlobalTidakBerubah}</p>
     </label>

@@ -6,7 +6,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Permissions } from '$shared/constants/permissions';
-  import { PageHeader, Button, Card, Input } from '$shared/ui';
+  import { PageHeader, Button, Card, Input, NumberInput } from '$shared/ui';
   import { Save, Upload, Trash2, Image as ImageIcon, Loader2, Info, Globe, Receipt, Store, Check } from 'lucide-svelte';
 
   const rbac = useRBAC();
@@ -377,9 +377,8 @@
               <label for="discrepancy-threshold" class="block text-sm font-medium text-text-secondary mb-1.5">
                 {labels.discrepancyThreshold}
               </label>
-              <Input
+              <NumberInput
                 id="discrepancy-threshold"
-                type="number"
                 bind:value={shiftDiscrepancyThreshold}
                 placeholder="50000"
               />
