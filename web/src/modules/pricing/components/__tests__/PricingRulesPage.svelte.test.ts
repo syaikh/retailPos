@@ -38,7 +38,7 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
   });
 
   it('imports ImportWizard from shared/ui', () => {
-    expect(src).toContain("import { Button, Input, Modal, Pagination, ConfirmDeleteModal, Badge, ImportWizard } from '$shared/ui'");
+    expect(src).toContain("import { Button, Input, Modal, NumberInput, Pagination, ConfirmDeleteModal, Badge, ImportWizard } from '$shared/ui'");
   });
 
   it('imports PriceSimulationModal', () => {

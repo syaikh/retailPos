@@ -66,7 +66,7 @@ describe('CartPanel.svelte source-structure guards', () => {
   });
 
   it('selects quantity input text on focus for quick editing', () => {
-    expect(src).toContain('onfocus={(e) => e.currentTarget.select()}');
+    expect(src).toContain('onfocus={(e: FocusEvent) => (e.target as HTMLInputElement).select()}');
   });
 
   it('renders checkout button with Wallet icon', () => {
