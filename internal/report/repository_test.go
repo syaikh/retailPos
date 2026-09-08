@@ -38,7 +38,7 @@ func wireReportAdapters(repo *Repository) {
 }
 
 func seedSale(ctx context.Context, t *testing.T) (saleID int, productID int, saleAmount int, saleQty int) {
-	return seedSaleAt(ctx, t, time.Now())
+	return seedSaleAt(ctx, t, time.Now().In(shared.JakartaLocation()))
 }
 
 // seedSaleAt seeds a completed sale with an explicit created_at, letting tests
@@ -130,7 +130,7 @@ func TestReportRepository_PeriodComparison_SeededData(t *testing.T) {
 	_, _, amount, _ := seedSale(ctx, t)
 	refreshMaterializedViews(ctx, t)
 
-	now := time.Now()
+	now := time.Now().In(shared.JakartaLocation())
 	start := now.AddDate(0, -1, 0)
 	prevStart := start.AddDate(0, -1, 0)
 
@@ -149,7 +149,7 @@ func TestReportRepository_PeriodComparison_PreviousHasAnyData(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	now := time.Now()
+	now := time.Now().In(shared.JakartaLocation())
 	start := now.AddDate(0, -1, 0)
 	prevStart := start.AddDate(0, -1, 0)
 
@@ -214,7 +214,7 @@ func TestReportRepository_DualChartData_Seeded(t *testing.T) {
 	_, _, amount, _ := seedSale(ctx, t)
 	refreshMaterializedViews(ctx, t)
 
-	now := time.Now()
+	now := time.Now().In(shared.JakartaLocation())
 	currentStart := now.AddDate(0, 0, -7)
 	currentEnd := now
 	prevStart := currentStart.AddDate(0, 0, -7)
@@ -310,8 +310,8 @@ func TestReportRepository_DailySales_Seeded(t *testing.T) {
 
 	_, _, amount, _ := seedSale(ctx, t)
 	refreshMaterializedViews(ctx, t)
-	start := time.Now().AddDate(0, -1, 0)
-	end := time.Now().Add(24 * time.Hour)
+	start := time.Now().In(shared.JakartaLocation()).AddDate(0, -1, 0)
+	end := time.Now().In(shared.JakartaLocation()).Add(24 * time.Hour)
 
 	result, err := repo.GetDailySales(ctx, start, end, nil)
 	require.NoError(t, err)
@@ -334,8 +334,8 @@ func TestReportRepository_SalesWeeklyReport_Seeded(t *testing.T) {
 	ctx := context.Background()
 
 	_, _, amount, _ := seedSale(ctx, t)
-	start := time.Now().AddDate(0, -3, 0)
-	end := time.Now()
+	start := time.Now().In(shared.JakartaLocation()).AddDate(0, -3, 0)
+	end := time.Now().In(shared.JakartaLocation())
 
 	result, err := repo.GetSalesWeeklyReport(ctx, start, end, nil)
 	require.NoError(t, err)
@@ -358,8 +358,8 @@ func TestReportRepository_SalesMonthlyReport_Seeded(t *testing.T) {
 	ctx := context.Background()
 
 	_, _, amount, _ := seedSale(ctx, t)
-	start := time.Now().AddDate(0, -6, 0)
-	end := time.Now()
+	start := time.Now().In(shared.JakartaLocation()).AddDate(0, -6, 0)
+	end := time.Now().In(shared.JakartaLocation())
 
 	result, err := repo.GetSalesMonthlyReport(ctx, start, end, nil)
 	require.NoError(t, err)
@@ -488,7 +488,7 @@ func TestReportRepository_WithCacheAndStoreID(t *testing.T) {
 
 	refreshMaterializedViews(ctx, t)
 
-	now := time.Now()
+	now := time.Now().In(shared.JakartaLocation())
 	start := now.AddDate(0, -1, 0)
 	end := now
 	prevStart := start.AddDate(0, -1, 0)
@@ -584,8 +584,8 @@ func TestReportRepository_GetPricingBreakdown_NilStoreID_Seeded(t *testing.T) {
 	// Seed a sale first
 	_, _, amount, _ := seedSale(ctx, t)
 
-	start := time.Now().AddDate(0, -1, 0)
-	end := time.Now()
+	start := time.Now().In(shared.JakartaLocation()).AddDate(0, -1, 0)
+	end := time.Now().In(shared.JakartaLocation())
 
 	items, err := repo.GetPricingBreakdown(ctx, start, end, nil)
 	require.NoError(t, err)
@@ -603,8 +603,8 @@ func TestReportRepository_GetPricingBreakdown_WithStoreID(t *testing.T) {
 	wireReportAdapters(repo)
 	ctx := context.Background()
 
-	start := time.Now().AddDate(0, -1, 0)
-	end := time.Now()
+	start := time.Now().In(shared.JakartaLocation()).AddDate(0, -1, 0)
+	end := time.Now().In(shared.JakartaLocation())
 	sid := 1
 
 	items, err := repo.GetPricingBreakdown(ctx, start, end, &sid)

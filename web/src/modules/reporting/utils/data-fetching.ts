@@ -135,7 +135,7 @@ export async function fetchSalesWithRange({
     const prevMonth = startM.month === 1 ? 12 : startM.month - 1;
     const prevYear = startM.month === 1 ? startM.year - 1 : startM.year;
     const _chartEndParts = _chartEndDate.split('-').map(Number);
-    const lastDayOfPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
+    const lastDayOfPrevMonth = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate();
     const prevEndDay = Math.min(_chartEndParts[2], lastDayOfPrevMonth);
     const prevEndMonth = prevMonth;
     const prevEndYear = prevYear;

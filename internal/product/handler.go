@@ -251,6 +251,8 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 		return
 	}
 
+	product.StoreID = shared.GetStoreID(c)
+
 	if err := validateProduct(&product); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

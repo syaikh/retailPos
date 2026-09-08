@@ -265,20 +265,20 @@
 
   // Get current month dates with padding (max 5 rows = 35 days)
   function getMonthDates(year: number, month: number) {
-    const firstDay = new Date(year, month - 1, 1);
-    const lastDay = new Date(year, month, 0);
+    const firstDay = new Date(Date.UTC(year, month - 1, 1));
+    const lastDay = new Date(Date.UTC(year, month, 0));
     const days: DateValue[] = [];
     const maxDays = 35;
 
     // Add previous month days
-    const firstDayOfWeek = firstDay.getDay() || 7;
-    const prevMonthEnd = new Date(year, month - 1, 0).getDate();
+    const firstDayOfWeek = firstDay.getUTCDay() || 7;
+    const prevMonthEnd = new Date(Date.UTC(year, month - 1, 0)).getUTCDate();
     for (let i = firstDayOfWeek - 1; i > 0 && days.length < maxDays; i--) {
       days.push(new CalendarDate(year, month - 1, prevMonthEnd - i + 1));
     }
 
     // Add current month days
-    for (let i = 1; i <= lastDay.getDate() && days.length < maxDays; i++) {
+    for (let i = 1; i <= lastDay.getUTCDate() && days.length < maxDays; i++) {
       days.push(new CalendarDate(year, month, i));
     }
 

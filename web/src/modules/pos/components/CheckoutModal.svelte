@@ -80,10 +80,10 @@
   }
 
   function generateRefNumber(methodCode: string): string {
-    const now = new Date();
-    const dd = String(now.getDate()).padStart(2, '0');
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const yy = String(now.getFullYear()).slice(2);
+    const shifted = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    const dd = String(shifted.getUTCDate()).padStart(2, '0');
+    const mm = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+    const yy = String(shifted.getUTCFullYear()).slice(2);
     const rand = String(Math.floor(100000 + Math.random() * 900000));
     if (methodCode === 'CARD' || methodCode === 'EDC') return `EDC/${dd}${mm}${yy}/${rand}`;
     if (methodCode === 'E_WALLET') return `EW/${dd}${mm}${yy}/${rand}`;

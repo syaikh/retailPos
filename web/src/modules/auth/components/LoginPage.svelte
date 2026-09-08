@@ -167,7 +167,7 @@
       </form>
 
       <p class="text-xs text-text-muted text-center mt-8">
-        {t('copyright', { year: new Date().getFullYear() })}
+        {t('copyright', { year: new Date(Date.now() + 7 * 60 * 60 * 1000).getUTCFullYear() })}
       </p>
     </div>
   </div>

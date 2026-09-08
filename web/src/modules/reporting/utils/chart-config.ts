@@ -125,7 +125,7 @@ export function buildChartConfig({
       const daysSinceMonday = endDayOfWeek === 0 ? 6 : endDayOfWeek - 1;
       const mondayDate = new Date(endDateTime.getTime() - daysSinceMonday * 86400000);
       const sundayDate = new Date(mondayDate);
-      sundayDate.setDate(mondayDate.getDate() + 6);
+      sundayDate.setUTCDate(mondayDate.getUTCDate() + 6);
       const dayMs = 86400000;
       chartLabels = [];
       values = [];

@@ -1,6 +1,23 @@
 import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken } from './fixtures';
 
+const JAKARTA_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function getTodayInJakarta(): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}-${String(shifted.getUTCDate()).padStart(2, '0')}`;
+}
+
+function getDateNDaysAgoInJakarta(daysAgo: number): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  const todayMidnightJKT =
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 0, 0, 0, 0) -
+    JAKARTA_OFFSET_MS;
+  const targetMs = todayMidnightJKT - daysAgo * 86400000;
+  const target = new Date(targetMs + JAKARTA_OFFSET_MS);
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(target.getUTCDate()).padStart(2, '0')}`;
+}
+
 test.describe('Transactions Page', () => {
   test.beforeEach(async ({ page }) => {
     await loginUI(page, 'superadmin', 'admin123');
@@ -68,15 +85,11 @@ test.describe('Transactions Page', () => {
     const picker = page.locator('.date-picker-container');
     await expect(picker).toBeVisible();
 
-    const today = new Date();
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(today.getDate() - 60);
-
     const startInput = page.locator('#txn-start-date');
     const endInput = page.locator('#txn-end-date');
 
-    await startInput.fill(sixtyDaysAgo.toISOString().split('T')[0]);
-    await endInput.fill(today.toISOString().split('T')[0]);
+    await startInput.fill(getDateNDaysAgoInJakarta(60));
+    await endInput.fill(getTodayInJakarta());
 
     await picker.getByRole('button', { name: 'Apply' }).click();
     await page.waitForTimeout(1500);
@@ -127,15 +140,11 @@ test.describe('Transactions Page', () => {
     const picker = page.locator('.date-picker-container');
     await expect(picker).toBeVisible();
 
-    const today = new Date();
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(today.getDate() - 90);
-
     const startInput = page.locator('#txn-start-date');
     const endInput = page.locator('#txn-end-date');
 
-    await startInput.fill(ninetyDaysAgo.toISOString().split('T')[0]);
-    await endInput.fill(today.toISOString().split('T')[0]);
+    await startInput.fill(getDateNDaysAgoInJakarta(90));
+    await endInput.fill(getTodayInJakarta());
 
     await picker.getByRole('button', { name: 'Apply' }).click();
     await page.waitForTimeout(1500);
@@ -153,11 +162,26 @@ test.describe('Transactions Page', () => {
   test('should show Walk-in / General for sale without customer', async ({ page, request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
-    const productRes = await page.request.get(`${API_BASE}/api/products?limit=50`, {
+    let productRes = await page.request.get(`${API_BASE}/api/products?limit=50`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const productData = await productRes.json();
-    const productWithStock = productData.data?.find((p: any) => (p.stock ?? 0) > 0) ?? productData.data?.[0];
+    let productData = await productRes.json();
+    let productWithStock = productData.data?.find((p: any) => (p.stock ?? 0) > 0) ?? productData.data?.[0];
+    if (!productWithStock) {
+      const cr = await page.request.post(`${API_BASE}/api/products`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {
+          name: `E2E Txn Product ${Date.now()}`,
+          sku: `E2E-TXN-${Date.now()}`,
+          price: 10000,
+          cost: 5000,
+          stock: 100,
+          status: 'active',
+        },
+      });
+      const crData = await cr.json();
+      productWithStock = crData.data ?? crData;
+    }
     expect(productWithStock, 'no product available').toBeTruthy();
     const productId = productWithStock.id;
 
@@ -187,11 +211,26 @@ test.describe('Transactions Page', () => {
   test('should show customer name when sale has customer', async ({ page, request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
-    const productRes = await page.request.get(`${API_BASE}/api/products?limit=50`, {
+    let productRes = await page.request.get(`${API_BASE}/api/products?limit=50`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const productData = await productRes.json();
-    const productWithStock = productData.data?.find((p: any) => (p.stock ?? 0) > 0) ?? productData.data?.[0];
+    let productData = await productRes.json();
+    let productWithStock = productData.data?.find((p: any) => (p.stock ?? 0) > 0) ?? productData.data?.[0];
+    if (!productWithStock) {
+      const cr = await page.request.post(`${API_BASE}/api/products`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {
+          name: `E2E Txn Product ${Date.now()}`,
+          sku: `E2E-TXN-${Date.now()}`,
+          price: 10000,
+          cost: 5000,
+          stock: 100,
+          status: 'active',
+        },
+      });
+      const crData = await cr.json();
+      productWithStock = crData.data ?? crData;
+    }
     expect(productWithStock, 'no product available').toBeTruthy();
     const productId = productWithStock.id;
 

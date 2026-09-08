@@ -231,7 +231,7 @@
   });
   let daysInMonth = $derived.by(() => {
     const parts = getTodayInJakarta().split('-').map(Number);
-    return new Date(parts[0], parts[1], 0).getDate();
+    return new Date(Date.UTC(parts[0], parts[1], 0)).getUTCDate();
   });
 
   let projectedRevenue = $derived.by(() => {

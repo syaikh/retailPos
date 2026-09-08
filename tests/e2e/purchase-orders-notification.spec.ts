@@ -1,6 +1,33 @@
 import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, authHeader, loginUI, logoutUI, getToken } from './fixtures';
 
+const JAKARTA_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function getTodayInJakarta(): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}-${String(shifted.getUTCDate()).padStart(2, '0')}`;
+}
+
+function getDateNDaysAgoInJakarta(daysAgo: number): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  const todayMidnightJKT =
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 0, 0, 0, 0) -
+    JAKARTA_OFFSET_MS;
+  const targetMs = todayMidnightJKT - daysAgo * 86400000;
+  const target = new Date(targetMs + JAKARTA_OFFSET_MS);
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(target.getUTCDate()).padStart(2, '0')}`;
+}
+
+function getDateNDaysFromNowInJakarta(daysFromNow: number): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  const todayMidnightJKT =
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 0, 0, 0, 0) -
+    JAKARTA_OFFSET_MS;
+  const targetMs = todayMidnightJKT + daysFromNow * 86400000;
+  const target = new Date(targetMs + JAKARTA_OFFSET_MS);
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(target.getUTCDate()).padStart(2, '0')}`;
+}
+
 test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
   let headers: Record<string, string>;
   let supplier: { id: number; name: string };
@@ -39,7 +66,7 @@ test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
     const storeRaw = (await (await request.get(`${API_BASE}/api/stores/active`, { headers })).json()).data;
     const store = Array.isArray(storeRaw) ? storeRaw[0] : storeRaw;
 
-    const expDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    const expDate = getDateNDaysFromNowInJakarta(7);
 
     const createRes = await request.post(`${API_BASE}/api/purchase-orders`, {
       headers,

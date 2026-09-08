@@ -63,7 +63,7 @@ func TestReportService_PeriodComparison(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	now := time.Now()
+	now := time.Now().In(shared.JakartaLocation())
 	start := now.AddDate(0, -1, 0)
 	prevStart := start.AddDate(0, -1, 0)
 
@@ -88,7 +88,7 @@ func TestReportService_DualChartData(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	now := time.Now()
+	now := time.Now().In(shared.JakartaLocation())
 	currentStart := now.AddDate(0, 0, -7)
 	currentEnd := now
 	prevStart := currentStart.AddDate(0, 0, -7)
@@ -123,7 +123,7 @@ func TestReportService_HourlySales(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	result, err := svc.GetHourlySales(ctx, 0, time.Now())
+	result, err := svc.GetHourlySales(ctx, 0, time.Now().In(shared.JakartaLocation()))
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 }
@@ -137,8 +137,8 @@ func TestReportService_DailySales(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	start := time.Now().AddDate(0, -1, 0)
-	result, err := svc.GetDailySales(ctx, 0, start, time.Now())
+	start := time.Now().In(shared.JakartaLocation()).AddDate(0, -1, 0)
+	result, err := svc.GetDailySales(ctx, 0, start, time.Now().In(shared.JakartaLocation()))
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 }
@@ -153,8 +153,8 @@ func TestReportService_SalesWeeklyReport(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	start := time.Now().AddDate(0, -3, 0)
-	result, err := svc.GetSalesWeeklyReport(ctx, 0, start, time.Now())
+	start := time.Now().In(shared.JakartaLocation()).AddDate(0, -3, 0)
+	result, err := svc.GetSalesWeeklyReport(ctx, 0, start, time.Now().In(shared.JakartaLocation()))
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 }
@@ -169,8 +169,8 @@ func TestReportService_SalesMonthlyReport(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	start := time.Now().AddDate(0, -6, 0)
-	result, err := svc.GetSalesMonthlyReport(ctx, 0, start, time.Now())
+	start := time.Now().In(shared.JakartaLocation()).AddDate(0, -6, 0)
+	result, err := svc.GetSalesMonthlyReport(ctx, 0, start, time.Now().In(shared.JakartaLocation()))
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 }
@@ -185,7 +185,7 @@ func TestReportService_GetPricingBreakdown(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	now := time.Now()
+	now := time.Now().In(shared.JakartaLocation())
 	start := now.AddDate(0, -1, 0)
 
 	t.Run("nil storeID", func(t *testing.T) {
@@ -213,8 +213,8 @@ func TestReportService_GetDualMonthlyReport(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	now := time.Now()
-	currentMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	now := time.Now().In(shared.JakartaLocation())
+	currentMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, shared.JakartaLocation())
 	previousMonth := currentMonth.AddDate(0, -1, 0)
 
 	hash, _ := bcrypt.GenerateFromPassword([]byte("cashier123"), bcrypt.MinCost)

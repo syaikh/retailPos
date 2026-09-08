@@ -1,6 +1,33 @@
 import { test, expect } from './fixtures';
 import { TEST_USERS, API_BASE, authHeader, loginUI, logoutUI, getToken } from './fixtures';
 
+const JAKARTA_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function getTodayInJakarta(): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}-${String(shifted.getUTCDate()).padStart(2, '0')}`;
+}
+
+function getDateNDaysAgoInJakarta(daysAgo: number): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  const todayMidnightJKT =
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 0, 0, 0, 0) -
+    JAKARTA_OFFSET_MS;
+  const targetMs = todayMidnightJKT - daysAgo * 86400000;
+  const target = new Date(targetMs + JAKARTA_OFFSET_MS);
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(target.getUTCDate()).padStart(2, '0')}`;
+}
+
+function getDateNDaysFromNowInJakarta(daysFromNow: number): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  const todayMidnightJKT =
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 0, 0, 0, 0) -
+    JAKARTA_OFFSET_MS;
+  const targetMs = todayMidnightJKT + daysFromNow * 86400000;
+  const target = new Date(targetMs + JAKARTA_OFFSET_MS);
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(target.getUTCDate()).padStart(2, '0')}`;
+}
+
 test.describe('Purchase Orders - UI Flow', () => {
   let headers: Record<string, string>;
   let supplier: { id: number; name: string };
@@ -23,9 +50,24 @@ test.describe('Purchase Orders - UI Flow', () => {
     let linkedBody = await linkedRes.json();
     let linkedProducts = linkedBody.data || [];
     if (linkedProducts.length === 0) {
-      const allProdRes = await request.get(`${API_BASE}/api/products?limit=1`, { headers });
-      const allProdBody = await allProdRes.json();
-      const anyProduct = (allProdBody.data || [])[0];
+      let allProdRes = await request.get(`${API_BASE}/api/products?limit=1`, { headers });
+      let allProdBody = await allProdRes.json();
+      let anyProduct = (allProdBody.data || [])[0];
+      if (!anyProduct) {
+        const cr = await request.post(`${API_BASE}/api/products`, {
+          headers,
+          data: {
+            name: `E2E PO UI Product ${Date.now()}`,
+            sku: `E2E-POUI-${Date.now()}`,
+            price: 10000,
+            cost: 5000,
+            stock: 100,
+            status: 'active',
+          },
+        });
+        const crBody = await cr.json();
+        anyProduct = crBody.data ?? crBody;
+      }
       expect(anyProduct).toBeTruthy();
       await request.post(`${API_BASE}/api/suppliers/${supplier.id}/products`, {
         headers,
@@ -84,7 +126,7 @@ test.describe('Purchase Orders - UI Flow', () => {
       await page.waitForTimeout(300);
     }
 
-    const expectedDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    const expectedDate = getDateNDaysFromNowInJakarta(7);
     await formModal.locator('input[type="date"]').fill(expectedDate);
 
     const nextBtn = formModal.locator('button').filter({ hasText: 'Next' });
@@ -152,7 +194,7 @@ test.describe('Purchase Orders - UI Flow', () => {
 
   test('edit PO opens from Step 1, allows updating details then items', async ({ page, request }) => {
     // Create a draft PO via API
-    const expDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    const expDate = getDateNDaysFromNowInJakarta(7);
     const storeRaw = (await (await request.get(`${API_BASE}/api/stores/active`, { headers })).json()).data;
     const store = Array.isArray(storeRaw) ? storeRaw[0] : storeRaw;
 
@@ -270,7 +312,7 @@ test.describe('Purchase Orders - UI Flow', () => {
     }
 
     // Expected Date
-    const expectedDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    const expectedDate = getDateNDaysFromNowInJakarta(7);
     const dateInput = formModal.locator('input[type="date"]');
     await dateInput.fill(expectedDate);
 

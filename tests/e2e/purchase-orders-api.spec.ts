@@ -1,6 +1,33 @@
 import { test, expect } from './fixtures';
 import { apiAs, ApiDriver } from './api-driver';
 
+const JAKARTA_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function getTodayInJakarta(): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}-${String(shifted.getUTCDate()).padStart(2, '0')}`;
+}
+
+function getDateNDaysAgoInJakarta(daysAgo: number): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  const todayMidnightJKT =
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 0, 0, 0, 0) -
+    JAKARTA_OFFSET_MS;
+  const targetMs = todayMidnightJKT - daysAgo * 86400000;
+  const target = new Date(targetMs + JAKARTA_OFFSET_MS);
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(target.getUTCDate()).padStart(2, '0')}`;
+}
+
+function getDateNDaysFromNowInJakarta(daysFromNow: number): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  const todayMidnightJKT =
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 0, 0, 0, 0) -
+    JAKARTA_OFFSET_MS;
+  const targetMs = todayMidnightJKT + daysFromNow * 86400000;
+  const target = new Date(targetMs + JAKARTA_OFFSET_MS);
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(target.getUTCDate()).padStart(2, '0')}`;
+}
+
 /**
  * Purchase Order + Goods Receipt behaviour, driven at the API layer. This is a
  * straight port of the previously browser-filed purchase-orders-flow.spec.ts
@@ -20,27 +47,50 @@ test.describe('Purchase Orders & Goods Receipts (API driver)', () => {
     let initialStock = 0;
     let storeId = 0;
     let productId = 0;
+    let supplierId = 0;
 
     test.beforeAll(async ({ request }) => {
       const api = await apiAs(request, 'superadmin');
-      const supplier = firstOf((await api.get('/api/suppliers?limit=1')).body);
-      const product = firstOf((await api.get('/api/products?limit=1')).body);
+      let supplier = firstOf((await api.get('/api/suppliers?limit=1')).body);
+      if (!supplier?.id) {
+        const cr = await api.post('/api/suppliers', {
+          name: `E2E PO Supplier ${Date.now()}`,
+          code: `E2E-SUP-${Date.now()}`,
+          contact_name: 'Test',
+          phone: '081234567890',
+          is_active: true,
+        });
+        supplier = data(cr.body);
+      }
+      let product = firstOf((await api.get('/api/products?limit=1')).body);
+      if (!product?.id) {
+        const cr = await api.post('/api/products', {
+          name: `E2E PO Product ${Date.now()}`,
+          sku: `E2E-PO-${Date.now()}`,
+          price: 10000,
+          cost: 5000,
+          stock: 100,
+          status: 'active',
+        });
+        product = data(cr.body);
+      }
       const store = firstOf((await api.get('/api/stores/active')).body);
       expect(supplier?.id).toBeTruthy();
       expect(product?.id).toBeTruthy();
       expect(store?.id).toBeTruthy();
       storeId = store.id;
       productId = product.id;
+      supplierId = supplier.id;
     });
 
     test('1. POST /api/purchase-orders - create draft PO', async ({ request }) => {
       const api = await apiAs(request, 'superadmin');
       const unitCost = 1000;
       const qtyOrdered = 10;
-      const expectedDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+      const expectedDate = getDateNDaysFromNowInJakarta(7);
 
       const res = await api.post('/api/purchase-orders', {
-        supplier_id: 1,
+        supplier_id: supplierId,
         store_id: storeId,
         expected_date: expectedDate,
         items: [{ product_id: productId, qty_ordered: qtyOrdered, unit_cost: unitCost }],
@@ -173,14 +223,35 @@ test.describe('Purchase Orders & Goods Receipts (API driver)', () => {
 
     test('POST for draft PO returns 400', async ({ request }) => {
       const api = await apiAs(request, 'superadmin');
-      const supplier = firstOf((await api.get('/api/suppliers?limit=1')).body);
-      const product = firstOf((await api.get('/api/products?limit=1')).body);
+      let supplier = firstOf((await api.get('/api/suppliers?limit=1')).body);
+      if (!supplier?.id) {
+        const cr = await api.post('/api/suppliers', {
+          name: `E2E PO Supplier ${Date.now()}`,
+          code: `E2E-SUP-${Date.now()}`,
+          contact_name: 'Test',
+          phone: '081234567890',
+          is_active: true,
+        });
+        supplier = data(cr.body);
+      }
+      let product = firstOf((await api.get('/api/products?limit=1')).body);
+      if (!product?.id) {
+        const cr = await api.post('/api/products', {
+          name: `E2E PO Product ${Date.now()}`,
+          sku: `E2E-PO-${Date.now()}`,
+          price: 10000,
+          cost: 5000,
+          stock: 100,
+          status: 'active',
+        });
+        product = data(cr.body);
+      }
       const store = firstOf((await api.get('/api/stores/active')).body);
 
       const poRes = await api.post('/api/purchase-orders', {
         supplier_id: supplier.id,
         store_id: store.id,
-        expected_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        expected_date: getDateNDaysFromNowInJakarta(7),
         items: [{ product_id: product.id, qty_ordered: 5, unit_cost: 1000 }],
       });
       expect(poRes.ok).toBeTruthy();
@@ -207,12 +278,33 @@ test.describe('Purchase Orders & Goods Receipts (API driver)', () => {
     });
 
     async function makeDraft(api: any) {
-      const supplier = firstOf((await api.get('/api/suppliers?limit=1')).body);
-      const product = firstOf((await api.get('/api/products?limit=1')).body);
+      let supplier = firstOf((await api.get('/api/suppliers?limit=1')).body);
+      if (!supplier?.id) {
+        const cr = await api.post('/api/suppliers', {
+          name: `E2E PO Supplier ${Date.now()}`,
+          code: `E2E-SUP-${Date.now()}`,
+          contact_name: 'Test',
+          phone: '081234567890',
+          is_active: true,
+        });
+        supplier = data(cr.body);
+      }
+      let product = firstOf((await api.get('/api/products?limit=1')).body);
+      if (!product?.id) {
+        const cr = await api.post('/api/products', {
+          name: `E2E PO Product ${Date.now()}`,
+          sku: `E2E-PO-${Date.now()}`,
+          price: 10000,
+          cost: 5000,
+          stock: 100,
+          status: 'active',
+        });
+        product = data(cr.body);
+      }
       const res = await api.post('/api/purchase-orders', {
         supplier_id: supplier.id,
         store_id: storeId,
-        expected_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        expected_date: getDateNDaysFromNowInJakarta(7),
         items: [{ product_id: product.id, qty_ordered: 1, unit_cost: 1000 }],
       });
       expect(res.ok).toBeTruthy();

@@ -145,7 +145,7 @@
               return { start: `${start.year}-01-01`, end: `${start.year}-01-01` };
             }
             endMonth = currentMonth - 1;
-            const lastDayOfPrevMonth = new Date(currentYear, currentMonth - 1, 0).getDate();
+            const lastDayOfPrevMonth = new Date(Date.UTC(currentYear, currentMonth - 1, 0)).getUTCDate();
             endDay = lastDayOfPrevMonth;
           }
           return {
@@ -425,7 +425,7 @@
                         return;
                       }
                       endMonth = currentMonth - 1;
-                      const lastDayOfPrevMonth = new Date(year, currentMonth - 1, 0).getDate();
+                      const lastDayOfPrevMonth = new Date(Date.UTC(year, currentMonth - 1, 0)).getUTCDate();
                       endDay = lastDayOfPrevMonth;
                     }
                     activePeriodType = 'yearly';

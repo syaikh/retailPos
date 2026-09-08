@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"retail-pos-system/internal/platform/importexport/schema"
+	"retail-pos-system/internal/shared"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -119,7 +120,7 @@ func (e *Engine) createMetaSheet(wb *excelize.File, s schema.ModuleSchema) error
 	meta := []entry{
 		{"Module", s.ModuleName},
 		{"SchemaVersion", s.SchemaVersion},
-		{"GeneratedAt", time.Now().UTC().Format(time.RFC3339)},
+		{"GeneratedAt", time.Now().In(shared.JakartaLocation()).Format(time.RFC3339)},
 		{"TotalColumns", fmt.Sprintf("%d", len(s.Columns))},
 	}
 	if s.DisplayName != "" {

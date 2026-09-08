@@ -192,7 +192,7 @@ func TestLookup_InvoiceSearchIgnores30DayWindow(t *testing.T) {
 
 	// Widened (epoch) window the frontend sends must surface the old sale.
 	w2 := httptest.NewRecorder()
-	req2, _ := http.NewRequest("GET", "/sales/lookup?search=INV-LOOKUP-OLD&start_date=2000-01-01&end_date="+time.Now().Format("2006-01-02"), nil)
+	req2, _ := http.NewRequest("GET", "/sales/lookup?search=INV-LOOKUP-OLD&start_date=2000-01-01&end_date="+time.Now().In(shared.JakartaLocation()).Format("2006-01-02"), nil)
 	r.ServeHTTP(w2, req2)
 	require.Equal(t, http.StatusOK, w2.Code)
 	var widened lookupPage

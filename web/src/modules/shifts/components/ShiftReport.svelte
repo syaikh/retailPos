@@ -50,6 +50,7 @@
     return new Date(iso).toLocaleString('id-ID', {
       dateStyle: 'medium',
       timeStyle: 'short',
+      timeZone: 'Asia/Jakarta',
     });
   }
 

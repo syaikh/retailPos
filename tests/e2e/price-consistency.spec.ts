@@ -20,9 +20,11 @@ function checkoutUrl(cartId: number) {
   return `${API_URLS.CART}/${cartId}/checkout`;
 }
 
-function todayJakarta(): string {
-  const now = new Date(Date.now() + 7 * 3600 * 1000);
-  return now.toISOString().slice(0, 10);
+const JAKARTA_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function getTodayInJakarta(): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}-${String(shifted.getUTCDate()).padStart(2, '0')}`;
 }
 
 // Ensure a fresh, empty open cart exists for the cashier. Any existing open
@@ -83,15 +85,29 @@ async function getCart(token: string, request: any, cartId: number) {
 }
 
 async function updateProductPrice(token: string, request: any, productId: number, sku: string, price: number) {
+  const getRes = await request.get(`${API_URLS.PRODUCTS}/${productId}`, {
+    headers: authHeader(token),
+  });
+  expect(getRes.ok()).toBeTruthy();
+  const existing = (await getRes.json()).data;
   const res = await request.put(`${API_URLS.PRODUCTS}/${productId}`, {
     headers: authHeader(token),
     data: {
-      name: PRODUCT_NAME,
+      name: existing.name,
       sku,
       price,
-      cost: 5000,
-      stock: 100,
-      status: 'active',
+      cost: existing.cost,
+      stock: existing.stock,
+      status: existing.status,
+      category_id: existing.category_id ?? null,
+      brand_id: existing.brand_id ?? null,
+      store_id: existing.store_id ?? null,
+      unit_of_measure_id: existing.unit_of_measure_id ?? null,
+      tax_class_id: existing.tax_class_id ?? null,
+      weight_grams: existing.weight_grams ?? null,
+      description: existing.description ?? null,
+      barcode: existing.barcode ?? null,
+      default_discount_percent: existing.default_discount_percent ?? null,
     },
   });
   expect(res.ok()).toBeTruthy();
@@ -499,7 +515,7 @@ test.describe('Price Consistency During Active Transactions', () => {
     const invoice = invoiceMatch![0];
 
     const histRes = await request.get(
-      `${API_URLS.SALES}?limit=10&offset=0&startDate=2025-01-01&endDate=${todayJakarta()}`,
+      `${API_URLS.SALES}?limit=10&offset=0&startDate=2025-01-01&endDate=${getTodayInJakarta()}`,
       { headers: authHeader(token) },
     );
     expect(histRes.ok()).toBeTruthy();

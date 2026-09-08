@@ -458,19 +458,29 @@ func (r *Repository) GetHourlySales(ctx context.Context, date time.Time, storeID
 }
 
 func (r *Repository) GetDailySales(ctx context.Context, start, end time.Time, storeID *int) ([]ChartDataPoint, error) {
-	query := `
-		SELECT sale_date AS dt,
-			   SUM(total_revenue) AS revenue
-		FROM mv_daily_sales
-		WHERE sale_date >= ($1::timestamptz AT TIME ZONE 'Asia/Jakarta')::date
-		  AND sale_date < ($2::timestamptz AT TIME ZONE 'Asia/Jakarta')::date`
+	storeFilter := ""
 	args := []interface{}{start, end}
-	argIdx := 3
 	if storeID != nil {
-		query += fmt.Sprintf(" AND store_id = $%d", argIdx)
+		storeFilter = fmt.Sprintf(" AND store_id = $%d", len(args)+1)
 		args = append(args, *storeID)
 	}
-	query += " GROUP BY sale_date ORDER BY sale_date"
+
+	query := `
+		WITH date_series AS (
+			SELECT generate_series($1::date, ($2::date - interval '1 day')::date, '1 day') AS dt
+		),
+		agg AS (
+			SELECT sale_date AS dt,
+				   SUM(total_revenue) AS revenue
+			FROM mv_daily_sales
+			WHERE sale_date >= $1::date AND sale_date < $2::date` + storeFilter + `
+			GROUP BY sale_date
+		)
+		SELECT ds.dt,
+			   COALESCE(a.revenue, 0)
+		FROM date_series ds
+		LEFT JOIN agg a ON a.dt = ds.dt
+		ORDER BY ds.dt`
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {

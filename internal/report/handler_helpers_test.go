@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var wib = time.FixedZone("WIB", 7*3600)
+var wib = shared.JakartaLocation()
 
 func TestGetDailyRanges(t *testing.T) {
 	tests := []struct {
