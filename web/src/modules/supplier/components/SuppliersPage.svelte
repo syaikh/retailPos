@@ -219,7 +219,7 @@
   {#if referrer === 'consignment'}
     <button
       class="inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-text-secondary transition-colors"
-      onclick={() => goto('/consignment/arrangements')}
+      onclick={() => goto('/consignment')}
     >
       <ArrowLeft size={16} /> {labels.back}
     </button>

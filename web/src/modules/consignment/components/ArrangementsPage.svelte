@@ -3,7 +3,7 @@
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
   import { goto } from '$app/router';
-  import { Button, Modal, Input, NumberInput, SelectSearch, EmptyState, Badge, SearchBar, Pagination } from '$shared/ui';
+  import { Button, Modal, Input, SelectSearch, EmptyState, Badge, SearchBar, Pagination } from '$shared/ui';
   import { Plus, ClipboardList, Truck, RotateCcw, Wallet, ArrowLeft, AlertTriangle, ExternalLink } from 'lucide-svelte';
   import { debounce } from '$shared/utils/debounce';
   import { labels, t } from '$shared/i18n';
@@ -13,6 +13,7 @@
     createArrangement,
     listConsignmentSuppliers,
   } from '../services/consignment-service';
+  import { getActiveStores } from '$modules/stores/services/stores-service';
   import type { Arrangement, ConsignmentSupplierRef } from '../types';
   import {
     ARRANGEMENT_STATUS_LABELS,
@@ -67,6 +68,18 @@
       total = arrs.total;
       suppliers = sups;
       supplierOptions = sups.map((s) => ({ value: s.id, label: s.name }));
+
+      // Load stores (may fail if user lacks store.view permission)
+      try {
+        const stores = await getActiveStores();
+        storeOptions = stores.map((s) => ({ value: s.id, label: s.name }));
+      } catch {
+        // Fall back to current user's store
+        const userStore = authStore.user?.store_id;
+        if (userStore) {
+          storeOptions = [{ value: userStore, label: labels.consignmentCurrentStore }];
+        }
+      }
     } catch {
       toast.error(labels.consignmentLoadError);
     } finally {
@@ -374,7 +387,13 @@
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
         <span>{labels.consignmentStore}</span>
-        <NumberInput bind:value={createStoreId} placeholder={labels.consignmentStorePlaceholder} class="h-9 text-sm" />
+        <SelectSearch
+          bind:value={createStoreId}
+          options={storeOptions}
+          placeholder={labels.consignmentStorePlaceholder}
+          searchPlaceholder={labels.consignmentSearchStore}
+          notFoundText={labels.consignmentNoStores}
+        />
       </label>
       {#if suppliers.length === 0}
         <p class="text-xs text-amber-600">

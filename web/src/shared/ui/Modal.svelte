@@ -3,6 +3,7 @@
   import type { Snippet } from 'svelte';
   import { X } from 'lucide-svelte';
   import { fade, fly } from 'svelte/transition';
+  import { isAnyDropdownOpen } from './dropdown-state';
 
   let {
     open = $bindable(false),
@@ -54,7 +55,10 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && !persistent) open = false;
+    if (e.key === 'Escape' && !persistent) {
+      if (isAnyDropdownOpen()) return;
+      open = false;
+    }
   }
 
   function stopPropagation(e: MouseEvent) {
@@ -91,7 +95,6 @@
     transition:fade={{ duration: 200 }}
     role="presentation"
     onclick={() => { if (!persistent) open = false; }}
-    onkeydown={(e) => { if (e.key === 'Escape' && !persistent) open = false; }}
   >
     <!-- Panel - trap focus within the dialog -->
     <div

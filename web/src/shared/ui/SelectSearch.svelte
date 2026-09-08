@@ -1,6 +1,7 @@
 <script lang="ts">
   import { cn } from '$shared/utils/cn';
   import { Search, ChevronDown } from 'lucide-svelte';
+  import { setDropdownOpen } from './dropdown-state';
 
   interface Option {
     value: number;
@@ -46,16 +47,31 @@
     menuStyle = `position:fixed;top:${r.bottom + 6}px;left:${r.left}px;width:${r.width}px`;
   }
 
+  function closeDropdown() {
+    if (open) setDropdownOpen(false);
+    open = false;
+    search = '';
+  }
+
   function openDropdown() {
     if (disabled) return;
     open = true;
     search = '';
+    setDropdownOpen(true);
+  }
+
+  function toggleDropdown() {
+    if (disabled) return;
+    if (open) {
+      closeDropdown();
+    } else {
+      openDropdown();
+    }
   }
 
   function handleSelect(opt: Option) {
     value = opt.value;
-    open = false;
-    search = '';
+    closeDropdown();
     onchange?.(opt.value);
   }
 
@@ -77,16 +93,13 @@
 
     function handleClickOutside(e: MouseEvent) {
       if (container && !container.contains(e.target as Node)) {
-        open = false;
-        search = '';
+        closeDropdown();
       }
     }
 
     function handleKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        e.stopPropagation();
-        open = false;
-        search = '';
+        closeDropdown();
       }
     }
 
@@ -109,7 +122,7 @@
   <button
     bind:this={buttonEl}
     type="button"
-    onclick={openDropdown}
+    onclick={toggleDropdown}
     disabled={disabled}
     class={cn(
       'w-full rounded-xl border bg-bg-secondary px-3.5 py-2.5 text-sm text-left transition-colors duration-200 flex items-center gap-2',
