@@ -10,46 +10,52 @@ test.describe('POS Wholesale Flow', () => {
   test.beforeAll(async ({ request }) => {
     const token = await getToken(request);
 
-    const prodRes = await request.get(`${API_BASE}/api/products?limit=20&status=active`, {
+    const ts = Date.now();
+    const sku = `E2E-WHOLE-${ts}`;
+    const prodRes = await request.post(`${API_BASE}/api/products`, {
       headers: authHeader(token),
+      data: {
+        sku,
+        name: `E2E Wholesale Test ${ts}`,
+        price: 50000,
+        cost: 30000,
+        stock: 0,
+        status: 'active',
+      },
     });
+    if (!prodRes.ok()) return;
     const prodBody = await prodRes.json();
-    if (!prodBody.data || prodBody.data.length === 0) return;
+    if (!prodBody.data) return;
+    productId = prodBody.data.id;
 
-    for (const prod of prodBody.data) {
-      const rulesRes = await request.get(`${API_BASE}/api/pricing-rules?product_id=${prod.id}`, {
-        headers: authHeader(token),
-      });
-      const rulesBody = await rulesRes.json();
-      if (rulesBody.data && rulesBody.data.length > 0) continue;
-
-      productId = prod.id;
-
-      const ruleRes = await request.post(`${API_BASE}/api/pricing-rules`, {
-        headers: authHeader(token),
-        data: {
-          product_id: productId,
-          pricing_type: 'special_price',
-          pricing_method: 'fixed_price',
-          pricing_value: 10000,
-          name: 'E2E Wholesale Test',
-          minimum_quantity: 3,
-          priority: 0,
-          is_active: true,
-        },
-      });
-      const ruleBody = await ruleRes.json();
-      if (ruleBody.data) {
-        ruleId = ruleBody.data.id;
-      }
-      return;
+    const ruleRes = await request.post(`${API_BASE}/api/pricing-rules`, {
+      headers: authHeader(token),
+      data: {
+        product_id: productId,
+        pricing_type: 'special_price',
+        pricing_method: 'fixed_price',
+        pricing_value: 10000,
+        name: 'E2E Wholesale Test',
+        minimum_quantity: 3,
+        priority: 0,
+        is_active: true,
+      },
+    });
+    const ruleBody = await ruleRes.json();
+    if (ruleBody.data) {
+      ruleId = ruleBody.data.id;
     }
   });
 
   test.afterAll(async ({ request }) => {
+    const token = await getToken(request);
     if (ruleId) {
-      const token = await getToken(request);
       await request.delete(`${API_BASE}/api/pricing-rules/${ruleId}`, {
+        headers: authHeader(token),
+      });
+    }
+    if (productId) {
+      await request.delete(`${API_BASE}/api/products/${productId}`, {
         headers: authHeader(token),
       });
     }
