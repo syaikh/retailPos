@@ -1317,7 +1317,7 @@ func (r *Repository) GetReceiptForEdit(ctx context.Context, db queryer, receiptI
 
 	rows, err := db.Query(ctx, `
 		SELECT id, consignment_receipt_id, product_id, accepted_qty, price,
-		       store_share_type, store_share_value, notes
+		       store_share_type, store_share_value, COALESCE(notes,'')
 		FROM consignment_receipt_items
 		WHERE consignment_receipt_id = $1
 		ORDER BY id

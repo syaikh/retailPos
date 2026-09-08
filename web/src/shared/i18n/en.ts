@@ -1779,6 +1779,7 @@ export const en: Labels = {
   consignmentEditReasonRequired: 'Reason is required to edit receipt',
   consignmentReceiptUpdated: 'Receipt updated successfully',
   consignmentEditError: 'Failed to edit receipt',
+  consignmentEditWindowExpired: 'This receipt is outside the 7-day edit window',
   consignmentPendingReturns: 'Pending Returns',
   consignmentRecordPendingReturn: 'Record Pending Return',
   consignmentStatus: 'Status',

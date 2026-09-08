@@ -1779,6 +1779,7 @@ export const id = {
   consignmentEditReasonRequired: 'Alasan wajib diisi untuk mengedit penerimaan',
   consignmentReceiptUpdated: 'Penerimaan berhasil diperbarui',
   consignmentEditError: 'Gagal mengedit penerimaan',
+  consignmentEditWindowExpired: 'Penerimaan ini berada di luar jendela edit 7 hari',
   consignmentPendingReturns: 'Retur Tertunda',
   consignmentRecordPendingReturn: 'Catat Retur Tertunda',
   consignmentStatus: 'Status',

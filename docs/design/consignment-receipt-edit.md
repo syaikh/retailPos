@@ -489,7 +489,9 @@ PUT /consignment/receipts/:id
 #### Edit Button
 - Show "Edit" button in detail modal footer (next to "Close")
 - Only visible if user has `consignment.update` permission
-- Disabled/hidden if receipt is outside edit window or has downstream activity
+- **7-day window check (client-side):** The `editWindowExpired` derived value computes `new Date() - new Date(received_at) > 7 days`. When expired, the edit button is replaced with an info text: *"This receipt is outside the 7-day edit window" / "Penerimaan ini berada di luar jendela edit 7 hari"*
+- The button is hidden entirely when outside the window — the user cannot attempt an edit that will fail server-side
+- Server-side validation remains as a safety net (returns 400 if the client-side check is bypassed)
 
 #### Edit Mode
 When user clicks "Edit":
@@ -529,18 +531,28 @@ When user clicks "Edit":
 ```
 
 #### Downstream Activity Check
-When user clicks "Edit", system checks:
+When user opens the receipt detail modal, the system computes editability:
+
 ```
-IF (any quantity from this receipt has been sold)
-   OR (any quantity is pending return)
-   OR (receipt older than 7 days)
-   OR (receipt is settled)
-THEN
-   Show toast: "Cannot edit: receipt has downstream activity"
-   Show info badge: "Settled" or "Has sales" or "Outside edit window"
-ELSE
-   Enable edit mode
+Client-side (instant, on modal open):
+  editWindowExpired = (now - received_at) > 7 days
+  IF editWindowExpired THEN
+    Hide "Edit" button
+    Show info text: "This receipt is outside the 7-day edit window"
+  ELSE
+    Show "Edit" button
+
+Server-side (on save, safety net):
+  IF receipt older than 7 days → 400 Bad Request (ErrEditWindowExpired)
+  IF any quantity sold → 400 Bad Request (ErrReceiptHasSales)
+  IF any quantity pending return → 400 Bad Request (ErrReceiptHasPendingReturns)
+  IF receipt settled → 400 Bad Request (ErrReceiptIsSettled)
 ```
+
+**Rationale for client-side pre-check:**
+- Prevents unnecessary API calls that would always fail
+- Provides immediate UX feedback without network latency
+- Server-side check remains as authoritative guardrail
 
 ## Implementation Plan
 
@@ -798,6 +810,7 @@ consignmentEditBlocked: 'Cannot edit receipt' / 'Tidak dapat mengedit penerimaan
 consignmentEditBlockedSales: 'Has downstream sales' / 'Memiliki penjualan'
 consignmentEditBlockedSettled: 'Already settled' / 'Sudah diselesaikan'
 consignmentEditBlockedExpired: 'Outside 7-day edit window' / 'Di luar jendela edit 7 hari'
+consignmentEditWindowExpired: 'This receipt is outside the 7-day edit window' / 'Penerimaan ini berada di luar jendela edit 7 hari'
 consignmentStockDelta: 'Stock delta' / 'Selisih stok'
 consignmentEditSaved: 'Receipt updated successfully' / 'Penerimaan berhasil diperbarui'
 consignmentEditFailed: 'Failed to update receipt' / 'Gagal memperbarui penerimaan'
@@ -869,6 +882,7 @@ consignmentEditFailed: 'Failed to update receipt' / 'Gagal memperbarui penerimaa
 ### Receipt Edit Feature
 - [ ] Edit receipt within 7-day window → success
 - [ ] Edit receipt after 7 days → blocked
+- [ ] Edit receipt after 7 days → edit button hidden, info text shown
 - [ ] Edit receipt with downstream sales → blocked (qty)
 - [ ] Edit receipt with downstream sales → blocked (price)
 - [ ] Edit receipt with pending returns → blocked

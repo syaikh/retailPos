@@ -49,6 +49,15 @@
   let pageOffset = $state(0);
   const pagedReceipts = $derived(receipts.slice(pageOffset, pageOffset + pageLimit));
 
+  const EDIT_WINDOW_DAYS = 7;
+  const editWindowExpired = $derived.by(() => {
+    if (!detailReceipt?.received_at) return true;
+    const received = new Date(detailReceipt.received_at);
+    const now = new Date();
+    const diffMs = now.getTime() - received.getTime();
+    return diffMs > EDIT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  });
+
   async function load() {
     loading = true;
     try {
@@ -482,9 +491,13 @@
       {:else}
         <Button variant="secondary" onclick={() => (showDetailModal = false)}>{labels.close}</Button>
         {#if detailReceipt}
-          <Button variant="secondary" onclick={enterEditMode}>
-            <Pencil class="w-4 h-4" /> {labels.consignmentEditReceipt}
-          </Button>
+          {#if editWindowExpired}
+            <span class="text-xs text-text-secondary italic self-center">{labels.consignmentEditWindowExpired}</span>
+          {:else}
+            <Button variant="secondary" onclick={enterEditMode}>
+              <Pencil class="w-4 h-4" /> {labels.consignmentEditReceipt}
+            </Button>
+          {/if}
         {/if}
       {/if}
     </div>
