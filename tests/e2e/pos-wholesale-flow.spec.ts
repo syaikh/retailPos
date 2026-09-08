@@ -10,12 +10,20 @@ test.describe('POS Wholesale Flow', () => {
   test.beforeAll(async ({ request }) => {
     const token = await getToken(request);
 
-    const prodRes = await request.get(`${API_BASE}/api/products?limit=1&status=active`, {
+    const prodRes = await request.get(`${API_BASE}/api/products?limit=20&status=active`, {
       headers: authHeader(token),
     });
     const prodBody = await prodRes.json();
-    if (prodBody.data && prodBody.data.length > 0) {
-      productId = prodBody.data[0].id;
+    if (!prodBody.data || prodBody.data.length === 0) return;
+
+    for (const prod of prodBody.data) {
+      const rulesRes = await request.get(`${API_BASE}/api/pricing-rules?product_id=${prod.id}`, {
+        headers: authHeader(token),
+      });
+      const rulesBody = await rulesRes.json();
+      if (rulesBody.data && rulesBody.data.length > 0) continue;
+
+      productId = prod.id;
 
       const ruleRes = await request.post(`${API_BASE}/api/pricing-rules`, {
         headers: authHeader(token),
@@ -34,6 +42,7 @@ test.describe('POS Wholesale Flow', () => {
       if (ruleBody.data) {
         ruleId = ruleBody.data.id;
       }
+      return;
     }
   });
 
