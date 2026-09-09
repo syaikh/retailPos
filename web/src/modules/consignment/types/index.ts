@@ -124,7 +124,7 @@ export interface SettlementItem {
   id: number;
   consignment_settlement_id: number;
   consignment_sale_item_id: number;
-  product_id: number;
+  product_id: number | null;
   product_name?: string;
   quantity: number;
   unit_price: number;

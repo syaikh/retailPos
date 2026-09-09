@@ -17,6 +17,7 @@ export { default as LanguageSwitch } from './LanguageSwitch.svelte';
 export { default as ImportWizard } from './ImportWizard.svelte';
 export { default as Input } from './Input.svelte';
 export { default as NumberInput } from './NumberInput.svelte';
+export { default as FormattedNumberInput } from './FormattedNumberInput.svelte';
 export { default as Modal } from './Modal.svelte';
 export { default as PageHeader } from './PageHeader.svelte';
 export { default as Pagination } from './Pagination.svelte';

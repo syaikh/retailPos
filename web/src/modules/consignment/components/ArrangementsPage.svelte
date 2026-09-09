@@ -129,7 +129,8 @@
       showCreateModal = false;
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || e.message || labels.consignmentCreateError);
+      const raw = e?.response?.data?.error;
+      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentCreateError);
     } finally {
       creating = false;
     }

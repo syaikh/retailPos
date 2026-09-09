@@ -222,7 +222,7 @@ type SettlementItem struct {
 	ID                      int    `json:"id"`
 	ConsignmentSettlementID int    `json:"consignment_settlement_id"`
 	ConsignmentSaleItemID   int    `json:"consignment_sale_item_id"`
-	ProductID               int    `json:"product_id"`
+	ProductID               *int   `json:"product_id"`
 	ProductName             string `json:"product_name,omitempty"`
 	Quantity                int    `json:"quantity"`
 	UnitPrice               int    `json:"unit_price"`

@@ -1118,10 +1118,11 @@ func (s *Service) CreateSettlement(ctx context.Context, req *CreateSettlementReq
 	ids := make([]int, 0, len(items))
 	for _, it := range items {
 		ids = append(ids, it.ID)
+		pid := it.ProductID
 		if err := s.repo.InsertSettlementItem(ctx, tx, &SettlementItem{
 			ConsignmentSettlementID: settlement.ID,
 			ConsignmentSaleItemID:   it.ID,
-			ProductID:               it.ProductID,
+			ProductID:               &pid,
 			Quantity:                it.Quantity,
 			UnitPrice:               it.UnitPrice,
 			Subtotal:                it.Subtotal,
@@ -1287,9 +1288,10 @@ func buildSettlementPreview(supplierID, storeID int, items []SaleItemRecord) *Se
 	for _, it := range items {
 		settlement.TotalSaleValue += it.Subtotal
 		settlement.TotalStoreShare += it.StoreShareAmount
+		pid := it.ProductID
 		settlement.Items = append(settlement.Items, SettlementItem{
 			ConsignmentSaleItemID: it.ID,
-			ProductID:             it.ProductID,
+			ProductID:             &pid,
 			ProductName:           it.ProductName,
 			Quantity:              it.Quantity,
 			UnitPrice:             it.UnitPrice,
@@ -1526,11 +1528,13 @@ func (s *Service) hydrateSettlementItemProductNames(ctx context.Context, items [
 	}
 	ids := make([]int, 0, len(items))
 	for _, it := range items {
-		ids = appendIfMissing(ids, it.ProductID)
+		if it.ProductID != nil {
+			ids = appendIfMissing(ids, *it.ProductID)
+		}
 	}
 	return s.hydrateProductNames(ctx, ids, func(id int, sku, name string) {
 		for i := range items {
-			if items[i].ProductID == id {
+			if items[i].ProductID != nil && *items[i].ProductID == id {
 				items[i].ProductName = name
 			}
 		}

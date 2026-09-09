@@ -270,6 +270,157 @@ func TestService_SettlementLifecycle(t *testing.T) {
 	})
 }
 
+func TestService_SettlementItemProductID(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	t.Run("settlement item has non-nil product_id after create", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "SET-PID")
+		svc, sup, store := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+
+		saleID := insertTestSale(ctx, t, store, "SET-PID-1")
+		insertConsignmentSaleItem(ctx, t, svc, shared.ConsignmentSaleRecord{
+			SaleID: saleID, InvoiceNumber: "SET-PID-1", ProductID: product,
+			SupplierID: sup, ArrangementID: arrID(t, svc, store), StoreID: store,
+			Quantity: 2, UnitPrice: 10000, Subtotal: 20000,
+			StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+		})
+
+		st, err := svc.CreateSettlement(ctx, &CreateSettlementRequest{SupplierID: sup}, userID, &store)
+		require.NoError(t, err)
+		require.Len(t, st.Items, 1)
+		require.NotNil(t, st.Items[0].ProductID, "ProductID should be non-nil for normal settlement items")
+		require.Equal(t, product, *st.Items[0].ProductID)
+	})
+
+	t.Run("settlement preview items have non-nil product_id", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "SET-PID-PREV")
+		svc, sup, store := setupArrangement(t, product)
+
+		saleID := insertTestSale(ctx, t, store, "SET-PID-PREV-1")
+		insertConsignmentSaleItem(ctx, t, svc, shared.ConsignmentSaleRecord{
+			SaleID: saleID, InvoiceNumber: "SET-PID-PREV-1", ProductID: product,
+			SupplierID: sup, ArrangementID: arrID(t, svc, store), StoreID: store,
+			Quantity: 3, UnitPrice: 10000, Subtotal: 30000,
+			StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+		})
+
+		preview, err := svc.GetSettlementPreview(ctx, sup, &store)
+		require.NoError(t, err)
+		require.Len(t, preview.Items, 1)
+		require.NotNil(t, preview.Items[0].ProductID, "ProductID should be non-nil in preview items")
+		require.Equal(t, product, *preview.Items[0].ProductID)
+	})
+
+	t.Run("settlement items persisted with correct product_id in DB", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "SET-PID-DB")
+		svc, sup, store := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+
+		saleID := insertTestSale(ctx, t, store, "SET-PID-DB-1")
+		insertConsignmentSaleItem(ctx, t, svc, shared.ConsignmentSaleRecord{
+			SaleID: saleID, InvoiceNumber: "SET-PID-DB-1", ProductID: product,
+			SupplierID: sup, ArrangementID: arrID(t, svc, store), StoreID: store,
+			Quantity: 1, UnitPrice: 10000, Subtotal: 10000,
+			StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+		})
+
+		st, err := svc.CreateSettlement(ctx, &CreateSettlementRequest{SupplierID: sup}, userID, &store)
+		require.NoError(t, err)
+
+		var dbProductID *int
+		err = dbPool.QueryRow(ctx,
+			`SELECT product_id FROM consignment_settlement_items WHERE consignment_settlement_id = $1`,
+			st.ID,
+		).Scan(&dbProductID)
+		require.NoError(t, err)
+		require.NotNil(t, dbProductID, "product_id should be non-NULL in DB")
+		require.Equal(t, product, *dbProductID)
+	})
+}
+
+func TestGetSettlement_NullProductID(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	product := insertTestProduct(ctx, t, "NULL-PID")
+	svc, sup, store := setupArrangement(t, product)
+	userID := insertTestUser(ctx, t)
+
+	saleID := insertTestSale(ctx, t, store, "NULL-PID-1")
+	insertConsignmentSaleItem(ctx, t, svc, shared.ConsignmentSaleRecord{
+		SaleID: saleID, InvoiceNumber: "NULL-PID-1", ProductID: product,
+		SupplierID: sup, ArrangementID: arrID(t, svc, store), StoreID: store,
+		Quantity: 2, UnitPrice: 10000, Subtotal: 20000,
+		StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+	})
+
+	st, err := svc.CreateSettlement(ctx, &CreateSettlementRequest{SupplierID: sup}, userID, &store)
+	require.NoError(t, err)
+
+	// Inject a settlement item row with NULL product_id directly into the DB
+	// to exercise the sql.NullInt64 read path in getSettlementItems.
+	var extraSaleItemID int
+	err = dbPool.QueryRow(ctx,
+		`INSERT INTO consignment_sale_items (sale_id, invoice_number, product_id, supplier_id, arrangement_id, store_id, quantity, unit_price, subtotal, store_share_type, store_share_value)
+		 VALUES ($1, 'NULL-PID-EXTRA', $2, $3, $4, $5, 1, 10000, 10000, 'percentage', 20)
+		 RETURNING id`,
+		saleID, product, sup, arrID(t, svc, store), store,
+	).Scan(&extraSaleItemID)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx,
+		`INSERT INTO consignment_settlement_items (consignment_settlement_id, consignment_sale_item_id, product_id, quantity, unit_price, subtotal, store_share)
+		 VALUES ($1, $2, NULL, 1, 10000, 10000, 2000)`,
+		st.ID, extraSaleItemID,
+	)
+	require.NoError(t, err)
+
+	// Re-read the settlement — the NULL product_id item should deserialize as nil.
+	reloaded, err := svc.GetSettlement(ctx, st.ID, nil)
+	require.NoError(t, err)
+	require.Len(t, reloaded.Items, 2)
+
+	var nullItem *SettlementItem
+	for i := range reloaded.Items {
+		if reloaded.Items[i].ProductID == nil {
+			nullItem = &reloaded.Items[i]
+			break
+		}
+	}
+	require.NotNil(t, nullItem, "expected one item with nil ProductID")
+	require.Equal(t, "", nullItem.ProductName, "nil ProductID should not produce a product name")
+	require.Equal(t, 1, nullItem.Quantity)
+	require.Equal(t, 10000, nullItem.Subtotal)
+}
+
+func TestHydrateSettlementItemProductNames_MixedNilAndNonNil(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	product := insertTestProduct(ctx, t, "HYDRATE-MIX")
+	svc, sup, store := setupArrangement(t, product)
+
+	ids, err := svc.repo.productMetaProviderOrPanic().ProductMetasByIDs(ctx, svc.repo.db, []int{product})
+	require.NoError(t, err)
+	require.NotEmpty(t, ids)
+
+	items := []SettlementItem{
+		{ConsignmentSaleItemID: 1, ProductID: &product, Quantity: 1, UnitPrice: 10000, Subtotal: 10000, StoreShare: 2000},
+		{ConsignmentSaleItemID: 2, ProductID: nil, Quantity: 2, UnitPrice: 5000, Subtotal: 10000, StoreShare: 2000},
+	}
+
+	err = svc.hydrateSettlementItemProductNames(ctx, items)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, items[0].ProductName, "non-nil ProductID should have product name hydrated")
+	require.Equal(t, "", items[1].ProductName, "nil ProductID should remain with empty product name")
+
+	_ = sup
+	_ = store
+}
+
 func TestService_ListSettlementsWithNilStore(t *testing.T) {
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)

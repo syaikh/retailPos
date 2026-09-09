@@ -113,7 +113,8 @@
       showAddModal = false;
       onsaved?.();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || e.message || labels.consignmentTermsSaveError);
+      const raw = e?.response?.data?.error;
+      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentTermsSaveError);
     } finally {
       saving = false;
     }

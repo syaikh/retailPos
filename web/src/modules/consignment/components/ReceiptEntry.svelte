@@ -134,7 +134,8 @@
       await load();
       oncreated?.();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || e.message || labels.consignmentRecordReceiptError);
+      const raw = e?.response?.data?.error;
+      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentRecordReceiptError);
     } finally {
       submitting = false;
     }
@@ -147,7 +148,8 @@
     try {
       detailReceipt = await getReceipt(receiptId);
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || e.message || labels.consignmentLoadError);
+      const raw = e?.response?.data?.error;
+      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentLoadError);
       showDetailModal = false;
     } finally {
       loadingDetail = false;
@@ -210,7 +212,8 @@
       detailReceipt = await getReceipt(detailReceipt.id);
       editMode = false;
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || e.message || labels.consignmentEditError);
+      const raw = e?.response?.data?.error;
+      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentEditError);
     } finally {
       savingEdit = false;
     }

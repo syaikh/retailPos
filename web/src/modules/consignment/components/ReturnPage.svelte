@@ -112,7 +112,8 @@
       await load();
       oncreated?.();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || e.message || labels.consignmentRecordReturnError);
+      const raw = e?.response?.data?.error;
+      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentRecordReturnError);
     } finally {
       submitting = false;
     }

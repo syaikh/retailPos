@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Button, Modal, Input, NumberInput, EmptyState, Badge, SelectSearch, Pagination } from '$shared/ui';
+  import { Button, Modal, Input, FormattedNumberInput, EmptyState, Badge, SelectSearch, Pagination } from '$shared/ui';
   import { Wallet, Banknote } from 'lucide-svelte';
   import { labels, t } from '$shared/i18n';
   import {
@@ -96,7 +96,8 @@
       await loadPreview();
       onsettled?.();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || e.message || labels.consignmentCreateSettlementError);
+      const raw = e?.response?.data?.error;
+      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentCreateSettlementError);
     } finally {
       creating = false;
     }
@@ -138,7 +139,8 @@
       await loadPreview();
       onsettled?.();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || e.message || labels.consignmentRecordPayoutError);
+      const raw = e?.response?.data?.error;
+      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentRecordPayoutError);
     } finally {
       paying = false;
     }
@@ -293,7 +295,7 @@
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
         <span>{labels.consignmentAmount} <span class="text-danger">*</span></span>
-        <NumberInput min="1" bind:value={payoutForm.amount} class="h-9 text-sm" />
+        <FormattedNumberInput bind:value={payoutForm.amount} class="h-9 text-sm" />
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
         <span>{labels.consignmentReference}</span>

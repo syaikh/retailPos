@@ -1175,9 +1175,14 @@ func (r *Repository) getSettlementItems(ctx context.Context, q queryer, settleme
 	var result []SettlementItem
 	for rows.Next() {
 		var it SettlementItem
-		if err := rows.Scan(&it.ID, &it.ConsignmentSettlementID, &it.ConsignmentSaleItemID, &it.ProductID,
+		var productID sql.NullInt64
+		if err := rows.Scan(&it.ID, &it.ConsignmentSettlementID, &it.ConsignmentSaleItemID, &productID,
 			&it.Quantity, &it.UnitPrice, &it.Subtotal, &it.StoreShare); err != nil {
 			return nil, err
+		}
+		if productID.Valid {
+			pid := int(productID.Int64)
+			it.ProductID = &pid
 		}
 		result = append(result, it)
 	}
@@ -1489,3 +1494,5 @@ func computeStoreShare(unitPrice, quantity int, shareType string, shareValue flo
 	}
 	return int(shareValue) * quantity
 }
+
+
