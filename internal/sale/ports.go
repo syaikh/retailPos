@@ -101,6 +101,20 @@ type CustomerNameProvider interface {
 	CustomerIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error)
 }
 
+// UserNameProvider resolves cashier/user names for sale listings and exports.
+// The users table is owned by the platform bounded context (internal/user);
+// sale no longer JOINs users directly (ADR audit finding, users) and instead
+// routes reads through this port. internal/user provides the production
+// implementation (structural typing — user.UsernamesProvider satisfies this
+// interface); the composition root MUST wire it via SetUserNameProvider before
+// any read that needs a cashier name — an unwired repository fails fast at
+// runtime.
+type UserNameProvider interface {
+	// UsernamesByIDs returns user display names keyed by user ID. IDs with no
+	// matching user are absent from the map.
+	UsernamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error)
+}
+
 // Type is a classification label for the applied pricing.
 type Type string
 

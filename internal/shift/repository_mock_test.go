@@ -49,6 +49,7 @@ func newMockRepo(t *testing.T) (pgxmock.PgxPoolIface, *Repository, context.Conte
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	repo.SetStoreNameProvider(stubStoreNameProvider{names: map[int]string{}})
 	repo.SetUsernameProvider(stubUsernameProvider{names: map[int]string{}})
+	repo.SetCartSessionChecker(sale.CartSessionProvider{})
 	return mock, repo, context.Background()
 }
 

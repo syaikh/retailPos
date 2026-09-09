@@ -1,4 +1,4 @@
-.PHONY: help build-backend build-frontend build-all deploy start stop restart logs status clean test
+.PHONY: help build-backend build-frontend build-all deploy start stop restart logs status clean test ci ci-backend ci-frontend
 
 help: ## Show this help message
 	@echo 'Retail POS System - Commands:'
@@ -87,6 +87,29 @@ endif
 	@echo ""
 	@echo "Running E2E tests (requires both servers running)..."
 	npx playwright test --reporter=list
+
+# CI targets (mirror GitHub Actions locally)
+ci: ci-backend ci-frontend ## Run all CI checks
+
+ci-backend: ## Run backend CI checks (build, vet, lint, archtest)
+	@echo "=== Backend Build ==="
+	go build ./...
+	@echo "=== Backend Vet ==="
+	go vet ./...
+	@echo "=== Archtest ==="
+	go test -p 1 -count=1 ./internal/archtest/...
+	@echo "=== Backend Lint ==="
+	golangci-lint run ./...
+	@echo "All backend CI checks passed."
+
+ci-frontend: ## Run frontend CI checks (build, lint, typecheck)
+	@echo "=== Frontend Build ==="
+	cd web && npm ci && npm run build
+	@echo "=== Frontend Lint ==="
+	cd web && npm run lint
+	@echo "=== Frontend Type Check ==="
+	cd web && npm run check
+	@echo "All frontend CI checks passed."
 
 # Database targets
 db-backup: ## Backup database to file

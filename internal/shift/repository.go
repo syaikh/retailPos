@@ -26,6 +26,7 @@ type Repository struct {
 	storeNameProvider      StoreNameProvider
 	usernameProvider       UsernameProvider
 	paymentBreakdownProvider PaymentBreakdownProvider
+	cartSessionChecker     CartSessionChecker
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -57,6 +58,13 @@ func (r *Repository) SetUsernameProvider(p UsernameProvider) {
 
 func (r *Repository) SetPaymentBreakdownProvider(p PaymentBreakdownProvider) {
 	r.paymentBreakdownProvider = p
+}
+
+// SetCartSessionChecker wires the sale-owned implementation of the
+// CartSessionChecker port (ADR §2.4). It MUST be called before any shift-close
+// path runs; an unwired repository fails fast at the read point.
+func (r *Repository) SetCartSessionChecker(p CartSessionChecker) {
+	r.cartSessionChecker = p
 }
 
 func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
@@ -192,8 +200,10 @@ func (r *Repository) CloseShiftTx(ctx context.Context, tx pgx.Tx, shiftID, userI
 	shift.OpenedAt = openedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	shift.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
-	var openCarts int
-	err = tx.QueryRow(ctx, `SELECT COUNT(*) FROM cart_sessions WHERE shift_id = $1 AND status = 'open'`, shiftID).Scan(&openCarts)
+	if r.cartSessionChecker == nil {
+		return nil, errors.New("shift repository: cart session checker not wired; call SetCartSessionChecker")
+	}
+	openCarts, err := r.cartSessionChecker.OpenCartCount(ctx, tx, shiftID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for active carts: %w", err)
 	}

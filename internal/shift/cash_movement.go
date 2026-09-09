@@ -75,9 +75,8 @@ func (r *Repository) CreateCashMovement(ctx context.Context, tx pgx.Tx, shiftID,
 
 func (r *Repository) ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT cm.id, cm.shift_id, cm.user_id, COALESCE(u.username, ''), cm.type, cm.amount, cm.description, cm.created_at
+		SELECT cm.id, cm.shift_id, cm.user_id, cm.type, cm.amount, cm.description, cm.created_at
 		FROM cash_movements cm
-		LEFT JOIN users u ON u.id = cm.user_id
 		WHERE cm.shift_id = $1
 		ORDER BY cm.created_at ASC
 	`, shiftID)
@@ -87,16 +86,36 @@ func (r *Repository) ListCashMovements(ctx context.Context, shiftID int) ([]Cash
 	defer rows.Close()
 
 	var movements []CashMovement
+	var userIDSet map[int]bool
 	for rows.Next() {
 		var m CashMovement
-		if err := rows.Scan(&m.ID, &m.ShiftID, &m.UserID, &m.Username, &m.Type, &m.Amount, &m.Description, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.ShiftID, &m.UserID, &m.Type, &m.Amount, &m.Description, &m.CreatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan cash movement: %w", err)
 		}
+		if userIDSet == nil {
+			userIDSet = make(map[int]bool)
+		}
+		userIDSet[m.UserID] = true
 		movements = append(movements, m)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating cash movements: %w", err)
 	}
+
+	if len(userIDSet) > 0 {
+		userIDList := make([]int, 0, len(userIDSet))
+		for id := range userIDSet {
+			userIDList = append(userIDList, id)
+		}
+		names, err := r.usernamesByIDs(ctx, userIDList)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve usernames: %w", err)
+		}
+		for i := range movements {
+			movements[i].Username = names[movements[i].UserID]
+		}
+	}
+
 	return movements, nil
 }
 

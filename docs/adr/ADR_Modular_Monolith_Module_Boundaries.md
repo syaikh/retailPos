@@ -148,7 +148,7 @@ Baca lintas context diizinkan hanya pada read model / reporting (CQRS); command 
 
 ---
 
-## 5. Status implementasi (2026-08-08)
+## 5. Status implementasi (2026-09-08)
 
 Penegakan di `internal/archtest` sudah berjalan dan hampir menyeluruh. Seluruh modul domain **kecuali `report`** terdaftar di `strictModuleTables` dan hanya boleh menyentuh tabel yang dimilikinya (modul yang tidak terdaftar ditegakkan lewat `moduleContext`/`tableContext`: baca lintas context boleh, tulis lintas context dilarang).
 
@@ -167,7 +167,7 @@ Baca/tulis lintas modul dienkapsulasi lewat interface kecil yang dideklarasikan 
 |---|---|---|
 | `category` | `categories` | strict |
 | `purchase` | `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items` | strict |
-| `shift` | `shifts` | strict |
+| `shift` | `shifts`, `cash_movements` | strict |
 | `sale` | `sales`, `sale_items`, `sale_payments`, `payment_methods`, `cart_sessions`, `cart_items` | strict |
 | `supplier` | `suppliers` | strict |
 | `inventory` | `product_stock`, `inventory_movements` | strict |
@@ -182,6 +182,7 @@ Baca/tulis lintas modul dienkapsulasi lewat interface kecil yang dideklarasikan 
 | `storagelocation` | `storage_locations` | strict |
 | `user` | `users`, `roles`, `permissions`, `role_permissions`, `refresh_tokens`, `audit_logs` | strict |
 | `platform` | `import_jobs`, `import_snapshots`, `import_rows`, `import_errors`, `outbox`, `dead_letter_events` | strict |
+| `appsettings` | `app_settings` | strict |
 | `report` | read model `mv_*` (hanya baca) | **lax** |
 
 Catatan:
@@ -189,10 +190,22 @@ Catatan:
 - `audit_logs` ditulis oleh `internal/audit` (shared infrastructure, di luar `domainModules`), tapi kepemilikan tabel ditetapkan ke `user` (platform).
 - `inventory_movements` dimiliki `inventory`; `stockopname` menulisnya lewat port `MovementWriter` di dalam Unit of Work posting, bukan CopyFrom langsung.
 - `warehouses` dimiliki `store`; `storage_locations` dimiliki `storagelocation`; `payment_methods` dan `tax_classes` (tabel referensi dari seed) dimiliki masing-masing `sale` dan `product`.
+- `cash_movements` dimiliki `shift` (tabel pendukung untuk pencatatan pergerakan kas per shift).
 
 ### 5.3 Debt lintas context yang diakui (`crossContextDebt`)
 
-`crossContextDebt` adalah mekanisme untuk menandai referensi lintas modul yang sengaja dipertahankan sementara menunggu port; entri tersebut tetap memicu pelanggaran pada modul non-pemilik. Archtest memeriksa **stale entry** — entri yang sudah tidak relevan (referensi sudah diport) harus dihapus, sehingga debt tidak diam-diam tertinggal tanpa refactor. Saat ini **tidak ada entri** (semua referensi lintas modul sudah melalui port).
+`crossContextDebt` adalah mekanisme untuk menandai referensi lintas modul yang sengaja dipertahankan sementara menunggu port; entri tersebut tetap memicu pelanggaran pada modul non-pemilik. Archtest memeriksa **stale entry** — entri yang sudah tidak relevan (referensi sudah diport) harus dihapus, sehingga debt tidak diam-diam tertinggal tanpa refactor.
+
+Semua debt sebelumnya sudah di-port (2026-09-08):
+
+| Debt | Port yang menggantikan | File port |
+|---|---|---|
+| `sale→customers` (`LEFT JOIN` di ListSales, ExportSales) | `CustomerNameProvider` | `sale/ports.go`, `customer/name_provider.go` |
+| `sale→users` (`LEFT JOIN` di ListSales) | `UserNameProvider` | `sale/ports.go`, `user/name_provider.go` |
+| `shift→cart_sessions` (`SELECT` di CloseShiftTx) | `CartSessionChecker` | `shift/ports.go`, `sale/cart_session_provider.go` |
+| `shift→users` (`LEFT JOIN` di ListCashMovements) | `UsernameProvider` | `shift/ports.go`, `user/name_provider.go` |
+
+Saat ini hanya tersisa entri `consignment: {}` sebagai placeholder modul baru yang belum di-hardened ke strict ownership.
 
 ### 5.4 Batasan yang tersisa
 

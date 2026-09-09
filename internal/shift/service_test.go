@@ -8,10 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/ownership"
-	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/shared"
-	"retail-pos-system/internal/store"
-	"retail-pos-system/internal/user"
 )
 
 func TestShiftService_OpenShift_ValidatesOpeningBalance(t *testing.T) {
@@ -19,10 +16,7 @@ func TestShiftService_OpenShift_ValidatesOpeningBalance(t *testing.T) {
 		t.Skip("no database connection")
 	}
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.NamesProvider{})
-	repo.SetUsernameProvider(user.UsernamesProvider{})
-	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -57,10 +51,7 @@ func TestShiftService_CloseShift_ValidatesClosingBalance(t *testing.T) {
 		t.Skip("no database connection")
 	}
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.NamesProvider{})
-	repo.SetUsernameProvider(user.UsernamesProvider{})
-	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -77,10 +68,7 @@ func TestShiftService_ReviewShift(t *testing.T) {
 		t.Skip("no database connection")
 	}
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.NamesProvider{})
-	repo.SetUsernameProvider(user.UsernamesProvider{})
-	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -112,10 +100,7 @@ func TestShiftService_GetActiveShift(t *testing.T) {
 		t.Skip("no database connection")
 	}
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.NamesProvider{})
-	repo.SetUsernameProvider(user.UsernamesProvider{})
-	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -133,10 +118,7 @@ func TestShiftService_GetShiftByID(t *testing.T) {
 		t.Skip("no database connection")
 	}
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.NamesProvider{})
-	repo.SetUsernameProvider(user.UsernamesProvider{})
-	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -153,10 +135,7 @@ func TestShiftService_ListShifts(t *testing.T) {
 		t.Skip("no database connection")
 	}
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.NamesProvider{})
-	repo.SetUsernameProvider(user.UsernamesProvider{})
-	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -174,10 +153,7 @@ func TestShiftService_AuditShift(t *testing.T) {
 		t.Skip("no database connection")
 	}
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.NamesProvider{})
-	repo.SetUsernameProvider(user.UsernamesProvider{})
-	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -193,10 +169,7 @@ func TestShiftService_ExportShifts(t *testing.T) {
 		t.Skip("no database connection")
 	}
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.NamesProvider{})
-	repo.SetUsernameProvider(user.UsernamesProvider{})
-	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -289,10 +262,7 @@ func TestShiftService_FlagForReview(t *testing.T) {
 		t.Skip("no database connection")
 	}
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.NamesProvider{})
-	repo.SetUsernameProvider(user.UsernamesProvider{})
-	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 

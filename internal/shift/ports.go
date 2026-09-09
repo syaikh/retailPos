@@ -48,3 +48,18 @@ type UsernameProvider interface {
 type PaymentBreakdownProvider interface {
 	PaymentMethodBreakdown(ctx context.Context, db shared.DBPool, shiftID int) ([]shared.PaymentMethodTotal, error)
 }
+
+// CartSessionChecker is the consumer-side port for checking open cart sessions
+// during shift close. The cart_sessions table is owned by the sale bounded
+// context (internal/sale); shift previously queried it directly (ADR
+// crossContextDebt audit finding, shift→cart_sessions) and instead routes the
+// read through this port. The implementation MUST run against the caller's tx
+// to observe uncommitted cart inserts within the same Unit of Work.
+// internal/sale provides the production implementation; the composition root
+// MUST wire it via SetCartSessionChecker before any shift-close path runs — an
+// unwired repository fails fast at runtime.
+type CartSessionChecker interface {
+	// OpenCartCount returns the number of open cart sessions for the given
+	// shift, within the caller's transaction.
+	OpenCartCount(ctx context.Context, tx pgx.Tx, shiftID int) (int, error)
+}

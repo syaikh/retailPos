@@ -21,6 +21,7 @@ type Repository struct {
 	db                   shared.DBPool
 	productNameProvider  ProductNameProvider
 	customerNameProvider CustomerNameProvider
+	userNameProvider     UserNameProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -41,6 +42,13 @@ func (r *Repository) SetCustomerNameProvider(p CustomerNameProvider) {
 	r.customerNameProvider = p
 }
 
+// SetUserNameProvider wires the user-owned name lookup port (see
+// UserNameProvider). Must be called before any read that needs a cashier name
+// — an unwired repository fails fast at runtime.
+func (r *Repository) SetUserNameProvider(p UserNameProvider) {
+	r.userNameProvider = p
+}
+
 func (r *Repository) productNamesByIDs(ctx context.Context, ids []int) (map[int]string, error) {
 	if r.productNameProvider == nil {
 		return nil, fmt.Errorf("sale repository: product name provider not wired; call SetProductNameProvider")
@@ -53,6 +61,13 @@ func (r *Repository) customerNamesByIDs(ctx context.Context, ids []int) (map[int
 		return nil, fmt.Errorf("sale repository: customer name provider not wired; call SetCustomerNameProvider")
 	}
 	return r.customerNameProvider.CustomerNamesByIDs(ctx, r.db, ids)
+}
+
+func (r *Repository) usernamesByIDs(ctx context.Context, ids []int) (map[int]string, error) {
+	if r.userNameProvider == nil {
+		return nil, fmt.Errorf("sale repository: user name provider not wired; call SetUserNameProvider")
+	}
+	return r.userNameProvider.UsernamesByIDs(ctx, r.db, ids)
 }
 
 func (r *Repository) productIDsByName(ctx context.Context, search string) ([]int, error) {
@@ -342,10 +357,8 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 		return nil, 0, err
 	}
 
-	query := `SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.customer_id, COALESCE(c.name, ''), COALESCE(u.username, ''), s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at
+	query := `SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.customer_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at
 		FROM sales s
-		LEFT JOIN customers c ON c.id = s.customer_id
-		LEFT JOIN users u ON u.id = s.cashier_id
 		WHERE ` + qb.Where()
 	allowedSortBy := map[string]bool{"created_at": true, "total_amount": true, "invoice_number": true, "payment_method": true, "status": true}
 	allowedSortDir := map[string]bool{"ASC": true, "DESC": true}
@@ -369,14 +382,14 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	// Collect sale IDs for batch loading sale items (avoid N+1 query)
 	// Note: PostgreSQL has a limit of ~32767 parameters, so we batch in groups of 1000
 	var saleIDs []int
+	var customerIDSet map[int]bool
+	var userIDSet map[int]bool
 	for rows.Next() {
 		var s Sale
 		var storeIDVal sql.NullInt64
 		var customerIDVal sql.NullInt64
-		var customerNameVal string
-		var cashierNameVal string
 		var createdAt, updatedAt time.Time
-		err = rows.Scan(&s.ID, &s.InvoiceNumber, &s.CashierID, &storeIDVal, &customerIDVal, &customerNameVal, &cashierNameVal, &s.Subtotal, &s.Discount, &s.Tax,
+		err = rows.Scan(&s.ID, &s.InvoiceNumber, &s.CashierID, &storeIDVal, &customerIDVal, &s.Subtotal, &s.Discount, &s.Tax,
 			&s.TotalAmount, &s.PaymentMethod, &s.Status, &createdAt, &updatedAt)
 		if err != nil {
 			continue
@@ -388,9 +401,15 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 		if customerIDVal.Valid {
 			v := int(customerIDVal.Int64)
 			s.CustomerID = &v
+			if customerIDSet == nil {
+				customerIDSet = make(map[int]bool)
+			}
+			customerIDSet[v] = true
 		}
-		s.CustomerName = customerNameVal
-		s.CashierName = cashierNameVal
+		if userIDSet == nil {
+			userIDSet = make(map[int]bool)
+		}
+		userIDSet[s.CashierID] = true
 		s.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		s.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
@@ -461,15 +480,11 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 
 	// Resolve customer names (customers table is owned by the referensi
 	// context; internal/sale reads it via CustomerNameProvider).
-	customerIDList := make([]int, 0, len(sales))
-	seenCustomer := make(map[int]bool)
-	for i := range sales {
-		if sales[i].CustomerID != nil && !seenCustomer[*sales[i].CustomerID] {
-			seenCustomer[*sales[i].CustomerID] = true
-			customerIDList = append(customerIDList, *sales[i].CustomerID)
+	if len(customerIDSet) > 0 {
+		customerIDList := make([]int, 0, len(customerIDSet))
+		for id := range customerIDSet {
+			customerIDList = append(customerIDList, id)
 		}
-	}
-	if len(customerIDList) > 0 {
 		names, err := r.customerNamesByIDs(ctx, customerIDList)
 		if err != nil {
 			return nil, 0, err
@@ -478,6 +493,22 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 			if sales[i].CustomerID != nil {
 				sales[i].CustomerName = names[*sales[i].CustomerID]
 			}
+		}
+	}
+
+	// Resolve cashier/user names (users table is owned by the platform
+	// context; internal/sale reads it via UserNameProvider).
+	if len(userIDSet) > 0 {
+		userIDList := make([]int, 0, len(userIDSet))
+		for id := range userIDSet {
+			userIDList = append(userIDList, id)
+		}
+		names, err := r.usernamesByIDs(ctx, userIDList)
+		if err != nil {
+			return nil, 0, err
+		}
+		for i := range sales {
+			sales[i].CashierName = names[sales[i].CashierID]
 		}
 	}
 
@@ -567,11 +598,10 @@ func (r *Repository) StreamSalesExportCSV(ctx context.Context, w io.Writer, sear
 		return err
 	}
 	qb := r.buildSaleFilter(productIDs, customerIDs, search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil, nil)
-	query := `SELECT s.invoice_number, s.created_at, COALESCE(c.name, ''),
+	query := `SELECT s.invoice_number, s.created_at, s.customer_id,
 		COALESCE(si_counts.cnt, 0) as items_count,
 		COALESCE(sp_codes.payment_codes, s.payment_method) as payment_method, s.total_amount
 		FROM sales s
-		LEFT JOIN customers c ON c.id = s.customer_id
 		LEFT JOIN (SELECT sale_id, COUNT(*) AS cnt FROM sale_items GROUP BY sale_id) si_counts ON si_counts.sale_id = s.id
 		LEFT JOIN (
 			SELECT sale_id, STRING_AGG(payment_method_code, ',' ORDER BY id) AS payment_codes
@@ -586,31 +616,67 @@ func (r *Repository) StreamSalesExportCSV(ctx context.Context, w io.Writer, sear
 	}
 	defer rows.Close()
 
+	type exportRow struct {
+		invoiceNumber string
+		createdAt     time.Time
+		customerID    *int
+		itemCount     int
+		paymentMethod string
+		totalAmount   int64
+	}
+	var allRows []exportRow
+	customerIDSet := make(map[int]bool)
+	for rows.Next() {
+		var r exportRow
+		var customerIDVal sql.NullInt64
+		if err := rows.Scan(&r.invoiceNumber, &r.createdAt, &customerIDVal, &r.itemCount, &r.paymentMethod, &r.totalAmount); err != nil {
+			return fmt.Errorf("scan sale export row: %w", err)
+		}
+		if customerIDVal.Valid {
+			id := int(customerIDVal.Int64)
+			r.customerID = &id
+			customerIDSet[id] = true
+		}
+		allRows = append(allRows, r)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	customerNames := map[int]string{}
+	if len(customerIDSet) > 0 {
+		customerIDList := make([]int, 0, len(customerIDSet))
+		for id := range customerIDSet {
+			customerIDList = append(customerIDList, id)
+		}
+		customerNames, err = r.customerNamesByIDs(ctx, customerIDList)
+		if err != nil {
+			return err
+		}
+	}
+
 	cw := csv.NewWriter(w)
 	_ = shared.WriteCSVRow(cw, []string{"Invoice Number", "Date", "Customer", "Items", "Payment Method", "Total Amount"})
 
-	for rows.Next() {
-		var invoiceNumber, customerName, paymentMethod string
-		var createdAt time.Time
-		var itemCount int
-		var totalAmount int64
-		if err := rows.Scan(&invoiceNumber, &createdAt, &customerName, &itemCount, &paymentMethod, &totalAmount); err != nil {
-			return fmt.Errorf("scan sale export row: %w", err)
+	for _, row := range allRows {
+		customerName := ""
+		if row.customerID != nil {
+			customerName = customerNames[*row.customerID]
 		}
 		_ = shared.WriteCSVRow(cw, []string{
-			invoiceNumber,
-			createdAt.In(shared.JakartaLocation()).Format(time.RFC3339),
+			row.invoiceNumber,
+			row.createdAt.In(shared.JakartaLocation()).Format(time.RFC3339),
 			customerName,
-			strconv.Itoa(itemCount),
-			paymentMethod,
-			fmt.Sprintf("%d", totalAmount),
+			strconv.Itoa(row.itemCount),
+			row.paymentMethod,
+			fmt.Sprintf("%d", row.totalAmount),
 		})
 		cw.Flush()
 		if err := cw.Error(); err != nil {
 			return err
 		}
 	}
-	return rows.Err()
+	return nil
 }
 
 func (r *Repository) GetNextInvoiceNumber(ctx context.Context) (string, error) {

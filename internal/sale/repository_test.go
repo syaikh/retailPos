@@ -14,6 +14,7 @@ import (
 	"retail-pos-system/internal/customer"
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/user"
 )
 
 var dbPool *pgxpool.Pool
@@ -45,6 +46,7 @@ func newTestRepo(t *testing.T) *Repository {
 	repo := NewRepository(dbPool)
 	repo.SetProductNameProvider(product.NameLookup{})
 	repo.SetCustomerNameProvider(customer.NameLookup{})
+	repo.SetUserNameProvider(user.UsernamesProvider{})
 	return repo
 }
 

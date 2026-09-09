@@ -235,14 +235,6 @@ var strictModuleTables = map[string]map[string]bool{
 // is ported.
 var crossContextDebt = map[string]map[string]bool{
 	"consignment": {},
-	"sale": {
-		"customers": true, // sale reads customer data for invoices/receipts
-		"users":     true, // sale reads user data for cashier info
-	},
-	"shift": {
-		"cart_sessions": true, // shift reads active cart session to enforce close-before-logout
-		"users":         true, // shift reads user data for shift owner info
-	},
 }
 
 func nonTestGoFiles(t *testing.T, dir string) []string {

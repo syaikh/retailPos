@@ -11,10 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/ownership"
-	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/shared"
-	"retail-pos-system/internal/store"
-	"retail-pos-system/internal/user"
 )
 
 func TestAutoCloser_GetHours_DefaultWhenNilSettings(t *testing.T) {
@@ -235,10 +232,7 @@ func TestAutoCloser_Integration(t *testing.T) {
 		t.Skip("no database connection")
 	}
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStoreNameProvider(store.NamesProvider{})
-	repo.SetUsernameProvider(user.UsernamesProvider{})
-	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	t.Run("closes abandoned shift older than threshold", func(t *testing.T) {

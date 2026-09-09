@@ -65,7 +65,6 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 	if ownershipType != "" {
 		query += fmt.Sprintf(" AND v.ownership_type = $%d", argIdx)
 		args = append(args, ownershipType)
-		argIdx++
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
