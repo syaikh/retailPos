@@ -1,8 +1,16 @@
 name: E2E
-on: [push, pull_request]
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
 concurrency:
   group: e2e-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
@@ -13,7 +21,7 @@ jobs:
         shard: [1, 2, 3, 4]
     services:
       postgres:
-        image: postgres:18
+        image: postgres:16
         env:
           POSTGRES_USER: pos
           POSTGRES_PASSWORD: admin123
@@ -30,22 +38,18 @@ jobs:
         with:
           node-version: "24"
           cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            web/package-lock.json
+          cache-dependency-path: web/package-lock.json
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
           cache: true
-      - name: Install deps (root + web)
-        run: npm ci
       - name: Install web deps
         working-directory: web
         run: npm ci
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
       - name: Wait for DB
-        run: npx wait-on tcp:5433 --timeout 30000 && echo "postgres:18 ready"
+        run: npx wait-on tcp:5433 --timeout 30000 && echo "postgres:16 ready"
       - name: Migrate DB
         env:
           PGPASSWORD: admin123
@@ -74,7 +78,7 @@ jobs:
           DB_USER: pos
           DB_PASSWORD: admin123
           DB_NAME: retail_pos
-          JWT_SECRET: ci-test-secret-for-github-actions-only-32b
+          JWT_SECRET: ci-test-secret-9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a
           ENV: development
           LOGIN_RATE_LIMIT_RPM: "100"
           LOGIN_RATE_LIMIT_BURST: "100"
@@ -132,10 +136,12 @@ jobs:
             blob-reports
           retention-days: 7
           if-no-files-found: warn
+
   merge:
     if: always()
     needs: e2e
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -146,7 +152,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - run: npm ci
       - run: npx playwright merge-reports blob-reports --reporter html
       - uses: actions/upload-artifact@v4
         with:

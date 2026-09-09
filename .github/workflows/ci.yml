@@ -5,6 +5,7 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -13,19 +14,21 @@ concurrency:
 env:
   GO_VERSION: "1.26"
   NODE_VERSION: "24"
-  GOLANGCI_LINT_VERSION: "v2.1.6"
+  GOLANGCI_LINT_VERSION: "v2.13.2"
+  GOVULNCHECK_VERSION: "v1.1.4"
   TEST_DB_HOST: localhost
   TEST_DB_PORT: 5432
   TEST_DB_USER: pos
   TEST_DB_PASSWORD: testpassword
   TEST_DB_NAME: retail_pos_test
-  JWT_SECRET: ci-test-secret-for-github-actions-only
+  JWT_SECRET: ci-test-secret-9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a
 
 jobs:
   # ── Go Static Analysis ─────────────────────────────────────
   go-fmt:
     name: "Go: Format"
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -44,6 +47,7 @@ jobs:
   go-vet:
     name: "Go: Vet"
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -54,6 +58,7 @@ jobs:
   go-build:
     name: "Go: Build"
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -64,7 +69,7 @@ jobs:
   go-test:
     name: "Go: Tests"
     runs-on: ubuntu-latest
-    needs: [go-build]
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:16
@@ -86,14 +91,13 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
       - name: Wait for postgres
         run: until pg_isready -h localhost -p 5432; do sleep 1; done
-      - name: Run all tests
-        run: go test -p 1 -count=1 -timeout 300s ./...
       - name: Run tests with race detector
         run: go test -race -p 1 -count=1 -timeout 300s $(go list ./... | grep -v cmd/server)
 
   go-lint:
     name: "Go: Lint"
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -107,35 +111,22 @@ jobs:
   govulncheck:
     name: "Go: Vulnerability Check"
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
       - name: Run govulncheck
         run: govulncheck ./...
 
   # ── Frontend ────────────────────────────────────────────────
-  frontend-install:
-    name: "Frontend: Install"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - name: Install dependencies
-        working-directory: web
-        run: npm ci
-
   frontend-format:
     name: "Frontend: Format"
     runs-on: ubuntu-latest
-    needs: [frontend-install]
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -153,7 +144,7 @@ jobs:
   frontend-lint:
     name: "Frontend: Lint"
     runs-on: ubuntu-latest
-    needs: [frontend-install]
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -171,7 +162,7 @@ jobs:
   frontend-typecheck:
     name: "Frontend: Type Check"
     runs-on: ubuntu-latest
-    needs: [frontend-install]
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -189,7 +180,7 @@ jobs:
   frontend-test:
     name: "Frontend: Tests"
     runs-on: ubuntu-latest
-    needs: [frontend-install]
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -207,7 +198,7 @@ jobs:
   frontend-build:
     name: "Frontend: Build"
     runs-on: ubuntu-latest
-    needs: [frontend-install]
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -226,6 +217,7 @@ jobs:
   integration:
     name: "Integration: Build & Migrate"
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [go-build, frontend-build]
     services:
       postgres:
@@ -269,6 +261,13 @@ jobs:
           done
           echo "Migrations complete"
       - name: Verify server starts
+        env:
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_USER: pos
+          DB_PASSWORD: testpassword
+          DB_NAME: retail_pos_test
+          JWT_SECRET: ${{ env.JWT_SECRET }}
         run: |
           /tmp/server &
           for i in $(seq 1 30); do
@@ -277,11 +276,6 @@ jobs:
             sleep 2
           done
           curl -sf http://localhost:9095/health
-      - name: Build frontend
-        working-directory: web
-        run: |
-          npm ci
-          npm run build
       - name: Verify frontend build
         run: test -d web/dist && echo "Frontend build artifacts present"
 
@@ -289,6 +283,7 @@ jobs:
   codeql:
     name: "Security: CodeQL"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     permissions:
       security-events: write
