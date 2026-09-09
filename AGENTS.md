@@ -81,6 +81,13 @@ Never auto-commit. User will request commits explicitly.
 
 **All validation — formatting, linting, type-checking, testing, building, and security scanning — runs in GitHub CI.** Do not run full suites locally. The CI workflow (`.github/workflows/ci.yml`) triggers on pushes to `main` and on pull requests.
 
+**Do not run these locally — CI performs them:**
+- `gofmt`, `go vet`, `go build`, `go test`, `go test -race`, `golangci-lint`, `govulncheck`
+- `npm run lint`, `npm run check` (svelte-check), `npm run build`, `npm run test:run`, `prettier --check`
+- Database migrations, integration health checks, CodeQL analysis
+
+For rapid iteration during development, only run the specific package or file you are changing.
+
 ### CI Jobs
 
 | Job | What it checks |
@@ -101,16 +108,6 @@ Never auto-commit. User will request commits explicitly.
 | Security: CodeQL | GitHub CodeQL analysis (main branch only) |
 
 E2E tests run in a separate workflow (`.github/workflows/e2e.yml`) with sharded Playwright tests against a full stack (PostgreSQL, backend, frontend, print-agent).
-
-### Local Quick Checks (for rapid iteration)
-
-For most changes, run only affected packages/files, then a fast build sanity check:
-
-- **Backend:** `go test -p 1 -count=1 ./internal/<package>/...` (optionally `-run <TestName>`)
-- **Frontend:** `cd web && npx vitest run <path/to/test.file>`
-- **Sanity check:** `go build ./...` and `cd web && npm run build`
-
-Reserve full suite for CI or when explicitly requested. **Never run full suite proactively.**
 
 ### E2E Testing Conventions (Playwright, `tests/e2e/`)
 
