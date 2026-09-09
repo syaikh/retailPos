@@ -112,18 +112,6 @@ For most changes, run only affected packages/files, then a fast build sanity che
 
 Reserve full suite for CI or when explicitly requested. **Never run full suite proactively.**
 
-## Running Tests
-
-Tests require PostgreSQL connection and `JWT_SECRET`. Use env vars to point to dev DB:
-
-```bash
-TEST_DB_PORT=5433 DB_PORT=5433 TEST_DB_USER=pos TEST_DB_PASSWORD=admin123 DB_USER=pos DB_PASSWORD=admin123 JWT_SECRET=test-secret-for-testing-only go test -p 1 -count=1 ./...
-```
-
-**Important:** Use `-p 1` to force sequential execution (prevents deadlocks between concurrent `TRUNCATE`/`INSERT` across packages sharing the same DB).
-
-**Test database:** `retail_pos_test` DB (configurable via `TEST_DB_*`). Auto-applies pending migrations via `schema_migrations` table. To reset: `dropdb retail_pos_test && createdb retail_pos_test`.
-
 ### E2E Testing Conventions (Playwright, `tests/e2e/`)
 
 - **Behavior tests** (`*-api.spec.ts`) assert against API via `api-driver.ts`. **UI tests** (`*.spec.ts`) keep only genuine UI behavior (labels, navigation, validation messages).
@@ -133,12 +121,6 @@ TEST_DB_PORT=5433 DB_PORT=5433 TEST_DB_USER=pos TEST_DB_PASSWORD=admin123 DB_USE
 - **Browser navigation:** Use explicit `page.goto(\`${FRONTEND_BASE}/...\`)`. Use `waitForAppReady(page)` (not `networkidle`).
 - **POS/cart scenarios:** Use `pos-api.ts` helpers for shift/cart flows; raw `apiAs` for entity/CRUD specs.
 - **Run from repo root** (`npx playwright test` / `npm run test:e2e`), never from `tests/e2e/`.
-
-## Building
-
-```bash
-go build ./...
-```
 
 ## Running Server
 
