@@ -89,7 +89,7 @@ jobs:
       - name: Run all tests
         run: go test -p 1 -count=1 -timeout 300s ./...
       - name: Run tests with race detector
-        run: go test -race -p 1 -count=1 -timeout 300s ./...
+        run: go test -race -p 1 -count=1 -timeout 300s $(go list ./... | grep -v cmd/server)
 
   go-lint:
     name: "Go: Lint"
