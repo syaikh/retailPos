@@ -1223,6 +1223,27 @@ func TestSaleService_GetAllPaymentMethods(t *testing.T) {
 	assert.NotEmpty(t, methods)
 }
 
+func TestSaleService_GetAllPaymentMethods_JakartaTimezone(t *testing.T) {
+	repo := newTestRepo(t)
+	svc := NewService(repo, nil)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
+	ctx := context.Background()
+
+	methods, err := svc.GetAllPaymentMethods(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, methods)
+
+	for _, m := range methods {
+		assert.NotEmpty(t, m.CreatedAt, "CreatedAt should not be empty for payment method %s", m.Code)
+		parsed, err := time.Parse(time.RFC3339, m.CreatedAt)
+		require.NoError(t, err, "CreatedAt should be valid RFC3339 for payment method %s", m.Code)
+		_, offset := parsed.Zone()
+		assert.Equal(t, 7*3600, offset, "CreatedAt should be in WIB (+07:00) for payment method %s", m.Code)
+	}
+}
+
 func TestSaleService_GetParkedSaleByID(t *testing.T) {
 	repo := newTestRepo(t)
 	svc := NewService(repo, nil)

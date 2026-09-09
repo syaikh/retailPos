@@ -713,7 +713,7 @@ func (r *Repository) GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod,
 		if err != nil {
 			return nil, err
 		}
-		m.CreatedAt = createdAt.Format(time.RFC3339)
+		m.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		methods = append(methods, m)
 	}
 	return methods, rows.Err()

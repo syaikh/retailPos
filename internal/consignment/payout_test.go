@@ -2,6 +2,7 @@ package consignment
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -119,6 +120,23 @@ func TestService_Payout(t *testing.T) {
 
 		_, err := svc.CreatePayout(ctx, stID, &CreatePayoutRequest{PaymentMethodID: pmID, Amount: 10000}, userID, &otherStore)
 		require.ErrorIs(t, err, ErrStoreForbidden)
+	})
+
+	t.Run("full payout marks settlement paid with paid_at set", func(t *testing.T) {
+		svc, stID, _, store := seedSettlement(t, "PAY-PAID")
+		userID := insertTestUser(ctx, t)
+		pmID := insertTestPaymentMethod(ctx, t, "PAY-PAID-PM")
+
+		_, err := svc.CreatePayout(ctx, stID, &CreatePayoutRequest{PaymentMethodID: pmID, Amount: 40000}, userID, &store)
+		require.NoError(t, err)
+
+		// Verify settlement is now paid and paid_at is set.
+		var status string
+		var paidAt sql.NullTime
+		err = dbPool.QueryRow(ctx, `SELECT status, paid_at FROM consignment_settlements WHERE id = $1`, stID).Scan(&status, &paidAt)
+		require.NoError(t, err)
+		require.Equal(t, "paid", status)
+		require.True(t, paidAt.Valid, "paid_at must be set after full payout")
 	})
 }
 

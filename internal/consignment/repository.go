@@ -1271,7 +1271,7 @@ func (r *Repository) getPayoutsBySettlement(ctx context.Context, q queryer, sett
 func (r *Repository) MarkSettlementPaid(ctx context.Context, tx pgx.Tx, id int) error {
 	tag, err := tx.Exec(ctx, `
 		UPDATE consignment_settlements
-		SET status = 'paid', paid_at = now(), updated_at = now()
+		SET status = 'paid', paid_at = now()
 		WHERE id = $1 AND status = 'pending_payment'
 	`, id)
 	if err != nil {
