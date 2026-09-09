@@ -8,6 +8,30 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   ...svelte.configs['flat/recommended'],
   {
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+      '@typescript-eslint/no-unused-expressions': 'warn',
+      '@typescript-eslint/no-require-imports': 'off',
+      'svelte/require-each-key': 'warn',
+      'svelte/prefer-svelte-reactivity': 'warn',
+      'svelte/no-useless-children-snippet': 'warn',
+      'svelte/no-unused-svelte-ignore': 'warn',
+      'no-useless-catch': 'warn',
+      'no-unsafe-finally': 'warn',
+      'no-case-declarations': 'warn',
+      'prefer-const': 'warn',
+      'no-undef': 'off',
+    },
+  },
+  {
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -17,6 +41,14 @@ export default tseslint.config(
   },
   {
     files: ['**/*.svelte'],
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser,
+      },
+    },
+  },
+  {
+    files: ['**/*.svelte.ts'],
     languageOptions: {
       parserOptions: {
         parser: tseslint.parser,

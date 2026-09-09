@@ -86,6 +86,8 @@ Never auto-commit. User will request commits explicitly.
 - `npm run lint`, `npm run check` (svelte-check), `npm run build`, `npm run test:run`, `prettier --check`
 - Database migrations, integration health checks, CodeQL analysis
 
+**Do not execute lint, type-check, build, or test commands without being asked.** If the user wants to verify something, provide the exact command and let them run it themselves.
+
 For rapid iteration during development, only run the specific package or file you are changing.
 
 ### CI Jobs
