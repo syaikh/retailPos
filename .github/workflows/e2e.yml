@@ -21,7 +21,7 @@ jobs:
         shard: [1, 2, 3, 4]
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_USER: pos
           POSTGRES_PASSWORD: admin123
@@ -49,7 +49,7 @@ jobs:
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
       - name: Wait for DB
-        run: npx wait-on tcp:5433 --timeout 30000 && echo "postgres:16 ready"
+        run: npx wait-on tcp:5433 --timeout 30000 && echo "postgres:18 ready"
       - name: Migrate DB
         env:
           PGPASSWORD: admin123
