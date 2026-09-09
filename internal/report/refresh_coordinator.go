@@ -32,15 +32,15 @@ type RefreshMetrics struct {
 // SaleCreated events no longer trigger refreshes; the coordinator refreshes
 // on a fixed boundary schedule so completed hours/days are always up to date.
 type RefreshCoordinator struct {
-	mu        sync.Mutex
-	started   bool
-	closed    bool
-	cancel    context.CancelFunc
-	done      chan struct{}
-	failures  int
-	debounce  time.Duration
-	refresh   RefreshFunc
-	metrics   RefreshMetrics
+	mu       sync.Mutex
+	started  bool
+	closed   bool
+	cancel   context.CancelFunc
+	done     chan struct{}
+	failures int
+	debounce time.Duration
+	refresh  RefreshFunc
+	metrics  RefreshMetrics
 }
 
 // NewRefreshCoordinator creates a coordinator that refreshes reporting data at

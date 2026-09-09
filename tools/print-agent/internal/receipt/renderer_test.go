@@ -12,9 +12,9 @@ func sampleReceipt() Receipt {
 		Items: []Item{
 			{Name: "Kopi", Quantity: 2, UnitPrice: 5000, OriginalPrice: 6000, PricingRuleName: "Promo"},
 		},
-		TotalAmount:  10000,
-		SubtotalDPP:  9009,
-		Tax:          991,
+		TotalAmount:   10000,
+		SubtotalDPP:   9009,
+		Tax:           991,
 		PaymentMethod: "split",
 		Payments: []Payment{
 			{Method: "cash", Amount: 5000},

@@ -23,8 +23,8 @@ type Config struct {
 	// longer debounces sale-triggered refreshes; the coordinator refreshes at
 	// each Jakarta hour boundary and uses this only as retry backoff base.
 	ReportRefreshDebounce int
-	LogLevel               string
-	Timezone               *time.Location
+	LogLevel              string
+	Timezone              *time.Location
 }
 
 var defaultLocation *time.Location

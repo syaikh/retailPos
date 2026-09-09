@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SettlementItem } from '../types';
+import type { SettlementItem } from '..';
 
 describe('Consignment types', () => {
   describe('SettlementItem', () => {

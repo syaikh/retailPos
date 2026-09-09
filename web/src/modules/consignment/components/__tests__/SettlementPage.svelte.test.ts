@@ -16,8 +16,8 @@ describe('SettlementPage.svelte source-structure guards', () => {
     expect(src).not.toMatch(/import.*\bNumberInput\b.*from.*'\$shared\/ui'/);
   });
 
-  it('extracts nested error message from API response (error?.message)', () => {
-    expect(src).toContain("e?.response?.data?.error?.message");
+  it('extracts nested error message from API response (e?.response?.data?.error)', () => {
+    expect(src).toContain("e?.response?.data?.error");
   });
 
   it('does not use the old flat error pattern for create settlement', () => {
@@ -25,7 +25,7 @@ describe('SettlementPage.svelte source-structure guards', () => {
     const createSettlementLine = lines.findIndex(l => l.includes('consignmentCreateSettlementError'));
     if (createSettlementLine >= 0) {
       const context = lines.slice(Math.max(0, createSettlementLine - 5), createSettlementLine + 1).join('\n');
-      expect(context).toContain('error?.message');
+      expect(context).toContain('response?.data?.error');
     }
   });
 
@@ -34,7 +34,7 @@ describe('SettlementPage.svelte source-structure guards', () => {
     const payoutLine = lines.findIndex(l => l.includes('consignmentRecordPayoutError'));
     if (payoutLine >= 0) {
       const context = lines.slice(Math.max(0, payoutLine - 5), payoutLine + 1).join('\n');
-      expect(context).toContain('error?.message');
+      expect(context).toContain('response?.data?.error');
     }
   });
 

@@ -1494,5 +1494,3 @@ func computeStoreShare(unitPrice, quantity int, shareType string, shareValue flo
 	}
 	return int(shareValue) * quantity
 }
-
-

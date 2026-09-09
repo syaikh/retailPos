@@ -23,13 +23,13 @@ const (
 
 // Job is a single print job.
 type Job struct {
-	ID        string          `json:"job_id"`
-	Status    Status          `json:"status"`
-	Receipt   receipt.Receipt `json:"receipt"`
+	ID        string           `json:"job_id"`
+	Status    Status           `json:"status"`
+	Receipt   receipt.Receipt  `json:"receipt"`
 	Branding  receipt.Branding `json:"branding"`
-	Error     string          `json:"error"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	Error     string           `json:"error"`
+	CreatedAt time.Time        `json:"created_at"`
+	UpdatedAt time.Time        `json:"updated_at"`
 }
 
 // Store is an in-memory, concurrency-safe job store with a dispatch channel.

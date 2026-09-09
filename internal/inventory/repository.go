@@ -21,10 +21,10 @@ type OwnerChecker interface {
 }
 
 type Repository struct {
-	db                shared.DBPool
-	locProvider       LocationRackProvider
-	metaProvider      ProductMetaProvider
-	consignmentOwner  OwnerChecker
+	db               shared.DBPool
+	locProvider      LocationRackProvider
+	metaProvider     ProductMetaProvider
+	consignmentOwner OwnerChecker
 }
 
 func NewRepository(db shared.DBPool) *Repository {

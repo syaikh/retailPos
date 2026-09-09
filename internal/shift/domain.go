@@ -28,7 +28,7 @@ type Shift struct {
 
 type ReportData struct {
 	Shift
-	DurationMinutes     int                       `json:"duration_minutes"`
+	DurationMinutes     int                         `json:"duration_minutes"`
 	PaymentBreakdown    []shared.PaymentMethodTotal `json:"payment_breakdown"`
-	CashMovementSummary CashMovementSummary        `json:"cash_movement_summary"`
+	CashMovementSummary CashMovementSummary         `json:"cash_movement_summary"`
 }

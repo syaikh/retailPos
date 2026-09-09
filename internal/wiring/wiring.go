@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/appsettings"
+	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
 	"retail-pos-system/internal/config"

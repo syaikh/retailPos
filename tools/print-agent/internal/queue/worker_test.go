@@ -22,8 +22,8 @@ func (f *fakeTransport) Write(id string, _ []byte) error {
 	return nil
 }
 
-func (f *fakeTransport) Close() error   { return nil }
-func (f *fakeTransport) Type() string   { return "fake" }
+func (f *fakeTransport) Close() error { return nil }
+func (f *fakeTransport) Type() string { return "fake" }
 
 func (f *fakeTransport) count() int {
 	f.mu.Lock()

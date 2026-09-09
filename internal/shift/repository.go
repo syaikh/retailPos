@@ -21,12 +21,12 @@ import (
 const uniqueViolationCode = "23505"
 
 type Repository struct {
-	db                     shared.DBPool
-	summaryProvider        SalesSummaryProvider
-	storeNameProvider      StoreNameProvider
-	usernameProvider       UsernameProvider
+	db                       shared.DBPool
+	summaryProvider          SalesSummaryProvider
+	storeNameProvider        StoreNameProvider
+	usernameProvider         UsernameProvider
 	paymentBreakdownProvider PaymentBreakdownProvider
-	cartSessionChecker     CartSessionChecker
+	cartSessionChecker       CartSessionChecker
 }
 
 func NewRepository(db shared.DBPool) *Repository {

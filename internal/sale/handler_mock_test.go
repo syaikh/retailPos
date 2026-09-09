@@ -2,9 +2,9 @@ package sale
 
 import (
 	"context"
-	"errors"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -45,18 +45,18 @@ type mockService struct {
 	listParkedSalesFn          func(ctx context.Context, caller Caller) ([]Sale, error)
 	getParkedSaleByIDFn        func(ctx context.Context, saleID int, caller Caller) (*Sale, error)
 
-	createOrGetOpenCartFn           func(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error)
-	getOpenCartFn                   func(ctx context.Context, cashierID int) (*CartSession, error)
-	getCartByIDFn                   func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
-	listHeldCartsFn                 func(ctx context.Context, cashierID int) ([]CartSession, error)
-	updateCartCustomerFn            func(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error)
-	addCartItemFn                   func(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error)
-	updateCartItemQuantityFn        func(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error)
-	removeCartItemFn                func(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error)
-	holdCartFn                      func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
-	resumeCartFn                    func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
-	cancelCartFn                    func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
-	checkoutCartFn func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
+	createOrGetOpenCartFn    func(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error)
+	getOpenCartFn            func(ctx context.Context, cashierID int) (*CartSession, error)
+	getCartByIDFn            func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	listHeldCartsFn          func(ctx context.Context, cashierID int) ([]CartSession, error)
+	updateCartCustomerFn     func(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error)
+	addCartItemFn            func(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error)
+	updateCartItemQuantityFn func(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error)
+	removeCartItemFn         func(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error)
+	holdCartFn               func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	resumeCartFn             func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	cancelCartFn             func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	checkoutCartFn           func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
 
 	createSaleTxFn               func(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, payments []CreatePaymentRequest) error
 	createSaleWithParkedSaleTxFn func(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error
@@ -64,7 +64,7 @@ type mockService struct {
 	cancelParkedSaleTxFn         func(ctx context.Context, tx pgx.Tx, saleID int, caller Caller) error
 	checkoutCartTxFn             func(ctx context.Context, tx pgx.Tx, cartID int, payments []CreatePaymentRequest, legacyPaymentMethod string, cashierID int) (*Sale, error)
 	notifySaleCreatedFn          func(ctx context.Context, sale *Sale)
-	inTxFn                      func(ctx context.Context, fn func(tx pgx.Tx) error) error
+	inTxFn                       func(ctx context.Context, fn func(tx pgx.Tx) error) error
 
 	setCartConfigFn    func(cfg CartConfig)
 	setPriceStoreFn    func(ps ProductPriceGetter)

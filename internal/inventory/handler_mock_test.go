@@ -71,7 +71,8 @@ func (m *mockService) AdjustStockTx(ctx context.Context, tx pgx.Tx, productID in
 	return m.adjustStockFn(ctx, productID, quantityChange, storeID, userID, notes)
 }
 
-func (m *mockService) NotifyStockAdjusted(ctx context.Context, productID, userID int, quantityChange int, notes string) {}
+func (m *mockService) NotifyStockAdjusted(ctx context.Context, productID, userID int, quantityChange int, notes string) {
+}
 
 func (m *mockService) SetLocationStockTx(ctx context.Context, tx pgx.Tx, productID, locationID, quantity, userID int, storeID *int) error {
 	if m.setLocationStockFn == nil {

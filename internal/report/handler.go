@@ -493,21 +493,21 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 		_ = f.SetCellValue("Report", fmt.Sprintf("C%d", i+7), cVal)
 		_ = f.SetCellValue("Report", fmt.Sprintf("D%d", i+7), dVal)
 		bStyle, _ := f.NewStyle(&excelize.Style{
-			Font:      &excelize.Font{Size: 9},
-			Border:    []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}},
-			Alignment: &excelize.Alignment{Horizontal: "right", Vertical: "center"},
+			Font:         &excelize.Font{Size: 9},
+			Border:       []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}},
+			Alignment:    &excelize.Alignment{Horizontal: "right", Vertical: "center"},
 			CustomNumFmt: &bFmt,
 		})
 		cStyle, _ := f.NewStyle(&excelize.Style{
-			Font:      &excelize.Font{Size: 9},
-			Border:    []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}},
-			Alignment: &excelize.Alignment{Horizontal: "right", Vertical: "center"},
+			Font:         &excelize.Font{Size: 9},
+			Border:       []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}},
+			Alignment:    &excelize.Alignment{Horizontal: "right", Vertical: "center"},
 			CustomNumFmt: &cFmt,
 		})
 		dStyle, _ := f.NewStyle(&excelize.Style{
-			Font:      &excelize.Font{Size: 9},
-			Border:    []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}},
-			Alignment: &excelize.Alignment{Horizontal: "right", Vertical: "center"},
+			Font:         &excelize.Font{Size: 9},
+			Border:       []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}},
+			Alignment:    &excelize.Alignment{Horizontal: "right", Vertical: "center"},
 			CustomNumFmt: &dFmt,
 		})
 		_ = f.SetCellStyle("Report", fmt.Sprintf("B%d", i+7), "B"+fmt.Sprintf("%d", i+7), bStyle)
@@ -538,9 +538,9 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 			Alignment: &excelize.Alignment{Horizontal: "left", Vertical: "center"},
 		})
 		bwNumStyle, _ := f.NewStyle(&excelize.Style{
-			Font:      &excelize.Font{Size: 9},
-			Border:    []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}},
-			Alignment: &excelize.Alignment{Horizontal: "right", Vertical: "center"},
+			Font:         &excelize.Font{Size: 9},
+			Border:       []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}},
+			Alignment:    &excelize.Alignment{Horizontal: "right", Vertical: "center"},
 			CustomNumFmt: &currencyFmt,
 		})
 		_ = f.SetCellStyle("Report", fmt.Sprintf("A%d", textRow), fmt.Sprintf("B%d", textRow), bwStyle)
@@ -576,9 +576,9 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 				Alignment: &excelize.Alignment{Horizontal: "left", Vertical: "center"},
 			})
 			bwNumStyle, _ := f.NewStyle(&excelize.Style{
-				Font:      &excelize.Font{Size: 9},
-				Border:    []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}},
-				Alignment: &excelize.Alignment{Horizontal: "right", Vertical: "center"},
+				Font:         &excelize.Font{Size: 9},
+				Border:       []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}},
+				Alignment:    &excelize.Alignment{Horizontal: "right", Vertical: "center"},
 				CustomNumFmt: &currencyFmt,
 			})
 			_ = f.SetCellStyle("Report", fmt.Sprintf("A%d", textRow), fmt.Sprintf("B%d", textRow), bwStyle)
@@ -628,9 +628,9 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 					align = "left"
 				}
 				styleID, _ := f.NewStyle(&excelize.Style{
-					Font:      &excelize.Font{Size: 9},
-					Border:    []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}},
-					Alignment: &excelize.Alignment{Horizontal: align, Vertical: "center"},
+					Font:         &excelize.Font{Size: 9},
+					Border:       []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}},
+					Alignment:    &excelize.Alignment{Horizontal: align, Vertical: "center"},
 					CustomNumFmt: &fmtStr,
 				})
 				dataColStyles[colIdx] = styleID
@@ -660,25 +660,25 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 			_ = f.SetCellStyle("Data", fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), dataColStyles[col])
 			col++
 
-		prevRevenue := 0.0
-		hasPrevRevenue := false
-		if pv, ok := row["prevRevenue"]; ok && pv != nil {
-			if fv, ok := pv.(float64); ok && fv > 0 {
-				prevRevenue = fv
-				hasPrevRevenue = true
+			prevRevenue := 0.0
+			hasPrevRevenue := false
+			if pv, ok := row["prevRevenue"]; ok && pv != nil {
+				if fv, ok := pv.(float64); ok && fv > 0 {
+					prevRevenue = fv
+					hasPrevRevenue = true
+				}
 			}
-		}
-		_ = f.SetCellValue("Data", fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), prevRevenue)
-		_ = f.SetCellStyle("Data", fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), dataColStyles[col])
-		col++
+			_ = f.SetCellValue("Data", fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), prevRevenue)
+			_ = f.SetCellStyle("Data", fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), dataColStyles[col])
+			col++
 
-		change := 0.0
-		if hasPrevRevenue {
-			if rev, ok := row["revenue"].(float64); ok {
-				change = (rev - prevRevenue) / prevRevenue
+			change := 0.0
+			if hasPrevRevenue {
+				if rev, ok := row["revenue"].(float64); ok {
+					change = (rev - prevRevenue) / prevRevenue
+				}
 			}
-		}
-		_ = f.SetCellValue("Data", fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), change)
+			_ = f.SetCellValue("Data", fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), change)
 			_ = f.SetCellStyle("Data", fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), dataColStyles[col])
 			col++
 

@@ -33,12 +33,12 @@ func WriteFailClosed(ctx context.Context, svc Creator, log *Log) bool {
 }
 
 type Log struct {
-	ID          int         `json:"id"`
-	UserID      *int        `json:"user_id,omitempty"`
-	StoreID     *int        `json:"store_id,omitempty"`
-	StoreName   string      `json:"store_name,omitempty"`
-	Username    string      `json:"username"`
-	Role        string      `json:"role"`
+	ID            int         `json:"id"`
+	UserID        *int        `json:"user_id,omitempty"`
+	StoreID       *int        `json:"store_id,omitempty"`
+	StoreName     string      `json:"store_name,omitempty"`
+	Username      string      `json:"username"`
+	Role          string      `json:"role"`
 	Action        string      `json:"action"`
 	EntityType    string      `json:"entity_type"`
 	Description   string      `json:"description"`
@@ -52,20 +52,20 @@ type Log struct {
 }
 
 type LogListItem struct {
-	ID          int         `json:"id"`
-	UserID      *int        `json:"user_id,omitempty"`
-	StoreID     *int        `json:"store_id,omitempty"`
-	StoreName   string      `json:"store_name,omitempty"`
-	Username    string      `json:"username"`
-	Role        string      `json:"role"`
-	Action      string      `json:"action"`
-	EntityType  string      `json:"entity_type"`
-	Description string      `json:"description"`
-	IPAddress   string      `json:"ip_address,omitempty"`
-	UserAgent   string      `json:"user_agent,omitempty"`
-	EntityID    *int        `json:"entity_id,omitempty"`
-	CorrelationID string    `json:"correlation_id,omitempty"`
-	CreatedAt   string      `json:"created_at"`
-	OldValues   interface{} `json:"old_values,omitempty"`
-	NewValues   interface{} `json:"new_values,omitempty"`
+	ID            int         `json:"id"`
+	UserID        *int        `json:"user_id,omitempty"`
+	StoreID       *int        `json:"store_id,omitempty"`
+	StoreName     string      `json:"store_name,omitempty"`
+	Username      string      `json:"username"`
+	Role          string      `json:"role"`
+	Action        string      `json:"action"`
+	EntityType    string      `json:"entity_type"`
+	Description   string      `json:"description"`
+	IPAddress     string      `json:"ip_address,omitempty"`
+	UserAgent     string      `json:"user_agent,omitempty"`
+	EntityID      *int        `json:"entity_id,omitempty"`
+	CorrelationID string      `json:"correlation_id,omitempty"`
+	CreatedAt     string      `json:"created_at"`
+	OldValues     interface{} `json:"old_values,omitempty"`
+	NewValues     interface{} `json:"new_values,omitempty"`
 }

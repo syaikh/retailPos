@@ -29,14 +29,14 @@ var (
 	ErrPaymentMethodNotFound        = errors.New("payment method not found")
 
 	// Receipt edit errors
-	ErrReceiptNotFound           = errors.New("consignment receipt not found")
-	ErrEditWindowExpired         = errors.New("receipt is outside the 7-day edit window")
-	ErrReceiptHasSales           = errors.New("receipt has downstream sales; quantity and price cannot be changed")
-	ErrReceiptHasPendingReturns  = errors.New("receipt has pending returns; quantity cannot be changed")
-	ErrReceiptIsSettled          = errors.New("receipt is already settled")
-	ErrEditReasonRequired        = errors.New("reason for edit is required")
-	ErrNegativeStock             = errors.New("edit would result in negative stock")
-	ErrReceiptEditItemNotFound   = errors.New("receipt item not found in this receipt")
+	ErrReceiptNotFound          = errors.New("consignment receipt not found")
+	ErrEditWindowExpired        = errors.New("receipt is outside the 7-day edit window")
+	ErrReceiptHasSales          = errors.New("receipt has downstream sales; quantity and price cannot be changed")
+	ErrReceiptHasPendingReturns = errors.New("receipt has pending returns; quantity cannot be changed")
+	ErrReceiptIsSettled         = errors.New("receipt is already settled")
+	ErrEditReasonRequired       = errors.New("reason for edit is required")
+	ErrNegativeStock            = errors.New("edit would result in negative stock")
+	ErrReceiptEditItemNotFound  = errors.New("receipt item not found in this receipt")
 )
 
 const (
@@ -324,19 +324,19 @@ type CreatePayoutRequest struct {
 
 // EditReceiptInput is the payload for editing a consignment receipt.
 type EditReceiptInput struct {
-	Items []EditReceiptItemInput `json:"items" binding:"required,min=1"`
-	Notes *string                `json:"notes"`
-	Reason string               `json:"reason" binding:"required"`
+	Items  []EditReceiptItemInput `json:"items" binding:"required,min=1"`
+	Notes  *string                `json:"notes"`
+	Reason string                 `json:"reason" binding:"required"`
 }
 
 // EditReceiptItemInput is one item in an edit request.
 type EditReceiptItemInput struct {
-	ID          int     `json:"id" binding:"required"`
-	AcceptedQty int     `json:"accepted_qty" binding:"required,min=0"`
-	Price       int     `json:"price" binding:"required,min=0"`
+	ID              int     `json:"id" binding:"required"`
+	AcceptedQty     int     `json:"accepted_qty" binding:"required,min=0"`
+	Price           int     `json:"price" binding:"required,min=0"`
 	StoreShareType  string  `json:"store_share_type"`
 	StoreShareValue float64 `json:"store_share_value"`
-	Notes       *string `json:"notes"`
+	Notes           *string `json:"notes"`
 }
 
 // DownstreamCheck holds the results of checking whether a receipt has
@@ -349,14 +349,14 @@ type DownstreamCheck struct {
 
 // ReceiptEdit is an immutable audit trail entry for a receipt edit.
 type ReceiptEdit struct {
-	ID         int    `json:"id"`
-	ReceiptID  int    `json:"receipt_id"`
-	EditedBy   int    `json:"edited_by"`
-	EditedAt   string `json:"edited_at"`
-	Field      string `json:"field"`
-	OldValue   string `json:"old_value"`
-	NewValue   string `json:"new_value"`
-	Reason     string `json:"reason"`
-	IPAddress  string `json:"ip_address,omitempty"`
-	CreatedAt  string `json:"created_at"`
+	ID        int    `json:"id"`
+	ReceiptID int    `json:"receipt_id"`
+	EditedBy  int    `json:"edited_by"`
+	EditedAt  string `json:"edited_at"`
+	Field     string `json:"field"`
+	OldValue  string `json:"old_value"`
+	NewValue  string `json:"new_value"`
+	Reason    string `json:"reason"`
+	IPAddress string `json:"ip_address,omitempty"`
+	CreatedAt string `json:"created_at"`
 }

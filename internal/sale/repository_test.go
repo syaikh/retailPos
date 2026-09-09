@@ -87,7 +87,6 @@ func cancelParkedSaleInTx(t *testing.T, repo *Repository, saleID int, ownerID, s
 	return tx.Commit(ctx)
 }
 
-
 func insertTestProduct(ctx context.Context, t *testing.T, sku, name string, price, stock int) int {
 	t.Helper()
 	var id int

@@ -502,10 +502,10 @@ func (h *Handler) AuditShift(c *gin.Context) {
 	}
 
 	shared.JSONSuccess(c, gin.H{
-		"shift":             shift,
-		"expected_cash":     expected,
-		"actual_balance":    req.ActualBalance,
-		"off_by":            offBy,
+		"shift":              shift,
+		"expected_cash":      expected,
+		"actual_balance":     req.ActualBalance,
+		"off_by":             offBy,
 		"flagged_for_review": flaggedForReview,
 	})
 }

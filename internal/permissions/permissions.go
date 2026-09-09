@@ -1,7 +1,7 @@
 // Package permissions is the single source of truth for permission codes on
 // the backend.
 //
-// Sync source: database (permissions table, 85 live codes) — see
+// Sync source: database (permissions table, 86 live codes) — see
 // docs/audits/permission-matrix-final.md (updated 2026-09-02).
 //
 // Rules:
@@ -56,18 +56,18 @@ const (
 	CategoryExport Code = "category.export"
 	CategoryImport Code = "category.import"
 
-	SaleView    Code = "sale.view"
-	SaleCreate  Code = "sale.create"
-	SalePark    Code = "sale.park"
-	SaleLookup  Code = "sale.lookup"
-	SaleDetail  Code = "sale.detail"
+	SaleView     Code = "sale.view"
+	SaleCreate   Code = "sale.create"
+	SalePark     Code = "sale.park"
+	SaleLookup   Code = "sale.lookup"
+	SaleDetail   Code = "sale.detail"
 	ReceiptPrint Code = "receipt.print"
 
-	ShiftView          Code = "shift.view"
-	ShiftCreate        Code = "shift.create"
-	ShiftReview        Code = "shift.review"
-	ShiftAudit         Code = "shift.audit"
-	ShiftCashMovement  Code = "shift.cash_movement"
+	ShiftView         Code = "shift.view"
+	ShiftCreate       Code = "shift.create"
+	ShiftReview       Code = "shift.review"
+	ShiftAudit        Code = "shift.audit"
+	ShiftCashMovement Code = "shift.cash_movement"
 
 	CustomerView   Code = "customer.view"
 	CustomerCreate Code = "customer.create"
@@ -119,11 +119,11 @@ const (
 	StorageLocationUpdate Code = "storage_location.update"
 	StorageLocationDelete Code = "storage_location.delete"
 
-	ConsignmentView    Code = "consignment.view"
-	ConsignmentCreate  Code = "consignment.create"
-	ConsignmentUpdate  Code = "consignment.update"
-	ConsignmentSettle  Code = "consignment.settle"
-	ConsignmentPay     Code = "consignment.pay"
+	ConsignmentView   Code = "consignment.view"
+	ConsignmentCreate Code = "consignment.create"
+	ConsignmentUpdate Code = "consignment.update"
+	ConsignmentSettle Code = "consignment.settle"
+	ConsignmentPay    Code = "consignment.pay"
 
 	AppSettingsView   Code = "app_settings.view"
 	AppSettingsUpdate Code = "app_settings.update"

@@ -24,16 +24,16 @@ func init() {
 }
 
 type mockShiftService struct {
-	openShiftFn             func(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
-	closeShiftFn            func(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
-	getActiveShiftFn        func(ctx context.Context, userID int) (*Shift, error)
-	listShiftsFn            func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
-	getShiftByIDFn          func(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
-	reviewShiftFn           func(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
-	flagForReviewFn         func(ctx context.Context, shiftID int) error
+	openShiftFn               func(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
+	closeShiftFn              func(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
+	getActiveShiftFn          func(ctx context.Context, userID int) (*Shift, error)
+	listShiftsFn              func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
+	getShiftByIDFn            func(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
+	reviewShiftFn             func(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
+	flagForReviewFn           func(ctx context.Context, shiftID int) error
 	getDiscrepancyThresholdFn func(ctx context.Context) int
-	auditShiftFn            func(ctx context.Context, shiftID int) (*Shift, int, error)
-	exportShiftsFn          func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
+	auditShiftFn              func(ctx context.Context, shiftID int) (*Shift, int, error)
+	exportShiftsFn            func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
 }
 
 func (m *mockShiftService) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {

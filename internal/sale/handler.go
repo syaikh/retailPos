@@ -436,6 +436,7 @@ func (h *Handler) respondCompleteParkedSaleError(c *gin.Context, err error) {
 	}
 	shared.InternalError(c, err)
 }
+
 // new_values: it serializes the sale and strips customer-identifying fields
 // (customer_name) so the audit trail does not persist identifiable customer
 // data.
