@@ -77,6 +77,41 @@ Analytical queries are served from materialized views pre-aggregated in Jakarta 
 ## Git Commit Policy
 Never auto-commit. User will request commits explicitly.
 
+## CI/CD (GitHub Actions)
+
+**All validation — formatting, linting, type-checking, testing, building, and security scanning — runs in GitHub CI.** Do not run full suites locally. The CI workflow (`.github/workflows/ci.yml`) triggers on pushes to `main` and on pull requests.
+
+### CI Jobs
+
+| Job | What it checks |
+|-----|----------------|
+| Go: Format | `gofmt -s` formatting |
+| Go: Vet | `go vet ./...` |
+| Go: Build | `go build ./...` |
+| Go: Tests | `go test -p 1 -count=1 ./...` + race detector (with PostgreSQL) |
+| Go: Lint | `golangci-lint` (govet, staticcheck, errcheck, ineffassign, unused, revive, depguard) |
+| Go: Vulnerability Check | `govulncheck ./...` |
+| Frontend: Install | `npm ci` (dependency gate) |
+| Frontend: Format | `prettier --check` |
+| Frontend: Lint | `eslint .` (TypeScript + Svelte) |
+| Frontend: Type Check | `svelte-check --tsconfig ./tsconfig.json` |
+| Frontend: Tests | `vitest run` |
+| Frontend: Build | `vite build` |
+| Integration: Build & Migrate | Backend build + DB migrations + server health check + frontend build |
+| Security: CodeQL | GitHub CodeQL analysis (main branch only) |
+
+E2E tests run in a separate workflow (`.github/workflows/e2e.yml`) with sharded Playwright tests against a full stack (PostgreSQL, backend, frontend, print-agent).
+
+### Local Quick Checks (for rapid iteration)
+
+For most changes, run only affected packages/files, then a fast build sanity check:
+
+- **Backend:** `go test -p 1 -count=1 ./internal/<package>/...` (optionally `-run <TestName>`)
+- **Frontend:** `cd web && npx vitest run <path/to/test.file>`
+- **Sanity check:** `go build ./...` and `cd web && npm run build`
+
+Reserve full suite for CI or when explicitly requested. **Never run full suite proactively.**
+
 ## Running Tests
 
 Tests require PostgreSQL connection and `JWT_SECRET`. Use env vars to point to dev DB:
@@ -86,16 +121,6 @@ TEST_DB_PORT=5433 DB_PORT=5433 TEST_DB_USER=pos TEST_DB_PASSWORD=admin123 DB_USE
 ```
 
 **Important:** Use `-p 1` to force sequential execution (prevents deadlocks between concurrent `TRUNCATE`/`INSERT` across packages sharing the same DB).
-
-### Targeted Testing (default workflow)
-
-For most changes, run only affected packages/files, then a fast build sanity check:
-
-- **Backend:** `go test -p 1 -count=1 ./internal/<package>/...` (optionally `-run <TestName>`)
-- **Frontend:** `cd web && npx vitest run <path/to/test.file>`
-- **Sanity check:** `go build ./...` and `cd web && npm run build`
-
-Reserve full suite (`go test -p 1 -count=1 ./...`, `cd web && npm run test:run`, Playwright E2E) for pre-commit/CI/release or when explicitly requested. **Never run full suite proactively.**
 
 **Test database:** `retail_pos_test` DB (configurable via `TEST_DB_*`). Auto-applies pending migrations via `schema_migrations` table. To reset: `dropdb retail_pos_test && createdb retail_pos_test`.
 
