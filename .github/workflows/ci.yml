@@ -276,6 +276,12 @@ jobs:
             sleep 2
           done
           curl -sf http://localhost:9095/health
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+      - name: Build frontend
+        working-directory: web
+        run: npm run build
       - name: Verify frontend build
         run: test -d web/dist && echo "Frontend build artifacts present"
 

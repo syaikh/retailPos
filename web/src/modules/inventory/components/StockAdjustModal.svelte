@@ -35,7 +35,7 @@
 </script>
 
 <Modal bind:open title={labels.adjustStock} size="sm">
-  <form onsubmit={handleSubmit} class="space-y-4">
+  <form onsubmit={handleSubmit} id="stock-adjust-form" class="space-y-4">
     {#if stockAdjustProduct}
       <div>
         <p class="text-sm text-text-muted mb-2">
@@ -93,8 +93,9 @@
     <Button
       variant="primary"
       class="px-5"
+      form="stock-adjust-form"
+      type="submit"
       disabled={adjustingStock}
-      onclick={onSubmit}
     >
       {#if adjustingStock}<Loader2 size={16} class="animate-spin mr-2" />{/if}
       {labels.adjustStock}
