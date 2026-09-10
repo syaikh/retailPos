@@ -82,23 +82,22 @@
         required
       />
     </div>
+    <div class="flex items-center justify-end gap-2 pt-2">
+      <Button
+        variant="secondary"
+        class="px-5"
+        disabled={adjustingStock}
+        onclick={onCancel}>{labels.cancel}</Button
+      >
+      <Button
+        variant="primary"
+        class="px-5"
+        type="submit"
+        disabled={adjustingStock}
+      >
+        {#if adjustingStock}<Loader2 size={16} class="animate-spin mr-2" />{/if}
+        {labels.adjustStock}
+      </Button>
+    </div>
   </form>
-  {#snippet footer()}
-    <Button
-      variant="secondary"
-      class="px-5"
-      disabled={adjustingStock}
-      onclick={onCancel}>{labels.cancel}</Button
-    >
-    <Button
-      variant="primary"
-      class="px-5"
-      form="stock-adjust-form"
-      type="submit"
-      disabled={adjustingStock}
-    >
-      {#if adjustingStock}<Loader2 size={16} class="animate-spin mr-2" />{/if}
-      {labels.adjustStock}
-    </Button>
-  {/snippet}
 </Modal>
