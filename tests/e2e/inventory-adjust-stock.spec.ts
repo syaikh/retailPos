@@ -88,8 +88,10 @@ test.describe('Inventory Stock Adjustment', () => {
     const adjustBtn = page.locator('button').filter({ hasText: 'Adjust Stock' }).last();
     await adjustBtn.click();
 
-    // Should show error toast, modal stays open
-    await expect(page.locator('text=Notes are required')).toBeVisible({ timeout: 5000 });
+    // Should show field error, modal stays open
+    await expect(
+      page.locator('text="Notes are required - please provide a reason for adjustment"'),
+    ).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Adjust Stock').first()).toBeVisible();
   });
 

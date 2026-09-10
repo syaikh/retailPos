@@ -38,6 +38,7 @@
   let selectedUser = $state(null);
   let modalMode = $state("add");
   let saving = $state(false);
+  let isSearching = $state(false);
   let isInitialMount = $state(true);
   let subordinateCount = $state(0);
 

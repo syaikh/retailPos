@@ -56,6 +56,7 @@
   let saving = $state(false);
   let permissionSearch = $state("");
   let nameTouched = $state(false);
+  let pendingClose = $state(false);
   let loadError = $state("");
 
   // ── Pagination ───────────────────────────────────────────────────
