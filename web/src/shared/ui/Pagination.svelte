@@ -112,10 +112,7 @@
       <option value={100}>100</option>
     </select>
     <span class="ml-2">
-      {labels.showing}
-      {Math.min(offset + 1, total)}-{Math.min(offset + limit, total)}
-      {labels.of}
-      {total}
+      {`${labels.showing} ${Math.min(offset + 1, total)}-${Math.min(offset + limit, total)} ${labels.of} ${total}`}
     </span>
   </div>
 

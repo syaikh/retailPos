@@ -180,6 +180,7 @@ test.describe('Transaction deep-link & refresh (superadmin/manager)', () => {
     await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     await page.goto('/transactions');
     await expect(page).toHaveURL(/\/transactions/);
+    await expect(page.locator('text=INVOICE')).toBeVisible({ timeout: 10000 });
   });
 
   test.afterEach(async ({ page }) => {

@@ -114,13 +114,10 @@
       }
     }
 
-    const raf = requestAnimationFrame(() => {
-      window.addEventListener("mousedown", handleClickOutside);
-      window.addEventListener("keydown", handleKeydown);
-    });
+    window.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKeydown);
 
     return () => {
-      cancelAnimationFrame(raf);
       window.removeEventListener("mousedown", handleClickOutside);
       window.removeEventListener("keydown", handleKeydown);
       window.removeEventListener("scroll", reposition, {
