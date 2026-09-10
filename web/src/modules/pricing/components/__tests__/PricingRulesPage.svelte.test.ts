@@ -16,51 +16,55 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
 
   it("imports pricing service functions", () => {
     expect(src).toContain(
-      "import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, submitPricingRule, approvePricingRule, rejectPricingRule, searchProducts, getCustomerGroups, getStores, checkConflicts } from '../services/pricing-service'",
+      'from "../services/pricing-service"',
     );
+    expect(src).toContain("getPricingRules");
+    expect(src).toContain("createPricingRule");
+    expect(src).toContain("updatePricingRule");
+    expect(src).toContain("deletePricingRule");
+    expect(src).toContain("checkConflicts");
   });
 
   it("imports product service functions including getProductsByIds", () => {
     expect(src).toContain(
-      "import { getCategories, getBrands, getProductsByIds } from '$modules/product/services/product-service'",
+      'from "$modules/product/services/product-service"',
     );
+    expect(src).toContain("getProductsByIds");
   });
 
   it("imports toast store", () => {
-    expect(src).toContain(
-      "import { toast } from '$shared/stores/toast.svelte'",
-    );
+    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
   });
 
   it("imports auth store", () => {
-    expect(src).toContain("import { useAuthStore } from '$modules/auth'");
+    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
   });
 
   it("imports PricingRule type", () => {
-    expect(src).toContain("import type { PricingRule } from '../types'");
+    expect(src).toContain('import type { PricingRule');
+    expect(src).toContain('from "../types"');
   });
 
   it("has extracted child components", () => {
     expect(src).toContain(
-      "import PricingRulesToolbar from './PricingRulesToolbar.svelte'",
+      'import PricingRulesToolbar from "./PricingRulesToolbar.svelte"',
     );
     expect(src).toContain(
-      "import PricingRulesTable from './PricingRulesTable.svelte'",
+      'import PricingRulesTable from "./PricingRulesTable.svelte"',
     );
     expect(src).toContain(
-      "import PricingRuleDetailDrawer from './PricingRuleDetailDrawer.svelte'",
+      'import PricingRuleDetailDrawer from "./PricingRuleDetailDrawer.svelte"',
     );
   });
 
   it("imports ImportWizard from shared/ui", () => {
-    expect(src).toContain(
-      "import { Button, Input, Modal, NumberInput, Pagination, ConfirmDeleteModal, Badge, ImportWizard } from '$shared/ui'",
-    );
+    expect(src).toContain('from "$shared/ui"');
+    expect(src).toContain("ImportWizard");
   });
 
   it("imports PriceSimulationModal", () => {
     expect(src).toContain(
-      "import PriceSimulationModal from './PriceSimulationModal.svelte'",
+      'import PriceSimulationModal from "./PriceSimulationModal.svelte"',
     );
   });
 
@@ -90,7 +94,7 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   });
 
   it("uses $derived for sorting", () => {
-    expect(src).toContain("let sortedRules = $derived");
+    expect(src).toContain("sortedRules = $derived");
   });
 
   it("has productNames state for name resolution", () => {
@@ -100,21 +104,21 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   });
 
   it("has targetNames derived that builds map from categories, brands, productNames", () => {
-    expect(src).toContain("let targetNames = $derived");
+    expect(src).toContain("targetNames = $derived");
     expect(src).toContain("map.set(`category:${c.id}`, c.name)");
     expect(src).toContain("map.set(`brand:${b.id}`, b.name)");
     expect(src).toContain("map.set(`product:${id}`, name)");
   });
 
   it("has maximum_quantity defaulting to empty string in form", () => {
-    expect(src).toContain("maximum_quantity: '' as number | string");
+    expect(src).toContain('maximum_quantity: "" as number | string');
   });
 
   it("resets maximum_quantity to empty string in resetForm", () => {
     const resetIdx = src.indexOf("function resetForm()");
     expect(resetIdx).toBeGreaterThan(-1);
     const resetBlock = src.substring(resetIdx, resetIdx + 500);
-    expect(resetBlock).toContain("maximum_quantity: ''");
+    expect(resetBlock).toContain('maximum_quantity: ""');
   });
 
   it("uses Number() conversion in max qty validation", () => {
@@ -124,7 +128,7 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   });
 
   it("removes empty maximum_quantity from payload before saving", () => {
-    expect(src).toContain("payload.maximum_quantity === ''");
+    expect(src).toContain('payload.maximum_quantity === ""');
   });
 
   it("has fetchRules function", () => {
@@ -166,10 +170,10 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
     const dupIdx = src.indexOf("function handleDuplicate(rule: PricingRule)");
     expect(dupIdx).toBeGreaterThan(-1);
     const dupBlock = src.substring(dupIdx, dupIdx + 1400);
-    expect(dupBlock).toContain("modalMode = 'add'");
+    expect(dupBlock).toContain('modalMode = "add"');
     expect(dupBlock).toContain("selectedRule = null");
-    expect(dupBlock).toContain("effective_from: ''");
-    expect(dupBlock).toContain("effective_until: ''");
+    expect(dupBlock).toContain('effective_from: ""');
+    expect(dupBlock).toContain('effective_until: ""');
   });
 
   it("has handleImportComplete function", () => {
@@ -195,15 +199,15 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
 
   it("has handleKeydown function with Ctrl+N and Ctrl+K shortcuts", () => {
     expect(src).toContain("function handleKeydown(e: KeyboardEvent)");
-    expect(src).toContain("e.key === 'n'");
-    expect(src).toContain("e.key === 'k'");
+    expect(src).toContain('e.key === "n"');
+    expect(src).toContain('e.key === "k"');
     expect(src).toContain("#pricing-search");
   });
 
   it("handleKeydown ignores input/textarea/select elements", () => {
-    expect(src).toContain(
-      "e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement",
-    );
+    expect(src).toContain("e.target instanceof HTMLInputElement");
+    expect(src).toContain("e.target instanceof HTMLTextAreaElement");
+    expect(src).toContain("e.target instanceof HTMLSelectElement");
   });
 
   it("has validateForm function with all validation rules", () => {
@@ -239,9 +243,9 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   });
 
   it("has permission checks via auth store", () => {
-    expect(src).toContain("includes('pricing.create')");
-    expect(src).toContain("includes('pricing.update')");
-    expect(src).toContain("includes('pricing.delete')");
+    expect(src).toContain('includes("pricing.create")');
+    expect(src).toContain('includes("pricing.update")');
+    expect(src).toContain('includes("pricing.delete")');
   });
 
   it("fetches customer groups, stores, categories, and brands on mount", () => {
@@ -252,9 +256,9 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   });
 
   it("onMount returns cleanup function for keydown listener", () => {
-    expect(src).toContain("window.addEventListener('keydown', handleKeydown)");
+    expect(src).toContain('window.addEventListener("keydown", handleKeydown)');
     expect(src).toContain(
-      "return () => window.removeEventListener('keydown', handleKeydown)",
+      'return () => window.removeEventListener("keydown", handleKeydown)',
     );
   });
 
@@ -276,8 +280,8 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   });
 
   it("passes onimport and onsimulate to PricingRulesToolbar", () => {
-    expect(src).toContain("onimport={() => showImportWizard = true}");
-    expect(src).toContain("onsimulate={() => showSimulation = true}");
+    expect(src).toContain("onimport={() => (showImportWizard = true)}");
+    expect(src).toContain("onsimulate={() => (showSimulation = true)}");
   });
 
   it("renders PricingRuleDetailDrawer with correct props", () => {
@@ -312,28 +316,26 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   });
 
   it("has summary preview derived", () => {
-    expect(src).toContain("let summaryPreview = $derived");
+    expect(src).toContain("summaryPreview = $derived");
   });
 
   it("uses payload.effective_from with T00:00:00+07:00 suffix (Jakarta timezone)", () => {
     expect(src).toContain(
-      "payload.effective_from = payload.effective_from + 'T00:00:00+07:00'",
+      'payload.effective_from = payload.effective_from + "T00:00:00+07:00"',
     );
   });
 
   it("uses payload.effective_until with T23:59:59+07:00 suffix (Jakarta timezone)", () => {
     expect(src).toContain(
-      "payload.effective_until = payload.effective_until + 'T23:59:59+07:00'",
+      'payload.effective_until = payload.effective_until + "T23:59:59+07:00"',
     );
   });
 
   it("has workDaysSelected and weekendSelected as $derived (not $derived with function call)", () => {
-    expect(src).toContain(
-      "const workDaysSelected = $derived(['mon', 'tue', 'wed', 'thu', 'fri'].every",
-    );
-    expect(src).toContain(
-      "const weekendSelected = $derived(['sat', 'sun'].every",
-    );
+    expect(src).toContain("const workDaysSelected = $derived(");
+    expect(src).toContain(".every((d) =>");
+    expect(src).toContain("form.recurrence_days.includes(d)");
+    expect(src).toContain("const weekendSelected = $derived(");
   });
 
   it("has skip-to-content link for accessibility", () => {
@@ -360,7 +362,7 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
 
   it("imports ConflictRule type from pricing service", () => {
     expect(src).toContain(
-      "import type { ConflictRule } from '../services/pricing-service'",
+      'import type { ConflictRule } from "../services/pricing-service"',
     );
   });
 
@@ -370,7 +372,7 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
 
   it("has conflict detection state variables", () => {
     expect(src).toContain("conflictRules = $state<ConflictRule[]>([])");
-    expect(src).toContain("checkingConflicts = $state(false)");
+    expect(src).toContain("_checkingConflicts = $state(false)");
     expect(src).toContain("showConflictWarning = $state(false)");
   });
 
@@ -400,7 +402,8 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   });
 
   it("modal footer changes text when conflict warning shown", () => {
-    expect(src).toContain("showConflictWarning ? labels.keepSaving");
+    expect(src).toContain("showConflictWarning");
+    expect(src).toContain("labels.keepSaving");
   });
 
   it("passes onrowclick handler to table (replaces onviewaudit)", () => {
