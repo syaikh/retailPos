@@ -446,7 +446,6 @@
       await fetchHeldCarts();
     } catch (_err: unknown) {
       toast.error(labels.toastFailedToHoldSale);
-    } finally {
     }
   }
 
