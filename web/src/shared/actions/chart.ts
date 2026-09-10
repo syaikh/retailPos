@@ -1,4 +1,7 @@
-import Chart, { type ChartConfiguration, type ChartDataset } from "chart.js/auto";
+import Chart, {
+  type ChartConfiguration,
+  type ChartDataset,
+} from "chart.js/auto";
 
 export function chart(node: HTMLCanvasElement, config: ChartConfiguration) {
   let chartInstance: Chart | null = null;

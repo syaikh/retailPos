@@ -45,7 +45,11 @@
     return out;
   }
 
-  function getDiffDescription(change: { key: string; old: unknown; new: unknown }) {
+  function getDiffDescription(change: {
+    key: string;
+    old: unknown;
+    new: unknown;
+  }) {
     const label = getFieldLabel(change.key);
     const oldVal = formatValue(change.old);
     const newVal = formatValue(change.new);
@@ -232,7 +236,8 @@
           ([k]: [string, unknown]) => k !== "created_at" && k !== "updated_at",
         )
         .map(
-          ([k, v]: [string, unknown]) => `${getFieldLabel(k)}: ${formatValue(v)}`,
+          ([k, v]: [string, unknown]) =>
+            `${getFieldLabel(k)}: ${formatValue(v)}`,
         );
       return pairs.join(", ") || "—";
     }

@@ -194,9 +194,7 @@
       showCreateModal = false;
       store.loadSessions(store.currentFilters);
     } catch (e: unknown) {
-      toast.error(
-        getApiErrorMessage(e, labels.toastFailedCreateStockOpname),
-      );
+      toast.error(getApiErrorMessage(e, labels.toastFailedCreateStockOpname));
     } finally {
       creating = false;
     }
@@ -258,117 +256,117 @@
 
 <Modal bind:open={showCreateModal} title={labels.newStockOpname} size="md">
   <div class="space-y-4">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <label
-          class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-        >
-          <span>{labels.title}</span>
-          <Input
-            type="text"
-            bind:value={createTitle}
-            placeholder={labels.optionalTitle}
-          />
-        </label>
-        <label
-          class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer self-end pb-2.5"
-        >
-          <input
-            type="checkbox"
-            bind:checked={createBlind}
-            class="accent-primary"
-          />
-          {labels.blindCountHideQuantities}
-        </label>
-      </div>
-
-      <div class="space-y-3">
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-medium text-text-secondary"
-            >{labels.scopes}</span
-          >
-          <Button variant="secondary" size="sm" onclick={addRow}>
-            <Plus class="w-4 h-4" />
-            {labels.addScope}
-          </Button>
-        </div>
-        {#each createRows as row, i (i)}
-          <div
-            class="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] gap-3 items-start"
-          >
-            <label
-              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-            >
-              <span>{labels.type}</span>
-              <Input
-                tag="select"
-                bind:value={row.scope_type}
-                onchange={() => onRowTypeChange(row)}
-              >
-                {#each STOCK_OPNAME_SCOPE_TYPES as t (t)}
-                  <option value={t}>{STOCK_OPNAME_SCOPE_LABELS[t]}</option>
-                {/each}
-              </Input>
-            </label>
-            <label
-              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-            >
-              <span>{labels.scope}</span>
-              {#if row.scope_type === "manual"}
-                <div
-                  class="rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-muted"
-                >
-                  {labels.allActiveProducts}
-                </div>
-              {:else if optionsLoading && !optionCache[row.scope_type]}
-                <div
-                  class="rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-muted"
-                >
-                  {labels.loading}
-                </div>
-              {:else}
-                <SelectSearch
-                  bind:value={row.scope_id}
-                  options={scopeOptionsFor(row.scope_type)}
-                  placeholder={labels.selectScope}
-                  searchPlaceholder={labels.search}
-                  disabled={scopeOptionsFor(row.scope_type).length === 0}
-                  notFoundText={labels.noMatchingScopeFound}
-                />
-              {/if}
-            </label>
-            {#if createRows.length > 1}
-              <Button
-                variant="ghost"
-                size="sm"
-                class="self-end mb-1"
-                onclick={() => removeRow(i)}
-                aria-label={labels.removeScope}
-              >
-                <Trash2 class="w-4 h-4" />
-              </Button>
-            {/if}
-          </div>
-        {/each}
-        {#if createRows.some((r) => r.scope_type === "location") && createRows.length > 1}
-          <p class="text-xs text-amber-600">
-            {labels.storageLocationScopeOnly}
-          </p>
-        {/if}
-      </div>
-
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <label
         class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
       >
-        <span>{labels.notes}</span>
+        <span>{labels.title}</span>
         <Input
-          tag="textarea"
-          bind:value={createNotes}
-          placeholder={labels.optionalNotes}
-          rows={2}
+          type="text"
+          bind:value={createTitle}
+          placeholder={labels.optionalTitle}
         />
       </label>
-      <p class="text-xs text-text-muted">{labels.sessionScopeUnionHint}</p>
+      <label
+        class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer self-end pb-2.5"
+      >
+        <input
+          type="checkbox"
+          bind:checked={createBlind}
+          class="accent-primary"
+        />
+        {labels.blindCountHideQuantities}
+      </label>
     </div>
+
+    <div class="space-y-3">
+      <div class="flex items-center justify-between">
+        <span class="text-sm font-medium text-text-secondary"
+          >{labels.scopes}</span
+        >
+        <Button variant="secondary" size="sm" onclick={addRow}>
+          <Plus class="w-4 h-4" />
+          {labels.addScope}
+        </Button>
+      </div>
+      {#each createRows as row, i (i)}
+        <div
+          class="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] gap-3 items-start"
+        >
+          <label
+            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+          >
+            <span>{labels.type}</span>
+            <Input
+              tag="select"
+              bind:value={row.scope_type}
+              onchange={() => onRowTypeChange(row)}
+            >
+              {#each STOCK_OPNAME_SCOPE_TYPES as t (t)}
+                <option value={t}>{STOCK_OPNAME_SCOPE_LABELS[t]}</option>
+              {/each}
+            </Input>
+          </label>
+          <label
+            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+          >
+            <span>{labels.scope}</span>
+            {#if row.scope_type === "manual"}
+              <div
+                class="rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-muted"
+              >
+                {labels.allActiveProducts}
+              </div>
+            {:else if optionsLoading && !optionCache[row.scope_type]}
+              <div
+                class="rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-muted"
+              >
+                {labels.loading}
+              </div>
+            {:else}
+              <SelectSearch
+                bind:value={row.scope_id}
+                options={scopeOptionsFor(row.scope_type)}
+                placeholder={labels.selectScope}
+                searchPlaceholder={labels.search}
+                disabled={scopeOptionsFor(row.scope_type).length === 0}
+                notFoundText={labels.noMatchingScopeFound}
+              />
+            {/if}
+          </label>
+          {#if createRows.length > 1}
+            <Button
+              variant="ghost"
+              size="sm"
+              class="self-end mb-1"
+              onclick={() => removeRow(i)}
+              aria-label={labels.removeScope}
+            >
+              <Trash2 class="w-4 h-4" />
+            </Button>
+          {/if}
+        </div>
+      {/each}
+      {#if createRows.some((r) => r.scope_type === "location") && createRows.length > 1}
+        <p class="text-xs text-amber-600">
+          {labels.storageLocationScopeOnly}
+        </p>
+      {/if}
+    </div>
+
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span>{labels.notes}</span>
+      <Input
+        tag="textarea"
+        bind:value={createNotes}
+        placeholder={labels.optionalNotes}
+        rows={2}
+      />
+    </label>
+    <p class="text-xs text-text-muted">{labels.sessionScopeUnionHint}</p>
+  </div>
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
       <Button variant="secondary" onclick={() => (showCreateModal = false)}

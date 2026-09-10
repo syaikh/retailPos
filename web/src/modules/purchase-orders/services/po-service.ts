@@ -34,7 +34,9 @@ export async function getPurchaseOrders(
   return { data: [], total: 0 };
 }
 
-export async function getPurchaseOrderById(id: number): Promise<PurchaseOrder | null> {
+export async function getPurchaseOrderById(
+  id: number,
+): Promise<PurchaseOrder | null> {
   try {
     const res = await apiFetch(`/api/purchase-orders/${id}`);
     if (res.ok) {
@@ -47,7 +49,9 @@ export async function getPurchaseOrderById(id: number): Promise<PurchaseOrder | 
   }
 }
 
-export async function createPurchaseOrder(po: CreatePurchaseOrderPayload): Promise<PurchaseOrder | null> {
+export async function createPurchaseOrder(
+  po: CreatePurchaseOrderPayload,
+): Promise<PurchaseOrder | null> {
   const res = await apiFetch("/api/purchase-orders", {
     method: "POST",
     body: JSON.stringify(po),
@@ -76,7 +80,9 @@ export async function updatePurchaseOrder(
   throw new Error(err.message || "Failed to update purchase order");
 }
 
-export async function confirmPurchaseOrder(id: number): Promise<PurchaseOrder | null> {
+export async function confirmPurchaseOrder(
+  id: number,
+): Promise<PurchaseOrder | null> {
   const res = await apiFetch(`/api/purchase-orders/${id}/confirm`, {
     method: "POST",
   });
@@ -102,7 +108,9 @@ export async function getReceipts(poId: number): Promise<GoodsReceipt[]> {
   }
 }
 
-export async function cancelPurchaseOrder(id: number): Promise<PurchaseOrder | null> {
+export async function cancelPurchaseOrder(
+  id: number,
+): Promise<PurchaseOrder | null> {
   const res = await apiFetch(`/api/purchase-orders/${id}/cancel`, {
     method: "POST",
   });
@@ -115,7 +123,9 @@ export async function cancelPurchaseOrder(id: number): Promise<PurchaseOrder | n
   );
 }
 
-export async function createGoodsReceipt(gr: CreateGoodsReceiptPayload): Promise<GoodsReceipt | null> {
+export async function createGoodsReceipt(
+  gr: CreateGoodsReceiptPayload,
+): Promise<GoodsReceipt | null> {
   const res = await apiFetch("/api/goods-receipts", {
     method: "POST",
     body: JSON.stringify(gr),

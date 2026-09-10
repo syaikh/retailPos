@@ -18,17 +18,19 @@
     onReceiptCreated?: () => void;
   } = $props();
   let po = $state<PurchaseOrder | null>(null);
-  let items = $state<Array<{
-    purchase_order_item_id: number;
-    product_id: number;
-    qty_good: number;
-    qty_damaged: number;
-    product_name: string;
-    sku?: string;
-    qty_ordered: number;
-    qty_received: number;
-    unit_cost: number;
-  }>>([]);
+  let items = $state<
+    Array<{
+      purchase_order_item_id: number;
+      product_id: number;
+      qty_good: number;
+      qty_damaged: number;
+      product_name: string;
+      sku?: string;
+      qty_ordered: number;
+      qty_received: number;
+      unit_cost: number;
+    }>
+  >([]);
   let saving = $state(false);
   let notes = $state("");
 
@@ -60,15 +62,15 @@
     );
   }
 
-  function getRemainingQty(item: { qty_ordered?: number; qty_received?: number }) {
+  function getRemainingQty(item: {
+    qty_ordered?: number;
+    qty_received?: number;
+  }) {
     return (item.qty_ordered || 0) - (item.qty_received || 0);
   }
 
   function getTotalGood() {
-    return items.reduce(
-      (sum: number, item) => sum + (item.qty_good || 0),
-      0,
-    );
+    return items.reduce((sum: number, item) => sum + (item.qty_good || 0), 0);
   }
 
   async function handleSubmit() {
@@ -96,7 +98,9 @@
       onReceiptCreated?.();
       handleClose();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : labels.failedToCreateGoodsReceipt);
+      toast.error(
+        e instanceof Error ? e.message : labels.failedToCreateGoodsReceipt,
+      );
     } finally {
       saving = false;
     }

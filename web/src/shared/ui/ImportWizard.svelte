@@ -98,8 +98,7 @@
       preview = await uploadPreview(module, file);
       step = "preview";
     } catch (err: unknown) {
-      error =
-        getApiErrorMessage(err, labels.previewFailed);
+      error = getApiErrorMessage(err, labels.previewFailed);
     } finally {
       loading = false;
     }
@@ -125,8 +124,7 @@
       };
       step = "progress";
     } catch (err: unknown) {
-      error =
-        getApiErrorMessage(err, labels.confirmFailed);
+      error = getApiErrorMessage(err, labels.confirmFailed);
     } finally {
       loading = false;
     }
@@ -276,10 +274,7 @@
         {/if}
       </div>
     {:else if step === "progress"}
-      <ProgressDialog
-        bind:progress
-        onCancel={handleCancel}
-      />
+      <ProgressDialog bind:progress onCancel={handleCancel} />
     {:else if step === "summary"}
       <ImportSummary {progress} error_report={errorReport} />
     {/if}

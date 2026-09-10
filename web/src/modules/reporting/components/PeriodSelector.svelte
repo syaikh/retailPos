@@ -387,7 +387,8 @@
                   ? 'bg-primary/20 text-primary-light'
                   : 'text-text-secondary hover:bg-primary/10 hover:text-primary-light'}"
                 onclick={() => {
-                  if (!isCalendarOption && option.value) setPeriod(option.value);
+                  if (!isCalendarOption && option.value)
+                    setPeriod(option.value);
                 }}
                 onmouseenter={() => (hoveredOption = option)}
               >

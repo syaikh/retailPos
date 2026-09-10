@@ -127,7 +127,8 @@
       showAddModal = false;
       onsaved?.();
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : labels.consignmentTermsSaveError;
+      const raw =
+        e instanceof Error ? e.message : labels.consignmentTermsSaveError;
       toast.error(raw);
     } finally {
       saving = false;
@@ -228,8 +229,7 @@
     <label
       class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
     >
-      <span
-        >{labels.consignmentProduct} <span class="text-danger">*</span></span
+      <span>{labels.consignmentProduct} <span class="text-danger">*</span></span
       >
       <SelectSearch
         bind:value={newRow.product_id}
@@ -239,52 +239,52 @@
         notFoundText={labels.consignmentProductNotFound}
       />
     </label>
-      <label
-        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span
+        >{labels.consignmentPrice} (Rp)
+        <span class="text-danger">*</span></span
       >
-        <span
-          >{labels.consignmentPrice} (Rp)
-          <span class="text-danger">*</span></span
-        >
-        <NumberInput min="0" bind:value={newRow.price} class="h-9 text-sm" />
-      </label>
-      <label
-        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+      <NumberInput min="0" bind:value={newRow.price} class="h-9 text-sm" />
+    </label>
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span
+        >{labels.consignmentShareType}
+        <span class="text-danger">*</span></span
       >
-        <span
-          >{labels.consignmentShareType}
-          <span class="text-danger">*</span></span
-        >
-        <Input
-          tag="select"
-          bind:value={newRow.store_share_type}
-          class="h-9 text-sm"
-        >
-          <option value={SHARE_TYPE_PERCENTAGE}
-            >{labels[SHARE_TYPE_LABELS[SHARE_TYPE_PERCENTAGE]]}</option
-          >
-          <option value={SHARE_TYPE_FIXED_AMOUNT}
-            >{labels[SHARE_TYPE_LABELS[SHARE_TYPE_FIXED_AMOUNT]]}</option
-          >
-        </Input>
-      </label>
-      <label
-        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+      <Input
+        tag="select"
+        bind:value={newRow.store_share_type}
+        class="h-9 text-sm"
       >
-        <span
-          >{newRow.store_share_type === SHARE_TYPE_PERCENTAGE
-            ? labels.consignmentSharePercentLabel
-            : labels.consignmentShareFixedLabel}
-          <span class="text-danger">*</span></span
+        <option value={SHARE_TYPE_PERCENTAGE}
+          >{labels[SHARE_TYPE_LABELS[SHARE_TYPE_PERCENTAGE]]}</option
         >
-        <NumberInput
-          min="0"
-          bind:value={newRow.store_share_value}
-          class="h-9 text-sm"
-        />
-      </label>
-      <p class="text-xs text-text-muted">{labels.consignmentTermsNote}</p>
-    </div>
+        <option value={SHARE_TYPE_FIXED_AMOUNT}
+          >{labels[SHARE_TYPE_LABELS[SHARE_TYPE_FIXED_AMOUNT]]}</option
+        >
+      </Input>
+    </label>
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span
+        >{newRow.store_share_type === SHARE_TYPE_PERCENTAGE
+          ? labels.consignmentSharePercentLabel
+          : labels.consignmentShareFixedLabel}
+        <span class="text-danger">*</span></span
+      >
+      <NumberInput
+        min="0"
+        bind:value={newRow.store_share_value}
+        class="h-9 text-sm"
+      />
+    </label>
+    <p class="text-xs text-text-muted">{labels.consignmentTermsNote}</p>
+  </div>
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
       <Button variant="secondary" onclick={() => (showAddModal = false)}

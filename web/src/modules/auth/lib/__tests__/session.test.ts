@@ -28,8 +28,10 @@ describe("session", () => {
 
   it("getAuthToken returns null when window is undefined", () => {
     const origWindow = globalThis.window;
-    (globalThis as unknown as { window?: Window | undefined }).window = undefined;
+    (globalThis as unknown as { window?: Window | undefined }).window =
+      undefined;
     expect(getAuthToken()).toBeNull();
-    (globalThis as unknown as { window?: Window | undefined }).window = origWindow;
+    (globalThis as unknown as { window?: Window | undefined }).window =
+      origWindow;
   });
 });

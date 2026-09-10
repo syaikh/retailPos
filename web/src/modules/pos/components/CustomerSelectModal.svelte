@@ -17,7 +17,12 @@
   }: {
     showCustomerModal: boolean;
     customerSearch: string;
-    customerResults: Array<{ id: number; name: string; phone?: string; email?: string }>;
+    customerResults: Array<{
+      id: number;
+      name: string;
+      phone?: string;
+      email?: string;
+    }>;
     customerSearching: boolean;
     onselectcustomer?: (id: number | null) => void;
   } = $props();

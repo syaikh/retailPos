@@ -3,7 +3,11 @@
   import { Button, CurrencyInput } from "$shared/ui";
   import { X, Check, User, ChevronRight, Trash2 } from "lucide-svelte";
   import { tick } from "svelte";
-  import type { DisplayCartItem, PaymentAllocation, PaymentOption } from "../types";
+  import type {
+    DisplayCartItem,
+    PaymentAllocation,
+    PaymentOption,
+  } from "../types";
   import { labels, t, paymentMethodLabel } from "$shared/i18n";
 
   const denominations = [5000, 10000, 20000, 50000, 100000];

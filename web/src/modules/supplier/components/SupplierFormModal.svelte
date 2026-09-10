@@ -2,7 +2,11 @@
   import { Modal, Button, Input } from "$shared/ui";
   import { labels } from "$shared/i18n";
   import { Loader2 } from "lucide-svelte";
-  import type { Supplier, CreateSupplierPayload, UpdateSupplierPayload } from "../types";
+  import type {
+    Supplier,
+    CreateSupplierPayload,
+    UpdateSupplierPayload,
+  } from "../types";
 
   let {
     open = $bindable(false),

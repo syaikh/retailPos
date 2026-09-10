@@ -1,11 +1,6 @@
 <script lang="ts">
   import { SvelteSet } from "svelte/reactivity";
-  import {
-    Badge,
-    Skeleton,
-    SortableHeader,
-    Dropdown,
-  } from "$shared/ui";
+  import { Badge, Skeleton, SortableHeader, Dropdown } from "$shared/ui";
   import { labels, t } from "$shared/i18n";
   import { formatLocaleDateInJakarta } from "$shared/utils/jakartaTime";
   import {
@@ -271,7 +266,8 @@
             </td>
             <td class="px-4 py-3 text-sm text-text-secondary max-w-0"
               ><span class="truncate block"
-                >{(po as PurchaseOrder & { supplier_name?: string }).supplier_name || "N/A"}</span
+                >{(po as PurchaseOrder & { supplier_name?: string })
+                  .supplier_name || "N/A"}</span
               ></td
             >
             <td class="px-4 py-3 whitespace-nowrap">

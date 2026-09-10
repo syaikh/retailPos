@@ -130,7 +130,10 @@
       await load();
       oncreated?.();
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : labels.consignmentRecordPendingReturnError;
+      const raw =
+        e instanceof Error
+          ? e.message
+          : labels.consignmentRecordPendingReturnError;
       toast.error(raw);
     } finally {
       submitting = false;
@@ -257,44 +260,40 @@
         }}
       />
     </label>
-      <label
-        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-      >
-        <span>{labels.consignmentQty} <span class="text-danger">*</span></span>
-        <NumberInput min="1" bind:value={form.qty} class="h-9 text-sm" />
-        {#if form.product_id && maxQtyFor(form.product_id) > 0}
-          <span class="text-xs text-text-muted"
-            >{t("consignmentMax", { max: maxQtyFor(form.product_id) })}</span
-          >
-        {/if}
-      </label>
-      <label
-        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-      >
-        <span
-          >{labels.consignmentReason} <span class="text-danger">*</span></span
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span>{labels.consignmentQty} <span class="text-danger">*</span></span>
+      <NumberInput min="1" bind:value={form.qty} class="h-9 text-sm" />
+      {#if form.product_id && maxQtyFor(form.product_id) > 0}
+        <span class="text-xs text-text-muted"
+          >{t("consignmentMax", { max: maxQtyFor(form.product_id) })}</span
         >
-        <Input tag="select" bind:value={form.reason} class="h-9 text-sm">
-          {#each RETURN_REASONS as reason (reason)}
-            <option value={reason}
-              >{labels[RETURN_REASON_LABELS[reason]]}</option
-            >
-          {/each}
-        </Input>
-      </label>
-      <label
-        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-      >
-        <span>{labels.notes}</span>
-        <Input
-          tag="textarea"
-          bind:value={form.notes}
-          rows={2}
-          placeholder={labels.consignmentNotesPlaceholder}
-          class="text-sm"
-        />
-      </label>
-    </div>
+      {/if}
+    </label>
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span>{labels.consignmentReason} <span class="text-danger">*</span></span>
+      <Input tag="select" bind:value={form.reason} class="h-9 text-sm">
+        {#each RETURN_REASONS as reason (reason)}
+          <option value={reason}>{labels[RETURN_REASON_LABELS[reason]]}</option>
+        {/each}
+      </Input>
+    </label>
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span>{labels.notes}</span>
+      <Input
+        tag="textarea"
+        bind:value={form.notes}
+        rows={2}
+        placeholder={labels.consignmentNotesPlaceholder}
+        class="text-sm"
+      />
+    </label>
+  </div>
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
       <Button variant="secondary" onclick={() => (showModal = false)}

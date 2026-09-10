@@ -131,8 +131,7 @@
     } catch (e: unknown) {
       setErrors = {
         submit:
-          e instanceof Error ? e.message :
-          labels.toastGagalMemperbaruiStokRak,
+          e instanceof Error ? e.message : labels.toastGagalMemperbaruiStokRak,
       };
     } finally {
       savingSet = false;
@@ -175,8 +174,7 @@
     } catch (e: unknown) {
       transferErrors = {
         submit:
-          e instanceof Error ? e.message :
-          labels.toastGagalMemindahkanStokRak,
+          e instanceof Error ? e.message : labels.toastGagalMemindahkanStokRak,
       };
     } finally {
       savingTransfer = false;

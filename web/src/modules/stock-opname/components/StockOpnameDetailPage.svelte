@@ -118,9 +118,7 @@
       await store.loadSession(sessionId);
       session = store.current;
     } catch (e: unknown) {
-      toast.error(
-        getApiErrorMessage(e, labels.toastFailedLoadSession),
-      );
+      toast.error(getApiErrorMessage(e, labels.toastFailedLoadSession));
       goto("/stock-opnames");
     } finally {
       loading = false;
@@ -240,7 +238,11 @@
     const scopes = s.scopes?.length
       ? s.scopes
       : [{ scope_type: s.scope_type, scope_name: s.scope_name }];
-    const label = (sc: { scope_type: string; scope_name?: string; scope_id?: number }) => {
+    const label = (sc: {
+      scope_type: string;
+      scope_name?: string;
+      scope_id?: number;
+    }) => {
       const base =
         STOCK_OPNAME_SCOPE_LABELS[
           sc.scope_type as keyof typeof STOCK_OPNAME_SCOPE_LABELS

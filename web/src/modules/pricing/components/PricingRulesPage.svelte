@@ -198,8 +198,10 @@
   const sortedRules = $derived.by(() => {
     const sorted = [...rules];
     sorted.sort((a, b) => {
-      let av: string | number = a[sortState.sortBy as keyof PricingRule] as string | number;
-      let bv: string | number = b[sortState.sortBy as keyof PricingRule] as string | number;
+      let av: string | number = a[sortState.sortBy as keyof PricingRule] as
+        string | number;
+      let bv: string | number = b[sortState.sortBy as keyof PricingRule] as
+        string | number;
       if (typeof av === "string") av = av.toLowerCase();
       if (typeof bv === "string") bv = bv.toLowerCase();
       if (av < bv) return sortState.sortDir === "asc" ? -1 : 1;
@@ -223,7 +225,9 @@
     if (approvalFilter !== "all") params.status = approvalFilter;
     if (typeFilter !== "all") params.pricing_type = typeFilter;
     if (methodFilter !== "all") params.pricing_method = methodFilter;
-    const result = await getPricingRules(params as unknown as PricingRuleListParams);
+    const result = await getPricingRules(
+      params as unknown as PricingRuleListParams,
+    );
     rules = result.data;
     total = result.total;
     loading = false;
@@ -513,7 +517,8 @@
     if (payload.store_id === null) delete payload.store_id;
     if (!payload.time_from) delete payload.time_from;
     if (!payload.time_to) delete payload.time_to;
-    if ((payload.recurrence_days as string[]).length === 0) delete payload.recurrence_days;
+    if ((payload.recurrence_days as string[]).length === 0)
+      delete payload.recurrence_days;
     return payload;
   }
 
@@ -523,7 +528,9 @@
 
     let result: { ok: boolean; error?: string };
     if (modalMode === "add") {
-      result = await createPricingRule(payload as unknown as CreatePricingRulePayload);
+      result = await createPricingRule(
+        payload as unknown as CreatePricingRulePayload,
+      );
     } else {
       result = await updatePricingRule(selectedRule!.id, payload);
     }
@@ -984,8 +991,8 @@
               bind:value={form.pricing_type}
               class="w-full rounded-xl border border-border-default px-3 py-2 text-sm bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-default/30 h-9 transition-colors"
             >
-              {#each pricingTypes as pt (pt.value || pt)}<option value={pt.value}
-                  >{pt.label}</option
+              {#each pricingTypes as pt (pt.value || pt)}<option
+                  value={pt.value}>{pt.label}</option
                 >{/each}
             </select>
             <p class="mt-0.5 text-xs leading-tight text-text-muted">
@@ -1004,8 +1011,8 @@
               bind:value={form.pricing_method}
               class="w-full rounded-xl border border-border-default px-3 py-2 text-sm bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-default/30 h-9 transition-colors"
             >
-              {#each pricingMethods as pm (pm.value || pm)}<option value={pm.value}
-                  >{pm.label}</option
+              {#each pricingMethods as pm (pm.value || pm)}<option
+                  value={pm.value}>{pm.label}</option
                 >{/each}
             </select>
             <p class="mt-0.5 text-xs leading-tight text-text-muted">
@@ -1113,7 +1120,8 @@
             class="w-full rounded-xl border border-border-default px-3 py-2 text-sm bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-default/30 h-9 transition-colors"
           >
             <option value={null}>{labels.semuaGroup}</option>
-            {#each customerGroups as cg (cg.id || cg)}<option value={cg.id}>{cg.name}</option
+            {#each customerGroups as cg (cg.id || cg)}<option value={cg.id}
+                >{cg.name}</option
               >{/each}
           </select>
           <p class="mt-0.5 text-xs leading-tight text-text-muted">
@@ -1132,7 +1140,8 @@
             class="w-full rounded-xl border border-border-default px-3 py-2 text-sm bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-default/30 h-9 transition-colors"
           >
             <option value={null}>{labels.semuaOutlet}</option>
-            {#each stores as s (s.id || s)}<option value={s.id}>{s.name}</option>{/each}
+            {#each stores as s (s.id || s)}<option value={s.id}>{s.name}</option
+              >{/each}
           </select>
           <p class="mt-0.5 text-xs leading-tight text-text-muted">
             {labels.semuaOutletHint}

@@ -1,10 +1,7 @@
 import axios from "axios";
 import type { AxiosInstance, AxiosError, AxiosRequestConfig } from "axios";
 import { useAuthStore } from "../stores/auth-store.svelte";
-import {
-  setAccessToken,
-  getAuthToken,
-} from "../lib/session";
+import { setAccessToken, getAuthToken } from "../lib/session";
 import type { User } from "../types";
 import { applyTheme } from "$shared/utils/theme";
 import { setLocale } from "$shared/i18n";

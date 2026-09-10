@@ -304,7 +304,9 @@ export function useStockOpnameStore() {
       return exportStockOpname(id);
     },
 
-    subscribeToWS(onStatus?: (data: { session_id: number }) => void): () => void {
+    subscribeToWS(
+      onStatus?: (data: { session_id: number }) => void,
+    ): () => void {
       if (wsSubscribed) return () => {};
       wsSubscribed = true;
       const ws = useWebSocket();

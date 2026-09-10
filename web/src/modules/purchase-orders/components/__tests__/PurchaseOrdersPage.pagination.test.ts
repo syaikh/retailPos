@@ -92,21 +92,31 @@ describe("PO pagination sequence", () => {
     setLocale("en");
     calls.length = 0;
     mockGetPurchaseOrders.mockReset();
-    mockGetPurchaseOrders.mockImplementation(async (filters: { page?: number; pageSize?: number; search?: string | null; status?: string | null; supplier_id?: number | null; startDate?: string | null; endDate?: string | null }) => {
-      calls.push({
-        page: filters.page ?? 0,
-        pageSize: filters.pageSize ?? 20,
-        search: filters.search ?? null,
-        status: filters.status ?? null,
-        supplier: filters.supplier_id ?? null,
-        start: filters.startDate ?? null,
-        end: filters.endDate ?? null,
-      });
-      return {
-        data: makePOs(filters.page ?? 0, filters.pageSize ?? 20),
-        total: 45,
-      };
-    });
+    mockGetPurchaseOrders.mockImplementation(
+      async (filters: {
+        page?: number;
+        pageSize?: number;
+        search?: string | null;
+        status?: string | null;
+        supplier_id?: number | null;
+        startDate?: string | null;
+        endDate?: string | null;
+      }) => {
+        calls.push({
+          page: filters.page ?? 0,
+          pageSize: filters.pageSize ?? 20,
+          search: filters.search ?? null,
+          status: filters.status ?? null,
+          supplier: filters.supplier_id ?? null,
+          start: filters.startDate ?? null,
+          end: filters.endDate ?? null,
+        });
+        return {
+          data: makePOs(filters.page ?? 0, filters.pageSize ?? 20),
+          total: 45,
+        };
+      },
+    );
   });
 
   it("clicking next advances to page 2 and does not snap back to page 1", async () => {

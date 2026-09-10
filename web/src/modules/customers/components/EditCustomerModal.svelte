@@ -106,7 +106,8 @@
     if (address.trim() !== (origAddress ?? ""))
       payload.address = address.trim();
     if (note.trim() !== (origNote ?? "")) payload.note = note.trim();
-    if (groupId !== origGroupId) payload.customer_group_id = groupId ?? undefined;
+    if (groupId !== origGroupId)
+      payload.customer_group_id = groupId ?? undefined;
     onsave(payload);
   }
 

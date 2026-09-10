@@ -126,118 +126,153 @@
           t("lowStockAlertToast", { name: data.name, stock: data.stock }),
         );
       }),
-      ws.on("sale_created", (data: { invoice: string; total: number; id: number }) => {
-        notifications.push({
-          type: "sale_created",
-          title: labels.newTransaction,
-          description: t("newTransactionDesc", {
-            invoice: data.invoice,
-            amount: (data.total || 0).toLocaleString("id-ID"),
-          }),
-          navigateTo: data.id
-            ? `/transactions?txn=${data.id}`
-            : "/transactions",
-        });
-      }),
-      ws.on("stock_update", (data: { id: number; sku: string; stock: number; low_stock: boolean }) => {
-        const status = data.low_stock
-          ? `⚠️ ${labels.stockUpdateStatusLow}`
-          : t("stockUpdateUnits", { count: data.stock });
-        notifications.push({
-          type: "stock_update",
-          title: labels.stockUpdated,
-          description: t("stockUpdatedDesc", { sku: data.sku, status }),
-          navigateTo: `/inventory/products?product_id=${data.id}`,
-        });
-      }),
-      ws.on("product_updated", (data: { id: number; sku: string; price: number }) => {
-        notifications.push({
-          type: "product_updated",
-          title: labels.productUpdated,
-          description: t("productUpdatedDesc", {
-            sku: data.sku,
-            price: (data.price || 0).toLocaleString("id-ID"),
-          }),
-          navigateTo: `/inventory/products?product_id=${data.id}`,
-        });
-      }),
-      ws.on("po_received", (data: { po_number: string; gr_number: string; po_id: number }) => {
-        notifications.push({
-          type: "po_received",
-          title: labels.poReceived,
-          description: t("poReceivedDesc", {
-            po_number: data.po_number,
-            gr_number: data.gr_number,
-          }),
-          navigateTo: `/purchase-orders?po_id=${data.po_id}`,
-        });
-      }),
-      ws.on("so_created", (data: { session_number: string; session_id: number }) => {
-        if (!canSeeStockOpname) return;
-        notifications.push({
-          type: "so_created",
-          title: labels.soCreatedTitle,
-          description: t("soSessionCreatedDesc", {
-            number: data.session_number,
-          }),
-          navigateTo: `/stock-opnames/${data.session_id}`,
-        });
-      }),
-      ws.on("so_submitted", (data: { session_number: string; session_id: number }) => {
-        if (!canSeeStockOpname) return;
-        notifications.push({
-          type: "so_submitted",
-          title: labels.soSubmittedTitle,
-          description: t("soSessionAwaitingDesc", {
-            number: data.session_number,
-          }),
-          navigateTo: `/stock-opnames/${data.session_id}`,
-        });
-      }),
-      ws.on("so_approved", (data: { session_number: string; session_id: number }) => {
-        if (!canSeeStockOpname) return;
-        notifications.push({
-          type: "so_approved",
-          title: labels.soApprovedTitle,
-          description: t("soSessionApprovedDesc", {
-            number: data.session_number,
-          }),
-          navigateTo: `/stock-opnames/${data.session_id}`,
-        });
-      }),
-      ws.on("so_rejected", (data: { session_number: string; session_id: number }) => {
-        if (!canSeeStockOpname) return;
-        notifications.push({
-          type: "so_rejected",
-          title: labels.soRejectedTitle,
-          description: t("soSessionRejectedDesc", {
-            number: data.session_number,
-          }),
-          navigateTo: `/stock-opnames/${data.session_id}`,
-        });
-      }),
-      ws.on("so_needs_recount", (data: { session_number: string; session_id: number }) => {
-        if (!canSeeStockOpname) return;
-        notifications.push({
-          type: "so_needs_recount",
-          title: labels.soNeedsRecountTitle,
-          description: t("soSessionNeedsRecountDesc", {
-            number: data.session_number,
-          }),
-          navigateTo: `/stock-opnames/${data.session_id}`,
-        });
-      }),
-      ws.on("so_cancelled", (data: { session_number: string; session_id: number }) => {
-        if (!canSeeStockOpname) return;
-        notifications.push({
-          type: "so_cancelled",
-          title: labels.soCancelledTitle,
-          description: t("soSessionCancelledDesc", {
-            number: data.session_number,
-          }),
-          navigateTo: `/stock-opnames/${data.session_id}`,
-        });
-      }),
+      ws.on(
+        "sale_created",
+        (data: { invoice: string; total: number; id: number }) => {
+          notifications.push({
+            type: "sale_created",
+            title: labels.newTransaction,
+            description: t("newTransactionDesc", {
+              invoice: data.invoice,
+              amount: (data.total || 0).toLocaleString("id-ID"),
+            }),
+            navigateTo: data.id
+              ? `/transactions?txn=${data.id}`
+              : "/transactions",
+          });
+        },
+      ),
+      ws.on(
+        "stock_update",
+        (data: {
+          id: number;
+          sku: string;
+          stock: number;
+          low_stock: boolean;
+        }) => {
+          const status = data.low_stock
+            ? `⚠️ ${labels.stockUpdateStatusLow}`
+            : t("stockUpdateUnits", { count: data.stock });
+          notifications.push({
+            type: "stock_update",
+            title: labels.stockUpdated,
+            description: t("stockUpdatedDesc", { sku: data.sku, status }),
+            navigateTo: `/inventory/products?product_id=${data.id}`,
+          });
+        },
+      ),
+      ws.on(
+        "product_updated",
+        (data: { id: number; sku: string; price: number }) => {
+          notifications.push({
+            type: "product_updated",
+            title: labels.productUpdated,
+            description: t("productUpdatedDesc", {
+              sku: data.sku,
+              price: (data.price || 0).toLocaleString("id-ID"),
+            }),
+            navigateTo: `/inventory/products?product_id=${data.id}`,
+          });
+        },
+      ),
+      ws.on(
+        "po_received",
+        (data: { po_number: string; gr_number: string; po_id: number }) => {
+          notifications.push({
+            type: "po_received",
+            title: labels.poReceived,
+            description: t("poReceivedDesc", {
+              po_number: data.po_number,
+              gr_number: data.gr_number,
+            }),
+            navigateTo: `/purchase-orders?po_id=${data.po_id}`,
+          });
+        },
+      ),
+      ws.on(
+        "so_created",
+        (data: { session_number: string; session_id: number }) => {
+          if (!canSeeStockOpname) return;
+          notifications.push({
+            type: "so_created",
+            title: labels.soCreatedTitle,
+            description: t("soSessionCreatedDesc", {
+              number: data.session_number,
+            }),
+            navigateTo: `/stock-opnames/${data.session_id}`,
+          });
+        },
+      ),
+      ws.on(
+        "so_submitted",
+        (data: { session_number: string; session_id: number }) => {
+          if (!canSeeStockOpname) return;
+          notifications.push({
+            type: "so_submitted",
+            title: labels.soSubmittedTitle,
+            description: t("soSessionAwaitingDesc", {
+              number: data.session_number,
+            }),
+            navigateTo: `/stock-opnames/${data.session_id}`,
+          });
+        },
+      ),
+      ws.on(
+        "so_approved",
+        (data: { session_number: string; session_id: number }) => {
+          if (!canSeeStockOpname) return;
+          notifications.push({
+            type: "so_approved",
+            title: labels.soApprovedTitle,
+            description: t("soSessionApprovedDesc", {
+              number: data.session_number,
+            }),
+            navigateTo: `/stock-opnames/${data.session_id}`,
+          });
+        },
+      ),
+      ws.on(
+        "so_rejected",
+        (data: { session_number: string; session_id: number }) => {
+          if (!canSeeStockOpname) return;
+          notifications.push({
+            type: "so_rejected",
+            title: labels.soRejectedTitle,
+            description: t("soSessionRejectedDesc", {
+              number: data.session_number,
+            }),
+            navigateTo: `/stock-opnames/${data.session_id}`,
+          });
+        },
+      ),
+      ws.on(
+        "so_needs_recount",
+        (data: { session_number: string; session_id: number }) => {
+          if (!canSeeStockOpname) return;
+          notifications.push({
+            type: "so_needs_recount",
+            title: labels.soNeedsRecountTitle,
+            description: t("soSessionNeedsRecountDesc", {
+              number: data.session_number,
+            }),
+            navigateTo: `/stock-opnames/${data.session_id}`,
+          });
+        },
+      ),
+      ws.on(
+        "so_cancelled",
+        (data: { session_number: string; session_id: number }) => {
+          if (!canSeeStockOpname) return;
+          notifications.push({
+            type: "so_cancelled",
+            title: labels.soCancelledTitle,
+            description: t("soSessionCancelledDesc", {
+              number: data.session_number,
+            }),
+            navigateTo: `/stock-opnames/${data.session_id}`,
+          });
+        },
+      ),
     ];
     return () => unsubs.forEach((fn) => fn());
   });

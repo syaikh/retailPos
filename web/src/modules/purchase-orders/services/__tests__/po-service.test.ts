@@ -18,7 +18,13 @@ describe("po-service getPurchaseOrders", () => {
   });
 
   it("defaults sort_by to updated_at and sort_dir to desc", async () => {
-    await getPurchaseOrders({ page: 0, pageSize: 20, search: "", sortBy: "updated_at", sortDir: "desc" });
+    await getPurchaseOrders({
+      page: 0,
+      pageSize: 20,
+      search: "",
+      sortBy: "updated_at",
+      sortDir: "desc",
+    });
 
     expect(mockApiFetch).toHaveBeenCalledTimes(1);
     const url = mockApiFetch.mock.calls[0][0] as string;

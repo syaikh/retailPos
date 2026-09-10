@@ -24,7 +24,14 @@
     checkoutCart,
     updateCartCustomer,
   } from "../services/pos-service";
-  import type { PaymentAllocation, CartItem, CartSession, PosProduct, PaymentOption, DisplayCartItem } from "../types";
+  import type {
+    PaymentAllocation,
+    CartItem,
+    CartSession,
+    PosProduct,
+    PaymentOption,
+    DisplayCartItem,
+  } from "../types";
   import type { Sale, SaleItem } from "$modules/sales/types";
   import type { Customer } from "$modules/customers/types";
 
@@ -288,8 +295,7 @@
       const selectedCustomer = selectedCustomerId
         ? customers.find((c) => c.id === selectedCustomerId)
         : null;
-      const customerGroupId =
-        selectedCustomer?.customer_group_id || undefined;
+      const customerGroupId = selectedCustomer?.customer_group_id || undefined;
       const shiftStore = useShiftStore();
       const shiftId = shiftStore.activeShift?.id;
       let session: CartSession;
@@ -356,7 +362,9 @@
         applyCartSession(session);
       } catch (err: unknown) {
         const errMsg =
-          err instanceof Error ? err.message : labels.toastFailedToUpdateQuantity;
+          err instanceof Error
+            ? err.message
+            : labels.toastFailedToUpdateQuantity;
         toast.error(errMsg);
       } finally {
         cartLoading = false;
@@ -439,7 +447,6 @@
     } catch (_err: unknown) {
       toast.error(labels.toastFailedToHoldSale);
     } finally {
-
     }
   }
 
@@ -512,12 +519,17 @@
         sale.total_amount,
       changeDue: sale.change_due ?? 0,
       customer_name: customer?.name,
-      total_savings: (sale.items || []).reduce((sum: number, item: SaleItem) => {
-        if (item.original_price && item.original_price > item.unit_price) {
-          return sum + (item.original_price - item.unit_price) * item.quantity;
-        }
-        return sum;
-      }, 0),
+      total_savings: (sale.items || []).reduce(
+        (sum: number, item: SaleItem) => {
+          if (item.original_price && item.original_price > item.unit_price) {
+            return (
+              sum + (item.original_price - item.unit_price) * item.quantity
+            );
+          }
+          return sum;
+        },
+        0,
+      ),
     };
   }
 
@@ -773,12 +785,15 @@
           err instanceof Error ? err.message : err,
         );
       }
-      unsubscribeStock = ws.on("stock_update", (data: { id: number; stock: number }) => {
-        const product = products.find((p) => p.id === data.id);
-        if (product) {
-          product.stock = data.stock;
-        }
-      });
+      unsubscribeStock = ws.on(
+        "stock_update",
+        (data: { id: number; stock: number }) => {
+          const product = products.find((p) => p.id === data.id);
+          if (product) {
+            product.stock = data.stock;
+          }
+        },
+      );
       unsubscribeSale = ws.on("sale_created", (data: Sale) => {
         if (data) {
           lastSale = data as Sale;

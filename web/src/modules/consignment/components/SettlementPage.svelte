@@ -116,7 +116,10 @@
       await loadPreview();
       onsettled?.();
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : labels.consignmentCreateSettlementError;
+      const raw =
+        e instanceof Error
+          ? e.message
+          : labels.consignmentCreateSettlementError;
       toast.error(raw);
     } finally {
       creating = false;
@@ -161,7 +164,8 @@
       await loadPreview();
       onsettled?.();
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : labels.consignmentRecordPayoutError;
+      const raw =
+        e instanceof Error ? e.message : labels.consignmentRecordPayoutError;
       toast.error(raw);
     } finally {
       paying = false;
@@ -412,9 +416,7 @@
     <label
       class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
     >
-      <span
-        >{labels.consignmentAmount} <span class="text-danger">*</span></span
-      >
+      <span>{labels.consignmentAmount} <span class="text-danger">*</span></span>
       <FormattedNumberInput
         bind:value={payoutForm.amount}
         class="h-9 text-sm"

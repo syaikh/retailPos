@@ -116,11 +116,15 @@ describe("sales-service", () => {
     });
 
     expect(globalThis.fetch).toHaveBeenCalled();
-    const callArgs = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
+    const callArgs = (
+      globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
+    ).mock.calls[0];
     expect(callArgs[0]).toContain("/api/sales/export");
     expect(callArgs[0]).toContain("format=csv");
     const opts = callArgs[1] as Record<string, unknown>;
-    expect((opts.headers as Record<string, unknown>)?.Authorization).toBe("Bearer mock-token");
+    expect((opts.headers as Record<string, unknown>)?.Authorization).toBe(
+      "Bearer mock-token",
+    );
     expect(result).toBeInstanceOf(Blob);
   });
 

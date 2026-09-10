@@ -128,7 +128,8 @@
       await load();
       oncreated?.();
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : labels.consignmentRecordReturnError;
+      const raw =
+        e instanceof Error ? e.message : labels.consignmentRecordReturnError;
       toast.error(raw);
     } finally {
       submitting = false;
@@ -229,121 +230,121 @@
 
 <Modal bind:open={showModal} title={labels.consignmentRecordReturn} size="lg">
   <div class="space-y-4">
-      <div class="flex items-center justify-between">
-        <span class="text-sm font-medium text-text-secondary"
-          >{labels.consignmentItemLines}</span
+    <div class="flex items-center justify-between">
+      <span class="text-sm font-medium text-text-secondary"
+        >{labels.consignmentItemLines}</span
+      >
+      <Button variant="secondary" size="sm" onclick={addLine}>
+        <Plus class="w-4 h-4" />
+        {labels.consignmentAddLine}
+      </Button>
+    </div>
+
+    {#each lines as line, i (i)}
+      <div class="rounded-xl border border-border-default p-3 space-y-3">
+        <div
+          class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-3 items-end"
         >
-        <Button variant="secondary" size="sm" onclick={addLine}>
-          <Plus class="w-4 h-4" />
-          {labels.consignmentAddLine}
-        </Button>
-      </div>
-
-      {#each lines as line, i (i)}
-        <div class="rounded-xl border border-border-default p-3 space-y-3">
-          <div
-            class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-3 items-end"
-          >
-            <label
-              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-            >
-              <span
-                >{labels.consignmentProduct}
-                <span class="text-danger">*</span></span
-              >
-              <SelectSearch
-                bind:value={line.product_id}
-                options={productOptions}
-                placeholder={labels.consignmentSelectProduct}
-                searchPlaceholder={labels.consignmentSearchProduct}
-                notFoundText={labels.consignmentProductNotFound}
-              />
-            </label>
-            <label
-              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-            >
-              <span>{labels.consignmentQty}</span>
-              <NumberInput
-                min="1"
-                bind:value={line.qty}
-                class="h-9 w-24 text-sm"
-              />
-            </label>
-            <label
-              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-            >
-              <span>{labels.consignmentReason}</span>
-              <Input
-                tag="select"
-                bind:value={line.reason}
-                class="h-9 w-36 text-sm"
-              >
-                {#each RETURN_REASONS as reason (reason)}
-                  <option value={reason}
-                    >{labels[RETURN_REASON_LABELS[reason]]}</option
-                  >
-                {/each}
-              </Input>
-            </label>
-            {#if lines.length > 1}
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-label={labels.consignmentDeleteLine}
-                onclick={() => removeLine(i)}
-              >
-                <Trash2 class="w-4 h-4" />
-              </Button>
-            {/if}
-          </div>
-
           <label
             class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
           >
-            <span>{labels.consignmentLinkPendingReturn}</span>
+            <span
+              >{labels.consignmentProduct}
+              <span class="text-danger">*</span></span
+            >
+            <SelectSearch
+              bind:value={line.product_id}
+              options={productOptions}
+              placeholder={labels.consignmentSelectProduct}
+              searchPlaceholder={labels.consignmentSearchProduct}
+              notFoundText={labels.consignmentProductNotFound}
+            />
+          </label>
+          <label
+            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+          >
+            <span>{labels.consignmentQty}</span>
+            <NumberInput
+              min="1"
+              bind:value={line.qty}
+              class="h-9 w-24 text-sm"
+            />
+          </label>
+          <label
+            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+          >
+            <span>{labels.consignmentReason}</span>
             <Input
               tag="select"
-              bind:value={line.pending_return_id}
-              class="h-9 text-sm"
+              bind:value={line.reason}
+              class="h-9 w-36 text-sm"
             >
-              <option value={undefined}>{labels.consignmentNoLink}</option>
-              {#each openPending as pr (pr.id || pr)}
-                <option value={pr.id}>
-                  {pr.product_name} ×{pr.qty} ({labels[
-                    RETURN_REASON_LABELS[pr.reason]
-                  ] || pr.reason})
-                </option>
+              {#each RETURN_REASONS as reason (reason)}
+                <option value={reason}
+                  >{labels[RETURN_REASON_LABELS[reason]]}</option
+                >
               {/each}
             </Input>
           </label>
-
-          <label
-            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-          >
-            <span>{labels.notes}</span>
-            <Input
-              type="text"
-              bind:value={line.notes}
-              placeholder={labels.consignmentNotesPlaceholder}
-              class="h-9 text-sm"
-            />
-          </label>
+          {#if lines.length > 1}
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={labels.consignmentDeleteLine}
+              onclick={() => removeLine(i)}
+            >
+              <Trash2 class="w-4 h-4" />
+            </Button>
+          {/if}
         </div>
-      {/each}
 
-      <label
-        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-      >
-        <span>{labels.consignmentOverallNotes}</span>
-        <Input
-          tag="textarea"
-          bind:value={returnNotes}
-          rows={2}
-          placeholder={labels.consignmentReturnNotesPlaceholder}
-          class="text-sm"
-        />
-      </label>
-    </div>
+        <label
+          class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+        >
+          <span>{labels.consignmentLinkPendingReturn}</span>
+          <Input
+            tag="select"
+            bind:value={line.pending_return_id}
+            class="h-9 text-sm"
+          >
+            <option value={undefined}>{labels.consignmentNoLink}</option>
+            {#each openPending as pr (pr.id || pr)}
+              <option value={pr.id}>
+                {pr.product_name} ×{pr.qty} ({labels[
+                  RETURN_REASON_LABELS[pr.reason]
+                ] || pr.reason})
+              </option>
+            {/each}
+          </Input>
+        </label>
+
+        <label
+          class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+        >
+          <span>{labels.notes}</span>
+          <Input
+            type="text"
+            bind:value={line.notes}
+            placeholder={labels.consignmentNotesPlaceholder}
+            class="h-9 text-sm"
+          />
+        </label>
+      </div>
+    {/each}
+
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span>{labels.consignmentOverallNotes}</span>
+      <Input
+        tag="textarea"
+        bind:value={returnNotes}
+        rows={2}
+        placeholder={labels.consignmentReturnNotesPlaceholder}
+        class="text-sm"
+      />
+    </label>
+  </div>
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
       <Button variant="secondary" onclick={() => (showModal = false)}

@@ -39,23 +39,29 @@
   };
 
   let po = $state<POFormData>(
-    store.selectedPO ? {
-      supplier_id: store.selectedPO.supplier_id,
-      expected_date: store.selectedPO.expected_date || "",
-      payment_term: store.selectedPO.payment_term || "Cash on Delivery",
-      delivery_address: store.selectedPO.delivery_address || "",
-      supplier_reference_number: store.selectedPO.supplier_reference_number || "",
-      notes: store.selectedPO.notes || "",
-      items: store.selectedPO.items?.map((item: PurchaseOrderItem) => ({ ...item })) || [],
-    } : {
-      supplier_id: 0,
-      expected_date: "",
-      payment_term: "Cash on Delivery",
-      delivery_address: "",
-      supplier_reference_number: "",
-      notes: "",
-      items: [],
-    },
+    store.selectedPO
+      ? {
+          supplier_id: store.selectedPO.supplier_id,
+          expected_date: store.selectedPO.expected_date || "",
+          payment_term: store.selectedPO.payment_term || "Cash on Delivery",
+          delivery_address: store.selectedPO.delivery_address || "",
+          supplier_reference_number:
+            store.selectedPO.supplier_reference_number || "",
+          notes: store.selectedPO.notes || "",
+          items:
+            store.selectedPO.items?.map((item: PurchaseOrderItem) => ({
+              ...item,
+            })) || [],
+        }
+      : {
+          supplier_id: 0,
+          expected_date: "",
+          payment_term: "Cash on Delivery",
+          delivery_address: "",
+          supplier_reference_number: "",
+          notes: "",
+          items: [],
+        },
   );
   let suppliers = $state<{ id: number; name: string }[]>([]);
   let stores = $state<{ id: number; name: string }[]>([]);
@@ -82,10 +88,14 @@
         expected_date: store.selectedPO.expected_date || "",
         payment_term: store.selectedPO.payment_term || "Cash on Delivery",
         delivery_address: store.selectedPO.delivery_address || "",
-        supplier_reference_number: store.selectedPO.supplier_reference_number || "",
+        supplier_reference_number:
+          store.selectedPO.supplier_reference_number || "",
         notes: store.selectedPO.notes || "",
         store_id: store.selectedPO.store_id,
-        items: store.selectedPO.items?.map((item: PurchaseOrderItem) => ({ ...item })) || [],
+        items:
+          store.selectedPO.items?.map((item: PurchaseOrderItem) => ({
+            ...item,
+          })) || [],
       };
       selectedStoreId =
         store.selectedPO.store_id ?? useAuthStore().user?.store_id ?? undefined;
@@ -208,7 +218,9 @@
   }
 
   function removeItem(index: number) {
-    po.items = po.items.filter((_: PurchaseOrderItem, i: number) => i !== index);
+    po.items = po.items.filter(
+      (_: PurchaseOrderItem, i: number) => i !== index,
+    );
   }
 
   function calculateSubtotal(item: PurchaseOrderItem) {
@@ -226,7 +238,10 @@
     saving = true;
     try {
       const items = po.items
-        .filter((item: PurchaseOrderItem) => item.product_id > 0 && item.qty_ordered > 0)
+        .filter(
+          (item: PurchaseOrderItem) =>
+            item.product_id > 0 && item.qty_ordered > 0,
+        )
         .map((item: PurchaseOrderItem) => ({
           product_id: Number(item.product_id),
           qty_ordered: Number(item.qty_ordered),
@@ -258,7 +273,9 @@
       open = false;
       store.load(store.currentFilters);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : labels.failedToSavePurchaseOrder);
+      toast.error(
+        e instanceof Error ? e.message : labels.failedToSavePurchaseOrder,
+      );
     } finally {
       saving = false;
     }
@@ -322,7 +339,10 @@
             <span>{labels.store} <span class="text-danger">*</span></span>
             <SelectSearch
               bind:value={selectedStoreId}
-              options={stores.map((s: { id: number; name: string }) => ({ value: s.id, label: s.name }))}
+              options={stores.map((s: { id: number; name: string }) => ({
+                value: s.id,
+                label: s.name,
+              }))}
               placeholder={labels.pilihToko}
             />
           </label>

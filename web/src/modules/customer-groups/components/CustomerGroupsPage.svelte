@@ -162,10 +162,24 @@
 
   function handleEditSave(data: Partial<CustomerGroup>) {
     if (!data.id) return;
-    editGroup(data as { id: number; name: string; description?: string; is_active: boolean; color?: string });
+    editGroup(
+      data as {
+        id: number;
+        name: string;
+        description?: string;
+        is_active: boolean;
+        color?: string;
+      },
+    );
   }
 
-  async function editGroup(data: { id: number; name: string; description?: string; is_active: boolean; color?: string }) {
+  async function editGroup(data: {
+    id: number;
+    name: string;
+    description?: string;
+    is_active: boolean;
+    color?: string;
+  }) {
     saving = true;
     try {
       await updateCustomerGroup(data.id, data);

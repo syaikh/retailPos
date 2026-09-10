@@ -163,7 +163,9 @@
     ),
   );
 
-  const productFormId = $derived((form as ProductFormData & { id?: number }).id);
+  const productFormId = $derived(
+    (form as ProductFormData & { id?: number }).id,
+  );
 
   $effect(() => {
     if (open && mode === "edit" && productFormId) {
@@ -219,7 +221,8 @@
       showModalCategoryDropdown = false;
       toast.success(labels.toastCategoryAdded);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : labels.toastFailedSaveCategory;
+      const msg =
+        err instanceof Error ? err.message : labels.toastFailedSaveCategory;
       toast.error(msg);
     } finally {
       creatingCategory = false;
@@ -281,7 +284,8 @@
       showModalBrandDropdown = false;
       toast.success(labels.toastBrandAdded);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : labels.toastFailedSaveBrand;
+      const msg =
+        err instanceof Error ? err.message : labels.toastFailedSaveBrand;
       toast.error(msg);
     } finally {
       creatingBrand = false;

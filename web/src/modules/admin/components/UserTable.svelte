@@ -5,7 +5,7 @@
     formatDateInJakarta,
     formatTimeInJakarta,
   } from "$shared/utils/jakartaTime";
-import { labels, t } from "$shared/i18n";
+  import { labels, t } from "$shared/i18n";
   import type { User } from "../types";
 
   let {
@@ -36,7 +36,9 @@ import { labels, t } from "$shared/i18n";
     ondelete?: (user: User) => void;
   } = $props();
 
-  function roleVariant(r: { id: number; name: string } | string): "primary" | "warning" | "muted" {
+  function roleVariant(
+    r: { id: number; name: string } | string,
+  ): "primary" | "warning" | "muted" {
     const roleName = typeof r === "object" ? r.name : r;
     if (roleName === "superadmin") return "primary";
     if (roleName === "admin") return "warning";
@@ -184,7 +186,9 @@ import { labels, t } from "$shared/i18n";
               </div>
             </td>
             <td class="p-4">
-              <Badge variant={roleVariant(user.role ?? "unknown")}>{roleName(user)}</Badge>
+              <Badge variant={roleVariant(user.role ?? "unknown")}
+                >{roleName(user)}</Badge
+              >
             </td>
             <td class="p-4">
               <div class="flex items-center gap-2">

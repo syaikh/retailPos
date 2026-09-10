@@ -45,7 +45,7 @@ export function buildChartConfig({
   activePeriodType,
   endDate,
   selectedMonthlyRange,
-    selectedYearlyRange: _selectedYearlyRange,
+  selectedYearlyRange: _selectedYearlyRange,
   chartYear,
 }: ChartConfigParams) {
   let chartLabels = [];

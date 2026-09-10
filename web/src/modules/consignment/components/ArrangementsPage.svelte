@@ -153,7 +153,8 @@
       showCreateModal = false;
       await load();
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : labels.consignmentCreateError;
+      const raw =
+        e instanceof Error ? e.message : labels.consignmentCreateError;
       toast.error(raw);
     } finally {
       creating = false;

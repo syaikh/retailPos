@@ -105,7 +105,9 @@
       toast.success(`${po.po_number} cancelled`);
       store.load(store.currentFilters);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to cancel purchase order");
+      toast.error(
+        e instanceof Error ? e.message : "Failed to cancel purchase order",
+      );
     }
   }
 

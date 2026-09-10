@@ -22,9 +22,7 @@ vi.mock("$shared/i18n", () => ({
 }));
 
 import { buildChartConfig } from "../chart-config";
-import {
-  getCurrentJakartaHour,
-} from "$shared/utils/jakartaTime";
+import { getCurrentJakartaHour } from "$shared/utils/jakartaTime";
 
 interface MockTooltipItem {
   parsed: { y: number | null };
@@ -533,7 +531,10 @@ describe("buildChartConfig – tooltip callbacks", () => {
     });
     const footerFn = config.options.plugins.tooltip.callbacks.footer;
     expect(
-      footerFn([{ parsed: { y: null } }, { parsed: { y: 500 } }] as unknown as MockTooltipItem[]),
+      footerFn([
+        { parsed: { y: null } },
+        { parsed: { y: 500 } },
+      ] as unknown as MockTooltipItem[]),
     ).toBe("Difference: N/A");
   });
 
@@ -547,7 +548,10 @@ describe("buildChartConfig – tooltip callbacks", () => {
     });
     const footerFn = config.options.plugins.tooltip.callbacks.footer;
     expect(
-      footerFn([{ parsed: { y: 1000 } }, { parsed: { y: 0 } }] as unknown as MockTooltipItem[]),
+      footerFn([
+        { parsed: { y: 1000 } },
+        { parsed: { y: 0 } },
+      ] as unknown as MockTooltipItem[]),
     ).toBe("");
   });
 
@@ -559,7 +563,9 @@ describe("buildChartConfig – tooltip callbacks", () => {
       activePeriodType: "yesterday",
     });
     const footerFn = config.options.plugins.tooltip.callbacks.footer;
-    expect(footerFn([{ parsed: { y: 1000 } }] as unknown as MockTooltipItem[])).toBe("");
+    expect(
+      footerFn([{ parsed: { y: 1000 } }] as unknown as MockTooltipItem[]),
+    ).toBe("");
   });
 
   it("tooltip footer formats negative and large differences", () => {

@@ -97,7 +97,7 @@
         : displayTransaction.payment_method || "—";
     const cashReceived =
       displayTransaction.payments?.find(
-         (p: PaymentInfo) => p.payment_method_code === "CASH",
+        (p: PaymentInfo) => p.payment_method_code === "CASH",
       )?.amount || displayTransaction.total_amount;
     const payload = {
       invoice_number: displayTransaction.invoice_number,
@@ -123,7 +123,7 @@
       changeDue: displayTransaction.change_due ?? 0,
       customer_name: displayTransaction.customer_name || undefined,
       total_savings: (displayTransaction.items || []).reduce(
-                 (sum: number, item: SaleItem) => {
+        (sum: number, item: SaleItem) => {
           if (item.original_price && item.original_price > item.unit_price) {
             return (
               sum + (item.original_price - item.unit_price) * item.quantity
@@ -348,7 +348,7 @@
           <div class="bg-surface-subtle/50 border-t border-border">
             {#if displayTransaction.items?.some((item: SaleItem) => item.original_price && item.original_price > item.unit_price)}
               {@const totalSavings = displayTransaction.items.reduce(
-        (sum: number, item: SaleItem) => {
+                (sum: number, item: SaleItem) => {
                   if (
                     item.original_price &&
                     item.original_price > item.unit_price

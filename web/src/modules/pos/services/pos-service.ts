@@ -1,9 +1,5 @@
 import apiClient from "$shared/api/http-client";
-import type {
-  PosProduct,
-  PaymentAllocation,
-  CartSession,
-} from "../types";
+import type { PosProduct, PaymentAllocation, CartSession } from "../types";
 import {
   getTodayInJakarta,
   getDateNDaysAgoInJakarta,

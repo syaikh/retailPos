@@ -1,9 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { labels } from "$shared/i18n";
-  import {
-    settingsStore,
-  } from "$shared/stores/settings.svelte";
+  import { settingsStore } from "$shared/stores/settings.svelte";
   import {
     fetchAllSettings,
     updateSettings,

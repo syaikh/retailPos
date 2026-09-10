@@ -205,7 +205,11 @@
     try {
       offset = newOffset;
       limit = newLimit;
-      const params: Record<string, string | number | boolean | undefined> = { limit, offset, search: searchQuery || undefined };
+      const params: Record<string, string | number | boolean | undefined> = {
+        limit,
+        offset,
+        search: searchQuery || undefined,
+      };
       const activeParam = getStatusFilterParams();
       if (activeParam !== undefined) params.is_active = activeParam;
       if (groupFilter !== "all") params.customer_group_id = groupFilter;

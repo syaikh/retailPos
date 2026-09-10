@@ -158,7 +158,13 @@
       items = data.data || [];
       total = data.total || 0;
     } catch (error: unknown) {
-      const err = error as { name?: string; code?: string; message?: string; response?: { data?: { error?: string } | string }; request?: unknown };
+      const err = error as {
+        name?: string;
+        code?: string;
+        message?: string;
+        response?: { data?: { error?: string } | string };
+        request?: unknown;
+      };
       const isCanceled =
         err.name === "CanceledError" ||
         err.name === "AbortError" ||
@@ -170,7 +176,9 @@
         console.error("[AuditLogs] error.request:", err.request);
         const data = err.response?.data;
         const msg =
-          (typeof data === "object" && data !== null ? data.error : undefined) ||
+          (typeof data === "object" && data !== null
+            ? data.error
+            : undefined) ||
           (typeof data === "string" ? data : undefined) ||
           err.message ||
           labels.unknown;

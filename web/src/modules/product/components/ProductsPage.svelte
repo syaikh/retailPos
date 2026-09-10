@@ -209,7 +209,8 @@
       stockAdjustProduct = null;
       await fetchProducts(offset, limit);
     } catch (err: unknown) {
-      const serverError = err instanceof Error ? err.message : labels.toastFailedToAdjustStock;
+      const serverError =
+        err instanceof Error ? err.message : labels.toastFailedToAdjustStock;
       const errorMsg = serverError || labels.toastFailedToAdjustStock;
       if (typeof serverError === "string" && serverError.includes("CNS-402")) {
         toast.error(labels.toastConsignmentProductBlocked);

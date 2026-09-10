@@ -14,7 +14,11 @@
     bulkDeleteSuppliers,
   } from "../services/supplier-service";
   import type { SupplierListParams } from "../services/supplier-service";
-  import type { Supplier, CreateSupplierPayload, UpdateSupplierPayload } from "../types";
+  import type {
+    Supplier,
+    CreateSupplierPayload,
+    UpdateSupplierPayload,
+  } from "../types";
   import { Pagination } from "$shared/ui";
   import { ArrowLeft } from "lucide-svelte";
   import { debounce } from "$shared/utils/debounce";
@@ -130,7 +134,9 @@
     showFormModal = true;
   }
 
-  async function handleFormSave(data: CreateSupplierPayload | UpdateSupplierPayload) {
+  async function handleFormSave(
+    data: CreateSupplierPayload | UpdateSupplierPayload,
+  ) {
     saving = true;
     try {
       if (formMode === "add") {

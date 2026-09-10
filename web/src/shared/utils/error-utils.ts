@@ -7,10 +7,7 @@ interface AxiosLikeError {
   message?: string;
 }
 
-export function getApiErrorMessage(
-  e: unknown,
-  fallback: string,
-): string {
+export function getApiErrorMessage(e: unknown, fallback: string): string {
   if (!e || typeof e !== "object") return fallback;
   const err = e as AxiosLikeError;
   const apiError = err.response?.data?.error;

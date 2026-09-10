@@ -175,7 +175,8 @@
       await load();
       oncreated?.();
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : labels.consignmentRecordReceiptError;
+      const raw =
+        e instanceof Error ? e.message : labels.consignmentRecordReceiptError;
       toast.error(raw);
     } finally {
       submitting = false;
@@ -375,97 +376,97 @@
       </Button>
     </div>
 
-      {#each lines as line, i (i)}
-        <div class="rounded-xl border border-border-default p-3 space-y-3">
-          <div
-            class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-3 items-end"
+    {#each lines as line, i (i)}
+      <div class="rounded-xl border border-border-default p-3 space-y-3">
+        <div
+          class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-3 items-end"
+        >
+          <label
+            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
           >
-            <label
-              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+            <span
+              >{labels.consignmentProduct}
+              <span class="text-danger">*</span></span
             >
-              <span
-                >{labels.consignmentProduct}
-                <span class="text-danger">*</span></span
-              >
-              <SelectSearch
-                bind:value={line.product_id}
-                options={productOptions}
-                placeholder={labels.consignmentSelectProduct}
-                searchPlaceholder={labels.consignmentSearchProduct}
-                notFoundText={labels.consignmentProductNotFound}
-              />
-            </label>
-            <label
-              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+            <SelectSearch
+              bind:value={line.product_id}
+              options={productOptions}
+              placeholder={labels.consignmentSelectProduct}
+              searchPlaceholder={labels.consignmentSearchProduct}
+              notFoundText={labels.consignmentProductNotFound}
+            />
+          </label>
+          <label
+            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+          >
+            <span>{labels.consignmentBrought}</span>
+            <NumberInput
+              min="0"
+              bind:value={line.brought_qty}
+              class="h-9 w-24 text-sm"
+            />
+          </label>
+          <label
+            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+          >
+            <span>{labels.consignmentRejected}</span>
+            <NumberInput
+              min="0"
+              bind:value={line.rejected_qty}
+              class="h-9 w-24 text-sm"
+            />
+          </label>
+          {#if lines.length > 1}
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={labels.consignmentDeleteLine}
+              onclick={() => removeLine(i)}
             >
-              <span>{labels.consignmentBrought}</span>
-              <NumberInput
-                min="0"
-                bind:value={line.brought_qty}
-                class="h-9 w-24 text-sm"
-              />
-            </label>
-            <label
-              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-            >
-              <span>{labels.consignmentRejected}</span>
-              <NumberInput
-                min="0"
-                bind:value={line.rejected_qty}
-                class="h-9 w-24 text-sm"
-              />
-            </label>
-            {#if lines.length > 1}
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-label={labels.consignmentDeleteLine}
-                onclick={() => removeLine(i)}
-              >
-                <Trash2 class="w-4 h-4" />
-              </Button>
-            {/if}
-          </div>
-          <div class="flex flex-wrap items-center gap-4 text-xs">
-            <span class="text-text-secondary">
-              {labels.consignmentAccepted}
-              <span class="font-semibold text-text-primary"
-                >{acceptedQty(line)}</span
-              >
-            </span>
-            {#if line.product_id && termByProduct[line.product_id]}
-              <span class="text-text-secondary">
-                {labels.consignmentTabTerms}:
-                <span class="font-medium text-text-primary"
-                  >{formatCurrency(termByProduct[line.product_id].price)}</span
-                >
-                {labels.consignmentPerUnit}
-              </span>
-            {:else if line.product_id}
-              <span class="text-amber-600"
-                >{labels.consignmentNoTermsWarning}</span
-              >
-            {/if}
-            {#if line.conflict}
-              <span class="text-danger">{line.conflict}</span>
-            {/if}
-          </div>
+              <Trash2 class="w-4 h-4" />
+            </Button>
+          {/if}
         </div>
-      {/each}
+        <div class="flex flex-wrap items-center gap-4 text-xs">
+          <span class="text-text-secondary">
+            {labels.consignmentAccepted}
+            <span class="font-semibold text-text-primary"
+              >{acceptedQty(line)}</span
+            >
+          </span>
+          {#if line.product_id && termByProduct[line.product_id]}
+            <span class="text-text-secondary">
+              {labels.consignmentTabTerms}:
+              <span class="font-medium text-text-primary"
+                >{formatCurrency(termByProduct[line.product_id].price)}</span
+              >
+              {labels.consignmentPerUnit}
+            </span>
+          {:else if line.product_id}
+            <span class="text-amber-600"
+              >{labels.consignmentNoTermsWarning}</span
+            >
+          {/if}
+          {#if line.conflict}
+            <span class="text-danger">{line.conflict}</span>
+          {/if}
+        </div>
+      </div>
+    {/each}
 
-      <label
-        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-      >
-        <span>{labels.notes}</span>
-        <Input
-          tag="textarea"
-          bind:value={entryNotes}
-          rows={2}
-          placeholder={labels.consignmentReceiptNotesPlaceholder}
-          class="text-sm"
-        />
-      </label>
-    </div>
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span>{labels.notes}</span>
+      <Input
+        tag="textarea"
+        bind:value={entryNotes}
+        rows={2}
+        placeholder={labels.consignmentReceiptNotesPlaceholder}
+        class="text-sm"
+      />
+    </label>
+  </div>
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
       <Button variant="secondary" onclick={() => (showEntryModal = false)}
@@ -488,161 +489,49 @@
       {labels.loading}
     </div>
   {:else if detailReceipt}
-      <div class="space-y-4">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div>
-            <div class="text-text-secondary text-xs uppercase tracking-wider">
-              {labels.consignmentReceiptNo}
-            </div>
-            <div class="font-medium text-text-primary">
-              {detailReceipt.receipt_number}
-            </div>
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        <div>
+          <div class="text-text-secondary text-xs uppercase tracking-wider">
+            {labels.consignmentReceiptNo}
           </div>
-          <div>
-            <div class="text-text-secondary text-xs uppercase tracking-wider">
-              {labels.consignmentDate}
-            </div>
-            <div class="font-medium text-text-primary">
-              {formatDateTime(detailReceipt.received_at)}
-            </div>
-          </div>
-          <div>
-            <div class="text-text-secondary text-xs uppercase tracking-wider">
-              {labels.consignmentReceivedBy}
-            </div>
-            <div class="font-medium text-text-primary">
-              {detailReceipt.received_by_username || "-"}
-            </div>
-          </div>
-          <div>
-            <div class="text-text-secondary text-xs uppercase tracking-wider">
-              {labels.consignmentTotalValue}
-            </div>
-            <div class="font-medium text-text-primary">
-              {formatCurrency(
-                (detailReceipt.items || []).reduce(
-                  (s, i) => s + i.accepted_qty * i.price,
-                  0,
-                ),
-              )}
-            </div>
+          <div class="font-medium text-text-primary">
+            {detailReceipt.receipt_number}
           </div>
         </div>
-
-        {#if editMode}
-          <div class="space-y-4">
-            <div class="overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead>
-                  <tr
-                    class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50"
-                  >
-                    <th class="px-4 py-3">{labels.consignmentProduct}</th>
-                    <th class="px-4 py-3 text-right"
-                      >{labels.consignmentAccepted}</th
-                    >
-                    <th class="px-4 py-3 text-right"
-                      >{labels.consignmentPricePerUnit}</th
-                    >
-                    <th class="px-4 py-3 text-right"
-                      >{labels.consignmentTotalValue}</th
-                    >
-                    <th class="px-4 py-3">{labels.consignmentStoreShare}</th>
-                    <th class="px-4 py-3">{labels.notes}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each editItems as item, idx (item.id)}
-                    <tr class="border-b border-border/40">
-                      <td class="px-4 py-3">
-                        <div class="font-medium text-text-primary">
-                          {item.product_name}
-                        </div>
-                        <div class="text-xs text-text-secondary">
-                          {item.product_sku}
-                        </div>
-                      </td>
-                      <td class="px-4 py-3 text-right">
-                        <div class="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onclick={() => updateEditItemQty(idx, -1)}>-</Button
-                          >
-                          <NumberInput
-                            min="0"
-                            bind:value={item.accepted_qty}
-                            class="h-8 w-20 text-sm text-right"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onclick={() => updateEditItemQty(idx, 1)}>+</Button
-                          >
-                        </div>
-                      </td>
-                      <td class="px-4 py-3 text-right text-text-primary"
-                        >{formatCurrency(item.price)}</td
-                      >
-                      <td class="px-4 py-3 text-right text-text-primary"
-                        >{formatCurrency(item.accepted_qty * item.price)}</td
-                      >
-                      <td class="px-4 py-3 text-text-secondary">
-                        {item.store_share_type === "percentage"
-                          ? `${item.store_share_value}%`
-                          : formatCurrency(item.store_share_value)}
-                      </td>
-                      <td class="px-4 py-3">
-                        <Input
-                          type="text"
-                          bind:value={item.notes}
-                          class="h-8 text-sm"
-                          placeholder="-"
-                        />
-                      </td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </div>
-
-            <label
-              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-            >
-              <span>{labels.notes}</span>
-              <Input
-                tag="textarea"
-                bind:value={editNotes}
-                rows={2}
-                placeholder={labels.consignmentReceiptNotesPlaceholder}
-                class="text-sm"
-              />
-            </label>
-
-            <label
-              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-            >
-              <span
-                >{labels.consignmentEditReason}
-                <span class="text-danger">*</span></span
-              >
-              <Input
-                type="text"
-                bind:value={editReason}
-                rows={2}
-                placeholder={labels.consignmentEditReasonPlaceholder}
-                class="text-sm"
-              />
-            </label>
+        <div>
+          <div class="text-text-secondary text-xs uppercase tracking-wider">
+            {labels.consignmentDate}
           </div>
-        {:else}
-          {#if detailReceipt.notes}
-            <div class="text-sm">
-              <span class="text-text-secondary">{labels.notes}:</span>
-              <span class="text-text-primary ml-1">{detailReceipt.notes}</span>
-            </div>
-          {/if}
+          <div class="font-medium text-text-primary">
+            {formatDateTime(detailReceipt.received_at)}
+          </div>
+        </div>
+        <div>
+          <div class="text-text-secondary text-xs uppercase tracking-wider">
+            {labels.consignmentReceivedBy}
+          </div>
+          <div class="font-medium text-text-primary">
+            {detailReceipt.received_by_username || "-"}
+          </div>
+        </div>
+        <div>
+          <div class="text-text-secondary text-xs uppercase tracking-wider">
+            {labels.consignmentTotalValue}
+          </div>
+          <div class="font-medium text-text-primary">
+            {formatCurrency(
+              (detailReceipt.items || []).reduce(
+                (s, i) => s + i.accepted_qty * i.price,
+                0,
+              ),
+            )}
+          </div>
+        </div>
+      </div>
 
+      {#if editMode}
+        <div class="space-y-4">
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead>
@@ -664,19 +553,35 @@
                 </tr>
               </thead>
               <tbody>
-                {#each detailReceipt.items || [] as item, i (i)}
+                {#each editItems as item, idx (item.id)}
                   <tr class="border-b border-border/40">
                     <td class="px-4 py-3">
                       <div class="font-medium text-text-primary">
-                        {item.product_name || `Product #${item.product_id}`}
+                        {item.product_name}
                       </div>
                       <div class="text-xs text-text-secondary">
-                        {item.product_sku || ""}
+                        {item.product_sku}
                       </div>
                     </td>
-                    <td class="px-4 py-3 text-right text-text-primary"
-                      >{item.accepted_qty}</td
-                    >
+                    <td class="px-4 py-3 text-right">
+                      <div class="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onclick={() => updateEditItemQty(idx, -1)}>-</Button
+                        >
+                        <NumberInput
+                          min="0"
+                          bind:value={item.accepted_qty}
+                          class="h-8 w-20 text-sm text-right"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onclick={() => updateEditItemQty(idx, 1)}>+</Button
+                        >
+                      </div>
+                    </td>
                     <td class="px-4 py-3 text-right text-text-primary"
                       >{formatCurrency(item.price)}</td
                     >
@@ -688,17 +593,113 @@
                         ? `${item.store_share_value}%`
                         : formatCurrency(item.store_share_value)}
                     </td>
-                    <td class="px-4 py-3 text-text-secondary"
-                      >{item.notes || "-"}</td
-                    >
+                    <td class="px-4 py-3">
+                      <Input
+                        type="text"
+                        bind:value={item.notes}
+                        class="h-8 text-sm"
+                        placeholder="-"
+                      />
+                    </td>
                   </tr>
                 {/each}
               </tbody>
             </table>
           </div>
+
+          <label
+            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+          >
+            <span>{labels.notes}</span>
+            <Input
+              tag="textarea"
+              bind:value={editNotes}
+              rows={2}
+              placeholder={labels.consignmentReceiptNotesPlaceholder}
+              class="text-sm"
+            />
+          </label>
+
+          <label
+            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+          >
+            <span
+              >{labels.consignmentEditReason}
+              <span class="text-danger">*</span></span
+            >
+            <Input
+              type="text"
+              bind:value={editReason}
+              rows={2}
+              placeholder={labels.consignmentEditReasonPlaceholder}
+              class="text-sm"
+            />
+          </label>
+        </div>
+      {:else}
+        {#if detailReceipt.notes}
+          <div class="text-sm">
+            <span class="text-text-secondary">{labels.notes}:</span>
+            <span class="text-text-primary ml-1">{detailReceipt.notes}</span>
+          </div>
         {/if}
-      </div>
-    {/if}
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr
+                class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50"
+              >
+                <th class="px-4 py-3">{labels.consignmentProduct}</th>
+                <th class="px-4 py-3 text-right"
+                  >{labels.consignmentAccepted}</th
+                >
+                <th class="px-4 py-3 text-right"
+                  >{labels.consignmentPricePerUnit}</th
+                >
+                <th class="px-4 py-3 text-right"
+                  >{labels.consignmentTotalValue}</th
+                >
+                <th class="px-4 py-3">{labels.consignmentStoreShare}</th>
+                <th class="px-4 py-3">{labels.notes}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each detailReceipt.items || [] as item, i (i)}
+                <tr class="border-b border-border/40">
+                  <td class="px-4 py-3">
+                    <div class="font-medium text-text-primary">
+                      {item.product_name || `Product #${item.product_id}`}
+                    </div>
+                    <div class="text-xs text-text-secondary">
+                      {item.product_sku || ""}
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-right text-text-primary"
+                    >{item.accepted_qty}</td
+                  >
+                  <td class="px-4 py-3 text-right text-text-primary"
+                    >{formatCurrency(item.price)}</td
+                  >
+                  <td class="px-4 py-3 text-right text-text-primary"
+                    >{formatCurrency(item.accepted_qty * item.price)}</td
+                  >
+                  <td class="px-4 py-3 text-text-secondary">
+                    {item.store_share_type === "percentage"
+                      ? `${item.store_share_value}%`
+                      : formatCurrency(item.store_share_value)}
+                  </td>
+                  <td class="px-4 py-3 text-text-secondary"
+                    >{item.notes || "-"}</td
+                  >
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </div>
+  {/if}
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
       {#if editMode}

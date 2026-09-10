@@ -15,9 +15,7 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports pricing service functions", () => {
-    expect(src).toContain(
-      'from "../services/pricing-service"',
-    );
+    expect(src).toContain('from "../services/pricing-service"');
     expect(src).toContain("getPricingRules");
     expect(src).toContain("createPricingRule");
     expect(src).toContain("updatePricingRule");
@@ -26,14 +24,14 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   });
 
   it("imports product service functions including getProductsByIds", () => {
-    expect(src).toContain(
-      'from "$modules/product/services/product-service"',
-    );
+    expect(src).toContain('from "$modules/product/services/product-service"');
     expect(src).toContain("getProductsByIds");
   });
 
   it("imports toast store", () => {
-    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
+    expect(src).toContain(
+      'import { toast } from "$shared/stores/toast.svelte"',
+    );
   });
 
   it("imports auth store", () => {
@@ -41,7 +39,7 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   });
 
   it("imports PricingRule type", () => {
-    expect(src).toContain('import type { PricingRule');
+    expect(src).toContain("import type { PricingRule");
     expect(src).toContain('from "../types"');
   });
 

@@ -5,7 +5,7 @@
     formatDateInJakarta,
     formatTimeInJakarta,
   } from "$shared/utils/jakartaTime";
-import { labels } from "$shared/i18n";
+  import { labels } from "$shared/i18n";
   import type { AuditLog } from "../types";
 
   const {

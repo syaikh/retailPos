@@ -10,7 +10,11 @@
     bulkUpdateStorageLocations,
     bulkDeleteStorageLocations,
   } from "../services/storage-location-service";
-  import type { StorageLocation, StorageLocationFilters, StorageLocationUpdatePayload } from "../types";
+  import type {
+    StorageLocation,
+    StorageLocationFilters,
+    StorageLocationUpdatePayload,
+  } from "../types";
   import { getWarehouses } from "$modules/product/services/product-service";
   import { getActiveStores } from "$modules/stores";
   import { Pagination } from "$shared/ui";
@@ -87,7 +91,10 @@
   async function load() {
     loading = true;
     try {
-      const filters: StorageLocationFilters & { search?: string; is_active?: boolean } = { limit, offset };
+      const filters: StorageLocationFilters & {
+        search?: string;
+        is_active?: boolean;
+      } = { limit, offset };
       if (searchQuery.trim()) filters.search = searchQuery.trim();
       if (statusFilter !== "all") filters.is_active = statusFilter === "active";
 
@@ -174,7 +181,10 @@
   async function handleEditSave(data: Partial<StorageLocationUpdatePayload>) {
     saving = true;
     try {
-      await updateStorageLocation(data.id!, { ...data, notes: data.notes ?? undefined });
+      await updateStorageLocation(data.id!, {
+        ...data,
+        notes: data.notes ?? undefined,
+      });
       toast.success(labels.toastStorageLocationUpdated);
       showEditModal = false;
       selectedLocation = null;
