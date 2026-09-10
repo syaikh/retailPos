@@ -1,13 +1,13 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte';
-  import type { ComponentType } from 'svelte';
+  import type { Snippet } from "svelte";
+  import type { ComponentType } from "svelte";
 
-  let {
+  const {
     icon,
     title,
     subtitle,
     action,
-    class: className = '',
+    class: className = "",
   }: {
     icon?: ComponentType;
     title: string;
@@ -20,7 +20,9 @@
 <div class="px-4 py-12 text-center {className}">
   {#if icon}
     {@const Icon = icon}
-    <div class="w-20 h-20 mx-auto flex justify-center rounded-2xl bg-surface-default">
+    <div
+      class="w-20 h-20 mx-auto flex justify-center rounded-2xl bg-surface-default"
+    >
       <Icon size={32} class="text-text-muted mt-4" />
     </div>
   {/if}

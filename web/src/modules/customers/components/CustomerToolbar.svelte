@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { Button, SearchBar, BulkActionDropdown, Dropdown } from '$shared/ui';
-  import { Plus, Users, ChevronDown } from 'lucide-svelte';
-  import { labels } from '$shared/i18n';
+  import { Button, SearchBar, BulkActionDropdown, Dropdown } from "$shared/ui";
+  import { Plus, Users, ChevronDown } from "lucide-svelte";
+  import { labels } from "$shared/i18n";
 
   let {
-    searchQuery = $bindable(''),
-    statusFilter = $bindable('all'),
-    groupFilter = $bindable('all'),
+    searchQuery = $bindable(""),
+    statusFilter = $bindable("all"),
+    groupFilter = $bindable("all"),
     canCreate = false,
     groups = [] as { id: number; name: string }[],
     onsearch = () => {},
@@ -31,36 +31,70 @@
 <div class="card p-4 space-y-3">
   <div class="flex items-center gap-3">
     <div class="flex-1">
-      <SearchBar bind:value={searchQuery} placeholder={labels.searchByNamePhoneEmail} oninput={onsearch} />
+      <SearchBar
+        bind:value={searchQuery}
+        placeholder={labels.searchByNamePhoneEmail}
+        oninput={onsearch}
+      />
     </div>
-    <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default">
+    <div
+      class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default"
+    >
       <button
-        class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-        onclick={() => { statusFilter = 'all'; onstatuschange(); }}
+        class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter ===
+        'all'
+          ? 'bg-primary-subtle text-primary-light border border-primary-default/20'
+          : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+        onclick={() => {
+          statusFilter = "all";
+          onstatuschange();
+        }}
       >
         {labels.all}
       </button>
       <button
-        class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'active' ? 'bg-success-subtle text-success-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-        onclick={() => { statusFilter = 'active'; onstatuschange(); }}
+        class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter ===
+        'active'
+          ? 'bg-success-subtle text-success-light'
+          : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+        onclick={() => {
+          statusFilter = "active";
+          onstatuschange();
+        }}
       >
         {labels.active}
       </button>
       <button
-        class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'inactive' ? 'bg-danger-subtle text-danger-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-        onclick={() => { statusFilter = 'inactive'; onstatuschange(); }}
+        class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter ===
+        'inactive'
+          ? 'bg-danger-subtle text-danger-light'
+          : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+        onclick={() => {
+          statusFilter = "inactive";
+          onstatuschange();
+        }}
       >
         {labels.inactive}
       </button>
     </div>
     <Dropdown
       items={[
-        { label: labels.allGroups, checked: groupFilter === 'all', onclick: () => { groupFilter = 'all'; ongroupchange(); } },
+        {
+          label: labels.allGroups,
+          checked: groupFilter === "all",
+          onclick: () => {
+            groupFilter = "all";
+            ongroupchange();
+          },
+        },
         ...(groups.length > 0 ? [{ divider: true }] : []),
-        ...groups.map(g => ({
+        ...groups.map((g) => ({
           label: g.name,
           checked: groupFilter === String(g.id),
-          onclick: () => { groupFilter = String(g.id); ongroupchange(); },
+          onclick: () => {
+            groupFilter = String(g.id);
+            ongroupchange();
+          },
         })),
       ]}
     >
@@ -70,14 +104,26 @@
           onclick={toggle}
         >
           <Users size={14} />
-          {groupFilter === 'all' ? labels.allGroups : (groups.find(g => String(g.id) === groupFilter)?.name || labels.allGroups)}
+          {groupFilter === "all"
+            ? labels.allGroups
+            : groups.find((g) => String(g.id) === groupFilter)?.name ||
+              labels.allGroups}
           <ChevronDown size={14} />
         </button>
       {/snippet}
     </Dropdown>
     {#if canCreate}
-      <BulkActionDropdown module="customers" canExport={canCreate} canImport={canCreate} {onImport} />
-      <Button onclick={oncreate} variant="primary" class="shrink-0 shadow-glow-primary-sm px-5">
+      <BulkActionDropdown
+        module="customers"
+        canExport={canCreate}
+        canImport={canCreate}
+        {onImport}
+      />
+      <Button
+        onclick={oncreate}
+        variant="primary"
+        class="shrink-0 shadow-glow-primary-sm px-5"
+      >
         <Plus size={18} />
         {labels.addCustomer}
       </Button>

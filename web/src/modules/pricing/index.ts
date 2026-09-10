@@ -1,1 +1,1 @@
-export { default as PricingRulesPage } from './components/PricingRulesPage.svelte';
+export { default as PricingRulesPage } from "./components/PricingRulesPage.svelte";

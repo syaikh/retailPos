@@ -1,16 +1,19 @@
 <script>
-  import { onMount } from 'svelte';
-  import { goto } from '$app/router';
-  import { apiFetch } from '$shared/api/http-client';
-  import { StatCard } from '$shared/ui';
+  import { onMount } from "svelte";
+  import { goto } from "$app/router";
+  import { apiFetch } from "$shared/api/http-client";
+  import { StatCard } from "$shared/ui";
   import {
-    ShoppingCart, Package, BarChart3, Users,
+    ShoppingCart,
+    Package,
+    BarChart3,
+    Users,
     AlertTriangle,
     ArrowRight,
-  } from 'lucide-svelte';
-  import { RpIcon } from '$shared/ui';
-  import { useWebSocket } from '$shared/api/websocket';
-  import { labels } from '$shared/i18n';
+  } from "lucide-svelte";
+  import { RpIcon } from "$shared/ui";
+  import { useWebSocket } from "$shared/api/websocket";
+  import { labels } from "$shared/i18n";
 
   let todaysRevenue = $state(0);
   let todaysSales = $state(0);
@@ -20,11 +23,13 @@
   let wsConnected = $state(false);
 
   const ws = useWebSocket();
-  const revSubText = $derived(todaysRevenue > 0 ? labels.invoicedToday : labels.noSalesYetToday);
+  const revSubText = $derived(
+    todaysRevenue > 0 ? labels.invoicedToday : labels.noSalesYetToday,
+  );
 
   async function fetchLiveStats() {
     try {
-      const res = await apiFetch('/api/dashboard/live');
+      const res = await apiFetch("/api/dashboard/live");
       if (res.ok) {
         const data = await res.json();
         if (data.data) {
@@ -34,7 +39,7 @@
           lowStockCount = data.data.low_stock_count || 0;
         }
       }
-    } catch (err) {
+    } catch (_err) {
       // ignore
     } finally {
       loading = false;
@@ -44,8 +49,10 @@
   onMount(() => {
     fetchLiveStats();
     const handlers = [
-      ws.status.subscribe((status) => { wsConnected = status === 'connected'; }),
-      ws.on('sale_created', (data) => {
+      ws.status.subscribe((status) => {
+        wsConnected = status === "connected";
+      }),
+      ws.on("sale_created", (data) => {
         if (data && data.total != null) {
           todaysRevenue += data.total;
           todaysSales += 1;
@@ -61,38 +68,38 @@
     {
       label: labels.pointOfSale,
       desc: labels.posDesc,
-      href: '/pos',
+      href: "/pos",
       icon: ShoppingCart,
-      iconBg: 'bg-primary-subtle',
-      iconColor: 'text-primary-light',
-      gradient: 'from-primary/10 to-accent/5',
+      iconBg: "bg-primary-subtle",
+      iconColor: "text-primary-light",
+      gradient: "from-primary/10 to-accent/5",
     },
     {
       label: labels.inventory,
       desc: labels.inventoryDesc,
-      href: '/inventory/products',
+      href: "/inventory/products",
       icon: Package,
-      iconBg: 'bg-success-subtle',
-      iconColor: 'text-success-light',
-      gradient: 'from-success/10 to-emerald-600/5',
+      iconBg: "bg-success-subtle",
+      iconColor: "text-success-light",
+      gradient: "from-success/10 to-emerald-600/5",
     },
     {
       label: labels.reports,
       desc: labels.reportsDesc,
-      href: '/reports',
+      href: "/reports",
       icon: BarChart3,
-      iconBg: 'bg-info-subtle',
-      iconColor: 'text-info-light',
-      gradient: 'from-info/10 to-sky-600/5',
+      iconBg: "bg-info-subtle",
+      iconColor: "text-info-light",
+      gradient: "from-info/10 to-sky-600/5",
     },
     {
       label: labels.administration,
       desc: labels.administrationDesc,
-      href: '/admin',
+      href: "/admin",
       icon: Users,
-      iconBg: 'bg-warning-subtle',
-      iconColor: 'text-warning-light',
-      gradient: 'from-warning/10 to-amber-600/5',
+      iconBg: "bg-warning-subtle",
+      iconColor: "text-warning-light",
+      gradient: "from-warning/10 to-amber-600/5",
     },
   ]);
 </script>
@@ -100,11 +107,25 @@
 <div class="space-y-8">
   <div class="card p-6 rounded-2xl border-border">
     <div class="flex items-center justify-between mb-6">
-      <h2 class="text-sm font-semibold text-text-muted uppercase tracking-widest">{labels.liveDashboard}</h2>
-      <span class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-text-muted">
+      <h2
+        class="text-sm font-semibold text-text-muted uppercase tracking-widest"
+      >
+        {labels.liveDashboard}
+      </h2>
+      <span
+        class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-text-muted"
+      >
         <span class="relative inline-flex h-2 w-2">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 {wsConnected ? 'bg-success' : 'bg-text-muted'}"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 {wsConnected ? 'bg-success' : 'bg-text-muted'}"></span>
+          <span
+            class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 {wsConnected
+              ? 'bg-success'
+              : 'bg-text-muted'}"
+          ></span>
+          <span
+            class="relative inline-flex rounded-full h-2 w-2 {wsConnected
+              ? 'bg-success'
+              : 'bg-text-muted'}"
+          ></span>
         </span>
         {wsConnected ? labels.live : labels.offline}
       </span>
@@ -113,7 +134,7 @@
       <div class="animate-slide-up" style="animation-delay: 100ms;">
         <StatCard
           label={labels.todayRevenue}
-          value={loading ? '—' : (todaysRevenue?.toLocaleString('id-ID') || 0)}
+          value={loading ? "—" : todaysRevenue?.toLocaleString("id-ID") || 0}
           sub={revSubText}
           icon={RpIcon}
           iconBg="bg-primary-subtle"
@@ -124,8 +145,10 @@
       <div class="animate-slide-up" style="animation-delay: 200ms;">
         <StatCard
           label={labels.transactionsCard}
-          value={loading ? '—' : (todaysSales?.toLocaleString('id-ID') || 0)}
-          sub={todaysSales > 0 ? labels.completedToday : labels.noTransactionsToday}
+          value={loading ? "—" : todaysSales?.toLocaleString("id-ID") || 0}
+          sub={todaysSales > 0
+            ? labels.completedToday
+            : labels.noTransactionsToday}
           icon={ShoppingCart}
           iconBg="bg-success-subtle"
           iconColor="text-success-light"
@@ -135,7 +158,7 @@
       <div class="animate-slide-up" style="animation-delay: 300ms;">
         <StatCard
           label={labels.totalProducts}
-          value={loading ? '—' : (totalProducts?.toLocaleString('id-ID') || 0)}
+          value={loading ? "—" : totalProducts?.toLocaleString("id-ID") || 0}
           sub={labels.unitsInCatalog}
           icon={Package}
           iconBg="bg-info-subtle"
@@ -146,8 +169,10 @@
       <div class="animate-slide-up" style="animation-delay: 400ms;">
         <StatCard
           label={labels.lowStockAlerts}
-          value={loading ? '—' : (lowStockCount?.toLocaleString('id-ID') || 0)}
-          sub={lowStockCount > 0 ? labels.actionRequired : labels.allStockHealthy}
+          value={loading ? "—" : lowStockCount?.toLocaleString("id-ID") || 0}
+          sub={lowStockCount > 0
+            ? labels.actionRequired
+            : labels.allStockHealthy}
           icon={AlertTriangle}
           iconBg="bg-warning-subtle"
           iconColor="text-warning-light"
@@ -158,19 +183,29 @@
   </div>
 
   <div>
-    <h2 class="text-sm font-semibold text-text-muted uppercase tracking-widest mb-4">{labels.quickAccess}</h2>
+    <h2
+      class="text-sm font-semibold text-text-muted uppercase tracking-widest mb-4"
+    >
+      {labels.quickAccess}
+    </h2>
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-      {#each modules as mod, index}
-<button type="button" 
+      {#each modules as mod, index (index)}
+        <button
+          type="button"
           onclick={() => goto(mod.href)}
           class="card-glass hover:-translate-y-1 transition-all p-5 text-left group bg-linear-to-br {mod.gradient} border-border cursor-pointer animate-slide-up"
           style="animation-delay: {index * 100 + 500}ms"
         >
           <div class="flex items-start justify-between mb-4">
-            <div class="w-11 h-11 rounded-xl {mod.iconBg} flex items-center justify-center">
+            <div
+              class="w-11 h-11 rounded-xl {mod.iconBg} flex items-center justify-center"
+            >
               <mod.icon size={22} class={mod.iconColor} />
             </div>
-            <ArrowRight size={16} class="text-text-muted group-hover:text-text-primary group-hover:translate-x-0.5 transition-all" />
+            <ArrowRight
+              size={16}
+              class="text-text-muted group-hover:text-text-primary group-hover:translate-x-0.5 transition-all"
+            />
           </div>
           <h3 class="font-semibold text-text-primary mb-1">{mod.label}</h3>
           <p class="text-xs text-text-muted leading-snug">{mod.desc}</p>

@@ -1,5 +1,10 @@
-import { apiFetch } from '$shared/api/http-client';
-import type { Supplier, CreateSupplierPayload, UpdateSupplierPayload, ProductSupplier } from '../types';
+import { apiFetch } from "$shared/api/http-client";
+import type {
+  Supplier,
+  CreateSupplierPayload,
+  UpdateSupplierPayload,
+  ProductSupplier,
+} from "../types";
 
 export interface SupplierListParams {
   limit: number;
@@ -16,16 +21,20 @@ export interface SupplierListResponse {
   total: number;
 }
 
-export async function getSuppliers(params: SupplierListParams): Promise<SupplierListResponse> {
+export async function getSuppliers(
+  params: SupplierListParams,
+): Promise<SupplierListResponse> {
   const urlParams = new URLSearchParams({
     limit: params.limit.toString(),
     offset: (params.offset ?? 0).toString(),
   });
-  if (params.search) urlParams.append('search', params.search);
-  if (params.is_active !== undefined) urlParams.append('is_active', params.is_active.toString());
-  if (params.is_consignment !== undefined) urlParams.append('is_consignment', params.is_consignment.toString());
-  if (params.sort_by) urlParams.append('sort_by', params.sort_by);
-  if (params.sort_dir) urlParams.append('sort_dir', params.sort_dir);
+  if (params.search) urlParams.append("search", params.search);
+  if (params.is_active !== undefined)
+    urlParams.append("is_active", params.is_active.toString());
+  if (params.is_consignment !== undefined)
+    urlParams.append("is_consignment", params.is_consignment.toString());
+  if (params.sort_by) urlParams.append("sort_by", params.sort_by);
+  if (params.sort_dir) urlParams.append("sort_dir", params.sort_dir);
 
   const r = await apiFetch(`/api/suppliers?${urlParams.toString()}`);
   if (r.ok) {
@@ -44,28 +53,35 @@ export async function getSupplier(id: number): Promise<Supplier | null> {
   return null;
 }
 
-export async function createSupplier(payload: CreateSupplierPayload): Promise<boolean> {
-  const r = await apiFetch('/api/suppliers', {
-    method: 'POST',
+export async function createSupplier(
+  payload: CreateSupplierPayload,
+): Promise<boolean> {
+  const r = await apiFetch("/api/suppliers", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
   return r.ok;
 }
 
-export async function updateSupplier(id: number, payload: UpdateSupplierPayload): Promise<boolean> {
+export async function updateSupplier(
+  id: number,
+  payload: UpdateSupplierPayload,
+): Promise<boolean> {
   const r = await apiFetch(`/api/suppliers/${id}`, {
-    method: 'PUT',
+    method: "PUT",
     body: JSON.stringify(payload),
   });
   return r.ok;
 }
 
 export async function deleteSupplier(id: number): Promise<boolean> {
-  const r = await apiFetch(`/api/suppliers/${id}`, { method: 'DELETE' });
+  const r = await apiFetch(`/api/suppliers/${id}`, { method: "DELETE" });
   return r.ok;
 }
 
-export async function getSuppliersByProduct(productId: number): Promise<ProductSupplier[]> {
+export async function getSuppliersByProduct(
+  productId: number,
+): Promise<ProductSupplier[]> {
   const r = await apiFetch(`/api/products/${productId}/suppliers`);
   if (r.ok) {
     const data = await r.json();
@@ -74,7 +90,9 @@ export async function getSuppliersByProduct(productId: number): Promise<ProductS
   return [];
 }
 
-export async function getProductsBySupplier(supplierId: number): Promise<ProductSupplier[]> {
+export async function getProductsBySupplier(
+  supplierId: number,
+): Promise<ProductSupplier[]> {
   const r = await apiFetch(`/api/suppliers/${supplierId}/products`);
   if (r.ok) {
     const data = await r.json();
@@ -83,22 +101,39 @@ export async function getProductsBySupplier(supplierId: number): Promise<Product
   return [];
 }
 
-export async function linkProduct(supplierId: number, payload: { product_id: number; unit_cost: number; lead_time_days: number; is_preferred: boolean }): Promise<boolean> {
+export async function linkProduct(
+  supplierId: number,
+  payload: {
+    product_id: number;
+    unit_cost: number;
+    lead_time_days: number;
+    is_preferred: boolean;
+  },
+): Promise<boolean> {
   const r = await apiFetch(`/api/suppliers/${supplierId}/products`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(payload),
   });
   return r.ok;
 }
 
-export async function unlinkProduct(supplierId: number, productId: number): Promise<boolean> {
-  const r = await apiFetch(`/api/suppliers/${supplierId}/products/${productId}`, { method: 'DELETE' });
+export async function unlinkProduct(
+  supplierId: number,
+  productId: number,
+): Promise<boolean> {
+  const r = await apiFetch(
+    `/api/suppliers/${supplierId}/products/${productId}`,
+    { method: "DELETE" },
+  );
   return r.ok;
 }
 
-export async function bulkUpdateSuppliers(ids: number[], isActive: boolean): Promise<number> {
-  const r = await apiFetch('/api/suppliers/bulk', {
-    method: 'PUT',
+export async function bulkUpdateSuppliers(
+  ids: number[],
+  isActive: boolean,
+): Promise<number> {
+  const r = await apiFetch("/api/suppliers/bulk", {
+    method: "PUT",
     body: JSON.stringify({ ids, is_active: isActive }),
   });
   if (r.ok) {
@@ -109,8 +144,8 @@ export async function bulkUpdateSuppliers(ids: number[], isActive: boolean): Pro
 }
 
 export async function bulkDeleteSuppliers(ids: number[]): Promise<number> {
-  const r = await apiFetch('/api/suppliers/bulk', {
-    method: 'DELETE',
+  const r = await apiFetch("/api/suppliers/bulk", {
+    method: "DELETE",
     body: JSON.stringify({ ids }),
   });
   if (r.ok) {

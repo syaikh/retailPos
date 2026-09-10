@@ -1,26 +1,45 @@
 <script lang="ts">
-  import { usePurchaseOrderStore } from '../stores/po-store.svelte';
-  import { getPurchaseOrderById } from '../services/po-service';
-  import { Button, Input, Modal, NumberInput } from '$shared/ui';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { labels, t } from '$shared/i18n';
-  import { Loader2 } from 'lucide-svelte';
+  import { usePurchaseOrderStore } from "../stores/po-store.svelte";
+  import { getPurchaseOrderById } from "../services/po-service";
+  import { Button, Input, Modal, NumberInput } from "$shared/ui";
+  import { toast } from "$shared/stores/toast.svelte";
+  import { labels, t } from "$shared/i18n";
+  import { Loader2 } from "lucide-svelte";
+  import type { PurchaseOrder, PurchaseOrderItem } from "../types";
 
   const store = usePurchaseOrderStore();
-  let { poId, open = $bindable(false), onReceiptCreated }: { poId: number | null | undefined; open?: boolean; onReceiptCreated?: () => void } = $props();
-  let po = $state<any>(null);
-  let items = $state<any[]>([]);
+  let {
+    poId,
+    open = $bindable(false),
+    onReceiptCreated,
+  }: {
+    poId: number | null | undefined;
+    open?: boolean;
+    onReceiptCreated?: () => void;
+  } = $props();
+  let po = $state<PurchaseOrder | null>(null);
+  let items = $state<Array<{
+    purchase_order_item_id: number;
+    product_id: number;
+    qty_good: number;
+    qty_damaged: number;
+    product_name: string;
+    sku?: string;
+    qty_ordered: number;
+    qty_received: number;
+    unit_cost: number;
+  }>>([]);
   let saving = $state(false);
-  let notes = $state('');
+  let notes = $state("");
 
   $effect(() => {
     if (!open || !poId) return;
     po = null;
     items = [];
-    getPurchaseOrderById(poId).then(result => {
+    getPurchaseOrderById(poId).then((result) => {
       po = result;
       if (result) {
-        items = result.items.map((item: any) => ({
+        items = result.items.map((item: PurchaseOrderItem) => ({
           purchase_order_item_id: item.id,
           product_id: item.product_id,
           qty_good: 0,
@@ -35,38 +54,49 @@
     });
   });
 
-  function updateItem(index: number, field: string, value: any) {
-    items = items.map((item: any, i: number) => i === index ? { ...item, [field]: value } : item);
+  function _updateItem(index: number, field: string, value: number | string) {
+    items = items.map((item, i: number) =>
+      i === index ? { ...item, [field]: value } : item,
+    );
   }
 
-  function getRemainingQty(item: any) {
+  function getRemainingQty(item: { qty_ordered?: number; qty_received?: number }) {
     return (item.qty_ordered || 0) - (item.qty_received || 0);
   }
 
   function getTotalGood() {
-    return items.reduce((sum: number, item: any) => sum + (item.qty_good || 0), 0);
+    return items.reduce(
+      (sum: number, item) => sum + (item.qty_good || 0),
+      0,
+    );
   }
 
   async function handleSubmit() {
     saving = true;
     try {
-      const validItems = items.filter((item: any) => item.qty_good > 0 || item.qty_damaged > 0);
+      const validItems = items.filter(
+        (item) => item.qty_good > 0 || item.qty_damaged > 0,
+      );
       if (validItems.length === 0) {
         toast.error(labels.pleaseEnterReceivingQuantities);
         return;
       }
       const result = await store.receive({
-        purchase_order_id: poId,
-        store_id: po?.store_id || null,
+        purchase_order_id: poId!,
+        store_id: po?.store_id ?? 0,
         notes,
         items: validItems,
       });
-      const doNumber = result?.data?.delivery_order_number;
-      toast.success(doNumber ? t('goodsReceiptCreatedWithNumber', { number: doNumber }) : labels.goodsReceiptCreated);
+      const doNumber = result?.delivery_order_number;
+      toast.success(
+        doNumber
+          ? t("goodsReceiptCreatedWithNumber", { number: doNumber })
+          : labels.goodsReceiptCreated,
+      );
       onReceiptCreated?.();
       handleClose();
-    } catch (e: any) {
-      toast.error(e.message || labels.failedToCreateGoodsReceipt);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : labels.failedToCreateGoodsReceipt);
     } finally {
       saving = false;
     }
@@ -76,11 +106,17 @@
     open = false;
     po = null;
     items = [];
-    notes = '';
+    notes = "";
   }
 </script>
 
-<Modal bind:open title={po ? `${labels.receiveGoods} - ${po.po_number || ''}` : labels.receiveGoods} size="xl">
+<Modal
+  bind:open
+  title={po
+    ? `${labels.receiveGoods} - ${po.po_number || ""}`
+    : labels.receiveGoods}
+  size="xl"
+>
   {#if !po}
     <div class="flex items-center justify-center py-8">
       <Loader2 size={24} class="animate-spin text-primary-light" />
@@ -88,41 +124,96 @@
   {:else}
     <div class="space-y-6">
       <div>
-        <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <label
+          class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+        >
           <span>{labels.notes}</span>
-          <Input type="text" bind:value={notes} placeholder={labels.receivingNotes} />
+          <Input
+            type="text"
+            bind:value={notes}
+            placeholder={labels.receivingNotes}
+          />
         </label>
       </div>
 
       <div>
-        <h3 class="text-base font-semibold text-text-primary mb-3">{labels.receivingItems}</h3>
+        <h3 class="text-base font-semibold text-text-primary mb-3">
+          {labels.receivingItems}
+        </h3>
         <div class="overflow-x-auto border border-border rounded-xl">
           <table class="w-full min-w-[600px]">
             <thead class="bg-muted/50">
               <tr class="border-b text-left text-xs text-text-muted">
-                <th class="px-3 py-2 font-semibold" scope="col">{labels.product}</th>
-                <th class="px-3 py-2 font-semibold" scope="col">{labels.sku}</th>
-                <th class="px-3 py-2 font-semibold text-right" scope="col">{labels.ordered}</th>
-                <th class="px-3 py-2 font-semibold text-right" scope="col">{labels.remaining}</th>
-                <th class="px-3 py-2 font-semibold text-right" scope="col">{labels.qtyGood}</th>
-                <th class="px-3 py-2 font-semibold text-right" scope="col">{labels.qtyDamaged}</th>
+                <th class="px-3 py-2 font-semibold" scope="col"
+                  >{labels.product}</th
+                >
+                <th class="px-3 py-2 font-semibold" scope="col">{labels.sku}</th
+                >
+                <th class="px-3 py-2 font-semibold text-right" scope="col"
+                  >{labels.ordered}</th
+                >
+                <th class="px-3 py-2 font-semibold text-right" scope="col"
+                  >{labels.remaining}</th
+                >
+                <th class="px-3 py-2 font-semibold text-right" scope="col"
+                  >{labels.qtyGood}</th
+                >
+                <th class="px-3 py-2 font-semibold text-right" scope="col"
+                  >{labels.qtyDamaged}</th
+                >
               </tr>
             </thead>
             <tbody class="divide-y divide-border">
-              {#each items as item, index}
+              {#each items as item, _index (_index)}
                 <tr>
                   <td class="px-3 py-3 text-sm">{item.product_name}</td>
-                  <td class="px-3 py-3 text-sm text-text-muted tabular-nums">{item.sku || '-'}</td>
-                  <td class="px-3 py-3 text-sm text-text-secondary text-right tabular-nums">{item.qty_ordered}</td>
-                  <td class="px-3 py-3 text-sm text-text-secondary text-right tabular-nums">{getRemainingQty(item)}</td>
+                  <td class="px-3 py-3 text-sm text-text-muted tabular-nums"
+                    >{item.sku || "-"}</td
+                  >
+                  <td
+                    class="px-3 py-3 text-sm text-text-secondary text-right tabular-nums"
+                    >{item.qty_ordered}</td
+                  >
+                  <td
+                    class="px-3 py-3 text-sm text-text-secondary text-right tabular-nums"
+                    >{getRemainingQty(item)}</td
+                  >
                   {#if getRemainingQty(item) <= 0}
-                    <td class="px-3 py-3 text-sm text-text-muted text-right tabular-nums" colspan="2">{t('fullyReceivedWithQty', { qty: item.qty_received })}</td>
+                    <td
+                      class="px-3 py-3 text-sm text-text-muted text-right tabular-nums"
+                      colspan="2"
+                      >{t("fullyReceivedWithQty", {
+                        qty: item.qty_received,
+                      })}</td
+                    >
                   {:else}
                     <td class="px-3 py-3">
-                      <NumberInput min={0} max={getRemainingQty(item)} bind:value={item.qty_good} class="w-20 text-sm ml-auto" oninput={() => { const rem = getRemainingQty(item); if (item.qty_good > rem) item.qty_good = rem; if (item.qty_good + item.qty_damaged > rem) item.qty_damaged = Math.max(0, rem - item.qty_good); }} />
+                      <NumberInput
+                        min={0}
+                        max={getRemainingQty(item)}
+                        bind:value={item.qty_good}
+                        class="w-20 text-sm ml-auto"
+                        oninput={() => {
+                          const rem = getRemainingQty(item);
+                          if (item.qty_good > rem) item.qty_good = rem;
+                          if (item.qty_good + item.qty_damaged > rem)
+                            item.qty_damaged = Math.max(0, rem - item.qty_good);
+                        }}
+                      />
                     </td>
                     <td class="px-3 py-3">
-                      <NumberInput min={0} max={getRemainingQty(item)} bind:value={item.qty_damaged} class="w-20 text-sm ml-auto" oninput={() => { const rem = getRemainingQty(item); if (item.qty_damaged > rem) item.qty_damaged = rem; if (item.qty_good + item.qty_damaged > rem) item.qty_good = Math.max(0, rem - item.qty_damaged); }} />
+                      <NumberInput
+                        min={0}
+                        max={getRemainingQty(item)}
+                        bind:value={item.qty_damaged}
+                        class="w-20 text-sm ml-auto"
+                        oninput={() => {
+                          const rem = getRemainingQty(item);
+                          if (item.qty_damaged > rem) item.qty_damaged = rem;
+                          if (item.qty_good + item.qty_damaged > rem)
+                            item.qty_good = Math.max(0, rem - item.qty_damaged);
+                        }}
+                      />
                     </td>
                   {/if}
                 </tr>
@@ -137,11 +228,20 @@
   {#snippet footer()}
     <div class="flex items-center justify-between w-full">
       <div class="text-sm text-text-secondary">
-        {labels.totalGood}: <span class="font-semibold text-text-primary tabular-nums">{getTotalGood()}</span>
+        {labels.totalGood}:
+        <span class="font-semibold text-text-primary tabular-nums"
+          >{getTotalGood()}</span
+        >
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="secondary" onclick={handleClose}>{labels.cancel}</Button>
-        <Button variant="primary" onclick={handleSubmit} disabled={saving || getTotalGood() === 0}>
+        <Button variant="secondary" onclick={handleClose}
+          >{labels.cancel}</Button
+        >
+        <Button
+          variant="primary"
+          onclick={handleSubmit}
+          disabled={saving || getTotalGood() === 0}
+        >
           {#if saving}
             <Loader2 size={16} class="animate-spin" />
           {/if}

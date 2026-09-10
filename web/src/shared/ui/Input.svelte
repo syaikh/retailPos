@@ -1,24 +1,26 @@
 <script lang="ts">
-  import { cn } from '$shared/utils/cn';
-  import type { Snippet } from 'svelte';
+  import { cn } from "$shared/utils/cn";
+  import type { Snippet } from "svelte";
 
   let {
-    tag = 'input',
-    class: className = '',
+    tag = "input",
+    class: className = "",
     value = $bindable(),
     children,
     oninput: externalOninput,
     elementRef,
-    error = '',
+    error = "",
     selectOnFocus = false,
     ...rest
   }: {
-    tag?: 'input' | 'select' | 'textarea';
+    tag?: "input" | "select" | "textarea";
     class?: string;
     value?: string | number;
     children?: Snippet;
     oninput?: (e: Event) => void;
-    elementRef?: (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement) => void;
+    elementRef?: (
+      el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+    ) => void;
     error?: string;
     selectOnFocus?: boolean;
     [key: string]: unknown;
@@ -29,17 +31,25 @@
   function handleInput(e: Event) {
     const target = e.target as HTMLInputElement | HTMLSelectElement;
     const rawValue: string =
-      target.tagName === 'SELECT'
-        ? ((target as HTMLSelectElement).selectedOptions?.[0] as
-            | (HTMLOptionElement & { __value?: unknown })
-            | undefined)?.__value as string ?? (target as HTMLSelectElement).value
+      target.tagName === "SELECT"
+        ? (((
+            (target as HTMLSelectElement).selectedOptions?.[0] as
+              (HTMLOptionElement & { __value?: unknown }) | undefined
+          )?.__value as string) ?? (target as HTMLSelectElement).value)
         : (target as HTMLInputElement).value;
-    value = rest.type === 'number' ? (rawValue === '' ? 0 : Number(rawValue)) : rawValue;
+    value =
+      rest.type === "number"
+        ? rawValue === ""
+          ? 0
+          : Number(rawValue)
+        : rawValue;
     externalOninput?.(e);
   }
 
   function refAction(el: Element) {
-    elementRef?.(el as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement);
+    elementRef?.(
+      el as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+    );
     return {};
   }
 
@@ -50,13 +60,15 @@
   }
 </script>
 
-{#if tag === 'input'}
+{#if tag === "input"}
   <svelte:element
     this={tag}
     class={cn(
-      'w-full rounded-xl border bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-40 transition-colors duration-200',
-      error ? 'border-danger focus:border-danger focus:ring-danger/20' : 'border-border-default focus:border-primary-default focus:ring-primary-default/20',
-      className
+      "w-full rounded-xl border bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-40 transition-colors duration-200",
+      error
+        ? "border-danger focus:border-danger focus:ring-danger/20"
+        : "border-border-default focus:border-primary-default focus:ring-primary-default/20",
+      className,
     )}
     id={inputId}
     {value}
@@ -68,15 +80,19 @@
     {...rest}
   />
   {#if error}
-    <p id="{inputId}-error" class="text-xs text-danger mt-1" role="alert">{error}</p>
+    <p id="{inputId}-error" class="text-xs text-danger mt-1" role="alert">
+      {error}
+    </p>
   {/if}
 {:else}
   <svelte:element
     this={tag}
     class={cn(
-      'w-full rounded-xl border bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-40 transition-colors duration-200',
-      error ? 'border-danger focus:border-danger focus:ring-danger/20' : 'border-border-default focus:border-primary-default focus:ring-primary-default/20',
-      className
+      "w-full rounded-xl border bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-40 transition-colors duration-200",
+      error
+        ? "border-danger focus:border-danger focus:ring-danger/20"
+        : "border-border-default focus:border-primary-default focus:ring-primary-default/20",
+      className,
     )}
     id={inputId}
     {value}
@@ -87,11 +103,13 @@
     use:refAction
     {...rest}
   >
-    {#if tag === 'select'}
+    {#if tag === "select"}
       {@render children?.()}
     {/if}
   </svelte:element>
   {#if error}
-    <p id="{inputId}-error" class="text-xs text-danger mt-1" role="alert">{error}</p>
+    <p id="{inputId}-error" class="text-xs text-danger mt-1" role="alert">
+      {error}
+    </p>
   {/if}
 {/if}

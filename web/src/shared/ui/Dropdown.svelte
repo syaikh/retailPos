@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { cn } from '$shared/utils/cn';
-  import { fly } from 'svelte/transition';
-  import type { ComponentType, Snippet } from 'svelte';
+  import { cn } from "$shared/utils/cn";
+  import { fly } from "svelte/transition";
+  import type { ComponentType, Snippet } from "svelte";
 
-  type Placement = 'bottom-start' | 'bottom-end' | 'bottom' | 'top-start' | 'top-end' | 'top';
+  type Placement =
+    "bottom-start" | "bottom-end" | "bottom" | "top-start" | "top-end" | "top";
 
   export interface DropdownItem {
     label?: string;
@@ -21,10 +22,10 @@
     items = [],
     trigger,
     content,
-    placement = 'bottom-end',
+    placement = "bottom-end",
     open = $bindable(false),
     menu = true,
-    menuClass = '',
+    menuClass = "",
   }: {
     items?: DropdownItem[];
     trigger: Snippet<[{ open: boolean; toggle: () => void }]>;
@@ -37,9 +38,9 @@
 
   let container: HTMLElement;
   let triggerEl: HTMLElement;
-  let itemElements = $state<HTMLElement[]>([]);
+  const itemElements = $state<HTMLElement[]>([]);
   let focusedIndex = $state(-1);
-  let menuStyle = $state('');
+  let menuStyle = $state("");
 
   const gap = 6;
 
@@ -48,22 +49,22 @@
     const r = container.getBoundingClientRect();
 
     switch (placement) {
-      case 'bottom-start':
+      case "bottom-start":
         menuStyle = `position:fixed;top:${r.bottom + gap}px;left:${r.left}px`;
         break;
-      case 'bottom-end':
+      case "bottom-end":
         menuStyle = `position:fixed;top:${r.bottom + gap}px;right:${window.innerWidth - r.right}px`;
         break;
-      case 'bottom':
+      case "bottom":
         menuStyle = `position:fixed;top:${r.bottom + gap}px;left:${r.left + r.width / 2}px;transform:translateX(-50%)`;
         break;
-      case 'top-start':
+      case "top-start":
         menuStyle = `position:fixed;bottom:${window.innerHeight - r.top + gap}px;left:${r.left}px`;
         break;
-      case 'top-end':
+      case "top-end":
         menuStyle = `position:fixed;bottom:${window.innerHeight - r.top + gap}px;right:${window.innerWidth - r.right}px`;
         break;
-      case 'top':
+      case "top":
         menuStyle = `position:fixed;bottom:${window.innerHeight - r.top + gap}px;left:${r.left + r.width / 2}px;transform:translateX(-50%)`;
         break;
     }
@@ -87,7 +88,7 @@
 
   function handleItemKeydown(e: KeyboardEvent, item: DropdownItem) {
     if (item.disabled) return;
-    if (e.key === 'Enter' || e.key === ' ') {
+    if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       handleItemClick(item);
     }
@@ -102,8 +103,11 @@
       computePosition();
     }
 
-    window.addEventListener('scroll', reposition, { passive: true, capture: true });
-    window.addEventListener('resize', reposition, { passive: true });
+    window.addEventListener("scroll", reposition, {
+      passive: true,
+      capture: true,
+    });
+    window.addEventListener("resize", reposition, { passive: true });
 
     let rafId: number;
 
@@ -114,32 +118,39 @@
     }
 
     function handleKeydown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         close();
         return;
       }
 
-      if (!content && items.length > 0 && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      if (
+        !content &&
+        items.length > 0 &&
+        (e.key === "ArrowDown" || e.key === "ArrowUp")
+      ) {
         e.preventDefault();
         const len = items.length;
-        focusedIndex = e.key === 'ArrowDown'
-          ? (focusedIndex + 1) % len
-          : (focusedIndex - 1 + len) % len;
+        focusedIndex =
+          e.key === "ArrowDown"
+            ? (focusedIndex + 1) % len
+            : (focusedIndex - 1 + len) % len;
         itemElements[focusedIndex]?.focus();
       }
     }
 
     rafId = requestAnimationFrame(() => {
-      window.addEventListener('click', handleClickOutside);
-      window.addEventListener('keydown', handleKeydown);
+      window.addEventListener("click", handleClickOutside);
+      window.addEventListener("keydown", handleKeydown);
     });
 
     return () => {
       cancelAnimationFrame(rafId);
-      window.removeEventListener('click', handleClickOutside);
-      window.removeEventListener('keydown', handleKeydown);
-      window.removeEventListener('scroll', reposition, { capture: true } as EventListenerOptions);
-      window.removeEventListener('resize', reposition);
+      window.removeEventListener("click", handleClickOutside);
+      window.removeEventListener("keydown", handleKeydown);
+      window.removeEventListener("scroll", reposition, {
+        capture: true,
+      } as EventListenerOptions);
+      window.removeEventListener("resize", reposition);
     };
   });
 
@@ -161,13 +172,13 @@
   {#if open}
     <div
       class={cn(
-        'fixed z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]',
-        menu && 'card-glass',
+        "fixed z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]",
+        menu && "card-glass",
         menuClass,
       )}
       style={menuStyle}
-      role={menu ? 'menu' : undefined}
-      aria-orientation={menu ? 'vertical' : undefined}
+      role={menu ? "menu" : undefined}
+      aria-orientation={menu ? "vertical" : undefined}
       tabindex="-1"
       transition:fly={{ y: -8, duration: 200 }}
       onclick={(e) => e.stopPropagation()}
@@ -175,25 +186,29 @@
       {#if content}
         {@render content({ close })}
       {:else}
-        {#each items as item, i}
+        {#each items as item, i (i)}
           {#if item.divider}
             <div class="border-t border-border/50 my-1"></div>
           {:else if item.separator}
-            <div class="px-3 py-1.5 text-xs font-semibold text-text-muted uppercase tracking-wide">{item.separator}</div>
+            <div
+              class="px-3 py-1.5 text-xs font-semibold text-text-muted uppercase tracking-wide"
+            >
+              {item.separator}
+            </div>
           {:else}
             <button
               type="button"
               bind:this={itemElements[i]}
               class={cn(
-                'w-full flex items-center gap-3 px-3 py-2 text-sm transition-colors',
+                "w-full flex items-center gap-3 px-3 py-2 text-sm transition-colors",
                 item.danger
-                  ? 'text-danger hover:bg-danger-subtle'
-                  : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
-                item.disabled && 'opacity-40 cursor-not-allowed',
-                i === 0 && 'rounded-t-lg',
-                i === items.length - 1 && 'rounded-b-lg',
+                  ? "text-danger hover:bg-danger-subtle"
+                  : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
+                item.disabled && "opacity-40 cursor-not-allowed",
+                i === 0 && "rounded-t-lg",
+                i === items.length - 1 && "rounded-b-lg",
               )}
-              role={menu ? 'menuitem' : undefined}
+              role={menu ? "menuitem" : undefined}
               disabled={item.disabled}
               tabindex={item.disabled ? -1 : 0}
               onclick={() => handleItemClick(item)}
@@ -202,12 +217,22 @@
               {#if item.checked !== undefined}
                 <span class="w-4 shrink-0">
                   {#if item.checked}
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><polyline points="20 6 9 17 4 12" /></svg
+                    >
                   {/if}
                 </span>
               {/if}
               {#if item.icon}
-                <item.icon size={14} class={item.iconClass || ''} />
+                <item.icon size={14} class={item.iconClass || ""} />
               {/if}
               <span class="flex-1 text-left truncate">{item.label}</span>
             </button>

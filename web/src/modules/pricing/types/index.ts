@@ -1,6 +1,7 @@
-export type PricingMethod = 'fixed_price' | 'discount_percent' | 'discount_amount' | 'markup_percent';
+export type PricingMethod =
+  "fixed_price" | "discount_percent" | "discount_amount" | "markup_percent";
 
-export type PricingType = 'special_price' | 'promotion';
+export type PricingType = "special_price" | "promotion";
 
 export interface PricingRule {
   id: number;
@@ -21,7 +22,7 @@ export interface PricingRule {
   time_to?: string;
   allow_combine: boolean;
   is_active: boolean;
-  status: 'draft' | 'pending' | 'approved' | 'rejected';
+  status: "draft" | "pending" | "approved" | "rejected";
   effective_from?: string;
   effective_until?: string;
   created_at?: string;
@@ -46,7 +47,7 @@ export interface CreatePricingRulePayload {
   time_to?: string;
   allow_combine?: boolean;
   is_active: boolean;
-  status?: 'draft' | 'pending' | 'approved' | 'rejected';
+  status?: "draft" | "pending" | "approved" | "rejected";
   effective_from?: string;
   effective_until?: string;
 }
@@ -69,7 +70,7 @@ export interface UpdatePricingRulePayload {
   time_to?: string;
   allow_combine?: boolean;
   is_active?: boolean;
-  status?: 'draft' | 'pending' | 'approved' | 'rejected';
+  status?: "draft" | "pending" | "approved" | "rejected";
   effective_from?: string;
   effective_until?: string;
 }

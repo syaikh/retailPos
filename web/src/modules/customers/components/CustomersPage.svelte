@@ -1,40 +1,40 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { goto } from '$app/router';
-  import apiClient from '$shared/api/http-client';
-  import { useAuthStore } from '$modules/auth';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { Pagination, ImportWizard } from '$shared/ui';
-  import { debounce } from '$shared/utils/debounce';
-  import { labels, t } from '$shared/i18n';
-  import { useSortable } from '$shared/composables/useSortable.svelte';
-  import { getCustomerGroups } from '$modules/customer-groups';
-  import { ArrowLeft } from 'lucide-svelte';
-  import CreateCustomerModal from './CreateCustomerModal.svelte';
-  import EditCustomerModal from './EditCustomerModal.svelte';
-  import DeactivateCustomerModal from './DeactivateCustomerModal.svelte';
-  import BulkStatusModal from './BulkStatusModal.svelte';
-  import BulkDeleteModal from './BulkDeleteModal.svelte';
-  import CustomerToolbar from './CustomerToolbar.svelte';
-  import CustomerTable from './CustomerTable.svelte';
-  import BulkActionBar from './BulkActionBar.svelte';
+  import { onMount } from "svelte";
+  import { goto } from "$app/router";
+  import apiClient from "$shared/api/http-client";
+  import { useAuthStore } from "$modules/auth";
+  import { toast } from "$shared/stores/toast.svelte";
+  import { Pagination, ImportWizard } from "$shared/ui";
+  import { debounce } from "$shared/utils/debounce";
+  import { labels, t } from "$shared/i18n";
+  import type { Customer } from "../types";
+  import { useSortable } from "$shared/composables/useSortable.svelte";
+  import { getCustomerGroups } from "$modules/customer-groups";
+  import { ArrowLeft } from "lucide-svelte";
+  import CreateCustomerModal from "./CreateCustomerModal.svelte";
+  import EditCustomerModal from "./EditCustomerModal.svelte";
+  import DeactivateCustomerModal from "./DeactivateCustomerModal.svelte";
+  import BulkStatusModal from "./BulkStatusModal.svelte";
+  import BulkDeleteModal from "./BulkDeleteModal.svelte";
+  import CustomerToolbar from "./CustomerToolbar.svelte";
+  import CustomerTable from "./CustomerTable.svelte";
+  import BulkActionBar from "./BulkActionBar.svelte";
 
   const authStore = useAuthStore();
 
   const userPermissions = $derived(authStore.user?.permissions || []);
-  const canCreate = $derived(userPermissions.includes('customer.create'));
-  const canUpdate = $derived(userPermissions.includes('customer.update'));
-  const canDelete = $derived(userPermissions.includes('customer.delete'));
-  const canRead = $derived(userPermissions.includes('customer.view'));
+  const canCreate = $derived(userPermissions.includes("customer.create"));
+  const canUpdate = $derived(userPermissions.includes("customer.update"));
+  const canDelete = $derived(userPermissions.includes("customer.delete"));
 
-  let customers = $state<any[]>([]);
+  let customers = $state<Customer[]>([]);
   let loading = $state(false);
   let total = $state(0);
   let limit = $state(20);
   let offset = $state(0);
-  let searchQuery = $state('');
-  let statusFilter = $state('all');
-  let groupFilter = $state('all');
+  let searchQuery = $state("");
+  let statusFilter = $state("all");
+  let groupFilter = $state("all");
   let availableGroups = $state<{ id: number; name: string }[]>([]);
 
   let selectedIds = $state(new Set<number>());
@@ -50,24 +50,49 @@
 
   async function handleBulkStatusUpdate() {
     isBulkUpdating = true;
-    const eligibleIds = customers.filter(c => selectedIds.has(c.id) && (c.is_active !== false) !== bulkStatusTargetIsActive).map(c => c.id);
+    const eligibleIds = customers
+      .filter(
+        (c) =>
+          selectedIds.has(c.id) &&
+          (c.is_active !== false) !== bulkStatusTargetIsActive,
+      )
+      .map((c) => c.id);
     const skippedCount = selectedIds.size - eligibleIds.length;
     if (eligibleIds.length === 0) {
-      toast.warning(t('toastAllSelectedCustomersAlreadyStatus', { status: bulkStatusTargetIsActive ? labels.active : labels.inactive }));
+      toast.warning(
+        t("toastAllSelectedCustomersAlreadyStatus", {
+          status: bulkStatusTargetIsActive ? labels.active : labels.inactive,
+        }),
+      );
       isBulkUpdating = false;
       showBulkStatusModal = false;
       return;
     }
     try {
-      await apiClient.post('/customers/bulk/status', { ids: eligibleIds, is_active: bulkStatusTargetIsActive });
-      toast.success(t(bulkStatusTargetIsActive ? 'toastActivatedCustomersCount' : 'toastDeactivatedCustomersCount', { count: eligibleIds.length }));
+      await apiClient.post("/customers/bulk/status", {
+        ids: eligibleIds,
+        is_active: bulkStatusTargetIsActive,
+      });
+      toast.success(
+        t(
+          bulkStatusTargetIsActive
+            ? "toastActivatedCustomersCount"
+            : "toastDeactivatedCustomersCount",
+          { count: eligibleIds.length },
+        ),
+      );
       if (skippedCount > 0) {
-        toast.warning(t('toastCustomersSkippedAlreadyStatus', { count: skippedCount, status: bulkStatusTargetIsActive ? labels.active : labels.inactive }));
+        toast.warning(
+          t("toastCustomersSkippedAlreadyStatus", {
+            count: skippedCount,
+            status: bulkStatusTargetIsActive ? labels.active : labels.inactive,
+          }),
+        );
       }
       selectedIds = new Set();
       await load();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || labels.toastFailedUpdateCustomerStatus);
+    } catch (_err: unknown) {
+      toast.error(labels.toastFailedUpdateCustomerStatus);
     } finally {
       isBulkUpdating = false;
       showBulkStatusModal = false;
@@ -78,12 +103,12 @@
     isBulkDeleting = true;
     try {
       const ids = Array.from(selectedIds);
-      await apiClient.post('/customers/bulk/delete', { ids });
-      toast.success(t('toastDeletedCustomersCount', { count: ids.length }));
+      await apiClient.post("/customers/bulk/delete", { ids });
+      toast.success(t("toastDeletedCustomersCount", { count: ids.length }));
       selectedIds = new Set();
       await load();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || labels.toastFailedDeleteCustomers);
+    } catch (_err: unknown) {
+      toast.error(labels.toastFailedDeleteCustomers);
     } finally {
       isBulkDeleting = false;
       showBulkDeleteModal = false;
@@ -91,22 +116,28 @@
   }
 
   let showEditModal = $state(false);
-  let editTarget = $state<any>(null);
+  let editTarget = $state<Customer | null>(null);
   let isSaving = $state(false);
 
-  const { sortState, handleSort } = useSortable('name', 'asc', sortCustomers);
+  const { sortState, handleSort } = useSortable("name", "asc", sortCustomers);
 
   let showCreateModal = $state(false);
   let creating = $state(false);
-  let formName = $state('');
-  let formPhone = $state('');
-  let formEmail = $state('');
-  let formAddress = $state('');
-  let formNote = $state('');
+  let formName = $state("");
+  let formPhone = $state("");
+  let formEmail = $state("");
+  let formAddress = $state("");
+  let formNote = $state("");
   let formGroupId = $state<number | null>(null);
-  let fieldErrors = $state({ name: '', phone: '', email: '', address: '', note: '' });
+  let fieldErrors = $state({
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
+    note: "",
+  });
 
-  let deactivateTarget = $state<any>(null);
+  let deactivateTarget = $state<Customer | null>(null);
   let showDeactivateModal = $state(false);
   let deactivating = $state(false);
 
@@ -121,7 +152,7 @@
   }
 
   function validateForm(): boolean {
-    const errors = { name: '', phone: '', email: '', address: '', note: '' };
+    const errors = { name: "", phone: "", email: "", address: "", note: "" };
     let valid = true;
 
     if (!formName.trim()) {
@@ -153,18 +184,18 @@
   }
 
   function resetForm() {
-    formName = '';
-    formPhone = '';
-    formEmail = '';
-    formAddress = '';
-    formNote = '';
+    formName = "";
+    formPhone = "";
+    formEmail = "";
+    formAddress = "";
+    formNote = "";
     formGroupId = null;
-    fieldErrors = { name: '', phone: '', email: '', address: '', note: '' };
+    fieldErrors = { name: "", phone: "", email: "", address: "", note: "" };
   }
 
   function getStatusFilterParams(): string | undefined {
-    if (statusFilter === 'active') return 'true';
-    if (statusFilter === 'inactive') return 'false';
+    if (statusFilter === "active") return "true";
+    if (statusFilter === "inactive") return "false";
     return undefined;
   }
 
@@ -174,17 +205,17 @@
     try {
       offset = newOffset;
       limit = newLimit;
-      const params: any = { limit, offset, search: searchQuery || undefined };
+      const params: Record<string, string | number | boolean | undefined> = { limit, offset, search: searchQuery || undefined };
       const activeParam = getStatusFilterParams();
       if (activeParam !== undefined) params.is_active = activeParam;
-      if (groupFilter !== 'all') params.customer_group_id = groupFilter;
-      const r = await apiClient.get('/customers', { params });
+      if (groupFilter !== "all") params.customer_group_id = groupFilter;
+      const r = await apiClient.get("/customers", { params });
       customers = r.data.data || [];
       total = r.data.total || 0;
       sortCustomers();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      toast.error(e?.response?.data?.error || e?.message || labels.toastFailedLoadCustomers);
+      toast.error(labels.toastFailedLoadCustomers);
     } finally {
       loading = false;
     }
@@ -212,16 +243,32 @@
 
   function sortCustomers() {
     customers.sort((a, b) => {
-      let aVal: any, bVal: any;
+      let aVal: string | number, bVal: string | number;
       switch (sortState.sortBy) {
-        case 'name': aVal = (a.name || '').toLowerCase(); bVal = (b.name || '').toLowerCase(); break;
-        case 'phone': aVal = (a.phone || '').toLowerCase(); bVal = (b.phone || '').toLowerCase(); break;
-        case 'email': aVal = (a.email || '').toLowerCase(); bVal = (b.email || '').toLowerCase(); break;
-        case 'group': aVal = (a.customer_group_name || '').toLowerCase(); bVal = (b.customer_group_name || '').toLowerCase(); break;
-        case 'status': aVal = a.is_active !== false ? 1 : 0; bVal = b.is_active !== false ? 1 : 0; break;
-        default: return 0;
+        case "name":
+          aVal = (a.name || "").toLowerCase();
+          bVal = (b.name || "").toLowerCase();
+          break;
+        case "phone":
+          aVal = (a.phone || "").toLowerCase();
+          bVal = (b.phone || "").toLowerCase();
+          break;
+        case "email":
+          aVal = (a.email || "").toLowerCase();
+          bVal = (b.email || "").toLowerCase();
+          break;
+        case "group":
+          aVal = (a.customer_group_name || "").toLowerCase();
+          bVal = (b.customer_group_name || "").toLowerCase();
+          break;
+        case "status":
+          aVal = a.is_active !== false ? 1 : 0;
+          bVal = b.is_active !== false ? 1 : 0;
+          break;
+        default:
+          return 0;
       }
-      if (sortState.sortDir === 'asc') {
+      if (sortState.sortDir === "asc") {
         return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       } else {
         return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
@@ -233,7 +280,7 @@
     if (!validateForm()) return;
     creating = true;
     try {
-      await apiClient.post('/customers', {
+      await apiClient.post("/customers", {
         name: formName.trim(),
         phone: formPhone.trim(),
         email: formEmail.trim(),
@@ -241,24 +288,28 @@
         note: formNote.trim() || null,
         customer_group_id: formGroupId,
       });
-      toast.success(t('toastCustomerCreated', { name: formName.trim() }));
+      toast.success(t("toastCustomerCreated", { name: formName.trim() }));
       resetForm();
       showCreateModal = false;
       await load();
-    } catch (e: any) {
-      const msg = e?.response?.data?.error || labels.toastFailedCreateCustomer;
-      toast.error(msg);
+    } catch (_e: unknown) {
+      toast.error(labels.toastFailedCreateCustomer);
     } finally {
       creating = false;
     }
   }
 
-  function startEdit(c: any) {
+  function startEdit(c: Customer) {
     editTarget = c;
     showEditModal = true;
   }
 
-  async function handleEditSave(data: any) {
+  function handleEditSave(data: Partial<Customer>) {
+    if (!data.id) return;
+    editCustomer(data as Customer);
+  }
+
+  async function editCustomer(data: Customer) {
     isSaving = true;
     try {
       await apiClient.put(`/customers/${data.id}`, {
@@ -274,8 +325,8 @@
       showEditModal = false;
       editTarget = null;
       await load();
-    } catch (e: any) {
-      toast.error(e?.response?.data?.error || labels.toastFailedUpdateCustomer);
+    } catch (_e: unknown) {
+      toast.error(labels.toastFailedUpdateCustomer);
     } finally {
       isSaving = false;
     }
@@ -286,7 +337,7 @@
     editTarget = null;
   }
 
-  async function deactivateCustomer(c: any) {
+  async function deactivateCustomer(c: Customer) {
     deactivateTarget = c;
     showDeactivateModal = true;
   }
@@ -296,25 +347,37 @@
     deactivating = true;
     try {
       await apiClient.delete(`/customers/${deactivateTarget.id}`);
-      toast.success(t('toastCustomerDeactivated', { name: deactivateTarget.name }));
+      toast.success(
+        t("toastCustomerDeactivated", { name: deactivateTarget.name }),
+      );
       showDeactivateModal = false;
       deactivateTarget = null;
       await load();
-    } catch (e: any) {
-      toast.error(e?.response?.data?.error || labels.toastFailedDeactivateCustomer);
+    } catch (_e: unknown) {
+      toast.error(labels.toastFailedDeactivateCustomer);
     } finally {
       deactivating = false;
     }
   }
 
   let showImportWizard = $state(false);
-  let backToGroups = $state<{ offset: number; limit: number; groupName: string } | null>(null);
+  let backToGroups = $state<{
+    offset: number;
+    limit: number;
+    groupName: string;
+  } | null>(null);
 
   function handleBackToGroups() {
     if (backToGroups) {
-      sessionStorage.setItem('customerGroupsReturnPage', JSON.stringify({ offset: backToGroups.offset, limit: backToGroups.limit }));
+      sessionStorage.setItem(
+        "customerGroupsReturnPage",
+        JSON.stringify({
+          offset: backToGroups.offset,
+          limit: backToGroups.limit,
+        }),
+      );
     }
-    goto('/customer-groups');
+    goto("/customer-groups");
   }
 
   function handleImportComplete() {
@@ -323,24 +386,32 @@
   }
 
   onMount(async () => {
-    const urlGroup = sessionStorage.getItem('customerGroupFilter');
-    const backPage = sessionStorage.getItem('customerGroupsBackPage');
+    const urlGroup = sessionStorage.getItem("customerGroupFilter");
+    const backPage = sessionStorage.getItem("customerGroupsBackPage");
     if (urlGroup) {
-      sessionStorage.removeItem('customerGroupFilter');
+      sessionStorage.removeItem("customerGroupFilter");
       groupFilter = urlGroup;
     }
     if (backPage) {
-      sessionStorage.removeItem('customerGroupsBackPage');
+      sessionStorage.removeItem("customerGroupsBackPage");
       try {
         const parsed = JSON.parse(backPage);
-        backToGroups = { offset: parsed.offset || 0, limit: parsed.limit || 20, groupName: parsed.groupName || '' };
-      } catch { /* ignore */ }
+        backToGroups = {
+          offset: parsed.offset || 0,
+          limit: parsed.limit || 20,
+          groupName: parsed.groupName || "",
+        };
+      } catch {
+        /* ignore */
+      }
     }
     load();
     try {
       const result = await getCustomerGroups({ limit: 100, offset: 0 });
-      availableGroups = result.data.filter(g => g.is_active);
-    } catch { /* ignore */ }
+      availableGroups = result.data.filter((g) => g.is_active);
+    } catch {
+      /* ignore */
+    }
   });
 </script>
 
@@ -357,7 +428,10 @@
       </button>
       <span class="text-border-default">|</span>
       <span class="text-sm text-text-muted">
-        {labels.showingMembersFrom} <span class="font-medium text-text-secondary">{backToGroups.groupName}</span>
+        {labels.showingMembersFrom}
+        <span class="font-medium text-text-secondary"
+          >{backToGroups.groupName}</span
+        >
       </span>
     </div>
   {/if}
@@ -371,8 +445,11 @@
     onsearch={handleSearchInput}
     onstatuschange={handleStatusFilterChange}
     ongroupchange={handleGroupFilterChange}
-    oncreate={() => { resetForm(); showCreateModal = true; }}
-    onImport={() => showImportWizard = true}
+    oncreate={() => {
+      resetForm();
+      showCreateModal = true;
+    }}
+    onImport={() => (showImportWizard = true)}
   />
 
   <div class="card overflow-hidden">
@@ -394,8 +471,13 @@
       selectedCount={selectedIds.size}
       {canUpdate}
       {canDelete}
-      onstatus={() => { bulkStatusTargetIsActive = customers.some(c => selectedIds.has(c.id) && c.is_active === false); showBulkStatusModal = true; }}
-      ondelete={() => showBulkDeleteModal = true}
+      onstatus={() => {
+        bulkStatusTargetIsActive = customers.some(
+          (c) => selectedIds.has(c.id) && c.is_active === false,
+        );
+        showBulkStatusModal = true;
+      }}
+      ondelete={() => (showBulkDeleteModal = true)}
       onclear={clearSelection}
     />
 
@@ -432,19 +514,26 @@
 
 <DeactivateCustomerModal
   bind:open={showDeactivateModal}
-  targetName={deactivateTarget?.name ?? ''}
+  targetName={deactivateTarget?.name ?? ""}
   bind:deactivating
-  oncancel={() => { showDeactivateModal = false; deactivateTarget = null; }}
+  oncancel={() => {
+    showDeactivateModal = false;
+    deactivateTarget = null;
+  }}
   onconfirm={confirmDeactivate}
 />
 
 <BulkStatusModal
   bind:open={showBulkStatusModal}
   selectedCount={selectedIds.size}
-  affectedCount={customers.filter(c => selectedIds.has(c.id) && (c.is_active !== false) !== bulkStatusTargetIsActive).length}
+  affectedCount={customers.filter(
+    (c) =>
+      selectedIds.has(c.id) &&
+      (c.is_active !== false) !== bulkStatusTargetIsActive,
+  ).length}
   bind:isActive={bulkStatusTargetIsActive}
   bind:updating={isBulkUpdating}
-  oncancel={() => showBulkStatusModal = false}
+  oncancel={() => (showBulkStatusModal = false)}
   onconfirm={handleBulkStatusUpdate}
 />
 
@@ -452,7 +541,7 @@
   bind:open={showBulkDeleteModal}
   count={selectedIds.size}
   bind:deleting={isBulkDeleting}
-  oncancel={() => showBulkDeleteModal = false}
+  oncancel={() => (showBulkDeleteModal = false)}
   onconfirm={handleBulkDelete}
 />
 
@@ -462,5 +551,3 @@
   displayName={labels.customers}
   onComplete={handleImportComplete}
 />
-
-

@@ -9,11 +9,11 @@
  */
 
 export const Roles = {
-  superadmin: 'superadmin',
-  admin: 'admin',
-  manager: 'manager',
-  cashier: 'cashier',
-  staff: 'staff',
+  superadmin: "superadmin",
+  admin: "admin",
+  manager: "manager",
+  cashier: "cashier",
+  staff: "staff",
 } as const;
 
 export type RoleName = (typeof Roles)[keyof typeof Roles];

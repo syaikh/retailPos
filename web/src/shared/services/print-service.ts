@@ -13,11 +13,14 @@
 // Retry/Dismiss notification. This matches the design doc: printing is a side
 // effect of a completed sale, not part of transaction success.
 
-import { printReceipt as printReceiptStore, type ReceiptData } from '$shared/stores/printReceipt.svelte';
-import { printConfig } from '$shared/stores/printConfig.svelte';
-import { settingsStore } from '$shared/stores/settings.svelte';
-import { toast } from '$shared/stores/toast.svelte';
-import { labels } from '$shared/i18n';
+import {
+  printReceipt as printReceiptStore,
+  type ReceiptData,
+} from "$shared/stores/printReceipt.svelte";
+import { printConfig } from "$shared/stores/printConfig.svelte";
+import { settingsStore } from "$shared/stores/settings.svelte";
+import { toast } from "$shared/stores/toast.svelte";
+import { labels } from "$shared/i18n";
 
 export interface ReceiptBranding {
   storeName: string;
@@ -52,10 +55,10 @@ function buildAgentPayload(data: ReceiptData): PrintAgentPayload {
 }
 
 async function sendToAgent(payload: PrintAgentPayload): Promise<void> {
-  const base = printConfig.agentUrl.replace(/\/+$/, '');
+  const base = printConfig.agentUrl.replace(/\/+$/, "");
   const res = await fetch(`${base}/print`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -73,7 +76,7 @@ function previewPrint(data: ReceiptData) {
 
 export interface PrintResult {
   ok: boolean;
-  mode: 'preview' | 'silent';
+  mode: "preview" | "silent";
   /** i18n key describing the failure, when ok is false. */
   error?: string;
 }
@@ -92,16 +95,16 @@ export interface PrintResult {
  * path; the notification itself is the Dismiss path.
  */
 export async function printReceipt(data: ReceiptData): Promise<PrintResult> {
-  if (printConfig.mode !== 'silent') {
+  if (printConfig.mode !== "silent") {
     previewPrint(data);
-    return { ok: true, mode: 'preview' };
+    return { ok: true, mode: "preview" };
   }
   try {
     await sendToAgent(buildAgentPayload(data));
-    return { ok: true, mode: 'silent' };
+    return { ok: true, mode: "silent" };
   } catch (err) {
-    console.warn('[print] silent print failed', err);
-    return { ok: false, mode: 'silent', error: 'printAgentUnavailable' };
+    console.warn("[print] silent print failed", err);
+    return { ok: false, mode: "silent", error: "printAgentUnavailable" };
   }
 }
 
@@ -111,7 +114,9 @@ export async function printReceipt(data: ReceiptData): Promise<PrintResult> {
  * behaviour shared by the POS screen and the transaction drawer so callers do
  * not each re-implement the same `!res.ok` check.
  */
-export async function printReceiptWithToast(data: ReceiptData): Promise<PrintResult> {
+export async function printReceiptWithToast(
+  data: ReceiptData,
+): Promise<PrintResult> {
   const res = await printReceipt(data);
   if (!res.ok) {
     toast.error(labels.printAgentUnavailable);

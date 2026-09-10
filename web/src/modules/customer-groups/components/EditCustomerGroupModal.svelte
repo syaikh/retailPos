@@ -1,49 +1,59 @@
 <script lang="ts">
-  import { Button, Input, Modal } from '$shared/ui';
-  import { Save, Loader2 } from 'lucide-svelte';
-  import { labels, t } from '$shared/i18n';
+  import { Button, Input, Modal } from "$shared/ui";
+  import { Save, Loader2 } from "lucide-svelte";
+  import { labels, t } from "$shared/i18n";
+  import type { CustomerGroup } from "../types";
 
-  const COLORS = ['#6C5CE7', '#00B894', '#0984E3', '#E17055', '#FFD93D', '#636E72', '#E84393', '#00CEC9'];
+  const COLORS = [
+    "#6C5CE7",
+    "#00B894",
+    "#0984E3",
+    "#E17055",
+    "#FFD93D",
+    "#636E72",
+    "#E84393",
+    "#00CEC9",
+  ];
 
   let {
     open = $bindable(false),
-    group = $bindable(null as any),
+    group = $bindable(null as CustomerGroup | null),
     saving = $bindable(false),
-    onsave = (data: any) => {},
+    onsave = (_data: Partial<CustomerGroup>) => {},
     oncancel = () => {},
   }: {
     open: boolean;
-    group: any;
+    group: CustomerGroup | null;
     saving: boolean;
-    onsave?: (data: any) => void;
+    onsave?: (data: Partial<CustomerGroup>) => void;
     oncancel?: () => void;
   } = $props();
 
-  let name = $state('');
-  let description = $state('');
+  let name = $state("");
+  let description = $state("");
   let isActive = $state(true);
   let color = $state(COLORS[0]);
-  let fieldErrors = $state({ name: '' });
+  let fieldErrors = $state({ name: "" });
 
-  let origName = $state('');
+  let origName = $state("");
   let origDescription = $state<string | undefined>();
   let origColor = $state(COLORS[0]);
 
   $effect(() => {
     if (open && group) {
-      name = group.name || '';
-      description = group.description || '';
+      name = group.name || "";
+      description = group.description || "";
       isActive = group.is_active !== false;
       color = group.color || COLORS[0];
-      origName = group.name || '';
+      origName = group.name || "";
       origDescription = group.description;
       origColor = color;
-      fieldErrors = { name: '' };
+      fieldErrors = { name: "" };
     }
   });
 
   function handleSave() {
-    const errors = { name: '' };
+    const errors = { name: "" };
     let valid = true;
 
     if (!name.trim()) {
@@ -57,27 +67,32 @@
     fieldErrors = errors;
     if (!valid) return;
 
-    const payload: Record<string, any> = { id: group.id };
+    const payload: Partial<CustomerGroup> & { id: number } = { id: group!.id };
     if (name.trim() !== origName) payload.name = name.trim();
-    if ((description.trim() || undefined) !== (origDescription || undefined)) payload.description = description.trim() || null;
-    if (isActive !== group.is_active) payload.is_active = isActive;
+    if ((description.trim() || undefined) !== (origDescription || undefined))
+      payload.description = description.trim() || undefined;
+    if (isActive !== group!.is_active) payload.is_active = isActive;
     if (color !== origColor) payload.color = color;
     onsave(payload);
   }
 
   function handleCancel() {
-    fieldErrors = { name: '' };
+    fieldErrors = { name: "" };
     oncancel();
   }
 </script>
 
-<Modal bind:open={open} title={labels.editCustomerGroup} size="sm">
+<Modal bind:open title={labels.editCustomerGroup} size="sm">
   <div class="space-y-4">
     <div class="space-y-1">
-      <label for="edit-cg-name" class="text-xs font-semibold text-text-secondary">{labels.groupName} <span class="text-danger">*</span></label>
+      <label
+        for="edit-cg-name"
+        class="text-xs font-semibold text-text-secondary"
+        >{labels.groupName} <span class="text-danger">*</span></label
+      >
       <Input
         id="edit-cg-name"
-        class={fieldErrors.name ? 'border-danger' : ''}
+        class={fieldErrors.name ? "border-danger" : ""}
         placeholder={labels.contohGroup}
         bind:value={name}
       />
@@ -86,7 +101,11 @@
       {/if}
     </div>
     <div class="space-y-1">
-      <label for="edit-cg-desc" class="text-xs font-semibold text-text-secondary">{labels.description}</label>
+      <label
+        for="edit-cg-desc"
+        class="text-xs font-semibold text-text-secondary"
+        >{labels.description}</label
+      >
       <Input
         tag="textarea"
         id="edit-cg-desc"
@@ -96,15 +115,21 @@
       />
     </div>
     <div class="space-y-1" role="group" aria-labelledby="cg-color-label">
-      <span id="cg-color-label" class="text-xs font-semibold text-text-secondary">{labels.avatarColor}</span>
+      <span
+        id="cg-color-label"
+        class="text-xs font-semibold text-text-secondary"
+        >{labels.avatarColor}</span
+      >
       <div class="flex gap-2">
-        {#each COLORS as c}
+        {#each COLORS as c (c)}
           <button
             type="button"
-            class="w-7 h-7 rounded-full border-2 transition-all {color === c ? 'border-white scale-110' : 'border-transparent hover:scale-105'}"
+            class="w-7 h-7 rounded-full border-2 transition-all {color === c
+              ? 'border-white scale-110'
+              : 'border-transparent hover:scale-105'}"
             style="background-color: {c};"
-            onclick={() => color = c}
-            aria-label={t('selectColor', { c })}
+            onclick={() => (color = c)}
+            aria-label={t("selectColor", { c })}
             aria-pressed={color === c}
           ></button>
         {/each}
@@ -116,8 +141,15 @@
     </label>
   </div>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={handleCancel}>{labels.cancel}</Button>
-    <Button variant="primary" class="px-5" disabled={saving} onclick={handleSave}>
+    <Button variant="secondary" class="px-5" onclick={handleCancel}
+      >{labels.cancel}</Button
+    >
+    <Button
+      variant="primary"
+      class="px-5"
+      disabled={saving}
+      onclick={handleSave}
+    >
       {#if saving}
         <Loader2 size={14} class="animate-spin mr-1" /> {labels.saving}
       {:else}

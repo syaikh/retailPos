@@ -1,108 +1,121 @@
-import { describe, it, expect } from 'vitest';
-import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
+import { describe, it, expect } from "vitest";
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
 function getSource(): string {
-  return readFileSync(path.join(path.dirname(__filename), 'components/UsersPage.svelte'), 'utf-8');
+  return readFileSync(
+    path.join(path.dirname(__filename), "components/UsersPage.svelte"),
+    "utf-8",
+  );
 }
 
-describe('UsersPage.svelte source-structure guards', () => {
+describe("UsersPage.svelte source-structure guards", () => {
   const src = getSource();
 
   // ── Imports ──────────────────────────────────────────────────────────────────
-  it('imports service functions from $modules/admin', () => {
-    expect(src).toContain("import { getUsers, getRolesList, createUser, updateUser, deleteUser, getSubordinates } from '$modules/admin'");
+  it("imports service functions from $modules/admin", () => {
+    expect(src).toContain(
+      "import { getUsers, getRolesList, createUser, updateUser, deleteUser, getSubordinates } from '$modules/admin'",
+    );
   });
 
-  it('does not import apiFetch from $lib/api/client', () => {
+  it("does not import apiFetch from $lib/api/client", () => {
     expect(src).not.toContain("import { apiFetch }");
-    expect(src).not.toContain('apiFetch(');
+    expect(src).not.toContain("apiFetch(");
   });
 
-  it('imports auth store for RBAC', () => {
+  it("imports auth store for RBAC", () => {
     expect(src).toContain("import { useAuthStore } from '$modules/auth'");
   });
 
   // ── RBAC guards ──────────────────────────────────────────────────────────────
-  it('imports useRBAC for role-based access control', () => {
+  it("imports useRBAC for role-based access control", () => {
     expect(src).toContain("const rbac = useRBAC()");
   });
 
-  it('defines canCreate/canEdit/canDelete via permission registry', () => {
-    expect(src).toContain("let canCreate = $derived(rbac.can(Permissions.user.create))");
-    expect(src).toContain("let canEdit = $derived(rbac.can(Permissions.user.update))");
-    expect(src).toContain("let canDelete = $derived(rbac.can(Permissions.user.delete))");
+  it("defines canCreate/canEdit/canDelete via permission registry", () => {
+    expect(src).toContain(
+      "let canCreate = $derived(rbac.can(Permissions.user.create))",
+    );
+    expect(src).toContain(
+      "let canEdit = $derived(rbac.can(Permissions.user.update))",
+    );
+    expect(src).toContain(
+      "let canDelete = $derived(rbac.can(Permissions.user.delete))",
+    );
   });
 
-  it('defines canView via permission registry', () => {
-    expect(src).toContain("let canView = $derived(rbac.can(Permissions.user.view))");
+  it("defines canView via permission registry", () => {
+    expect(src).toContain(
+      "let canView = $derived(rbac.can(Permissions.user.view))",
+    );
   });
 
-  it('shows Access Denied when user lacks view permission', () => {
-    expect(src).toContain('{#if !canView}');
-    expect(src).toContain('labels.accessDenied');
+  it("shows Access Denied when user lacks view permission", () => {
+    expect(src).toContain("{#if !canView}");
+    expect(src).toContain("labels.accessDenied");
   });
 
-  it('passes canCreate to UserToolbar', () => {
-    expect(src).toContain('{canCreate}');
+  it("passes canCreate to UserToolbar", () => {
+    expect(src).toContain("{canCreate}");
   });
 
-  it('gates table action buttons behind canEdit/canDelete', () => {
-    expect(src).toContain('openEdit(user)');
-    expect(src).toContain('openDelete(user)');
+  it("gates table action buttons behind canEdit/canDelete", () => {
+    expect(src).toContain("openEdit(user)");
+    expect(src).toContain("openDelete(user)");
   });
 
   // ── Self-deletion guard ───────────────────────────────────────────────────────
-  it('tracks currentUserID from auth store', () => {
-    expect(src).toContain('let currentUserID = $derived');
-    expect(src).toContain('authStore.user?.id');
+  it("tracks currentUserID from auth store", () => {
+    expect(src).toContain("let currentUserID = $derived");
+    expect(src).toContain("authStore.user?.id");
   });
 
-  it('passes currentUserID and canEditSuperadmin to UserTable', () => {
-    expect(src).toContain('{currentUserID}');
-    expect(src).toContain('{canEditSuperadmin}');
+  it("passes currentUserID and canEditSuperadmin to UserTable", () => {
+    expect(src).toContain("{currentUserID}");
+    expect(src).toContain("{canEditSuperadmin}");
   });
 
-  it('confirmDelete rejects self-deletion', () => {
-    expect(src).toContain('selectedUser.id === currentUserID');
-    expect(src).toContain('You cannot delete your own account');
+  it("confirmDelete rejects self-deletion", () => {
+    expect(src).toContain("selectedUser.id === currentUserID");
+    expect(src).toContain("You cannot delete your own account");
   });
 
   // ── Staff role handling ──────────────────────────────────────────────────────
-  it('renders UserTable component', () => {
-    expect(src).toContain('<UserTable');
+  it("renders UserTable component", () => {
+    expect(src).toContain("<UserTable");
   });
 
   // ── Sub-component usage ─────────────────────────────────────────────────────
-  it('renders UserToolbar component', () => {
-    expect(src).toContain('<UserToolbar');
-    expect(src).toContain('bind:searchQuery');
+  it("renders UserToolbar component", () => {
+    expect(src).toContain("<UserToolbar");
+    expect(src).toContain("bind:searchQuery");
   });
 
   // ── API consistency ──────────────────────────────────────────────────────────
-  it('fetchUsers uses service getUsers with params', () => {
-    expect(src).toContain('getUsers(params)');
+  it("fetchUsers uses service getUsers with params", () => {
+    expect(src).toContain("getUsers(params)");
   });
 
-  it('uses service return format (result.data, result.total)', () => {
-    expect(src).toContain('result.data');
-    expect(src).toContain('result.total');
+  it("uses service return format (result.data, result.total)", () => {
+    expect(src).toContain("result.data");
+    expect(src).toContain("result.total");
   });
 
-  it('save uses createUser/updateUser service', () => {
-    expect(src).toContain('createUser(form)');
-    expect(src).toContain('updateUser(selectedUser.id, form)');
+  it("save uses createUser/updateUser service", () => {
+    expect(src).toContain("createUser(form)");
+    expect(src).toContain("updateUser(selectedUser.id, form)");
   });
 
-  it('delete uses deleteUser service', () => {
-    expect(src).toContain('deleteUser(selectedUser.id)');
+  it("delete uses deleteUser service", () => {
+    expect(src).toContain("deleteUser(selectedUser.id)");
   });
 
   // ── last_login rendering ─────────────────────────────────────────────────────
-  it('passes sortBy, sortDir to UserTable for last_login sorting', () => {
-    expect(src).toContain('bind:sortBy');
-    expect(src).toContain('bind:sortDir');
+  it("passes sortBy, sortDir to UserTable for last_login sorting", () => {
+    expect(src).toContain("bind:sortBy");
+    expect(src).toContain("bind:sortDir");
   });
 });

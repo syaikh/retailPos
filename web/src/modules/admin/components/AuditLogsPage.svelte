@@ -1,31 +1,35 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import apiClient from '$shared/api/http-client';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { debounce } from '$shared/utils/debounce';
-  import { useAuthStore } from '$modules/auth';
-  import { useRBAC } from '$shared/composables/useRBAC.svelte';
-  import { Permissions } from '$shared/constants/permissions';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
-  import { ScrollText } from 'lucide-svelte';
-  import AuditLogsFilterToolbar from './AuditLogsFilterToolbar.svelte';
-  import AuditLogsTable from './AuditLogsTable.svelte';
-  import AuditLogDetailsDrawer from './AuditLogDetailsDrawer.svelte';
-  import { labels } from '$shared/i18n';
+  import { onMount } from "svelte";
+  import { SvelteURLSearchParams } from "svelte/reactivity";
+  import apiClient from "$shared/api/http-client";
+  import { toast } from "$shared/stores/toast.svelte";
+  import { debounce } from "$shared/utils/debounce";
+  import { useRBAC } from "$shared/composables/useRBAC.svelte";
+  import { Permissions } from "$shared/constants/permissions";
+  import {
+    getTodayInJakarta,
+    getDateNDaysAgoInJakarta,
+    JAKARTA_OFFSET_MS,
+  } from "$shared/utils/jakartaTime";
+  import { ScrollText } from "lucide-svelte";
+  import AuditLogsFilterToolbar from "./AuditLogsFilterToolbar.svelte";
+  import AuditLogsTable from "./AuditLogsTable.svelte";
+  import AuditLogDetailsDrawer from "./AuditLogDetailsDrawer.svelte";
+  import { labels } from "$shared/i18n";
+  import type { AuditLog } from "../types";
 
-  const authStore = useAuthStore();
   const rbac = useRBAC();
 
   // State variables
   let loading = $state(true);
-  let items = $state<any[]>([]);
+  let items = $state<AuditLog[]>([]);
   let total = $state(0);
   let limit = $state(20);
   let offset = $state(0);
-  let searchQuery = $state('');
-  let selectedAction = $state('all');
-  let selectedResource = $state('all');
-  let selectedDateRange = $state('7d');
+  let searchQuery = $state("");
+  let selectedAction = $state("all");
+  let selectedResource = $state("all");
+  let selectedDateRange = $state("7d");
   let showDatePicker = $state(false);
 
   let customStartDate = $state(getDateNDaysAgoInJakarta(7));
@@ -36,13 +40,13 @@
   let abortController: AbortController | null = $state(null);
   let hasInitialized = $state(false);
 
-  let canView = $derived(rbac.can(Permissions.audit.view));
+  const canView = $derived(rbac.can(Permissions.audit.view));
 
   // Drawer state
   let drawerOpen = $state(false);
-  let selectedLog: any = $state(null);
+  let selectedLog: AuditLog | null = $state(null);
 
-  function openDrawer(log: any) {
+  function openDrawer(log: AuditLog) {
     selectedLog = log;
     drawerOpen = true;
   }
@@ -54,19 +58,19 @@
 
   // Convert a Jakarta date string (YYYY-MM-DD) to UTC epoch for RFC3339 API
   function jakartaDateToUTC(dateStr: string) {
-    const [y, m, d] = dateStr.split('-').map(Number);
+    const [y, m, d] = dateStr.split("-").map(Number);
     // Jakarta midnight = UTC 17:00 previous day
     return Date.UTC(y, m - 1, d, 0, 0, 0, 0) - JAKARTA_OFFSET_MS;
   }
 
   function getJakartaMidnightMs(dateStr: string): number {
-    const [y, m, d] = dateStr.split('-').map(Number);
+    const [y, m, d] = dateStr.split("-").map(Number);
     return Date.UTC(y, m - 1, d, 0, 0, 0, 0) - JAKARTA_OFFSET_MS;
   }
 
   function getDateRange(range: string) {
     switch (range) {
-      case '24h': {
+      case "24h": {
         const yesterday = getDateNDaysAgoInJakarta(1);
         const todayJakarta = getTodayInJakarta();
         return {
@@ -74,7 +78,7 @@
           end: new Date(getJakartaMidnightMs(todayJakarta) + 86400000),
         };
       }
-      case '7d': {
+      case "7d": {
         const sevenDaysAgo = getDateNDaysAgoInJakarta(7);
         const todayJakarta = getTodayInJakarta();
         return {
@@ -82,7 +86,7 @@
           end: new Date(getJakartaMidnightMs(todayJakarta) + 86400000),
         };
       }
-      case '30d': {
+      case "30d": {
         const thirtyDaysAgo = getDateNDaysAgoInJakarta(30);
         const todayJakarta = getTodayInJakarta();
         return {
@@ -90,7 +94,7 @@
           end: new Date(getJakartaMidnightMs(todayJakarta) + 86400000),
         };
       }
-      case '90d': {
+      case "90d": {
         const ninetyDaysAgo = getDateNDaysAgoInJakarta(90);
         const todayJakarta = getTodayInJakarta();
         return {
@@ -98,7 +102,7 @@
           end: new Date(getJakartaMidnightMs(todayJakarta) + 86400000),
         };
       }
-      case 'custom':
+      case "custom": {
         if (customStartDate && customEndDate) {
           const startMs = jakartaDateToUTC(customStartDate);
           const endMs = jakartaDateToUTC(customEndDate) + 86400000;
@@ -110,6 +114,7 @@
           start: new Date(getJakartaMidnightMs(fallbackStart)),
           end: new Date(getJakartaMidnightMs(fallbackEnd) + 86400000),
         };
+      }
       default: {
         const defaultStart = getDateNDaysAgoInJakarta(7);
         const defaultEnd = getTodayInJakarta();
@@ -132,15 +137,16 @@
     try {
       loading = true;
       const range = getDateRange(selectedDateRange);
-      const params = new URLSearchParams({
+      const params = new SvelteURLSearchParams({
         limit: limit.toString(),
         offset: offset.toString(),
         search: searchQuery,
         start_date: range.start.toISOString(),
         end_date: range.end.toISOString(),
       });
-      if (selectedAction !== 'all') params.append('action', selectedAction);
-      if (selectedResource !== 'all') params.append('entity_type', selectedResource);
+      if (selectedAction !== "all") params.append("action", selectedAction);
+      if (selectedResource !== "all")
+        params.append("entity_type", selectedResource);
 
       const response = await apiClient.get(`audit-logs?${params.toString()}`, {
         signal: abortController.signal,
@@ -151,17 +157,23 @@
       const data = response.data || {};
       items = data.data || [];
       total = data.total || 0;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { name?: string; code?: string; message?: string; response?: { data?: { error?: string } | string }; request?: unknown };
       const isCanceled =
-        error?.name === 'CanceledError' ||
-        error?.name === 'AbortError' ||
-        error?.code === 'ERR_CANCELED' ||
-        /canceled/i.test(error?.message || '');
+        err.name === "CanceledError" ||
+        err.name === "AbortError" ||
+        err.code === "ERR_CANCELED" ||
+        /canceled/i.test(err.message || "");
       if (!isCanceled) {
-        console.error('[AuditLogs] fetch error:', error);
-        console.error('[AuditLogs] error.response:', error?.response);
-        console.error('[AuditLogs] error.request:', error?.request);
-        const msg = error?.response?.data?.error || error?.response?.data || error?.message || labels.unknown;
+        console.error("[AuditLogs] fetch error:", error);
+        console.error("[AuditLogs] error.response:", err.response);
+        console.error("[AuditLogs] error.request:", err.request);
+        const data = err.response?.data;
+        const msg =
+          (typeof data === "object" && data !== null ? data.error : undefined) ||
+          (typeof data === "string" ? data : undefined) ||
+          err.message ||
+          labels.unknown;
         toast.error(`${labels.failedToLoad}: ${msg}`);
       }
     } finally {
@@ -172,10 +184,10 @@
     }
   }
 
-  let prevSearch = $state('');
-  let prevAction = $state('all');
-  let prevEntity = $state('all');
-  let prevDate = $state('24h');
+  let prevSearch = $state("");
+  let prevAction = $state("all");
+  let prevEntity = $state("all");
+  let prevDate = $state("24h");
   let prevOff = $state(0);
   let prevLim = $state(20);
 
@@ -208,12 +220,15 @@
       sl = limit;
 
     const searchChanged = sq !== prevSearch;
-    const filterChanged = sa !== prevAction || se !== prevEntity || sd !== prevDate;
+    const filterChanged =
+      sa !== prevAction || se !== prevEntity || sd !== prevDate;
     const pageChanged = so !== prevOff || sl !== prevLim;
 
     if (searchChanged) debouncedSearchFetch();
-    else if (filterChanged) { offset = 0; fetchLogs(); }
-    else if (pageChanged) fetchLogs();
+    else if (filterChanged) {
+      offset = 0;
+      fetchLogs();
+    } else if (pageChanged) fetchLogs();
 
     prevSearch = sq;
     prevAction = sa;
@@ -233,21 +248,25 @@
     const handleClickOutside = (e: MouseEvent) => {
       if (showDatePicker) {
         const target = e.target as HTMLElement;
-        if (!target.closest('.date-picker-container') && !target.closest('.date-picker-trigger')) showDatePicker = false;
+        if (
+          !target.closest(".date-picker-container") &&
+          !target.closest(".date-picker-trigger")
+        )
+          showDatePicker = false;
       }
     };
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         if (drawerOpen) closeDrawer();
         if (showDatePicker) showDatePicker = false;
       }
     };
 
-    document.addEventListener('click', handleClickOutside);
-    document.addEventListener('keydown', handleEsc);
+    document.addEventListener("click", handleClickOutside);
+    document.addEventListener("keydown", handleEsc);
     return () => {
-      document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('keydown', handleEsc);
+      document.removeEventListener("click", handleClickOutside);
+      document.removeEventListener("keydown", handleEsc);
     };
   });
 </script>
@@ -256,7 +275,9 @@
   <div class="card px-4 py-16 text-center">
     <ScrollText size={40} class="text-text-muted mx-auto mb-4" />
     <p class="text-text-primary font-semibold text-lg">{labels.accessDenied}</p>
-    <p class="text-text-muted text-sm mt-1">{labels.auditLogsRestrictedToSuperadmin}</p>
+    <p class="text-text-muted text-sm mt-1">
+      {labels.auditLogsRestrictedToSuperadmin}
+    </p>
   </div>
 {:else}
   <div class="space-y-5 max-w-7xl mx-auto">
@@ -269,7 +290,10 @@
       bind:customStartDate
       bind:customEndDate
       {loading}
-      onrefresh={() => { offset = 0; fetchLogs(); }}
+      onrefresh={() => {
+        offset = 0;
+        fetchLogs();
+      }}
     />
     <AuditLogsTable
       {items}
@@ -282,10 +306,8 @@
     />
     <AuditLogDetailsDrawer
       bind:drawerOpen
-      selectedLog={selectedLog}
+      {selectedLog}
       onclose={closeDrawer}
     />
   </div>
 {/if}
-
-

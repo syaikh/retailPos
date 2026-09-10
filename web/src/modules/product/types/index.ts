@@ -62,6 +62,7 @@ export interface Product {
   store_name?: string;
   supplier_id?: number;
   supplier_name?: string;
+  ownership_type?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -107,5 +108,3 @@ export interface Warehouse {
   is_active?: boolean;
   created_at?: string;
 }
-
-

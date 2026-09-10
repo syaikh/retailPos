@@ -1,47 +1,65 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { useAuthStore } from '$modules/auth';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { goto } from '$app/router';
-  import { Button, Modal, Input, SelectSearch, EmptyState, Badge, SearchBar, Pagination } from '$shared/ui';
-  import { Plus, ClipboardList, Truck, RotateCcw, Wallet, ArrowLeft, AlertTriangle, ExternalLink } from 'lucide-svelte';
-  import { debounce } from '$shared/utils/debounce';
-  import { labels, t } from '$shared/i18n';
+  import { onMount } from "svelte";
+  import { useAuthStore } from "$modules/auth";
+  import { toast } from "$shared/stores/toast.svelte";
+  import { goto } from "$app/router";
+  import {
+    Button,
+    Modal,
+    SelectSearch,
+    EmptyState,
+    Badge,
+    SearchBar,
+    Pagination,
+  } from "$shared/ui";
+  import {
+    Plus,
+    ClipboardList,
+    Truck,
+    RotateCcw,
+    Wallet,
+    ArrowLeft,
+    AlertTriangle,
+    ExternalLink,
+  } from "lucide-svelte";
+  import { debounce } from "$shared/utils/debounce";
+  import { labels, t } from "$shared/i18n";
   import {
     listArrangements,
     getArrangement,
     createArrangement,
     listConsignmentSuppliers,
-  } from '../services/consignment-service';
-  import { getActiveStores } from '$modules/stores/services/stores-service';
-  import type { Arrangement, ConsignmentSupplierRef } from '../types';
+  } from "../services/consignment-service";
+  import { getActiveStores } from "$modules/stores/services/stores-service";
+  import type { Arrangement, ConsignmentSupplierRef } from "../types";
+  import type { ArrangementListParams } from "../services/consignment-service";
   import {
     ARRANGEMENT_STATUS_LABELS,
     ARRANGEMENT_STATUS_ACTIVE,
     ARRANGEMENT_STATUS_ENDED,
-  } from '../types';
-  import { formatCurrency, formatDate } from '../lib/format';
-  import TermsEditor from './TermsEditor.svelte';
-  import ReceiptEntry from './ReceiptEntry.svelte';
-  import PendingReturnPage from './PendingReturnPage.svelte';
-  import ReturnPage from './ReturnPage.svelte';
-  import SettlementPage from './SettlementPage.svelte';
-  import StockPage from './StockPage.svelte';
+  } from "../types";
+  import { formatDate } from "../lib/format";
+  import TermsEditor from "./TermsEditor.svelte";
+  import ReceiptEntry from "./ReceiptEntry.svelte";
+  import PendingReturnPage from "./PendingReturnPage.svelte";
+  import ReturnPage from "./ReturnPage.svelte";
+  import SettlementPage from "./SettlementPage.svelte";
+  import StockPage from "./StockPage.svelte";
 
   const authStore = useAuthStore();
   const userPermissions = $derived(authStore.user?.permissions || []);
-  const canCreate = $derived(userPermissions.includes('consignment.create'));
-  const canUpdate = $derived(userPermissions.includes('consignment.update'));
-  const canSettle = $derived(userPermissions.includes('consignment.settle'));
-  const canPay = $derived(userPermissions.includes('consignment.pay'));
+  const canCreate = $derived(userPermissions.includes("consignment.create"));
+  const canUpdate = $derived(userPermissions.includes("consignment.update"));
+  const canSettle = $derived(userPermissions.includes("consignment.settle"));
+  const canPay = $derived(userPermissions.includes("consignment.pay"));
 
   let loading = $state(true);
   let arrangements = $state<Arrangement[]>([]);
   let total = $state(0);
   let limit = $state(20);
   let offset = $state(0);
-  let searchQuery = $state('');
-  let statusFilter = $state('all');
+  let searchQuery = $state("");
+  let statusFilter = $state("all");
   let suppliers = $state<ConsignmentSupplierRef[]>([]);
   let supplierOptions = $state<{ value: number; label: string }[]>([]);
 
@@ -52,14 +70,16 @@
   let storeOptions = $state<{ value: number; label: string }[]>([]);
 
   let activeArrangement = $state<Arrangement | null>(null);
-  let activeTab = $state<'terms' | 'receipt' | 'pending' | 'return' | 'settlement' | 'stock'>('receipt');
+  let activeTab = $state<
+    "terms" | "receipt" | "pending" | "return" | "settlement" | "stock"
+  >("receipt");
 
   async function load() {
     loading = true;
     try {
-      const params: any = { limit, offset };
+      const params: ArrangementListParams = { limit, offset };
       if (searchQuery) params.search = searchQuery;
-      if (statusFilter !== 'all') params.status = statusFilter;
+      if (statusFilter !== "all") params.status = statusFilter;
       const [arrs, sups] = await Promise.all([
         listArrangements(params),
         listConsignmentSuppliers(),
@@ -77,7 +97,9 @@
         // Fall back to current user's store
         const userStore = authStore.user?.store_id;
         if (userStore) {
-          storeOptions = [{ value: userStore, label: labels.consignmentCurrentStore }];
+          storeOptions = [
+            { value: userStore, label: labels.consignmentCurrentStore },
+          ];
         }
       }
     } catch {
@@ -125,12 +147,14 @@
         supplier_id: createSupplierId,
         store_id: createStoreId,
       });
-      toast.success(t('consignmentCreatedFor', { name: created.supplier_name || '' }));
+      toast.success(
+        t("consignmentCreatedFor", { name: created.supplier_name || "" }),
+      );
       showCreateModal = false;
       await load();
-    } catch (e: any) {
-      const raw = e?.response?.data?.error;
-      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentCreateError);
+    } catch (e: unknown) {
+      const raw = e instanceof Error ? e.message : labels.consignmentCreateError;
+      toast.error(raw);
     } finally {
       creating = false;
     }
@@ -141,9 +165,9 @@
     try {
       const full = await getArrangement(a.id);
       activeArrangement = full;
-      activeTab = (full.terms?.length ?? 0) > 0 ? 'receipt' : 'terms';
+      activeTab = (full.terms?.length ?? 0) > 0 ? "receipt" : "terms";
     } catch {
-      activeTab = 'terms';
+      activeTab = "terms";
     }
   }
 
@@ -155,9 +179,9 @@
   async function refreshArrangement() {
     if (!activeArrangement) return;
     const arrangementId = activeArrangement.id;
-    const params: any = { limit: 100, offset: 0 };
+    const params: ArrangementListParams = { limit: 100, offset: 0 };
     if (searchQuery) params.search = searchQuery;
-    if (statusFilter !== 'all') params.status = statusFilter;
+    if (statusFilter !== "all") params.status = statusFilter;
     const arrs = await listArrangements(params);
     arrangements = arrs.data;
     try {
@@ -180,101 +204,122 @@
           class="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary"
           onclick={backToList}
         >
-          <ArrowLeft class="w-4 h-4" /> {labels.back}
+          <ArrowLeft class="w-4 h-4" />
+          {labels.back}
         </button>
-        <h1 class="mt-2 text-2xl font-bold text-text-primary">{activeArrangement.supplier_name}</h1>
+        <h1 class="mt-2 text-2xl font-bold text-text-primary">
+          {activeArrangement.supplier_name}
+        </h1>
         <div class="mt-1 flex items-center gap-2">
-          <Badge variant={activeArrangement.status === ARRANGEMENT_STATUS_ACTIVE ? "success" : "muted"}>
-            {labels[ARRANGEMENT_STATUS_LABELS[activeArrangement.status]] || activeArrangement.status}
+          <Badge
+            variant={activeArrangement.status === ARRANGEMENT_STATUS_ACTIVE
+              ? "success"
+              : "muted"}
+          >
+            {labels[ARRANGEMENT_STATUS_LABELS[activeArrangement.status]] ||
+              activeArrangement.status}
           </Badge>
           <span class="text-sm text-text-secondary">
-            {labels.consignmentLastVisitLabel} {formatDate(activeArrangement.last_visit_at)}
+            {labels.consignmentLastVisitLabel}
+            {formatDate(activeArrangement.last_visit_at)}
           </span>
         </div>
       </div>
     </div>
 
     {#if (activeArrangement.terms?.length ?? 0) === 0}
-      <div class="rounded-xl border border-warning/40 bg-warning-subtle/20 p-4 flex items-start gap-3">
+      <div
+        class="rounded-xl border border-warning/40 bg-warning-subtle/20 p-4 flex items-start gap-3"
+      >
         <AlertTriangle size={18} class="text-warning shrink-0 mt-0.5" />
         <div>
-          <p class="text-sm font-semibold text-text-primary">{labels.consignmentTermsRequiredBanner}</p>
-          <p class="text-xs text-text-muted mt-1">{labels.consignmentTermsRequiredHint}</p>
+          <p class="text-sm font-semibold text-text-primary">
+            {labels.consignmentTermsRequiredBanner}
+          </p>
+          <p class="text-xs text-text-muted mt-1">
+            {labels.consignmentTermsRequiredHint}
+          </p>
         </div>
       </div>
     {/if}
 
     <div class="flex flex-wrap gap-2 border-b border-border/50 pb-3">
       <Button
-        variant={activeTab === 'receipt' ? 'primary' : 'ghost'}
+        variant={activeTab === "receipt" ? "primary" : "ghost"}
         size="sm"
-        onclick={() => (activeTab = 'receipt')}
+        onclick={() => (activeTab = "receipt")}
       >
-        <Truck class="w-4 h-4" /> {labels.consignmentTabReceipts}
+        <Truck class="w-4 h-4" />
+        {labels.consignmentTabReceipts}
       </Button>
       <Button
-        variant={activeTab === 'terms' ? 'primary' : 'ghost'}
+        variant={activeTab === "terms" ? "primary" : "ghost"}
         size="sm"
-        onclick={() => (activeTab = 'terms')}
+        onclick={() => (activeTab = "terms")}
         disabled={!canUpdate}
       >
-        <ClipboardList class="w-4 h-4" /> {labels.consignmentTabTerms}
+        <ClipboardList class="w-4 h-4" />
+        {labels.consignmentTabTerms}
       </Button>
       <Button
-        variant={activeTab === 'pending' ? 'primary' : 'ghost'}
+        variant={activeTab === "pending" ? "primary" : "ghost"}
         size="sm"
-        onclick={() => (activeTab = 'pending')}
+        onclick={() => (activeTab = "pending")}
       >
-        <RotateCcw class="w-4 h-4" /> {labels.consignmentTabPendingReturns}
+        <RotateCcw class="w-4 h-4" />
+        {labels.consignmentTabPendingReturns}
       </Button>
       <Button
-        variant={activeTab === 'return' ? 'primary' : 'ghost'}
+        variant={activeTab === "return" ? "primary" : "ghost"}
         size="sm"
-        onclick={() => (activeTab = 'return')}
+        onclick={() => (activeTab = "return")}
       >
-        <RotateCcw class="w-4 h-4" /> {labels.consignmentTabReturns}
+        <RotateCcw class="w-4 h-4" />
+        {labels.consignmentTabReturns}
       </Button>
       <Button
-        variant={activeTab === 'settlement' ? 'primary' : 'ghost'}
+        variant={activeTab === "settlement" ? "primary" : "ghost"}
         size="sm"
-        onclick={() => (activeTab = 'settlement')}
+        onclick={() => (activeTab = "settlement")}
       >
-        <Wallet class="w-4 h-4" /> {labels.consignmentTabSettlement}
+        <Wallet class="w-4 h-4" />
+        {labels.consignmentTabSettlement}
       </Button>
       <Button
-        variant={activeTab === 'stock' ? 'primary' : 'ghost'}
+        variant={activeTab === "stock" ? "primary" : "ghost"}
         size="sm"
-        onclick={() => (activeTab = 'stock')}
+        onclick={() => (activeTab = "stock")}
       >
-        <Truck class="w-4 h-4" /> {labels.consignmentTabStock}
+        <Truck class="w-4 h-4" />
+        {labels.consignmentTabStock}
       </Button>
     </div>
 
-    {#if activeTab === 'receipt'}
+    {#if activeTab === "receipt"}
       <ReceiptEntry
         arrangement={activeArrangement}
         {canCreate}
         oncreated={refreshArrangement}
       />
-    {:else if activeTab === 'terms'}
+    {:else if activeTab === "terms"}
       <TermsEditor
         arrangement={activeArrangement}
         {canUpdate}
         onsaved={refreshArrangement}
       />
-    {:else if activeTab === 'pending'}
+    {:else if activeTab === "pending"}
       <PendingReturnPage
         arrangement={activeArrangement}
         {canCreate}
         oncreated={refreshArrangement}
       />
-    {:else if activeTab === 'return'}
+    {:else if activeTab === "return"}
       <ReturnPage
         arrangement={activeArrangement}
         {canCreate}
         oncreated={refreshArrangement}
       />
-    {:else if activeTab === 'settlement'}
+    {:else if activeTab === "settlement"}
       <SettlementPage
         arrangement={activeArrangement}
         {canSettle}
@@ -295,29 +340,68 @@
             inputClass="h-10"
           />
         </div>
-        <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default" role="group" aria-label={labels.consignmentTabTerms}>
+        <div
+          class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default"
+          role="group"
+          aria-label={labels.consignmentTabTerms}
+        >
           <button
-            class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-            onclick={() => { statusFilter = 'all'; handleStatusChange(); }}
-            aria-pressed={statusFilter === 'all'}
-          >{labels.all}</button>
+            class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter ===
+            'all'
+              ? 'bg-primary-subtle text-primary-light border border-primary-default/20'
+              : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+            onclick={() => {
+              statusFilter = "all";
+              handleStatusChange();
+            }}
+            aria-pressed={statusFilter === "all"}>{labels.all}</button
+          >
           <button
-            class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === ARRANGEMENT_STATUS_ACTIVE ? 'bg-success-subtle text-success-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-            onclick={() => { statusFilter = ARRANGEMENT_STATUS_ACTIVE; handleStatusChange(); }}
+            class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter ===
+            ARRANGEMENT_STATUS_ACTIVE
+              ? 'bg-success-subtle text-success-light'
+              : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+            onclick={() => {
+              statusFilter = ARRANGEMENT_STATUS_ACTIVE;
+              handleStatusChange();
+            }}
             aria-pressed={statusFilter === ARRANGEMENT_STATUS_ACTIVE}
-          >{labels[ARRANGEMENT_STATUS_LABELS[ARRANGEMENT_STATUS_ACTIVE]]}</button>
+            >{labels[
+              ARRANGEMENT_STATUS_LABELS[ARRANGEMENT_STATUS_ACTIVE]
+            ]}</button
+          >
           <button
-            class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === ARRANGEMENT_STATUS_ENDED ? 'bg-danger-subtle text-danger-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-            onclick={() => { statusFilter = ARRANGEMENT_STATUS_ENDED; handleStatusChange(); }}
+            class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter ===
+            ARRANGEMENT_STATUS_ENDED
+              ? 'bg-danger-subtle text-danger-light'
+              : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+            onclick={() => {
+              statusFilter = ARRANGEMENT_STATUS_ENDED;
+              handleStatusChange();
+            }}
             aria-pressed={statusFilter === ARRANGEMENT_STATUS_ENDED}
-          >{labels[ARRANGEMENT_STATUS_LABELS[ARRANGEMENT_STATUS_ENDED]]}</button>
+            >{labels[
+              ARRANGEMENT_STATUS_LABELS[ARRANGEMENT_STATUS_ENDED]
+            ]}</button
+          >
         </div>
-        <Button variant="secondary" class="shrink-0 px-5" onclick={() => goto('/suppliers?is_consignment=true&referrer=consignment')}>
-          <ExternalLink size={16} /> {labels.viewSuppliers}
+        <Button
+          variant="secondary"
+          class="shrink-0 px-5"
+          onclick={() =>
+            goto("/suppliers?is_consignment=true&referrer=consignment")}
+        >
+          <ExternalLink size={16} />
+          {labels.viewSuppliers}
         </Button>
         {#if canCreate}
-          <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openCreate}>
-            <Plus size={18} /> {labels.consignmentNewArrangement}
+          <Button
+            variant="primary"
+            class="shrink-0 shadow-glow-primary-sm px-5"
+            onclick={openCreate}
+          >
+            <Plus size={18} />
+            {labels.consignmentNewArrangement}
           </Button>
         {/if}
       </div>
@@ -325,7 +409,9 @@
 
     <div class="card overflow-x-auto">
       {#if loading}
-        <div class="p-8 text-center text-sm text-text-secondary">{labels.loading}</div>
+        <div class="p-8 text-center text-sm text-text-secondary">
+          {labels.loading}
+        </div>
       {:else if arrangements.length === 0}
         <EmptyState
           icon={Truck}
@@ -335,7 +421,9 @@
       {:else}
         <table class="w-full text-sm">
           <thead>
-            <tr class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50">
+            <tr
+              class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50"
+            >
               <th class="px-4 py-3">{labels.supplier}</th>
               <th class="px-4 py-3">{labels.status}</th>
               <th class="px-4 py-3">{labels.consignmentTabTerms}</th>
@@ -344,18 +432,34 @@
             </tr>
           </thead>
           <tbody>
-            {#each arrangements as a}
+            {#each arrangements as a (a.id || a)}
               <tr class="border-b border-border/40 hover:bg-surface-subtle/50">
-                <td class="px-4 py-3 font-medium text-text-primary">{a.supplier_name}</td>
+                <td class="px-4 py-3 font-medium text-text-primary"
+                  >{a.supplier_name}</td
+                >
                 <td class="px-4 py-3">
-                  <Badge variant={a.status === ARRANGEMENT_STATUS_ACTIVE ? "success" : "muted"}>
+                  <Badge
+                    variant={a.status === ARRANGEMENT_STATUS_ACTIVE
+                      ? "success"
+                      : "muted"}
+                  >
                     {labels[ARRANGEMENT_STATUS_LABELS[a.status]] || a.status}
                   </Badge>
                 </td>
-                <td class="px-4 py-3 text-text-secondary">{t('consignmentProductCount', { count: a.terms?.length ?? 0 })}</td>
-                <td class="px-4 py-3 text-text-secondary">{formatDate(a.last_visit_at)}</td>
+                <td class="px-4 py-3 text-text-secondary"
+                  >{t("consignmentProductCount", {
+                    count: a.terms?.length ?? 0,
+                  })}</td
+                >
+                <td class="px-4 py-3 text-text-secondary"
+                  >{formatDate(a.last_visit_at)}</td
+                >
                 <td class="px-4 py-3 text-right">
-                  <Button variant="secondary" size="sm" onclick={() => openArrangement(a)}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onclick={() => openArrangement(a)}
+                  >
                     {labels.consignmentOpen}
                   </Button>
                 </td>
@@ -365,7 +469,12 @@
         </table>
         {#if !loading && arrangements.length > 0}
           <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
-            <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
+            <Pagination
+              {total}
+              {limit}
+              {offset}
+              onPageChange={handlePageChange}
+            />
           </div>
         {/if}
       {/if}
@@ -373,39 +482,49 @@
   {/if}
 </div>
 
-<Modal bind:open={showCreateModal} title={labels.consignmentNewArrangement} size="md">
-  {#snippet children()}
-    <div class="space-y-4">
-      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>{labels.consignmentSupplier} <span class="text-danger">*</span></span>
-        <SelectSearch
-          bind:value={createSupplierId}
-          options={supplierOptions}
-          placeholder={labels.consignmentSupplierPlaceholder}
-          searchPlaceholder={labels.consignmentSearchSupplier}
-          notFoundText={labels.consignmentNoConsignmentSuppliers}
-        />
-      </label>
-      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>{labels.consignmentStore}</span>
-        <SelectSearch
-          bind:value={createStoreId}
-          options={storeOptions}
-          placeholder={labels.consignmentStorePlaceholder}
-          searchPlaceholder={labels.consignmentSearchStore}
-          notFoundText={labels.consignmentNoStores}
-        />
-      </label>
-      {#if suppliers.length === 0}
-        <p class="text-xs text-amber-600">
-          {labels.consignmentNoConsignmentSuppliersHint}
-        </p>
-      {/if}
-    </div>
-  {/snippet}
+<Modal
+  bind:open={showCreateModal}
+  title={labels.consignmentNewArrangement}
+  size="md"
+>
+  <div class="space-y-4">
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span
+        >{labels.consignmentSupplier} <span class="text-danger">*</span></span
+      >
+      <SelectSearch
+        bind:value={createSupplierId}
+        options={supplierOptions}
+        placeholder={labels.consignmentSupplierPlaceholder}
+        searchPlaceholder={labels.consignmentSearchSupplier}
+        notFoundText={labels.consignmentNoConsignmentSuppliers}
+      />
+    </label>
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span>{labels.consignmentStore}</span>
+      <SelectSearch
+        bind:value={createStoreId}
+        options={storeOptions}
+        placeholder={labels.consignmentStorePlaceholder}
+        searchPlaceholder={labels.consignmentSearchStore}
+        notFoundText={labels.consignmentNoStores}
+      />
+    </label>
+    {#if suppliers.length === 0}
+      <p class="text-xs text-amber-600">
+        {labels.consignmentNoConsignmentSuppliersHint}
+      </p>
+    {/if}
+  </div>
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
-      <Button variant="secondary" onclick={() => (showCreateModal = false)}>{labels.cancel}</Button>
+      <Button variant="secondary" onclick={() => (showCreateModal = false)}
+        >{labels.cancel}</Button
+      >
       <Button onclick={submitCreate} disabled={creating}>
         {creating ? labels.saving : labels.create}
       </Button>

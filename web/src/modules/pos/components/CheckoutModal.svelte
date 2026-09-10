@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { fly } from 'svelte/transition';
-  import { Button, CurrencyInput } from '$shared/ui';
-  import { X, Check, User, ChevronRight, Plus, Trash2 } from 'lucide-svelte';
-  import { tick } from 'svelte';
-  import type { PaymentAllocation } from '../types';
-  import { labels, t, paymentMethodLabel } from '$shared/i18n';
+  import { fly } from "svelte/transition";
+  import { Button, CurrencyInput } from "$shared/ui";
+  import { X, Check, User, ChevronRight, Trash2 } from "lucide-svelte";
+  import { tick } from "svelte";
+  import type { DisplayCartItem, PaymentAllocation, PaymentOption } from "../types";
+  import { labels, t, paymentMethodLabel } from "$shared/i18n";
 
   const denominations = [5000, 10000, 20000, 50000, 100000];
   let dialogEl: HTMLDivElement | undefined = $state();
@@ -21,24 +21,20 @@
     showCheckoutModal = $bindable(false),
     cart = [],
     totalAmount = 0,
-    subtotal = 0,
     taxAmount = 0,
     dppDisplay = 0,
     paymentOptions = [],
-    selectedCustomerLabel = '',
-    checkingOut = false,
-    onfinalize = (payments: PaymentAllocation[]) => {},
+    selectedCustomerLabel = "",
+    onfinalize = (_payments: PaymentAllocation[]) => {},
     onselectcustomer = () => {},
   }: {
     showCheckoutModal: boolean;
-    cart: any[];
+    cart: DisplayCartItem[];
     totalAmount: number;
-    subtotal: number;
     taxAmount: number;
     dppDisplay: number;
-    paymentOptions: Array<{ id: string; label: string; icon?: any; requiresReference?: boolean }>;
+    paymentOptions: PaymentOption[];
     selectedCustomerLabel: string;
-    checkingOut: boolean;
     onfinalize?: (payments: PaymentAllocation[]) => void;
     onselectcustomer?: () => void;
   } = $props();
@@ -46,32 +42,46 @@
   let allocations = $state<AllocationRow[]>([]);
   let nextId = $state(1);
 
-  const totalAllocated = $derived(allocations.reduce((sum, a) => sum + a.amount, 0));
+  const totalAllocated = $derived(
+    allocations.reduce((sum, a) => sum + a.amount, 0),
+  );
   const remainingBalance = $derived(totalAmount - totalAllocated);
-  const cashTotal = $derived(allocations.filter(a => a.methodCode === 'CASH').reduce((sum, a) => sum + a.amount, 0));
+  const cashTotal = $derived(
+    allocations
+      .filter((a) => a.methodCode === "CASH")
+      .reduce((sum, a) => sum + a.amount, 0),
+  );
   const nonCashTotal = $derived(totalAllocated - cashTotal);
-  const overTenderOnCash = $derived(remainingBalance < 0 && nonCashTotal <= totalAmount);
-  const changeDue = $derived(remainingBalance < 0 && overTenderOnCash ? Math.abs(remainingBalance) : 0);
+  const overTenderOnCash = $derived(
+    remainingBalance < 0 && nonCashTotal <= totalAmount,
+  );
+  const changeDue = $derived(
+    remainingBalance < 0 && overTenderOnCash ? Math.abs(remainingBalance) : 0,
+  );
   const canComplete = $derived(
     allocations.length > 0 &&
-    (remainingBalance === 0 || (remainingBalance < 0 && overTenderOnCash)) &&
-    allocations.every(a => {
-      const opt = paymentOptions.find(o => o.id === a.methodCode);
-      return !(opt?.requiresReference && !a.referenceNumber?.trim());
-    })
+      (remainingBalance === 0 || (remainingBalance < 0 && overTenderOnCash)) &&
+      allocations.every((a) => {
+        const opt = paymentOptions.find((o) => o.id === a.methodCode);
+        return !(opt?.requiresReference && !a.referenceNumber?.trim());
+      }),
   );
-  const cashAllocation = $derived(allocations.find(a => a.methodCode === 'CASH'));
+  const cashAllocation = $derived(
+    allocations.find((a) => a.methodCode === "CASH"),
+  );
 
-  let totalSavings = $derived(
+  const totalSavings = $derived(
     cart.reduce((sum, item) => {
       if (item.discount && item.discount > 0) {
         return sum + item.discount * item.quantity;
       }
       return sum;
-    }, 0)
+    }, 0),
   );
 
-  let hasDiscountedItems = $derived(cart.some(item => item.discount && item.discount > 0));
+  const hasDiscountedItems = $derived(
+    cart.some((item) => item.discount && item.discount > 0),
+  );
 
   function close() {
     showCheckoutModal = false;
@@ -81,17 +91,18 @@
 
   function generateRefNumber(methodCode: string): string {
     const shifted = new Date(Date.now() + 7 * 60 * 60 * 1000);
-    const dd = String(shifted.getUTCDate()).padStart(2, '0');
-    const mm = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(shifted.getUTCDate()).padStart(2, "0");
+    const mm = String(shifted.getUTCMonth() + 1).padStart(2, "0");
     const yy = String(shifted.getUTCFullYear()).slice(2);
     const rand = String(Math.floor(100000 + Math.random() * 900000));
-    if (methodCode === 'CARD' || methodCode === 'EDC') return `EDC/${dd}${mm}${yy}/${rand}`;
-    if (methodCode === 'E_WALLET') return `EW/${dd}${mm}${yy}/${rand}`;
+    if (methodCode === "CARD" || methodCode === "EDC")
+      return `EDC/${dd}${mm}${yy}/${rand}`;
+    if (methodCode === "E_WALLET") return `EW/${dd}${mm}${yy}/${rand}`;
     return `REF/${dd}${mm}${yy}/${rand}`;
   }
 
   function addAllocation(methodCode: string) {
-    const existing = allocations.find(a => a.methodCode === methodCode);
+    const existing = allocations.find((a) => a.methodCode === methodCode);
     if (existing) {
       const input = document.getElementById(`alloc-amount-${existing.id}`);
       input?.focus();
@@ -99,20 +110,27 @@
     }
     // S-D: do not add a redundant method once the total is fully allocated.
     if (remainingBalance <= 0) return;
-    const opt = paymentOptions.find(o => o.id === methodCode);
+    const opt = paymentOptions.find((o) => o.id === methodCode);
     const allocAmount = remainingBalance;
     const newId = `a${nextId++}`;
-    allocations = [...allocations, {
-      id: newId,
-      methodCode,
-      amount: allocAmount,
-      referenceNumber: opt?.requiresReference ? generateRefNumber(methodCode) : '',
-    }];
-    tick().then(() => document.getElementById(`alloc-amount-${newId}`)?.focus());
+    allocations = [
+      ...allocations,
+      {
+        id: newId,
+        methodCode,
+        amount: allocAmount,
+        referenceNumber: opt?.requiresReference
+          ? generateRefNumber(methodCode)
+          : "",
+      },
+    ];
+    tick().then(() =>
+      document.getElementById(`alloc-amount-${newId}`)?.focus(),
+    );
   }
 
   function removeAllocation(id: string) {
-    allocations = allocations.filter(a => a.id !== id);
+    allocations = allocations.filter((a) => a.id !== id);
   }
 
   function splitEqually() {
@@ -126,14 +144,18 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
       close();
       return;
     }
     // Number-key shortcuts: add the Nth payment method (ignored while typing in a field)
-    if (/^[1-9]$/.test(e.key) && dialogEl && !(document.activeElement instanceof HTMLInputElement)) {
+    if (
+      /^[1-9]$/.test(e.key) &&
+      dialogEl &&
+      !(document.activeElement instanceof HTMLInputElement)
+    ) {
       const idx = parseInt(e.key, 10) - 1;
       const opt = paymentOptions[idx];
       if (opt) {
@@ -142,21 +164,21 @@
       }
       return;
     }
-    if (e.key === 'F7' && cashAllocation) {
+    if (e.key === "F7" && cashAllocation) {
       e.preventDefault();
-      allocations = allocations.map(a =>
-        a.methodCode === 'CASH' ? { ...a, amount: totalAmount } : a
+      allocations = allocations.map((a) =>
+        a.methodCode === "CASH" ? { ...a, amount: totalAmount } : a,
       );
       return;
     }
-    if (e.key === 'Enter' && canComplete) {
+    if (e.key === "Enter" && canComplete) {
       e.preventDefault();
       handleFinalize();
       return;
     }
-    if (e.key === 'Tab' && dialogEl) {
+    if (e.key === "Tab" && dialogEl) {
       const focusable = dialogEl.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
       );
       if (focusable.length === 0) return;
       const first = focusable[0];
@@ -178,11 +200,18 @@
   $effect(() => {
     if (showCheckoutModal) {
       previousFocus = document.activeElement as HTMLElement;
-      allocations = [{ id: 'a1', methodCode: 'CASH', amount: totalAmount, referenceNumber: '' }];
+      allocations = [
+        {
+          id: "a1",
+          methodCode: "CASH",
+          amount: totalAmount,
+          referenceNumber: "",
+        },
+      ];
       nextId = 2;
       tick().then(() => {
         const firstFocusable = dialogEl?.querySelector<HTMLElement>(
-          'button:not([disabled]), input:not([disabled])'
+          "button:not([disabled]), input:not([disabled])",
         );
         firstFocusable?.focus();
       });
@@ -194,7 +223,7 @@
 
   function handleFinalize() {
     if (!canComplete) return;
-    const payments: PaymentAllocation[] = allocations.map(a => ({
+    const payments: PaymentAllocation[] = allocations.map((a) => ({
       payment_method_code: a.methodCode,
       amount: a.amount,
       reference_number: a.referenceNumber || undefined,
@@ -204,7 +233,6 @@
 </script>
 
 {#if showCheckoutModal}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center print-modal-overlay"
     transition:fly={{ y: 40, duration: 300 }}
@@ -238,10 +266,13 @@
 
       <div class="flex-1 min-h-0 overflow-hidden">
         <div class="grid grid-cols-12 gap-5 h-full">
-
           <!-- LEFT: Item table -->
-          <div class="col-span-7 flex flex-col min-h-0 rounded-lg border border-border/50 bg-surface/50">
-            <div class="grid grid-cols-12 gap-1 px-4 py-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider border-b border-border/30">
+          <div
+            class="col-span-7 flex flex-col min-h-0 rounded-lg border border-border/50 bg-surface/50"
+          >
+            <div
+              class="grid grid-cols-12 gap-1 px-4 py-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider border-b border-border/30"
+            >
               <span class="col-span-4">{labels.item}</span>
               <span class="col-span-2 text-right">{labels.price}</span>
               <span class="col-span-1 text-center">{labels.qty}</span>
@@ -249,23 +280,46 @@
               <span class="col-span-3 text-right">{labels.subtotal}</span>
             </div>
             <div class="flex-1 min-h-0 overflow-y-auto p-1">
-              {#each cart as item}
-                <div class="grid grid-cols-12 gap-1 items-center px-3 py-2 text-xs rounded-lg hover:bg-surface-hover transition-colors">
-                  <span class="col-span-4 truncate text-text-secondary font-medium">{item.name}</span>
-                  <span class="col-span-2 text-right text-text-muted tabular-nums">
+              {#each cart as item, i (i)}
+                <div
+                  class="grid grid-cols-12 gap-1 items-center px-3 py-2 text-xs rounded-lg hover:bg-surface-hover transition-colors"
+                >
+                  <span
+                    class="col-span-4 truncate text-text-secondary font-medium"
+                    >{item.name}</span
+                  >
+                  <span
+                    class="col-span-2 text-right text-text-muted tabular-nums"
+                  >
                     {#if item.discount && item.discount > 0}
-                      <span class="line-through">{item.original_price.toLocaleString('id-ID')}</span>
-                      <br><span class="text-text-secondary">{item.price.toLocaleString('id-ID')}</span>
+                      <span class="line-through"
+                        >{item.original_price.toLocaleString("id-ID")}</span
+                      >
+                      <br /><span class="text-text-secondary"
+                        >{item.price.toLocaleString("id-ID")}</span
+                      >
                     {:else}
-                      {item.original_price.toLocaleString('id-ID')}
+                      {item.original_price.toLocaleString("id-ID")}
                     {/if}
                   </span>
-                  <span class="col-span-1 text-center text-text-secondary tabular-nums">{item.quantity}</span>
-                  <span class="col-span-2 text-right tabular-nums {item.discount && item.discount > 0 ? 'text-danger-light' : 'text-text-muted'}">
-                    {item.discount && item.discount > 0 ? (item.discount * item.quantity).toLocaleString('id-ID') : '—'}
+                  <span
+                    class="col-span-1 text-center text-text-secondary tabular-nums"
+                    >{item.quantity}</span
+                  >
+                  <span
+                    class="col-span-2 text-right tabular-nums {item.discount &&
+                    item.discount > 0
+                      ? 'text-danger-light'
+                      : 'text-text-muted'}"
+                  >
+                    {item.discount && item.discount > 0
+                      ? (item.discount * item.quantity).toLocaleString("id-ID")
+                      : "—"}
                   </span>
-                  <span class="col-span-3 text-right font-semibold text-text-primary tabular-nums">
-                    {(item.price * item.quantity).toLocaleString('id-ID')}
+                  <span
+                    class="col-span-3 text-right font-semibold text-text-primary tabular-nums"
+                  >
+                    {(item.price * item.quantity).toLocaleString("id-ID")}
                   </span>
                 </div>
               {/each}
@@ -274,38 +328,52 @@
 
           <!-- RIGHT: Payment details -->
           <div class="col-span-5 flex flex-col min-h-0 gap-3">
-
             <!-- Fixed top: Total + Payment grid + Customer -->
             <div class="shrink-0 space-y-3">
               <!-- Total -->
               <div class="text-center pb-2 border-b border-border/30">
                 {#if taxAmount > 0}
-                  <div class="flex justify-center gap-4 text-[11px] text-text-muted mb-1">
-                    <span>{labels.dpp}: {dppDisplay.toLocaleString('id-ID')}</span>
-                    <span>{labels.ppn}: {taxAmount.toLocaleString('id-ID')}</span>
+                  <div
+                    class="flex justify-center gap-4 text-[11px] text-text-muted mb-1"
+                  >
+                    <span
+                      >{labels.dpp}: {dppDisplay.toLocaleString("id-ID")}</span
+                    >
+                    <span
+                      >{labels.ppn}: {taxAmount.toLocaleString("id-ID")}</span
+                    >
                   </div>
                 {/if}
                 {#if hasDiscountedItems}
                   <div class="text-[11px] text-green-500 mb-1">
-                    {t('savingsWithAmount', { amount: totalSavings.toLocaleString('id-ID') })}
+                    {t("savingsWithAmount", {
+                      amount: totalSavings.toLocaleString("id-ID"),
+                    })}
                   </div>
                 {/if}
                 <p class="text-3xl font-extrabold text-primary">
-                  {labels.currencySymbol} {totalAmount.toLocaleString('id-ID')}
+                  {labels.currencySymbol}
+                  {totalAmount.toLocaleString("id-ID")}
                 </p>
               </div>
 
               <!-- Payment Method Grid -->
               <div class="grid grid-cols-3 gap-1.5">
-                {#each paymentOptions as opt}
-                  {@const isUsed = allocations.some(a => a.methodCode === opt.id)}
+                {#each paymentOptions as opt (opt.id || opt)}
+                  {@const isUsed = allocations.some(
+                    (a) => a.methodCode === opt.id,
+                  )}
                   <button
                     disabled={remainingBalance <= 0 && !isUsed}
-                    class="py-2 rounded-xl border text-[11px] font-medium transition-all {isUsed ? 'border-primary bg-primary-subtle text-primary-light' : (remainingBalance <= 0 ? 'border-border text-text-muted/40 cursor-not-allowed' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary')}"
-                     onclick={() => addAllocation(opt.id)}
-                   >
-                     {paymentMethodLabel(opt.id, opt.label)}
-                    </button>
+                    class="py-2 rounded-xl border text-[11px] font-medium transition-all {isUsed
+                      ? 'border-primary bg-primary-subtle text-primary-light'
+                      : remainingBalance <= 0
+                        ? 'border-border text-text-muted/40 cursor-not-allowed'
+                        : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
+                    onclick={() => addAllocation(opt.id)}
+                  >
+                    {paymentMethodLabel(opt.id, opt.label)}
+                  </button>
                 {/each}
               </div>
 
@@ -325,17 +393,25 @@
               >
                 <User size={14} class="shrink-0 text-text-muted" />
                 <span class="truncate">{selectedCustomerLabel}</span>
-                <ChevronRight size={12} class="shrink-0 text-text-muted ml-auto" />
+                <ChevronRight
+                  size={12}
+                  class="shrink-0 text-text-muted ml-auto"
+                />
               </button>
             </div>
 
             <!-- Scrollable: Allocations List -->
             {#if allocations.length > 0}
               <div class="flex items-center justify-between px-1">
-                <span class="text-[10px] font-semibold text-text-muted uppercase tracking-wider">{labels.paymentAllocation}</span>
+                <span
+                  class="text-[10px] font-semibold text-text-muted uppercase tracking-wider"
+                  >{labels.paymentAllocation}</span
+                >
                 <button
                   class="text-[10px] text-danger hover:text-danger-light transition-colors"
-                  onclick={() => { allocations = []; }}
+                  onclick={() => {
+                    allocations = [];
+                  }}
                 >
                   {labels.removeAll}
                 </button>
@@ -343,16 +419,24 @@
             {/if}
             <div class="flex-1 min-h-0 overflow-y-auto space-y-2">
               {#each allocations as alloc (alloc.id)}
-                {@const opt = paymentOptions.find(o => o.id === alloc.methodCode)}
-                {@const isCash = alloc.methodCode === 'CASH'}
-                <div class="rounded-xl border border-border/50 bg-surface/50 p-2.5 space-y-2">
+                {@const opt = paymentOptions.find(
+                  (o) => o.id === alloc.methodCode,
+                )}
+                {@const isCash = alloc.methodCode === "CASH"}
+                <div
+                  class="rounded-xl border border-border/50 bg-surface/50 p-2.5 space-y-2"
+                >
                   <div class="flex items-center justify-between">
-                     <div class="flex items-center gap-1.5">
-                       <span class="text-[11px] font-semibold text-text-primary px-2 py-0.5 rounded-lg bg-primary-subtle text-primary-light">
-                       {paymentMethodLabel(alloc.methodCode, opt?.label)}
-                       </span>
-                       <span class="text-[10px] text-success">&#10003; {labels.added}</span>
-                     </div>
+                    <div class="flex items-center gap-1.5">
+                      <span
+                        class="text-[11px] font-semibold text-text-primary px-2 py-0.5 rounded-lg bg-primary-subtle text-primary-light"
+                      >
+                        {paymentMethodLabel(alloc.methodCode, opt?.label)}
+                      </span>
+                      <span class="text-[10px] text-success"
+                        >&#10003; {labels.added}</span
+                      >
+                    </div>
                     <button
                       class="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-danger hover:bg-danger-subtle/30 transition-colors"
                       onclick={() => removeAllocation(alloc.id)}
@@ -364,7 +448,10 @@
                   </div>
 
                   <div>
-                    <label for="alloc-amount-{alloc.id}" class="text-[10px] text-text-muted mb-1 block">
+                    <label
+                      for="alloc-amount-{alloc.id}"
+                      class="text-[10px] text-text-muted mb-1 block"
+                    >
                       {labels.amount}
                     </label>
                     <CurrencyInput
@@ -376,40 +463,59 @@
 
                   {#if !isCash && opt?.requiresReference}
                     <div>
-                      <label for="alloc-ref-{alloc.id}" class="text-[10px] text-text-muted mb-1 block">
-                        {labels.referenceNumber} <span class="text-danger">*</span>
+                      <label
+                        for="alloc-ref-{alloc.id}"
+                        class="text-[10px] text-text-muted mb-1 block"
+                      >
+                        {labels.referenceNumber}
+                        <span class="text-danger">*</span>
                       </label>
                       <input
                         id="alloc-ref-{alloc.id}"
                         type="text"
                         bind:value={alloc.referenceNumber}
                         placeholder={labels.referenceNumberPlaceholder}
-                        class="w-full px-2 py-1.5 rounded-lg border text-xs text-text-primary placeholder:text-text-muted outline-none focus:border-primary-light transition-colors {alloc.referenceNumber?.trim() ? 'border-border bg-surface' : 'border-danger bg-danger-subtle/20'}"
+                        class="w-full px-2 py-1.5 rounded-lg border text-xs text-text-primary placeholder:text-text-muted outline-none focus:border-primary-light transition-colors {alloc.referenceNumber?.trim()
+                          ? 'border-border bg-surface'
+                          : 'border-danger bg-danger-subtle/20'}"
                       />
                     </div>
                   {/if}
 
                   {#if isCash}
                     <div class="grid grid-cols-5 gap-1">
-                      {#each denominations as denom}
+                      {#each denominations as denom (denom)}
                         <button
                           class="py-1 rounded-lg border text-[10px] font-semibold transition-all border-border text-text-secondary hover:border-primary-light hover:text-primary-light hover:bg-primary-subtle/30"
-                          onclick={() => { alloc.amount += denom; allocations = allocations; }}
+                          onclick={() => {
+                            alloc.amount += denom;
+                            allocations = allocations;
+                          }}
                         >
-                          {denom >= 1000000 ? `${denom / 1000000}${labels.denomMillion}` : denom >= 1000 ? `${denom / 1000}${labels.denomThousand}` : String(denom)}
+                          {denom >= 1000000
+                            ? `${denom / 1000000}${labels.denomMillion}`
+                            : denom >= 1000
+                              ? `${denom / 1000}${labels.denomThousand}`
+                              : String(denom)}
                         </button>
                       {/each}
                     </div>
                     <div class="flex gap-1 mt-1">
                       <button
                         class="flex-1 py-1 rounded-lg border text-[10px] font-semibold transition-all border-border text-text-secondary hover:border-primary-light hover:text-primary-light hover:bg-primary-subtle/30"
-                        onclick={() => { alloc.amount = totalAmount; allocations = allocations; }}
+                        onclick={() => {
+                          alloc.amount = totalAmount;
+                          allocations = allocations;
+                        }}
                       >
                         {labels.exactAmountShortcut}
                       </button>
                       <button
                         class="flex-1 py-1 rounded-lg border border-danger/30 text-[10px] font-semibold text-danger hover:bg-danger-subtle/30 transition-all"
-                        onclick={() => { alloc.amount = 0; allocations = allocations; }}
+                        onclick={() => {
+                          alloc.amount = 0;
+                          allocations = allocations;
+                        }}
                       >
                         {labels.reset}
                       </button>
@@ -428,35 +534,63 @@
             <!-- Fixed bottom: Summary + Actions -->
             <div class="shrink-0">
               <!-- Summary bar: Total | Paid | Remaining (U1) -->
-              <div class="grid grid-cols-3 gap-2 px-1 pb-2 mb-2 border-b border-border/30 text-center">
+              <div
+                class="grid grid-cols-3 gap-2 px-1 pb-2 mb-2 border-b border-border/30 text-center"
+              >
                 <div>
-                  <p class="text-[10px] uppercase tracking-wider text-text-muted">{labels.total}</p>
-                  <p class="text-sm font-semibold text-text-primary tabular-nums">{totalAmount.toLocaleString('id-ID')}</p>
+                  <p
+                    class="text-[10px] uppercase tracking-wider text-text-muted"
+                  >
+                    {labels.total}
+                  </p>
+                  <p
+                    class="text-sm font-semibold text-text-primary tabular-nums"
+                  >
+                    {totalAmount.toLocaleString("id-ID")}
+                  </p>
                 </div>
                 <div>
-                  <p class="text-[10px] uppercase tracking-wider text-text-muted">{labels.paid}</p>
-                  <p class="text-sm font-semibold text-text-primary tabular-nums">{totalAllocated.toLocaleString('id-ID')}</p>
+                  <p
+                    class="text-[10px] uppercase tracking-wider text-text-muted"
+                  >
+                    {labels.paid}
+                  </p>
+                  <p
+                    class="text-sm font-semibold text-text-primary tabular-nums"
+                  >
+                    {totalAllocated.toLocaleString("id-ID")}
+                  </p>
                 </div>
                 <div>
-                  <p class="text-[10px] uppercase tracking-wider text-text-muted">{labels.remaining}</p>
+                  <p
+                    class="text-[10px] uppercase tracking-wider text-text-muted"
+                  >
+                    {labels.remaining}
+                  </p>
                   {#if remainingBalance > 0}
-                    <p class="text-sm font-bold text-danger tabular-nums">{remainingBalance.toLocaleString('id-ID')} &#9888;</p>
+                    <p class="text-sm font-bold text-danger tabular-nums">
+                      {remainingBalance.toLocaleString("id-ID")} &#9888;
+                    </p>
                   {:else if remainingBalance < 0 && overTenderOnCash}
-                    <p class="text-sm font-bold text-success tabular-nums">{labels.changeDue} {changeDue.toLocaleString('id-ID')}</p>
+                    <p class="text-sm font-bold text-success tabular-nums">
+                      {labels.changeDue}
+                      {changeDue.toLocaleString("id-ID")}
+                    </p>
                   {:else if remainingBalance < 0}
-                    <p class="text-sm font-bold text-danger tabular-nums">{labels.overpaid} {Math.abs(remainingBalance).toLocaleString('id-ID')}</p>
+                    <p class="text-sm font-bold text-danger tabular-nums">
+                      {labels.overpaid}
+                      {Math.abs(remainingBalance).toLocaleString("id-ID")}
+                    </p>
                   {:else}
-                    <p class="text-sm font-bold text-success tabular-nums">&#10003;</p>
+                    <p class="text-sm font-bold text-success tabular-nums">
+                      &#10003;
+                    </p>
                   {/if}
                 </div>
               </div>
               <!-- Actions -->
               <div class="flex gap-2 pt-2">
-                <Button
-                  variant="secondary"
-                  class="flex-1 py-2"
-                  onclick={close}
-                >
+                <Button variant="secondary" class="flex-1 py-2" onclick={close}>
                   {labels.cancelEsc}
                 </Button>
                 <Button
@@ -471,7 +605,6 @@
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>

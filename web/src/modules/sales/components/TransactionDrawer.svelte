@@ -1,17 +1,18 @@
 <script lang="ts">
-  import { Badge, Button, Drawer } from '$shared/ui';
-  import { Printer, Download } from 'lucide-svelte';
-  import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
-   import { printReceiptWithToast } from '$shared/services/print-service';
-   import { downloadInvoice } from '$modules/sales/lib/invoicePdf';
-  import { toast } from '$shared/stores/toast.svelte';
-  import apiClient from '$shared/api/http-client';
-  import { labels } from '$shared/i18n';
+  import { Button, Drawer } from "$shared/ui";
+  import { Printer, Download } from "lucide-svelte";
+  import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime";
+  import { printReceiptWithToast } from "$shared/services/print-service";
+  import { downloadInvoice } from "$modules/sales/lib/invoicePdf";
+  import { toast } from "$shared/stores/toast.svelte";
+  import apiClient from "$shared/api/http-client";
+  import { labels } from "$shared/i18n";
+  import type { Sale, SaleItem, PaymentInfo } from "../types";
 
   let {
     selectedTransaction = null,
     showTransactionDrawer = $bindable(false),
-    mode = 'history',
+    mode = "history",
     canReprint = true,
     onclose = () => {},
     onprint = () => {},
@@ -19,7 +20,7 @@
   } = $props();
 
   let detailLoading = $state(false);
-  let transactionDetail = $state<any>(null);
+  let transactionDetail = $state<Sale | null>(null);
 
   const displayTransaction = $derived(transactionDetail || selectedTransaction);
 
@@ -28,7 +29,9 @@
   // and formatting it throws). In history mode the caller passes a full object, so
   // it is ready immediately.
   const ready = $derived(
-    mode === 'lookup' ? transactionDetail !== null : displayTransaction !== null,
+    mode === "lookup"
+      ? transactionDetail !== null
+      : displayTransaction !== null,
   );
 
   $effect(() => {
@@ -38,9 +41,13 @@
       // In lookup mode (cross-cashier Find Transaction drill-down) the detail is
       // fetched from the redacted /sales/lookup/:id endpoint instead of the
       // owner-scoped /sales/:id endpoint.
-      const url = mode === 'lookup' ? `/sales/lookup/${selectedTransaction.id}` : `/sales/${selectedTransaction.id}`;
-      apiClient.get(url)
-        .then(r => {
+      const url =
+        mode === "lookup"
+          ? `/sales/lookup/${selectedTransaction.id}`
+          : `/sales/${selectedTransaction.id}`;
+      apiClient
+        .get(url)
+        .then((r) => {
           transactionDetail = r.data?.data || r.data;
         })
         .catch(() => {
@@ -53,36 +60,49 @@
   });
 
   function statusVariant(s: string) {
-    return s === 'completed' ? 'success' : s === 'refunded' ? 'danger' : 'warning';
+    return s === "completed"
+      ? "success"
+      : s === "refunded"
+        ? "danger"
+        : "warning";
   }
 
-  function getPaymentMethodVariant(method = '') {
-    if (!method) return 'muted';
+  function getPaymentMethodVariant(method = "") {
+    if (!method) return "muted";
     const m = method.toLowerCase();
-    if (m === 'cash') return 'success';
-    if (m === 'qris' || m === 'e_wallet') return 'default';
-    if (m === 'card') return 'primary';
-    if (m === 'transfer') return 'muted';
-    return 'muted';
+    if (m === "cash") return "success";
+    if (m === "qris" || m === "e_wallet") return "default";
+    if (m === "card") return "primary";
+    if (m === "transfer") return "muted";
+    return "muted";
   }
 
   const formatDateTime = (date: Date | string | number | undefined | null) => {
     const d = date instanceof Date ? date : new Date(date as string);
-    if (isNaN(d.getTime())) return '—';
+    if (isNaN(d.getTime())) return "—";
     return formatDateTimeInJakarta(d.toISOString());
   };
 
   async function printTransactionReceipt() {
     if (!displayTransaction || !displayTransaction.items) return;
     const taxAmount = displayTransaction.tax || 0;
-    const paymentLines = displayTransaction.payments && displayTransaction.payments.length > 0
-      ? displayTransaction.payments.map((p: any) => `${p.payment_method_code}: ${labels.currencySymbol} ${(p.amount || 0).toLocaleString('id-ID')}`).join(', ')
-      : (displayTransaction.payment_method || '—');
-    const cashReceived = displayTransaction.payments?.find((p: any) => p.payment_method_code === 'CASH')?.amount || displayTransaction.total_amount;
+    const paymentLines =
+      displayTransaction.payments && displayTransaction.payments.length > 0
+        ? displayTransaction.payments
+            .map(
+              (p: PaymentInfo) =>
+                `${p.payment_method_code}: ${labels.currencySymbol} ${(p.amount || 0).toLocaleString("id-ID")}`,
+            )
+            .join(", ")
+        : displayTransaction.payment_method || "—";
+    const cashReceived =
+      displayTransaction.payments?.find(
+         (p: PaymentInfo) => p.payment_method_code === "CASH",
+      )?.amount || displayTransaction.total_amount;
     const payload = {
       invoice_number: displayTransaction.invoice_number,
       created_at: displayTransaction.created_at,
-      items: displayTransaction.items.map((item: any) => ({
+      items: displayTransaction.items.map((item: SaleItem) => ({
         name: item.name,
         quantity: item.quantity,
         unit_price: item.unit_price,
@@ -94,7 +114,7 @@
       subtotal_dpp: displayTransaction.total_amount - taxAmount,
       tax: taxAmount,
       paymentMethod: paymentLines,
-      payments: displayTransaction.payments?.map((p: any) => ({
+      payments: displayTransaction.payments?.map((p: PaymentInfo) => ({
         method: p.payment_method_code,
         amount: p.amount,
         reference_number: p.reference_number,
@@ -102,12 +122,17 @@
       cashReceived,
       changeDue: displayTransaction.change_due ?? 0,
       customer_name: displayTransaction.customer_name || undefined,
-      total_savings: (displayTransaction.items || []).reduce((sum: number, item: any) => {
-        if (item.original_price && item.original_price > item.unit_price) {
-          return sum + (item.original_price - item.unit_price) * item.quantity;
-        }
-        return sum;
-      }, 0),
+      total_savings: (displayTransaction.items || []).reduce(
+                 (sum: number, item: SaleItem) => {
+          if (item.original_price && item.original_price > item.unit_price) {
+            return (
+              sum + (item.original_price - item.unit_price) * item.quantity
+            );
+          }
+          return sum;
+        },
+        0,
+      ),
     };
     await printReceiptWithToast(payload);
   }
@@ -139,12 +164,27 @@
   }
 </script>
 
-<Drawer bind:open={showTransactionDrawer} width={520} ariaLabel={labels.transactionDetails} onclose={() => onclose()}>
+<Drawer
+  bind:open={showTransactionDrawer}
+  width={520}
+  ariaLabel={labels.transactionDetails}
+  onclose={() => onclose()}
+>
   {#if ready}
     <div class="flex items-center gap-3 mb-4">
-      <h2 class="text-lg font-bold text-text-primary">{labels.transactionDetails}</h2>
-      <span class="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full {statusVariant(displayTransaction.status) === 'success' ? 'bg-success/20 text-success' : statusVariant(displayTransaction.status) === 'warning' ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info'}">
-        {displayTransaction.status || 'completed'}
+      <h2 class="text-lg font-bold text-text-primary">
+        {labels.transactionDetails}
+      </h2>
+      <span
+        class="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full {statusVariant(
+          displayTransaction.status,
+        ) === 'success'
+          ? 'bg-success/20 text-success'
+          : statusVariant(displayTransaction.status) === 'warning'
+            ? 'bg-warning/20 text-warning'
+            : 'bg-info/20 text-info'}"
+      >
+        {displayTransaction.status || "completed"}
       </span>
       {#if detailLoading}
         <span class="text-xs text-text-muted">{labels.loading}</span>
@@ -154,39 +194,84 @@
     <div class="grid grid-cols-2 gap-x-8 gap-y-4">
       <div class="space-y-3">
         <div>
-          <p class="text-xs font-medium text-text-muted uppercase tracking-wide">{labels.invoiceNumber}</p>
-          <p class="text-sm font-semibold text-text-primary font-mono">{displayTransaction.invoice_number}</p>
+          <p
+            class="text-xs font-medium text-text-muted uppercase tracking-wide"
+          >
+            {labels.invoiceNumber}
+          </p>
+          <p class="text-sm font-semibold text-text-primary font-mono">
+            {displayTransaction.invoice_number}
+          </p>
         </div>
         <div>
-          <p class="text-xs font-medium text-text-muted uppercase tracking-wide">{labels.dateAndTime}</p>
-          <p class="text-sm text-text-primary">{formatDateTime(new Date(displayTransaction.created_at))}</p>
+          <p
+            class="text-xs font-medium text-text-muted uppercase tracking-wide"
+          >
+            {labels.dateAndTime}
+          </p>
+          <p class="text-sm text-text-primary">
+            {formatDateTime(new Date(displayTransaction.created_at))}
+          </p>
         </div>
-        {#if mode !== 'lookup'}
+        {#if mode !== "lookup"}
           <div>
-            <p class="text-xs font-medium text-text-muted uppercase tracking-wide">{labels.customer}</p>
-            <p class="text-sm text-text-primary">{displayTransaction.customer_name || labels.walkInGeneral}</p>
+            <p
+              class="text-xs font-medium text-text-muted uppercase tracking-wide"
+            >
+              {labels.customer}
+            </p>
+            <p class="text-sm text-text-primary">
+              {displayTransaction.customer_name || labels.walkInGeneral}
+            </p>
           </div>
         {/if}
       </div>
       <div class="space-y-3">
         <div>
-          <p class="text-xs font-medium text-text-muted uppercase tracking-wide">{labels.paymentMethod}</p>
+          <p
+            class="text-xs font-medium text-text-muted uppercase tracking-wide"
+          >
+            {labels.paymentMethod}
+          </p>
           <div class="mt-1 space-y-1">
             {#if displayTransaction.payments && displayTransaction.payments.length > 0}
-              {#each displayTransaction.payments as payment}
+              {#each displayTransaction.payments as payment, i (i)}
                 <div class="flex items-center justify-between gap-2 text-sm">
-                  <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full {getPaymentMethodVariant(payment.payment_method_code) === 'success' ? 'bg-success/20 text-success' : getPaymentMethodVariant(payment.payment_method_code) === 'muted' ? 'bg-muted/20 text-muted' : 'bg-primary/20 text-primary'}">
-                    {payment.payment_method_code || '—'}
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full {getPaymentMethodVariant(
+                      payment.payment_method_code,
+                    ) === 'success'
+                      ? 'bg-success/20 text-success'
+                      : getPaymentMethodVariant(payment.payment_method_code) ===
+                          'muted'
+                        ? 'bg-muted/20 text-muted'
+                        : 'bg-primary/20 text-primary'}"
+                  >
+                    {payment.payment_method_code || "—"}
                   </span>
-                  <span class="font-medium text-text-primary">{(payment.amount || 0).toLocaleString('id-ID')}</span>
+                  <span class="font-medium text-text-primary"
+                    >{(payment.amount || 0).toLocaleString("id-ID")}</span
+                  >
                 </div>
                 {#if payment.reference_number}
-                  <p class="text-[10px] text-text-muted ml-1">{labels.refLabel}{payment.reference_number}</p>
+                  <p class="text-[10px] text-text-muted ml-1">
+                    {labels.refLabel}{payment.reference_number}
+                  </p>
                 {/if}
               {/each}
             {:else}
-              <span class="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full {getPaymentMethodVariant(displayTransaction.payment_method) === 'success' ? 'bg-success/20 text-success' : getPaymentMethodVariant(displayTransaction.payment_method) === 'muted' ? 'bg-muted/20 text-muted' : 'bg-primary/20 text-primary'}">
-                {displayTransaction.payment_method || '—'}
+              <span
+                class="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full {getPaymentMethodVariant(
+                  displayTransaction.payment_method,
+                ) === 'success'
+                  ? 'bg-success/20 text-success'
+                  : getPaymentMethodVariant(
+                        displayTransaction.payment_method,
+                      ) === 'muted'
+                    ? 'bg-muted/20 text-muted'
+                    : 'bg-primary/20 text-primary'}"
+              >
+                {displayTransaction.payment_method || "—"}
               </span>
             {/if}
           </div>
@@ -196,68 +281,133 @@
 
     {#if displayTransaction.items && displayTransaction.items.length > 0}
       <div class="mt-5">
-        <p class="text-sm font-semibold text-text-secondary mb-3">{labels.items}</p>
+        <p class="text-sm font-semibold text-text-secondary mb-3">
+          {labels.items}
+        </p>
         <div class="border border-border rounded-lg">
           <div class="max-h-80 overflow-y-auto">
             <table class="w-full text-sm">
               <thead class="sticky top-0 bg-surface-subtle z-10">
                 <tr>
-                  <th class="text-left py-3 px-4 font-semibold text-text-primary">{labels.description}</th>
-                  <th class="text-right py-3 px-4 font-semibold text-text-primary w-20">{labels.qty}</th>
-                  <th class="text-right py-3 px-4 font-semibold text-text-primary w-28">{labels.price}</th>
-                  <th class="text-right py-3 px-4 font-semibold text-text-primary w-32">{labels.subTotal}</th>
+                  <th
+                    class="text-left py-3 px-4 font-semibold text-text-primary"
+                    >{labels.description}</th
+                  >
+                  <th
+                    class="text-right py-3 px-4 font-semibold text-text-primary w-20"
+                    >{labels.qty}</th
+                  >
+                  <th
+                    class="text-right py-3 px-4 font-semibold text-text-primary w-28"
+                    >{labels.price}</th
+                  >
+                  <th
+                    class="text-right py-3 px-4 font-semibold text-text-primary w-32"
+                    >{labels.subTotal}</th
+                  >
                 </tr>
               </thead>
               <tbody class="divide-y divide-border">
-                {#each displayTransaction.items as item}
+                {#each displayTransaction.items as item, i (i)}
                   <tr class="hover:bg-surface/50">
                     <td class="py-3 px-4 text-text-primary">
                       <div>{item.name}</div>
                       {#if item.pricing_rule_name}
-                        <div class="text-[10px] text-primary-light mt-0.5 font-medium">{item.pricing_rule_name}</div>
+                        <div
+                          class="text-[10px] text-primary-light mt-0.5 font-medium"
+                        >
+                          {item.pricing_rule_name}
+                        </div>
                       {/if}
                     </td>
-                    <td class="py-3 px-4 text-right text-text-secondary">{item.quantity}</td>
+                    <td class="py-3 px-4 text-right text-text-secondary"
+                      >{item.quantity}</td
+                    >
                     <td class="py-3 px-4 text-right text-text-secondary">
                       {#if item.original_price && item.original_price > item.unit_price}
-                        <span class="line-through text-text-muted text-[10px] block">{item.original_price.toLocaleString('id-ID')}</span>
+                        <span
+                          class="line-through text-text-muted text-[10px] block"
+                          >{item.original_price.toLocaleString("id-ID")}</span
+                        >
                       {/if}
-                      <span>{(item.unit_price || 0).toLocaleString('id-ID')}</span>
+                      <span
+                        >{(item.unit_price || 0).toLocaleString("id-ID")}</span
+                      >
                     </td>
-                    <td class="py-3 px-4 text-right font-medium text-text-primary">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</td>
+                    <td
+                      class="py-3 px-4 text-right font-medium text-text-primary"
+                      >{(item.unit_price * item.quantity).toLocaleString(
+                        "id-ID",
+                      )}</td
+                    >
                   </tr>
                 {/each}
               </tbody>
             </table>
           </div>
           <div class="bg-surface-subtle/50 border-t border-border">
-            {#if displayTransaction.items?.some((item: any) => item.original_price && item.original_price > item.unit_price)}
-              {@const totalSavings = displayTransaction.items.reduce((sum: number, item: any) => {
-                if (item.original_price && item.original_price > item.unit_price) {
-                  return sum + (item.original_price - item.unit_price) * item.quantity;
-                }
-                return sum;
-              }, 0)}
+            {#if displayTransaction.items?.some((item: SaleItem) => item.original_price && item.original_price > item.unit_price)}
+              {@const totalSavings = displayTransaction.items.reduce(
+        (sum: number, item: SaleItem) => {
+                  if (
+                    item.original_price &&
+                    item.original_price > item.unit_price
+                  ) {
+                    return (
+                      sum +
+                      (item.original_price - item.unit_price) * item.quantity
+                    );
+                  }
+                  return sum;
+                },
+                0,
+              )}
               {#if totalSavings > 0}
-                <div class="flex justify-between items-center py-2 px-4 text-sm">
-                  <span class="text-green-600 dark:text-green-400">{labels.hemat}</span>
-                  <span class="text-green-600 dark:text-green-400 font-medium">-{totalSavings.toLocaleString('id-ID')}</span>
+                <div
+                  class="flex justify-between items-center py-2 px-4 text-sm"
+                >
+                  <span class="text-green-600 dark:text-green-400"
+                    >{labels.hemat}</span
+                  >
+                  <span class="text-green-600 dark:text-green-400 font-medium"
+                    >-{totalSavings.toLocaleString("id-ID")}</span
+                  >
                 </div>
               {/if}
             {/if}
             {#if displayTransaction.tax && displayTransaction.tax > 0}
               <div class="flex justify-between items-center py-2 px-4 text-sm">
-                <span class="text-text-muted">{labels.subTotal} ({labels.dpp})</span>
-                <span class="text-text-secondary">{((displayTransaction.total_amount || 0) - displayTransaction.tax).toLocaleString('id-ID')}</span>
+                <span class="text-text-muted"
+                  >{labels.subTotal} ({labels.dpp})</span
+                >
+                <span class="text-text-secondary"
+                  >{(
+                    (displayTransaction.total_amount || 0) -
+                    displayTransaction.tax
+                  ).toLocaleString("id-ID")}</span
+                >
               </div>
-              <div class="flex justify-between items-center py-2 px-4 text-sm border-t border-border/50">
+              <div
+                class="flex justify-between items-center py-2 px-4 text-sm border-t border-border/50"
+              >
                 <span class="text-text-muted">{labels.ppn}</span>
-                <span class="text-text-secondary">{(displayTransaction.tax || 0).toLocaleString('id-ID')}</span>
+                <span class="text-text-secondary"
+                  >{(displayTransaction.tax || 0).toLocaleString("id-ID")}</span
+                >
               </div>
             {/if}
-            <div class="flex justify-between items-center py-3 px-4 border-t border-border/50">
-              <span class="font-bold text-text-primary">{labels.totalLabel}</span>
-              <span class="font-bold text-lg text-text-primary">{labels.currencySymbol} {(displayTransaction.total_amount || 0).toLocaleString('id-ID')}</span>
+            <div
+              class="flex justify-between items-center py-3 px-4 border-t border-border/50"
+            >
+              <span class="font-bold text-text-primary"
+                >{labels.totalLabel}</span
+              >
+              <span class="font-bold text-lg text-text-primary"
+                >{labels.currencySymbol}
+                {(displayTransaction.total_amount || 0).toLocaleString(
+                  "id-ID",
+                )}</span
+              >
             </div>
           </div>
         </div>
@@ -266,13 +416,21 @@
   {/if}
 
   {#snippet footer()}
-    {#if mode === 'lookup'}
+    {#if mode === "lookup"}
       <div class="grid grid-cols-[auto_1fr] gap-3">
-        <Button variant="secondary" class="rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap" onclick={handleClose}>
+        <Button
+          variant="secondary"
+          class="rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap"
+          onclick={handleClose}
+        >
           {labels.close}
         </Button>
         {#if canReprint}
-          <Button variant="primary" class="rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm flex items-center gap-1.5 whitespace-nowrap" onclick={handlePrint}>
+          <Button
+            variant="primary"
+            class="rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm flex items-center gap-1.5 whitespace-nowrap"
+            onclick={handlePrint}
+          >
             <Printer size={15} class="mr-1.5" />
             {labels.printReceipt}
           </Button>
@@ -280,14 +438,26 @@
       </div>
     {:else}
       <div class="grid grid-cols-[auto_1fr_1fr] gap-3">
-        <Button variant="secondary" class="rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap" onclick={handleClose}>
+        <Button
+          variant="secondary"
+          class="rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap"
+          onclick={handleClose}
+        >
           {labels.close}
         </Button>
-        <Button variant="secondary" class="rounded-xl px-4 h-11 text-sm font-semibold flex items-center gap-1.5 whitespace-nowrap" onclick={handlePrint}>
+        <Button
+          variant="secondary"
+          class="rounded-xl px-4 h-11 text-sm font-semibold flex items-center gap-1.5 whitespace-nowrap"
+          onclick={handlePrint}
+        >
           <Printer size={15} class="mr-1.5" />
           {labels.printReceipt}
         </Button>
-        <Button variant="primary" class="rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm flex items-center gap-1.5 whitespace-nowrap" onclick={handleDownload}>
+        <Button
+          variant="primary"
+          class="rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm flex items-center gap-1.5 whitespace-nowrap"
+          onclick={handleDownload}
+        >
           <Download size={15} class="mr-1.5" />
           {labels.downloadInvoice}
         </Button>

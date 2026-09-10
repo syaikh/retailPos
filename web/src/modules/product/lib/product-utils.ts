@@ -1,7 +1,7 @@
-import { formatCurrency as _formatCurrency } from '$shared/utils/currency';
-import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
+import { formatCurrency as _formatCurrency } from "$shared/utils/currency";
+import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime";
 
-export type StatusVariant = 'success' | 'muted' | 'danger' | 'warning';
+export type StatusVariant = "success" | "muted" | "danger" | "warning";
 
 export interface StatusInfo {
   variant: StatusVariant;
@@ -9,32 +9,34 @@ export interface StatusInfo {
 }
 
 export function statusInfo(status?: string): StatusInfo {
-  switch ((status || '').toLowerCase()) {
-    case 'active':
-      return { variant: 'success', label: 'Active' };
-    case 'draft':
-    case 'inactive':
+  switch ((status || "").toLowerCase()) {
+    case "active":
+      return { variant: "success", label: "Active" };
+    case "draft":
+    case "inactive":
       return {
-        variant: 'muted',
-        label: (status || 'Draft').charAt(0).toUpperCase() + (status || 'draft').slice(1),
+        variant: "muted",
+        label:
+          (status || "Draft").charAt(0).toUpperCase() +
+          (status || "draft").slice(1),
       };
-    case 'discontinued':
-    case 'archived':
+    case "discontinued":
+    case "archived":
       return {
-        variant: 'danger',
+        variant: "danger",
         label: status!.charAt(0).toUpperCase() + status!.slice(1),
       };
     default:
-      return { variant: 'muted', label: '- ' };
+      return { variant: "muted", label: "- " };
   }
 }
 
 export function formatCurrency(value?: number): string {
-  return _formatCurrency(value, '-');
+  return _formatCurrency(value, "-");
 }
 
 export function formatDate(value?: string): string {
-  if (!value) return '-';
+  if (!value) return "-";
   return formatDateTimeInJakarta(value);
 }
 
@@ -46,13 +48,13 @@ export function validateProductForm(form: {
   stock: number;
 }): string | null {
   if (!form.name.trim() || !form.sku.trim() || !form.category.trim()) {
-    return 'Please complete all required fields';
+    return "Please complete all required fields";
   }
   if (form.price <= 0) {
-    return 'Price must be greater than zero';
+    return "Price must be greater than zero";
   }
   if (form.stock < 0) {
-    return 'Stock must not be negative';
+    return "Stock must not be negative";
   }
   return null;
 }

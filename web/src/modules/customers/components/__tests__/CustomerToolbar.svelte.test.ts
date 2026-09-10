@@ -1,46 +1,51 @@
-import { describe, it, expect } from 'vitest';
-import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
+import { describe, it, expect } from "vitest";
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
 function getSource(): string {
-  return readFileSync(path.join(path.dirname(__filename), '..', 'CustomerToolbar.svelte'), 'utf-8');
+  return readFileSync(
+    path.join(path.dirname(__filename), "..", "CustomerToolbar.svelte"),
+    "utf-8",
+  );
 }
 
-describe('CustomerToolbar.svelte source-structure guards', () => {
+describe("CustomerToolbar.svelte source-structure guards", () => {
   const src = getSource();
 
-  it('imports Button, SearchBar, BulkActionDropdown from shared/ui', () => {
-    expect(src).toContain("import { Button, SearchBar, BulkActionDropdown, Dropdown } from '$shared/ui'");
+  it("imports Button, SearchBar, BulkActionDropdown from shared/ui", () => {
+    expect(src).toContain(
+      "import { Button, SearchBar, BulkActionDropdown, Dropdown } from '$shared/ui'",
+    );
   });
 
-  it('imports i18n labels', () => {
+  it("imports i18n labels", () => {
     expect(src).toContain("import { labels } from '$shared/i18n'");
   });
 
-  it('uses $bindable for searchQuery and statusFilter', () => {
-    expect(src).toContain('searchQuery = $bindable');
-    expect(src).toContain('statusFilter = $bindable');
+  it("uses $bindable for searchQuery and statusFilter", () => {
+    expect(src).toContain("searchQuery = $bindable");
+    expect(src).toContain("statusFilter = $bindable");
   });
 
-  it('uses $props', () => {
-    expect(src).toContain('= $props()');
+  it("uses $props", () => {
+    expect(src).toContain("= $props()");
   });
 
-  it('has canCreate guard and event callbacks', () => {
-    expect(src).toContain('canCreate');
-    expect(src).toContain('onsearch');
-    expect(src).toContain('onstatuschange');
-    expect(src).toContain('oncreate');
+  it("has canCreate guard and event callbacks", () => {
+    expect(src).toContain("canCreate");
+    expect(src).toContain("onsearch");
+    expect(src).toContain("onstatuschange");
+    expect(src).toContain("oncreate");
   });
 
-  it('renders SearchBar with bind:value', () => {
-    expect(src).toContain('<SearchBar');
-    expect(src).toContain('bind:value={searchQuery}');
+  it("renders SearchBar with bind:value", () => {
+    expect(src).toContain("<SearchBar");
+    expect(src).toContain("bind:value={searchQuery}");
   });
 
-  it('shows Add Customer button only when canCreate', () => {
-    expect(src).toContain('{#if canCreate}');
+  it("shows Add Customer button only when canCreate", () => {
+    expect(src).toContain("{#if canCreate}");
   });
 });

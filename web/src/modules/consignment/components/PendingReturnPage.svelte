@@ -1,20 +1,33 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { Button, Modal, Input, NumberInput, SelectSearch, EmptyState, Badge, Pagination } from '$shared/ui';
-  import { Plus, RotateCcw } from 'lucide-svelte';
-  import { labels, t } from '$shared/i18n';
-  import { getProductOptions } from '$modules/product/services/product-service';
-  import { listStock, listPendingReturns, createPendingReturn } from '../services/consignment-service';
-  import type { Arrangement, PendingReturn, StockRow } from '../types';
+  import { onMount } from "svelte";
+  import { toast } from "$shared/stores/toast.svelte";
+  import {
+    Button,
+    Modal,
+    Input,
+    NumberInput,
+    SelectSearch,
+    EmptyState,
+    Badge,
+    Pagination,
+  } from "$shared/ui";
+  import { Plus, RotateCcw } from "lucide-svelte";
+  import { labels, t } from "$shared/i18n";
+  import { getProductOptions } from "$modules/product/services/product-service";
+  import {
+    listStock,
+    listPendingReturns,
+    createPendingReturn,
+  } from "../services/consignment-service";
+  import type { Arrangement, PendingReturn, StockRow } from "../types";
   import {
     PENDING_RETURN_STATUS_LABELS,
     RETURN_REASON_LABELS,
     RETURN_REASONS,
-  } from '../types';
-  import { formatDateTime } from '../lib/format';
+  } from "../types";
+  import { formatDateTime } from "../lib/format";
 
-  let {
+  const {
     arrangement,
     canCreate,
     oncreated,
@@ -31,11 +44,18 @@
   let submitting = $state(false);
   let productOptions = $state<{ value: number; label: string }[]>([]);
   let stockOptions = $state<{ value: number; label: string }[]>([]);
-  let form = $state({ product_id: undefined as number | undefined, qty: 1, reason: 'damaged', notes: '' });
+  let form = $state({
+    product_id: undefined as number | undefined,
+    qty: 1,
+    reason: "damaged",
+    notes: "",
+  });
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
-  const pagedReturns = $derived(pendingReturns.slice(pageOffset, pageOffset + pageLimit));
+  const pagedReturns = $derived(
+    pendingReturns.slice(pageOffset, pageOffset + pageLimit),
+  );
 
   async function load() {
     loading = true;
@@ -50,7 +70,9 @@
         .filter((s) => s.available_qty > 0)
         .map((s) => ({
           value: s.product_id,
-          label: s.product_sku ? `${s.product_name} (${s.product_sku}) — ${labels.consignmentAvailableStock} ${s.available_qty}` : `${s.product_name} — ${labels.consignmentAvailableStock} ${s.available_qty}`,
+          label: s.product_sku
+            ? `${s.product_name} (${s.product_sku}) — ${labels.consignmentAvailableStock} ${s.available_qty}`
+            : `${s.product_name} — ${labels.consignmentAvailableStock} ${s.available_qty}`,
         }));
     } catch {
       pendingReturns = [];
@@ -77,7 +99,7 @@
   }
 
   function openModal() {
-    form = { product_id: undefined, qty: 1, reason: 'damaged', notes: '' };
+    form = { product_id: undefined, qty: 1, reason: "damaged", notes: "" };
     showModal = true;
   }
 
@@ -92,7 +114,7 @@
     }
     const max = maxQtyFor(form.product_id);
     if (form.qty > max) {
-      toast.error(t('consignmentQtyExceedsStock', { max }));
+      toast.error(t("consignmentQtyExceedsStock", { max }));
       return;
     }
     submitting = true;
@@ -107,9 +129,9 @@
       showModal = false;
       await load();
       oncreated?.();
-    } catch (e: any) {
-      const raw = e?.response?.data?.error;
-      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentRecordPendingReturnError);
+    } catch (e: unknown) {
+      const raw = e instanceof Error ? e.message : labels.consignmentRecordPendingReturnError;
+      toast.error(raw);
     } finally {
       submitting = false;
     }
@@ -128,17 +150,24 @@
 
 <div class="space-y-4">
   <div class="card">
-    <div class="flex items-center justify-between px-4 py-3 border-b border-border/50">
-      <h2 class="font-semibold text-text-primary">{labels.consignmentPendingReturns}</h2>
+    <div
+      class="flex items-center justify-between px-4 py-3 border-b border-border/50"
+    >
+      <h2 class="font-semibold text-text-primary">
+        {labels.consignmentPendingReturns}
+      </h2>
       {#if canCreate}
         <Button variant="secondary" size="sm" onclick={openModal}>
-          <Plus class="w-4 h-4" /> {labels.consignmentRecordPendingReturn}
+          <Plus class="w-4 h-4" />
+          {labels.consignmentRecordPendingReturn}
         </Button>
       {/if}
     </div>
 
     {#if loading}
-      <div class="p-8 text-center text-sm text-text-secondary">{labels.loading}</div>
+      <div class="p-8 text-center text-sm text-text-secondary">
+        {labels.loading}
+      </div>
     {:else if pendingReturns.length === 0}
       <EmptyState
         icon={RotateCcw}
@@ -149,7 +178,9 @@
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="bg-muted/50">
-            <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+            <tr
+              class="text-left text-xs uppercase tracking-wider text-text-secondary"
+            >
               <th class="p-4">{labels.consignmentProduct}</th>
               <th class="p-4 text-right">{labels.consignmentQty}</th>
               <th class="p-4">{labels.consignmentReason}</th>
@@ -158,76 +189,117 @@
             </tr>
           </thead>
           <tbody>
-            {#each pagedReturns as pr}
-              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+            {#each pagedReturns as pr (pr.id || pr)}
+              <tr
+                class="border-t border-border hover:bg-surface-hover/50 transition-colors"
+              >
                 <td class="p-4">
-                  <div class="font-medium text-text-primary">{pr.product_name}</div>
-                  <div class="text-xs text-text-secondary">{pr.product_sku}</div>
+                  <div class="font-medium text-text-primary">
+                    {pr.product_name}
+                  </div>
+                  <div class="text-xs text-text-secondary">
+                    {pr.product_sku}
+                  </div>
                 </td>
                 <td class="p-4 text-right text-text-primary">{pr.qty}</td>
-                <td class="p-4 text-text-secondary">{labels[RETURN_REASON_LABELS[pr.reason]] || pr.reason}</td>
+                <td class="p-4 text-text-secondary"
+                  >{labels[RETURN_REASON_LABELS[pr.reason]] || pr.reason}</td
+                >
                 <td class="p-4">
-                  <Badge variant={pr.status === 'open' ? 'warning' : 'success'}>
-                    {labels[PENDING_RETURN_STATUS_LABELS[pr.status]] || pr.status}
+                  <Badge variant={pr.status === "open" ? "warning" : "success"}>
+                    {labels[PENDING_RETURN_STATUS_LABELS[pr.status]] ||
+                      pr.status}
                   </Badge>
                 </td>
-                <td class="p-4 text-text-secondary">{formatDateTime(pr.created_at)}</td>
+                <td class="p-4 text-text-secondary"
+                  >{formatDateTime(pr.created_at)}</td
+                >
               </tr>
             {/each}
           </tbody>
         </table>
       </div>
       <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
-        <Pagination total={pendingReturns.length} limit={pageLimit} offset={pageOffset} onPageChange={handlePageChange} />
+        <Pagination
+          total={pendingReturns.length}
+          limit={pageLimit}
+          offset={pageOffset}
+          onPageChange={handlePageChange}
+        />
       </div>
     {/if}
   </div>
 </div>
 
-<Modal bind:open={showModal} title={labels.consignmentRecordPendingReturn} size="md">
-  {#snippet children()}
-    <div class="space-y-4">
-      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>{labels.consignmentProductFromStock} <span class="text-danger">*</span></span>
-        <SelectSearch
-          bind:value={form.product_id}
-          options={stockOptions.length ? stockOptions : productOptions}
-          placeholder={labels.consignmentSelectProduct}
-          searchPlaceholder={labels.consignmentSearchProduct}
-          notFoundText={labels.consignmentNoStockAvailable}
-          onchange={(v) => {
-            form.product_id = v;
-            const max = maxQtyFor(v);
-            if (form.qty > max && max > 0) form.qty = max;
-          }}
-        />
-      </label>
-      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+<Modal
+  bind:open={showModal}
+  title={labels.consignmentRecordPendingReturn}
+  size="md"
+>
+  <div class="space-y-4">
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span
+        >{labels.consignmentProductFromStock}
+        <span class="text-danger">*</span></span
+      >
+      <SelectSearch
+        bind:value={form.product_id}
+        options={stockOptions.length ? stockOptions : productOptions}
+        placeholder={labels.consignmentSelectProduct}
+        searchPlaceholder={labels.consignmentSearchProduct}
+        notFoundText={labels.consignmentNoStockAvailable}
+        onchange={(v) => {
+          form.product_id = v;
+          const max = maxQtyFor(v);
+          if (form.qty > max && max > 0) form.qty = max;
+        }}
+      />
+    </label>
+      <label
+        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+      >
         <span>{labels.consignmentQty} <span class="text-danger">*</span></span>
         <NumberInput min="1" bind:value={form.qty} class="h-9 text-sm" />
         {#if form.product_id && maxQtyFor(form.product_id) > 0}
-          <span class="text-xs text-text-muted">{t('consignmentMax', { max: maxQtyFor(form.product_id) })}</span>
+          <span class="text-xs text-text-muted"
+            >{t("consignmentMax", { max: maxQtyFor(form.product_id) })}</span
+          >
         {/if}
       </label>
-      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>{labels.consignmentReason} <span class="text-danger">*</span></span>
+      <label
+        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+      >
+        <span
+          >{labels.consignmentReason} <span class="text-danger">*</span></span
+        >
         <Input tag="select" bind:value={form.reason} class="h-9 text-sm">
-          {#snippet children()}
-            {#each RETURN_REASONS as reason}
-              <option value={reason}>{labels[RETURN_REASON_LABELS[reason]]}</option>
-            {/each}
-          {/snippet}
+          {#each RETURN_REASONS as reason (reason)}
+            <option value={reason}
+              >{labels[RETURN_REASON_LABELS[reason]]}</option
+            >
+          {/each}
         </Input>
       </label>
-      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+      <label
+        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+      >
         <span>{labels.notes}</span>
-        <Input tag="textarea" bind:value={form.notes} rows={2} placeholder={labels.consignmentNotesPlaceholder} class="text-sm" />
+        <Input
+          tag="textarea"
+          bind:value={form.notes}
+          rows={2}
+          placeholder={labels.consignmentNotesPlaceholder}
+          class="text-sm"
+        />
       </label>
     </div>
-  {/snippet}
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
-      <Button variant="secondary" onclick={() => (showModal = false)}>{labels.cancel}</Button>
+      <Button variant="secondary" onclick={() => (showModal = false)}
+        >{labels.cancel}</Button
+      >
       <Button onclick={submit} disabled={submitting}>
         {submitting ? labels.saving : labels.save}
       </Button>

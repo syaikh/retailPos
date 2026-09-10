@@ -3,5 +3,10 @@
  * The actual runes store lives in theme.svelte.ts.
  */
 
-export { themeStore, initTheme, applyTheme, currentTheme } from './theme.svelte';
-export type { Theme } from './theme.svelte';
+export {
+  themeStore,
+  initTheme,
+  applyTheme,
+  currentTheme,
+} from "./theme.svelte";
+export type { Theme } from "./theme.svelte";

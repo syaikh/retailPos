@@ -6,19 +6,19 @@
  * Locale is persisted to localStorage across the app.
  */
 
-import { id } from './id';
-import { en } from './en';
-import type { Labels } from './id';
+import { id } from "./id";
+import { en } from "./en";
+import type { Labels } from "./id";
 
-export type Locale = 'id' | 'en';
+export type Locale = "id" | "en";
 
 const dictionaries: Record<Locale, Labels> = { id, en };
-const STORAGE_KEY = 'pos.locale';
+const STORAGE_KEY = "pos.locale";
 
 function loadInitialLocale(): Locale {
-  if (typeof localStorage === 'undefined') return 'en';
+  if (typeof localStorage === "undefined") return "en";
   const saved = localStorage.getItem(STORAGE_KEY);
-  return saved === 'id' ? 'id' : 'en';
+  return saved === "id" ? "id" : "en";
 }
 
 class I18nStore {
@@ -30,13 +30,13 @@ class I18nStore {
 
   setLocale(locale: Locale) {
     this.locale = locale;
-    if (typeof localStorage !== 'undefined') {
+    if (typeof localStorage !== "undefined") {
       localStorage.setItem(STORAGE_KEY, locale);
     }
   }
 
   toggleLocale() {
-    this.setLocale(this.locale === 'id' ? 'en' : 'id');
+    this.setLocale(this.locale === "id" ? "en" : "id");
   }
 }
 
@@ -48,7 +48,7 @@ export const i18n = new I18nStore();
  */
 export const labels = new Proxy(i18n, {
   get(store, prop) {
-    if (typeof prop === 'string' && prop in store.labels) {
+    if (typeof prop === "string" && prop in store.labels) {
       return store.labels[prop as keyof Labels];
     }
     return (store as unknown as Record<string, unknown>)[prop as string];
@@ -60,9 +60,9 @@ export const labels = new Proxy(i18n, {
  * (added by the store) fall back to their stored name.
  */
 const PAYMENT_METHOD_LABEL_KEYS: Record<string, keyof Labels> = {
-  CASH: 'cash',
-  CARD: 'card',
-  E_WALLET: 'eWallet',
+  CASH: "cash",
+  CARD: "card",
+  E_WALLET: "eWallet",
 };
 
 /**
@@ -83,15 +83,18 @@ export const toggleLocale = () => i18n.toggleLocale();
  * Intl locale string for date formatting, following the selected UI language.
  * 'en' → 'en-US' (English month/day names); otherwise 'id-ID' (Indonesian).
  */
-export function getDateLocale(): 'en-US' | 'id-ID' {
-  return i18n.locale === 'en' ? 'en-US' : 'id-ID';
+export function getDateLocale(): "en-US" | "id-ID" {
+  return i18n.locale === "en" ? "en-US" : "id-ID";
 }
 
 /**
  * Locale-aware date formatting. Use this instead of `date.toLocaleString('id-ID', ...)`
  * whenever the output should follow the UI language (e.g. month/day abbreviations).
  */
-export function formatLocaleDate(date: Date, options?: Intl.DateTimeFormatOptions): string {
+export function formatLocaleDate(
+  date: Date,
+  options?: Intl.DateTimeFormatOptions,
+): string {
   return date.toLocaleString(getDateLocale(), options);
 }
 
@@ -99,7 +102,10 @@ export function formatLocaleDate(date: Date, options?: Intl.DateTimeFormatOption
  * Translate a label key with `{placeholder}` interpolation.
  * Example: t('importRows', { count: 5 }) -> "Impor 5 Baris".
  */
-export function t(key: keyof Labels, params?: Record<string, string | number>): string {
+export function t(
+  key: keyof Labels,
+  params?: Record<string, string | number>,
+): string {
   let str = i18n.labels[key];
   if (params) {
     for (const [name, value] of Object.entries(params)) {

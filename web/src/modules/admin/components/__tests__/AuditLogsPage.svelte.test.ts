@@ -1,98 +1,111 @@
-import { describe, it, expect } from 'vitest';
-import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
+import { describe, it, expect } from "vitest";
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
 function getSource(): string {
-  return readFileSync(path.join(path.dirname(__filename), '..', 'AuditLogsPage.svelte'), 'utf-8');
+  return readFileSync(
+    path.join(path.dirname(__filename), "..", "AuditLogsPage.svelte"),
+    "utf-8",
+  );
 }
 
-describe('AuditLogsPage.svelte source-structure guards', () => {
+describe("AuditLogsPage.svelte source-structure guards", () => {
   const src = getSource();
 
-  it('imports apiClient for HTTP calls', () => {
+  it("imports apiClient for HTTP calls", () => {
     expect(src).toContain("import apiClient from '$shared/api/http-client'");
   });
 
-  it('imports auth store', () => {
+  it("imports auth store", () => {
     expect(src).toContain("import { useAuthStore } from '$modules/auth'");
   });
 
-  it('imports Jakarta time utilities (remaining)', () => {
-    expect(src).toContain("import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime'");
+  it("imports Jakarta time utilities (remaining)", () => {
+    expect(src).toContain(
+      "import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime'",
+    );
   });
 
-  it('uses $state for items, pagination, filters, and request tracking', () => {
-    expect(src).toContain('let items = $state<any[]>');
-    expect(src).toContain('let total = $state(0)');
-    expect(src).toContain('let searchQuery = $state');
-    expect(src).toContain('let currentRequestId = $state(0)');
-    expect(src).toContain('let abortController');
-    expect(src).toContain('$state');
+  it("uses $state for items, pagination, filters, and request tracking", () => {
+    expect(src).toContain("let items = $state<any[]>");
+    expect(src).toContain("let total = $state(0)");
+    expect(src).toContain("let searchQuery = $state");
+    expect(src).toContain("let currentRequestId = $state(0)");
+    expect(src).toContain("let abortController");
+    expect(src).toContain("$state");
   });
 
-  it('has RBAC — only audit.view permission can view', () => {
-    expect(src).toContain("let canView = $derived(rbac.can(Permissions.audit.view))");
+  it("has RBAC — only audit.view permission can view", () => {
+    expect(src).toContain(
+      "let canView = $derived(rbac.can(Permissions.audit.view))",
+    );
   });
 
-  it('has drawer open/close functions', () => {
-    expect(src).toContain('function openDrawer(log');
-    expect(src).toContain('function closeDrawer()');
+  it("has drawer open/close functions", () => {
+    expect(src).toContain("function openDrawer(log");
+    expect(src).toContain("function closeDrawer()");
   });
 
-  it('has fetchLogs function', () => {
-    expect(src).toContain('async function fetchLogs()');
+  it("has fetchLogs function", () => {
+    expect(src).toContain("async function fetchLogs()");
   });
 
-  it('has handlePageChange function', () => {
-    expect(src).toContain('function handlePageChange(newOffset');
+  it("has handlePageChange function", () => {
+    expect(src).toContain("function handlePageChange(newOffset");
   });
 
-  it('imports the three extracted child components', () => {
-    expect(src).toContain("import AuditLogsFilterToolbar from './AuditLogsFilterToolbar.svelte'");
-    expect(src).toContain("import AuditLogsTable from './AuditLogsTable.svelte'");
-    expect(src).toContain("import AuditLogDetailsDrawer from './AuditLogDetailsDrawer.svelte'");
+  it("imports the three extracted child components", () => {
+    expect(src).toContain(
+      "import AuditLogsFilterToolbar from './AuditLogsFilterToolbar.svelte'",
+    );
+    expect(src).toContain(
+      "import AuditLogsTable from './AuditLogsTable.svelte'",
+    );
+    expect(src).toContain(
+      "import AuditLogDetailsDrawer from './AuditLogDetailsDrawer.svelte'",
+    );
   });
 
-  it('renders AuditLogsFilterToolbar', () => {
-    expect(src).toContain('<AuditLogsFilterToolbar');
+  it("renders AuditLogsFilterToolbar", () => {
+    expect(src).toContain("<AuditLogsFilterToolbar");
   });
 
-  it('renders AuditLogsTable', () => {
-    expect(src).toContain('<AuditLogsTable');
+  it("renders AuditLogsTable", () => {
+    expect(src).toContain("<AuditLogsTable");
   });
 
-  it('renders AuditLogDetailsDrawer', () => {
-    expect(src).toContain('<AuditLogDetailsDrawer');
+  it("renders AuditLogDetailsDrawer", () => {
+    expect(src).toContain("<AuditLogDetailsDrawer");
   });
 
-  it('does NOT contain extracted filter constants', () => {
-    expect(src).not.toContain('const actionsMap');
+  it("does NOT contain extracted filter constants", () => {
+    expect(src).not.toContain("const actionsMap");
   });
 
-  it('does NOT contain extracted table template', () => {
+  it("does NOT contain extracted table template", () => {
     expect(src).not.toContain('class="empty-state-icon"');
   });
 
-  it('does NOT contain extracted drawer template', () => {
-    expect(src).not.toContain('getDiffDescription');
+  it("does NOT contain extracted drawer template", () => {
+    expect(src).not.toContain("getDiffDescription");
   });
 
-  it('does NOT contain extracted export functions', () => {
-    expect(src).not.toContain('function exportToCsv');
-    expect(src).not.toContain('function exportToExcel');
-    expect(src).not.toContain('function buildExportUrl');
+  it("does NOT contain extracted export functions", () => {
+    expect(src).not.toContain("function exportToCsv");
+    expect(src).not.toContain("function exportToExcel");
+    expect(src).not.toContain("function buildExportUrl");
   });
 
-  it('imports i18n labels', () => {
+  it("imports i18n labels", () => {
     expect(src).toContain("import { labels } from '$shared/i18n'");
   });
 
-  it('uses i18n labels for permission denied and error messages', () => {
-    expect(src).toContain('labels.accessDenied');
-    expect(src).toContain('labels.auditLogsRestrictedToSuperadmin');
-    expect(src).toContain('labels.failedToLoad');
-    expect(src).toContain('labels.unknown');
+  it("uses i18n labels for permission denied and error messages", () => {
+    expect(src).toContain("labels.accessDenied");
+    expect(src).toContain("labels.auditLogsRestrictedToSuperadmin");
+    expect(src).toContain("labels.failedToLoad");
+    expect(src).toContain("labels.unknown");
   });
 });

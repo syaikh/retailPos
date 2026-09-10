@@ -1,4 +1,4 @@
-import type { Labels } from '$shared/i18n';
+import type { Labels } from "$shared/i18n";
 
 export interface ConsignmentSupplierRef {
   id: number;
@@ -253,48 +253,48 @@ export interface EditReceiptPayload {
   reason: string;
 }
 
-export const ARRANGEMENT_STATUS_ACTIVE = 'active';
-export const ARRANGEMENT_STATUS_ENDED = 'ended';
+export const ARRANGEMENT_STATUS_ACTIVE = "active";
+export const ARRANGEMENT_STATUS_ENDED = "ended";
 
-export const SHARE_TYPE_PERCENTAGE = 'percentage';
-export const SHARE_TYPE_FIXED_AMOUNT = 'fixed_amount';
+export const SHARE_TYPE_PERCENTAGE = "percentage";
+export const SHARE_TYPE_FIXED_AMOUNT = "fixed_amount";
 
-export const PENDING_RETURN_OPEN = 'open';
-export const PENDING_RETURN_RETURNED = 'returned';
+export const PENDING_RETURN_OPEN = "open";
+export const PENDING_RETURN_RETURNED = "returned";
 
-export const SETTLEMENT_PENDING_PAYMENT = 'pending_payment';
-export const SETTLEMENT_PAID = 'paid';
+export const SETTLEMENT_PENDING_PAYMENT = "pending_payment";
+export const SETTLEMENT_PAID = "paid";
 
-export const RETURN_REASON_DAMAGED = 'damaged';
-export const RETURN_REASON_EXPIRED = 'expired';
-export const RETURN_REASON_CUSTOMER_RETURN = 'customer_return';
-export const RETURN_REASON_OTHER = 'other';
+export const RETURN_REASON_DAMAGED = "damaged";
+export const RETURN_REASON_EXPIRED = "expired";
+export const RETURN_REASON_CUSTOMER_RETURN = "customer_return";
+export const RETURN_REASON_OTHER = "other";
 
 export const ARRANGEMENT_STATUS_LABELS: Record<string, keyof Labels> = {
-  [ARRANGEMENT_STATUS_ACTIVE]: 'arrangementStatusActive',
-  [ARRANGEMENT_STATUS_ENDED]: 'arrangementStatusEnded',
+  [ARRANGEMENT_STATUS_ACTIVE]: "arrangementStatusActive",
+  [ARRANGEMENT_STATUS_ENDED]: "arrangementStatusEnded",
 };
 
 export const SHARE_TYPE_LABELS: Record<string, keyof Labels> = {
-  [SHARE_TYPE_PERCENTAGE]: 'shareTypePercentage',
-  [SHARE_TYPE_FIXED_AMOUNT]: 'shareTypeFixedAmount',
+  [SHARE_TYPE_PERCENTAGE]: "shareTypePercentage",
+  [SHARE_TYPE_FIXED_AMOUNT]: "shareTypeFixedAmount",
 };
 
 export const PENDING_RETURN_STATUS_LABELS: Record<string, keyof Labels> = {
-  [PENDING_RETURN_OPEN]: 'pendingReturnStatusOpen',
-  [PENDING_RETURN_RETURNED]: 'pendingReturnStatusReturned',
+  [PENDING_RETURN_OPEN]: "pendingReturnStatusOpen",
+  [PENDING_RETURN_RETURNED]: "pendingReturnStatusReturned",
 };
 
 export const SETTLEMENT_STATUS_LABELS: Record<string, keyof Labels> = {
-  [SETTLEMENT_PENDING_PAYMENT]: 'settlementStatusPendingPayment',
-  [SETTLEMENT_PAID]: 'settlementStatusPaid',
+  [SETTLEMENT_PENDING_PAYMENT]: "settlementStatusPendingPayment",
+  [SETTLEMENT_PAID]: "settlementStatusPaid",
 };
 
 export const RETURN_REASON_LABELS: Record<string, keyof Labels> = {
-  [RETURN_REASON_DAMAGED]: 'returnReasonDamaged',
-  [RETURN_REASON_EXPIRED]: 'returnReasonExpired',
-  [RETURN_REASON_CUSTOMER_RETURN]: 'returnReasonCustomerReturn',
-  [RETURN_REASON_OTHER]: 'returnReasonOther',
+  [RETURN_REASON_DAMAGED]: "returnReasonDamaged",
+  [RETURN_REASON_EXPIRED]: "returnReasonExpired",
+  [RETURN_REASON_CUSTOMER_RETURN]: "returnReasonCustomerReturn",
+  [RETURN_REASON_OTHER]: "returnReasonOther",
 };
 
 export const RETURN_REASONS = [

@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { Button } from '$shared/ui';
-  import type { Snippet } from 'svelte';
-  import { fly, fade } from 'svelte/transition';
-  import { X } from 'lucide-svelte';
+  import { Button } from "$shared/ui";
+  import type { Snippet } from "svelte";
+  import { fly, fade } from "svelte/transition";
+  import { X } from "lucide-svelte";
 
   let {
     open = $bindable(false),
-    title = '',
+    title = "",
     width = 520,
     children,
     footer,
@@ -25,7 +25,8 @@
   let panelEl: HTMLDivElement = $state()!;
   let previousFocus: HTMLElement | null = null;
 
-  const focusableSelector = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const focusableSelector =
+    'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
   function handleClose() {
     open = false;
@@ -37,14 +38,14 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       e.preventDefault();
       handleClose();
     }
   }
 
   function trapFocus(e: KeyboardEvent) {
-    if (e.key !== 'Tab' || !panelEl) return;
+    if (e.key !== "Tab" || !panelEl) return;
     const focusable = panelEl.querySelectorAll<HTMLElement>(focusableSelector);
     if (focusable.length === 0) return;
     const first = focusable[0];
@@ -67,7 +68,8 @@
       previousFocus = document.activeElement as HTMLElement;
       requestAnimationFrame(() => {
         if (panelEl) {
-          const focusable = panelEl.querySelector<HTMLElement>(focusableSelector);
+          const focusable =
+            panelEl.querySelector<HTMLElement>(focusableSelector);
           if (focusable) focusable.focus();
           else panelEl.focus();
         }
@@ -91,22 +93,44 @@
     bind:this={panelEl}
     class="fixed inset-y-0 right-0 z-[55] bg-surface-default border-l border-border shadow-2xl flex flex-col [transform:translateZ(0)] [backface-visibility:hidden] [will-change:transform]"
     style="width: {width}px; max-width: 100%;"
-    transition:fly={{ x: width, duration: 300, easing: t => t * (2 - t) }}
+    transition:fly={{ x: width, duration: 300, easing: (t) => t * (2 - t) }}
     role="dialog"
     aria-modal="true"
-    aria-label={ariaLabel || title || 'Drawer'}
+    aria-label={ariaLabel || title || "Drawer"}
     tabindex="-1"
-    onkeydown={(e) => { handleKeydown(e); trapFocus(e); }}
+    onkeydown={(e) => {
+      handleKeydown(e);
+      trapFocus(e);
+    }}
   >
     {#if title}
-      <div class="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
-        <h2 id="drawer-heading" class="text-base font-semibold text-text-primary">{title}</h2>
-        <Button variant="ghost" size="icon" class="text-text-muted hover:text-text-primary" onclick={handleClose} aria-label="Close drawer">
+      <div
+        class="flex items-center justify-between px-6 py-5 border-b border-border shrink-0"
+      >
+        <h2
+          id="drawer-heading"
+          class="text-base font-semibold text-text-primary"
+        >
+          {title}
+        </h2>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="text-text-muted hover:text-text-primary"
+          onclick={handleClose}
+          aria-label="Close drawer"
+        >
           <X size={18} />
         </Button>
       </div>
     {:else}
-      <Button variant="ghost" size="icon" class="text-text-muted hover:text-text-primary absolute top-4 right-4" onclick={handleClose} aria-label="Close drawer">
+      <Button
+        variant="ghost"
+        size="icon"
+        class="text-text-muted hover:text-text-primary absolute top-4 right-4"
+        onclick={handleClose}
+        aria-label="Close drawer"
+      >
         <X size={18} />
       </Button>
     {/if}
@@ -116,7 +140,11 @@
     </div>
 
     {#if footer}
-      <div class="px-6 py-4 border-t border-border shrink-0" role="none" onkeydown={trapFocus}>
+      <div
+        class="px-6 py-4 border-t border-border shrink-0"
+        role="none"
+        onkeydown={trapFocus}
+      >
         {@render footer()}
       </div>
     {/if}

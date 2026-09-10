@@ -11,7 +11,7 @@
  * Mapping:  midnight Jakarta  = 07:00 UTC  (because 00:00 + 07:00 = 07:00 UTC)
  */
 
-import { formatLocaleDate } from '$shared/i18n';
+import { formatLocaleDate } from "$shared/i18n";
 
 /** 7 hours expressed in milliseconds */
 export const JAKARTA_OFFSET_MS = 7 * 60 * 60 * 1000;
@@ -31,7 +31,7 @@ function getJakartaDateParts(): { year: number; month: number; day: number } {
   const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
   return {
     year: shifted.getUTCFullYear(),
-    month: shifted.getUTCMonth(),  // 0-indexed
+    month: shifted.getUTCMonth(), // 0-indexed
     day: shifted.getUTCDate(),
   };
 }
@@ -43,7 +43,11 @@ function getJakartaDateParts(): { year: number; month: number; day: number } {
  * Midnight Jakarta = 17:00 UTC of the previous UTC calendar day.
  *   e.g. 2026-06-16 00:00 WIB = 2026-06-15 17:00 UTC
  */
-function midnightJakartaEpoch(year: number, month: number, day: number): number {
+function midnightJakartaEpoch(
+  year: number,
+  month: number,
+  day: number,
+): number {
   // Subtract the 7-hour offset from 00:00 UTC of the target date to get
   // the UTC instant that corresponds to midnight Jakarta.
   return Date.UTC(year, month, day, 0, 0, 0, 0) - JAKARTA_OFFSET_MS;
@@ -56,7 +60,11 @@ function midnightJakartaEpoch(year: number, month: number, day: number): number 
  * date, we add the offset back before reading UTC fields so that the calendar
  * date matches Jakarta's wall clock.
  */
-function jakartaDateFromEpoch(epochMs: number): { year: number; month: number; day: number } {
+function jakartaDateFromEpoch(epochMs: number): {
+  year: number;
+  month: number;
+  day: number;
+} {
   const shifted = new Date(epochMs + JAKARTA_OFFSET_MS);
   return {
     year: shifted.getUTCFullYear(),
@@ -118,7 +126,7 @@ export function getFirstOfMonthNAgoInJakarta(monthsAgo: number): string {
   const targetMidnightJKT = midnightJakartaEpoch(
     targetDate.getUTCFullYear(),
     targetDate.getUTCMonth(),
-    targetDate.getUTCDate()
+    targetDate.getUTCDate(),
   );
   const { year: y, month: m, day: d } = jakartaDateFromEpoch(targetMidnightJKT);
   return formatYYYYMMDD(y, m, d);
@@ -156,7 +164,11 @@ export function getCurrentJakartaHour(): number {
  * Returns today's date in Jakarta timezone as an object for CalendarDate construction.
  * This should be used by calendar components to get the correct "today" reference.
  */
-export function getTodayJakartaDate(): { year: number; month: number; day: number } {
+export function getTodayJakartaDate(): {
+  year: number;
+  month: number;
+  day: number;
+} {
   const { year, month, day } = getJakartaDateParts();
   return { year, month: month + 1, day }; // month is 0-indexed, CalendarDate uses 1-indexed
 }
@@ -164,7 +176,7 @@ export function getTodayJakartaDate(): { year: number; month: number; day: numbe
 /**
  * Returns the Jakarta day of week (0=Sunday, 1=Monday, ..., 6=Saturday).
  * Used for the 3-day rule threshold calculation.
- * 
+ *
  * Per the requirement: Monday=1, Tuesday=2, Wednesday=3, Thursday=4 (threshold day)
  * Weeks starting on Mon-Wed should be disabled (only 1-2 days completed by Thursday)
  * Weeks starting on Thu or later are selectable (3+ days completed)
@@ -177,7 +189,7 @@ export function getJakartaDayOfWeek(): number {
 /**
  * Returns the number of completed days in the current week (Jakarta).
  * Counts from Monday to yesterday.
- * 
+ *
  * For example:
  * - Sunday (start of week): 0 days completed
  * - Monday: 0 days completed  
@@ -193,10 +205,13 @@ export function getJakartaDayOfWeek(): number {
  */
 export function formatDateInJakarta(isoString: string): string {
   const date = new Date(isoString);
-  if (isNaN(date.getTime())) return '—';
+  if (isNaN(date.getTime())) return "—";
   const jakartaDate = new Date(date.getTime() + JAKARTA_OFFSET_MS);
-  const day = jakartaDate.getUTCDate().toString().padStart(2, '0');
-  const month = formatLocaleDate(jakartaDate, { month: 'short', timeZone: 'UTC' });
+  const day = jakartaDate.getUTCDate().toString().padStart(2, "0");
+  const month = formatLocaleDate(jakartaDate, {
+    month: "short",
+    timeZone: "UTC",
+  });
   return `${day} ${month} ${jakartaDate.getUTCFullYear()}`;
 }
 
@@ -206,11 +221,11 @@ export function formatDateInJakarta(isoString: string): string {
  */
 export function formatTimeInJakarta(isoString: string): string {
   const date = new Date(isoString);
-  if (isNaN(date.getTime())) return '—';
+  if (isNaN(date.getTime())) return "—";
   const jakartaDate = new Date(date.getTime() + JAKARTA_OFFSET_MS);
-  const hours = jakartaDate.getUTCHours().toString().padStart(2, '0');
-  const minutes = jakartaDate.getUTCMinutes().toString().padStart(2, '0');
-  const seconds = jakartaDate.getUTCSeconds().toString().padStart(2, '0');
+  const hours = jakartaDate.getUTCHours().toString().padStart(2, "0");
+  const minutes = jakartaDate.getUTCMinutes().toString().padStart(2, "0");
+  const seconds = jakartaDate.getUTCSeconds().toString().padStart(2, "0");
   return `${hours}:${minutes}:${seconds}`;
 }
 
@@ -219,38 +234,50 @@ export function formatTimeInJakarta(isoString: string): string {
  */
 export function formatDateTimeInJakarta(isoString: string): string {
   const date = new Date(isoString);
-  if (isNaN(date.getTime())) return '—';
+  if (isNaN(date.getTime())) return "—";
   const jakartaDate = new Date(date.getTime() + JAKARTA_OFFSET_MS);
-  const day = jakartaDate.getUTCDate().toString().padStart(2, '0');
-  const month = formatLocaleDate(jakartaDate, { month: 'short', timeZone: 'UTC' });
-  const hours = jakartaDate.getUTCHours().toString().padStart(2, '0');
-  const minutes = jakartaDate.getUTCMinutes().toString().padStart(2, '0');
-  const seconds = jakartaDate.getUTCSeconds().toString().padStart(2, '0');
+  const day = jakartaDate.getUTCDate().toString().padStart(2, "0");
+  const month = formatLocaleDate(jakartaDate, {
+    month: "short",
+    timeZone: "UTC",
+  });
+  const hours = jakartaDate.getUTCHours().toString().padStart(2, "0");
+  const minutes = jakartaDate.getUTCMinutes().toString().padStart(2, "0");
+  const seconds = jakartaDate.getUTCSeconds().toString().padStart(2, "0");
   return `${day} ${month} ${jakartaDate.getUTCFullYear()} ${hours}:${minutes}:${seconds}`;
 }
 
 /**
  * Returns current Jakarta wall-clock time components.
  */
-export function getCurrentJakartaClock(): { hours: string; minutes: string; seconds: string } {
+export function getCurrentJakartaClock(): {
+  hours: string;
+  minutes: string;
+  seconds: string;
+} {
   const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
   return {
-    hours: String(shifted.getUTCHours()).padStart(2, '0'),
-    minutes: String(shifted.getUTCMinutes()).padStart(2, '0'),
-    seconds: String(shifted.getUTCSeconds()).padStart(2, '0'),
+    hours: String(shifted.getUTCHours()).padStart(2, "0"),
+    minutes: String(shifted.getUTCMinutes()).padStart(2, "0"),
+    seconds: String(shifted.getUTCSeconds()).padStart(2, "0"),
   };
 }
 
 /**
  * Returns current Jakarta date as a formatted display object.
  */
-export function getCurrentJakartaDateDisplay(): { day: number; month: string; year: number; weekday: string } {
+export function getCurrentJakartaDateDisplay(): {
+  day: number;
+  month: string;
+  year: number;
+  weekday: string;
+} {
   const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
   return {
     day: shifted.getUTCDate(),
-    month: formatLocaleDate(shifted, { month: 'long', timeZone: 'UTC' }),
+    month: formatLocaleDate(shifted, { month: "long", timeZone: "UTC" }),
     year: shifted.getUTCFullYear(),
-    weekday: formatLocaleDate(shifted, { weekday: 'long', timeZone: 'UTC' }),
+    weekday: formatLocaleDate(shifted, { weekday: "long", timeZone: "UTC" }),
   };
 }
 
@@ -263,11 +290,14 @@ export function getCurrentJakartaDateDisplay(): { day: number; month: string; ye
  * The date is shifted by +7h and then rendered with `timeZone: 'UTC'`, so the
  * UTC fields *are* the Jakarta calendar values.
  */
-export function formatLocaleDateInJakarta(isoString: string, options?: Intl.DateTimeFormatOptions): string {
+export function formatLocaleDateInJakarta(
+  isoString: string,
+  options?: Intl.DateTimeFormatOptions,
+): string {
   const date = new Date(isoString);
-  if (isNaN(date.getTime())) return '—';
+  if (isNaN(date.getTime())) return "—";
   const jakartaDate = new Date(date.getTime() + JAKARTA_OFFSET_MS);
-  return formatLocaleDate(jakartaDate, { ...options, timeZone: 'UTC' });
+  return formatLocaleDate(jakartaDate, { ...options, timeZone: "UTC" });
 }
 
 /**
@@ -275,14 +305,17 @@ export function formatLocaleDateInJakarta(isoString: string, options?: Intl.Date
  * (e.g. "25 Jan 2026").
  */
 export function formatJakartaDateStr(dateStr: string): string {
-  if (!dateStr) return '';
-  const parts = dateStr.split('-');
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
   if (parts.length !== 3) return dateStr;
   const y = Number(parts[0]);
   const m = Number(parts[1]);
   const d = Number(parts[2]);
   if (!y || !m || !d || m < 1 || m > 12) return dateStr;
-  const month = formatLocaleDate(new Date(Date.UTC(y, m - 1, 1)), { month: 'short', timeZone: 'UTC' });
+  const month = formatLocaleDate(new Date(Date.UTC(y, m - 1, 1)), {
+    month: "short",
+    timeZone: "UTC",
+  });
   return `${d} ${month} ${y}`;
 }
 
@@ -293,13 +326,13 @@ export function getCompletedDaysInCurrentWeek(): number {
   // Formula: completed days = (dayOfWeek - 1 + 7) % 7, but at least 0
   // Actually: completed days = days from Monday to yesterday
   // Monday=1 -> yesterday was Sunday(0) of prev week -> need to handle edge case
-  
+
   // Simpler: completed days in current week = days from Monday to yesterday
   // If dayOfWeek === 1 (Monday), yesterday was Sunday of previous week -> 0 days
   // If dayOfWeek === 2 (Tuesday), yesterday was Monday -> 1 day
   // If dayOfWeek === 4 (Thursday), yesterday was Wednesday -> 3 days (threshold met!)
   // If dayOfWeek === 0 (Sunday), yesterday was Saturday -> 6 days
-  
+
   // Completed days = days from Monday to yesterday:
   // Monday=0, Tuesday=1, ..., Saturday=5, Sunday=6
   return (dayOfWeek + 6) % 7;
@@ -309,8 +342,12 @@ export function getCompletedDaysInCurrentWeek(): number {
 // Formatting helper
 // ---------------------------------------------------------------------------
 
-function formatYYYYMMDD(year: number, month0Indexed: number, day: number): string {
-  const mm = String(month0Indexed + 1).padStart(2, '0');
-  const dd = String(day).padStart(2, '0');
+function formatYYYYMMDD(
+  year: number,
+  month0Indexed: number,
+  day: number,
+): string {
+  const mm = String(month0Indexed + 1).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
   return `${year}-${mm}-${dd}`;
 }

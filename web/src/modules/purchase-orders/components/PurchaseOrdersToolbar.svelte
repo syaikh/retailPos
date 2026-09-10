@@ -1,23 +1,27 @@
 <script lang="ts">
-  import { SearchBar, Button, Input, Dropdown } from '$shared/ui';
-  import { labels, t } from '$shared/i18n';
-  import { Plus, CalendarDays, ChevronDown } from 'lucide-svelte';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatJakartaDateStr } from '$shared/utils/jakartaTime';
+  import { SearchBar, Button, Input, Dropdown } from "$shared/ui";
+  import { labels, t } from "$shared/i18n";
+  import { Plus, CalendarDays, ChevronDown } from "lucide-svelte";
+  import {
+    getTodayInJakarta,
+    getDateNDaysAgoInJakarta,
+    formatJakartaDateStr,
+  } from "$shared/utils/jakartaTime";
 
   const datePresets = [
     { label: labels.today, days: 0 },
     { label: labels.yesterday, days: 1 },
     { label: labels.last7Days, days: 7 },
     { label: labels.last30Days, days: 30 },
-    { label: labels.thisMonth, days: 'month' as const },
-    { label: labels.thisYear, days: 'year' as const },
+    { label: labels.thisMonth, days: "month" as const },
+    { label: labels.thisYear, days: "year" as const },
   ];
 
   let {
-    searchQuery = $bindable(''),
-    statusFilter = $bindable(''),
-    startDate = $bindable(''),
-    endDate = $bindable(''),
+    searchQuery = $bindable(""),
+    statusFilter = $bindable(""),
+    startDate = $bindable(""),
+    endDate = $bindable(""),
     canCreate = false,
     onsearch = () => {},
     onstatuschange = () => {},
@@ -38,70 +42,87 @@
   } = $props();
 
   let showDatePicker = $state(false);
-  let editStartDate = $state('');
-  let editEndDate = $state('');
-  let selectedDateRange = $state('last30d');
+  let editStartDate = $state("");
+  let editEndDate = $state("");
+  let selectedDateRange = $state("last30d");
 
   const statusOptions = [
-    { value: 'draft', label: labels.draft },
-    { value: 'confirmed', label: labels.confirmed },
-    { value: 'partial_received', label: labels.partialReceived },
-    { value: 'fully_received', label: labels.fullyReceived },
-    { value: 'cancelled', label: labels.statusCancelled },
+    { value: "draft", label: labels.draft },
+    { value: "confirmed", label: labels.confirmed },
+    { value: "partial_received", label: labels.partialReceived },
+    { value: "fully_received", label: labels.fullyReceived },
+    { value: "cancelled", label: labels.statusCancelled },
   ];
 
   const statusLabel = $derived(
-    statusOptions.find(s => s.value === statusFilter)?.label || labels.allStatus
+    statusOptions.find((s) => s.value === statusFilter)?.label ||
+      labels.allStatus,
   );
 
   const statusItems = $derived([
-    { label: labels.allStatus, checked: statusFilter === '', onclick: () => { statusFilter = ''; onstatuschange(); } },
-    ...statusOptions.map(opt => ({
+    {
+      label: labels.allStatus,
+      checked: statusFilter === "",
+      onclick: () => {
+        statusFilter = "";
+        onstatuschange();
+      },
+    },
+    ...statusOptions.map((opt) => ({
       label: opt.label,
       checked: statusFilter === opt.value,
-      onclick: () => { statusFilter = opt.value; onstatuschange(); },
+      onclick: () => {
+        statusFilter = opt.value;
+        onstatuschange();
+      },
     })),
   ]);
 
-  const currentYearStart = $derived(getTodayInJakarta().slice(0, 4) + '-01-01');
+  const currentYearStart = $derived(getTodayInJakarta().slice(0, 4) + "-01-01");
 
   const dateRangeLabel = $derived.by(() => {
-    if (selectedDateRange === 'custom') {
-      return t('customDateRange', { start: formatJakartaDateStr(startDate), end: formatJakartaDateStr(endDate) });
+    if (selectedDateRange === "custom") {
+      return t("customDateRange", {
+        start: formatJakartaDateStr(startDate),
+        end: formatJakartaDateStr(endDate),
+      });
     }
-    const preset = datePresets.find(p => {
-      if (p.label === labels.yesterday) return selectedDateRange === 'yesterday';
-      if (typeof p.days === 'number') {
-        if (p.days === 0) return selectedDateRange === 'today';
+    const preset = datePresets.find((p) => {
+      if (p.label === labels.yesterday)
+        return selectedDateRange === "yesterday";
+      if (typeof p.days === "number") {
+        if (p.days === 0) return selectedDateRange === "today";
         return selectedDateRange === `last${p.days}d`;
       }
-      if (p.days === 'month') return selectedDateRange === 'thisMonth';
-      if (p.days === 'year') return selectedDateRange === 'thisYear';
+      if (p.days === "month") return selectedDateRange === "thisMonth";
+      if (p.days === "year") return selectedDateRange === "thisYear";
       return false;
     });
     return preset?.label || labels.last30Days;
   });
 
   const canApplyCustom = $derived(
-    editStartDate.length > 0 && editEndDate.length > 0 && (editStartDate !== startDate || editEndDate !== endDate)
+    editStartDate.length > 0 &&
+      editEndDate.length > 0 &&
+      (editStartDate !== startDate || editEndDate !== endDate),
   );
 
-  function applyDatePreset(days: number | 'month' | 'year') {
-    if (days === 'year') {
+  function applyDatePreset(days: number | "month" | "year") {
+    if (days === "year") {
       const today = getTodayInJakarta();
-      startDate = today.slice(0, 4) + '-01-01';
+      startDate = today.slice(0, 4) + "-01-01";
       endDate = today;
-      selectedDateRange = 'thisYear';
-    } else if (days === 'month') {
+      selectedDateRange = "thisYear";
+    } else if (days === "month") {
       const todayJakarta = getTodayInJakarta();
-      const parts = todayJakarta.split('-').map(Number);
-      startDate = `${parts[0]}-${String(parts[1]).padStart(2, '0')}-01`;
+      const parts = todayJakarta.split("-").map(Number);
+      startDate = `${parts[0]}-${String(parts[1]).padStart(2, "0")}-01`;
       endDate = todayJakarta;
-      selectedDateRange = 'thisMonth';
+      selectedDateRange = "thisMonth";
     } else if (days <= 1) {
       startDate = getDateNDaysAgoInJakarta(days);
       endDate = startDate;
-      selectedDateRange = days === 0 ? 'today' : 'yesterday';
+      selectedDateRange = days === 0 ? "today" : "yesterday";
     } else {
       startDate = getDateNDaysAgoInJakarta(days);
       endDate = getTodayInJakarta();
@@ -121,22 +142,22 @@
     if (!canApplyCustom) return;
     startDate = editStartDate;
     endDate = editEndDate;
-    selectedDateRange = 'custom';
+    selectedDateRange = "custom";
     showDatePicker = false;
     onstartdatechange();
     onenddatechange();
   }
 
   function cancelCustomRange() {
-    editStartDate = '';
-    editEndDate = '';
+    editStartDate = "";
+    editEndDate = "";
     showDatePicker = false;
   }
 
   function handleDatePickerKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       cancelCustomRange();
-    } else if (e.key === 'Enter' && canApplyCustom) {
+    } else if (e.key === "Enter" && canApplyCustom) {
       applyCustomRange();
     }
   }
@@ -145,16 +166,19 @@
     if (!showDatePicker) return;
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('.date-picker-container') && !target.closest('.date-picker-trigger')) {
+      if (
+        !target.closest(".date-picker-container") &&
+        !target.closest(".date-picker-trigger")
+      ) {
         showDatePicker = false;
       }
     };
     const frame = requestAnimationFrame(() => {
-      document.addEventListener('click', handleClickOutside, true);
+      document.addEventListener("click", handleClickOutside, true);
     });
     return () => {
       cancelAnimationFrame(frame);
-      document.removeEventListener('click', handleClickOutside, true);
+      document.removeEventListener("click", handleClickOutside, true);
     };
   });
 </script>
@@ -162,13 +186,21 @@
 <div class="card p-3">
   <div class="flex flex-wrap items-center gap-3">
     <div class="min-w-0 flex-[2_1_200px]">
-      <SearchBar bind:value={searchQuery} placeholder={labels.searchPoNumberOrSupplier} oninput={onsearch} inputClass="h-10" />
+      <SearchBar
+        bind:value={searchQuery}
+        placeholder={labels.searchPoNumberOrSupplier}
+        oninput={onsearch}
+        inputClass="h-10"
+      />
     </div>
     <Dropdown placement="bottom-start" items={statusItems}>
       {#snippet trigger({ toggle })}
         <button
           type="button"
-          class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {statusFilter !== '' ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
+          class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {statusFilter !==
+          ''
+            ? 'bg-primary/10 border-primary/30 text-primary-light'
+            : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
           onclick={toggle}
         >
           <span>{statusLabel}</span>
@@ -183,7 +215,10 @@
         onclick={openDatePicker}
       >
         <CalendarDays size={16} class="text-white shrink-0" />
-        <span class="text-sm font-medium truncate flex-1 text-left text-text-secondary">{dateRangeLabel}</span>
+        <span
+          class="text-sm font-medium truncate flex-1 text-left text-text-secondary"
+          >{dateRangeLabel}</span
+        >
         <ChevronDown size={14} class="opacity-60 shrink-0" />
       </Button>
       {#if showDatePicker}
@@ -195,10 +230,18 @@
         >
           <div class="p-4 space-y-4">
             <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">{labels.presetRanges}</p>
+              <p
+                class="text-xs font-medium text-text-muted uppercase tracking-wider mb-2"
+              >
+                {labels.presetRanges}
+              </p>
               <div class="flex flex-wrap gap-1.5">
-                {#each datePresets as preset}
-                  <Button variant="ghost" size="xs" onclick={() => applyDatePreset(preset.days)}>
+                {#each datePresets as preset (preset.label || preset)}
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onclick={() => applyDatePreset(preset.days)}
+                  >
                     {preset.label}
                   </Button>
                 {/each}
@@ -206,29 +249,69 @@
             </div>
             <hr class="border-border" />
             <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">{labels.customRange}</p>
+              <p
+                class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3"
+              >
+                {labels.customRange}
+              </p>
               <div class="flex gap-3">
                 <div class="flex-1">
-                  <label for="po-start-date" class="block text-xs text-text-secondary mb-1">{labels.startDateLabel}</label>
-                  <Input id="po-start-date" type="date" bind:value={editStartDate} class="w-full" min={currentYearStart} max={editEndDate || getTodayInJakarta()} />
+                  <label
+                    for="po-start-date"
+                    class="block text-xs text-text-secondary mb-1"
+                    >{labels.startDateLabel}</label
+                  >
+                  <Input
+                    id="po-start-date"
+                    type="date"
+                    bind:value={editStartDate}
+                    class="w-full"
+                    min={currentYearStart}
+                    max={editEndDate || getTodayInJakarta()}
+                  />
                 </div>
                 <div class="flex-1">
-                  <label for="po-end-date" class="block text-xs text-text-secondary mb-1">{labels.endDateLabel}</label>
-                  <Input id="po-end-date" type="date" bind:value={editEndDate} class="w-full" min={editStartDate || currentYearStart} max={getTodayInJakarta()} />
+                  <label
+                    for="po-end-date"
+                    class="block text-xs text-text-secondary mb-1"
+                    >{labels.endDateLabel}</label
+                  >
+                  <Input
+                    id="po-end-date"
+                    type="date"
+                    bind:value={editEndDate}
+                    class="w-full"
+                    min={editStartDate || currentYearStart}
+                    max={getTodayInJakarta()}
+                  />
                 </div>
               </div>
             </div>
           </div>
-          <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-surface-subtle/50 rounded-b-lg">
-            <Button variant="ghost" size="sm" onclick={cancelCustomRange}>{labels.cancel}</Button>
-            <Button variant="primary" size="sm" disabled={!canApplyCustom} onclick={applyCustomRange}>{labels.apply}</Button>
+          <div
+            class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-surface-subtle/50 rounded-b-lg"
+          >
+            <Button variant="ghost" size="sm" onclick={cancelCustomRange}
+              >{labels.cancel}</Button
+            >
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!canApplyCustom}
+              onclick={applyCustomRange}>{labels.apply}</Button
+            >
           </div>
         </div>
       {/if}
     </div>
     {#if canCreate}
-      <Button variant="primary" class="shrink-0 shadow-glow-primary-sm" onclick={oncreate}>
-        <Plus size={18} /> {labels.createPurchaseOrder}
+      <Button
+        variant="primary"
+        class="shrink-0 shadow-glow-primary-sm"
+        onclick={oncreate}
+      >
+        <Plus size={18} />
+        {labels.createPurchaseOrder}
       </Button>
     {/if}
   </div>

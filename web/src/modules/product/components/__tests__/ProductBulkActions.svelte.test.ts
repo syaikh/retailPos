@@ -1,38 +1,41 @@
-import { describe, it, expect } from 'vitest';
-import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
+import { describe, it, expect } from "vitest";
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
 function getSource(): string {
-  return readFileSync(path.join(path.dirname(__filename), '..', 'ProductBulkActions.svelte'), 'utf-8');
+  return readFileSync(
+    path.join(path.dirname(__filename), "..", "ProductBulkActions.svelte"),
+    "utf-8",
+  );
 }
 
-describe('ProductBulkActions.svelte source-structure guards', () => {
+describe("ProductBulkActions.svelte source-structure guards", () => {
   const src = getSource();
 
-  it('imports Button from shared/ui', () => {
+  it("imports Button from shared/ui", () => {
     expect(src).toContain("import { Button } from '$shared/ui'");
   });
 
-  it('imports i18n labels', () => {
+  it("imports i18n labels", () => {
     expect(src).toContain("import { labels, t } from '$shared/i18n'");
   });
 
-  it('uses $props', () => {
-    expect(src).toContain('= $props()');
+  it("uses $props", () => {
+    expect(src).toContain("= $props()");
   });
 
-  it('has event callbacks (onstatus, onclear)', () => {
-    expect(src).toContain('onstatus');
-    expect(src).toContain('onclear');
+  it("has event callbacks (onstatus, onclear)", () => {
+    expect(src).toContain("onstatus");
+    expect(src).toContain("onclear");
   });
 
-  it('renders selected count', () => {
+  it("renders selected count", () => {
     expect(src).toContain("t('selectedCountLabel', { count: selectedCount })");
   });
 
-  it('wraps content in conditional block', () => {
-    expect(src).toContain('{#if selectedCount > 0}');
+  it("wraps content in conditional block", () => {
+    expect(src).toContain("{#if selectedCount > 0}");
   });
 });

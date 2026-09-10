@@ -33,7 +33,7 @@ export interface PeriodOption {
   label: string;
   icon: string;
   description?: string;
-  type?: 'separator';
+  type?: "separator";
 }
 
 export interface ComparisonData {

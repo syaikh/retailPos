@@ -1,5 +1,5 @@
-import apiClient from '$shared/api/http-client';
-import type { User, CreateUserPayload, UpdateUserPayload } from '../types';
+import apiClient from "$shared/api/http-client";
+import type { User, CreateUserPayload, UpdateUserPayload } from "../types";
 
 export interface UserListParams {
   limit: number;
@@ -16,22 +16,27 @@ export interface UserListResponse {
   total: number;
 }
 
-export async function getUsers(params: UserListParams): Promise<UserListResponse> {
-  const res = await apiClient.get('/admin/users', { params });
+export async function getUsers(
+  params: UserListParams,
+): Promise<UserListResponse> {
+  const res = await apiClient.get("/admin/users", { params });
   return { data: res.data?.data || [], total: res.data?.total || 0 };
 }
 
 export async function getRolesList() {
-  const res = await apiClient.get('/admin/roles');
+  const res = await apiClient.get("/admin/roles");
   return res.data?.data || [];
 }
 
 export async function createUser(data: CreateUserPayload): Promise<void> {
-  await apiClient({ url: '/admin/users', method: 'POST', data });
+  await apiClient({ url: "/admin/users", method: "POST", data });
 }
 
-export async function updateUser(id: number, data: UpdateUserPayload): Promise<void> {
-  await apiClient({ url: `/admin/users/${id}`, method: 'PUT', data });
+export async function updateUser(
+  id: number,
+  data: UpdateUserPayload,
+): Promise<void> {
+  await apiClient({ url: `/admin/users/${id}`, method: "PUT", data });
 }
 
 export async function deleteUser(id: number): Promise<void> {
@@ -49,6 +54,6 @@ export async function getManager(id: number): Promise<User | null> {
 }
 
 export async function getOrgChart(): Promise<User[]> {
-  const res = await apiClient.get('/admin/users/org-chart');
+  const res = await apiClient.get("/admin/users/org-chart");
   return res.data?.data || [];
 }

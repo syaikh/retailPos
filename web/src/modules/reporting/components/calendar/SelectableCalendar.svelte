@@ -1,14 +1,16 @@
 <script lang="ts">
   import { type DateValue, CalendarDate } from "@internationalized/date";
   import { cn, getThemeStyle, type Theme } from "./utils";
-  import { getTodayJakartaDate } from '$shared/utils/jakartaTime';
-  import { formatLocaleDate, labels } from '$shared/i18n';
+  import { getTodayJakartaDate } from "$shared/utils/jakartaTime";
+  import { formatLocaleDate, labels } from "$shared/i18n";
 
   type SelectionMode = "day" | "week";
 
   interface Props {
     value?: { start: DateValue; end: DateValue } | null;
-    onValueChange?: (value: { start: DateValue; end: DateValue } | null) => void;
+    onValueChange?: (
+      value: { start: DateValue; end: DateValue } | null,
+    ) => void;
     mode?: SelectionMode;
     minValue?: DateValue;
     maxValue?: DateValue;
@@ -16,8 +18,8 @@
     class?: string;
   }
 
-  let {
-    value = null,
+  const {
+    value = $bindable(null),
     onValueChange,
     mode = "week",
     minValue,
@@ -27,17 +29,19 @@
   }: Props = $props();
 
   let hoverDate: DateValue | null = $state(null);
-  let displayMonth = $state(new CalendarDate(
-    getTodayJakartaDate().year,
-    getTodayJakartaDate().month,
-    1
-  ));
+  let displayMonth = $state(
+    new CalendarDate(
+      getTodayJakartaDate().year,
+      getTodayJakartaDate().month,
+      1,
+    ),
+  );
 
   // Use Jakarta timezone for today to match backend calculations
   const today = new CalendarDate(
     getTodayJakartaDate().year,
     getTodayJakartaDate().month,
-    getTodayJakartaDate().day
+    getTodayJakartaDate().day,
   );
 
   const daysOfWeek = $derived([
@@ -50,7 +54,9 @@
     labels.daySunShort,
   ]);
 
-  const getWeekRange = (date: DateValue): { start: DateValue; end: DateValue } => {
+  const getWeekRange = (
+    date: DateValue,
+  ): { start: DateValue; end: DateValue } => {
     const jsDate = new Date(date.year, date.month - 1, date.day);
     const dayOfWeek = jsDate.getDay();
     const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -71,7 +77,10 @@
     return date.compare(rangeEnd) === 0;
   };
 
-  const getHoverRange = (): { start: DateValue | null; end: DateValue | null } => {
+  const getHoverRange = (): {
+    start: DateValue | null;
+    end: DateValue | null;
+  } => {
     if (!hoverDate) return { start: null, end: null };
     let range: { start: DateValue; end: DateValue };
     if (mode === "week") {
@@ -89,37 +98,94 @@
     return range;
   };
 
-  const getDayClass = (date: DateValue, currentMonth: { year: number; month: number }) => {
+  const getDayClass = (
+    date: DateValue,
+    currentMonth: { year: number; month: number },
+  ) => {
     const selected = isDateInSelectedRange(date);
     const hover = isDateInHoverRange(date);
     const todayFlag = isToday(date);
-    const inCurrentMonth = date.year === currentMonth.year && date.month === currentMonth.month;
+    const inCurrentMonth =
+      date.year === currentMonth.year && date.month === currentMonth.month;
     const disabled = isDateDisabled(date);
     const hoverRange = getHoverRange();
-    const isHoverStart = hoverRange.start && date.compare(hoverRange.start) === 0;
+    const isHoverStart =
+      hoverRange.start && date.compare(hoverRange.start) === 0;
     const isHoverEnd = hoverRange.end && date.compare(hoverRange.end) === 0;
 
     return cn(
       "relative w-full h-11 text-center text-sm",
-      selected && "bg-[var(--calendar-selected)] text-[var(--calendar-selected-text)]",
-      selected && isSelectedStartDate(date) && isSelectedEndDate(date) && "rounded-md",
-      selected && isSelectedStartDate(date) && !isSelectedEndDate(date) && "rounded-l-md",
-      selected && isSelectedEndDate(date) && !isSelectedStartDate(date) && "rounded-r-md",
-      hover && !selected && !disabled && "bg-[var(--calendar-hover)] text-[var(--calendar-text)]",
-      hover && isHoverStart && !isHoverEnd && !selected && !disabled && "rounded-l-md",
-      hover && isHoverEnd && !isHoverStart && !selected && !disabled && "rounded-r-md",
-      hover && isHoverStart && isHoverEnd && !selected && !disabled && "rounded-md",
-      disabled && "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed rounded-md bg-[var(--calendar-disabled-bg)]",
-      todayFlag && mode === "week" && !selected && !disabled && "text-[var(--calendar-text)]",
+      selected &&
+        "bg-[var(--calendar-selected)] text-[var(--calendar-selected-text)]",
+      selected &&
+        isSelectedStartDate(date) &&
+        isSelectedEndDate(date) &&
+        "rounded-md",
+      selected &&
+        isSelectedStartDate(date) &&
+        !isSelectedEndDate(date) &&
+        "rounded-l-md",
+      selected &&
+        isSelectedEndDate(date) &&
+        !isSelectedStartDate(date) &&
+        "rounded-r-md",
+      hover &&
+        !selected &&
+        !disabled &&
+        "bg-[var(--calendar-hover)] text-[var(--calendar-text)]",
+      hover &&
+        isHoverStart &&
+        !isHoverEnd &&
+        !selected &&
+        !disabled &&
+        "rounded-l-md",
+      hover &&
+        isHoverEnd &&
+        !isHoverStart &&
+        !selected &&
+        !disabled &&
+        "rounded-r-md",
+      hover &&
+        isHoverStart &&
+        isHoverEnd &&
+        !selected &&
+        !disabled &&
+        "rounded-md",
+      disabled &&
+        "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed rounded-md bg-[var(--calendar-disabled-bg)]",
+      todayFlag &&
+        mode === "week" &&
+        !selected &&
+        !disabled &&
+        "text-[var(--calendar-text)]",
       // Today flag styling: only apply if NOT disabled (to avoid overriding disabled styling)
-      todayFlag && !disabled && !selected && !hover && mode !== "week" && "ring-2 ring-[var(--calendar-today-border)] ring-offset-1",
-      !disabled && !selected && !hover && !todayFlag && !inCurrentMonth && "text-[var(--calendar-muted)] opacity-60",
-      !disabled && !selected && !hover && !todayFlag && inCurrentMonth && "text-[var(--calendar-text)]"
+      todayFlag &&
+        !disabled &&
+        !selected &&
+        !hover &&
+        mode !== "week" &&
+        "ring-2 ring-[var(--calendar-today-border)] ring-offset-1",
+      !disabled &&
+        !selected &&
+        !hover &&
+        !todayFlag &&
+        !inCurrentMonth &&
+        "text-[var(--calendar-muted)] opacity-60",
+      !disabled &&
+        !selected &&
+        !hover &&
+        !todayFlag &&
+        inCurrentMonth &&
+        "text-[var(--calendar-text)]",
     );
   };
 
   const isToday = (date: DateValue): boolean => {
-    return date.year === today.year && date.month === today.month && date.day === today.day;
+    return (
+      date.year === today.year &&
+      date.month === today.month &&
+      date.day === today.day
+    );
   };
 
   const isDateInSelectedRange = (date: DateValue): boolean => {
@@ -142,7 +208,10 @@
 
   const isDateInHoverRange = (date: DateValue): boolean => {
     if (!hoverDate) return false;
-    let range = mode === "week" ? getWeekRange(hoverDate) : { start: hoverDate, end: hoverDate };
+    let range =
+      mode === "week"
+        ? getWeekRange(hoverDate)
+        : { start: hoverDate, end: hoverDate };
     // Constrain hover range to minValue/maxValue for partial week support
     if (mode === "week" && minValue && range.start.compare(minValue) < 0) {
       range = { start: minValue, end: range.end };
@@ -155,21 +224,22 @@
 
   const isDateDisabled = (date: DateValue): boolean => {
     if (minValue && date.compare(minValue) < 0) return true;
-    
+
     // For week mode
     if (maxValue && mode === "week") {
       const weekStart = getWeekRange(date).start;
       const weekEnd = getWeekRange(date).end;
-      
+
       // Check if this week is the current week (contains or overlaps with today)
-      const isCurrentWeek = weekStart.compare(today) <= 0 && weekEnd.compare(today) >= 0;
-      
+      const isCurrentWeek =
+        weekStart.compare(today) <= 0 && weekEnd.compare(today) >= 0;
+
       if (isCurrentWeek) {
         // Current week: only past days (before today) are selectable
         // Today and future dates in this week are disabled
         return date.compare(today) >= 0;
       }
-      
+
       // Non-current weeks: disable if week ends after maxValue
       if (weekEnd.compare(maxValue) > 0) return true;
     } else if (maxValue && mode !== "week") {
@@ -181,7 +251,8 @@
 
   const handleDayClick = (date: DateValue) => {
     if (isDateDisabled(date)) return;
-    let range = mode === "week" ? getWeekRange(date) : { start: date, end: date };
+    let range =
+      mode === "week" ? getWeekRange(date) : { start: date, end: date };
     // Constrain to maxValue for partial week support
     if (mode === "week" && maxValue && range.end.compare(maxValue) > 0) {
       range = { start: range.start, end: maxValue };
@@ -213,7 +284,9 @@
   };
 
   // Constrain a [start, end] range to the selectable window [minValue, maxValue].
-  const getActiveRange = (base: { start: DateValue; end: DateValue } | null) => {
+  const getActiveRange = (
+    base: { start: DateValue; end: DateValue } | null,
+  ) => {
     if (!base) return null;
     let rs = base.start;
     let re = base.end;
@@ -224,7 +297,10 @@
 
   const getSelectedActiveRange = () => {
     if (!value) return null;
-    return getActiveRange({ start: value.start ?? value, end: value.end ?? value });
+    return getActiveRange({
+      start: value.start ?? value,
+      end: value.end ?? value,
+    });
   };
 
   const getHoveredActiveRange = () => {
@@ -241,24 +317,35 @@
     rangeStart: DateValue | null,
     rangeEnd: DateValue | null,
     selected: boolean,
-    disabled: boolean
+    disabled: boolean,
   ) => {
-    const inCurrentMonth = date.year === displayMonth.year && date.month === displayMonth.month;
-    const inRange = !!rangeStart && !!rangeEnd && date.compare(rangeStart) >= 0 && date.compare(rangeEnd) <= 0;
+    const inCurrentMonth =
+      date.year === displayMonth.year && date.month === displayMonth.month;
+    const inRange =
+      !!rangeStart &&
+      !!rangeEnd &&
+      date.compare(rangeStart) >= 0 &&
+      date.compare(rangeEnd) <= 0;
     const isFirst = inRange && date.compare(rangeStart!) === 0;
     const isLast = inRange && date.compare(rangeEnd!) === 0;
     return cn(
       "relative w-full h-11 text-center text-sm flex items-center justify-center transition-colors",
       inRange &&
         cn(
-          selected ? 'bg-[var(--calendar-selected)] text-[var(--calendar-selected-text)]'
-                   : 'bg-[var(--calendar-hover)] text-[var(--calendar-text)]',
-          isFirst && isLast && 'rounded-md',
-          isFirst && !isLast && 'rounded-l-md',
-          isLast && !isFirst && 'rounded-r-md',
+          selected
+            ? "bg-[var(--calendar-selected)] text-[var(--calendar-selected-text)]"
+            : "bg-[var(--calendar-hover)] text-[var(--calendar-text)]",
+          isFirst && isLast && "rounded-md",
+          isFirst && !isLast && "rounded-l-md",
+          isLast && !isFirst && "rounded-r-md",
         ),
-      !inRange && disabled && "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed rounded-md bg-[var(--calendar-disabled-bg)]",
-      !inRange && !disabled && !inCurrentMonth && "text-[var(--calendar-muted)] opacity-60",
+      !inRange &&
+        disabled &&
+        "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed rounded-md bg-[var(--calendar-disabled-bg)]",
+      !inRange &&
+        !disabled &&
+        !inCurrentMonth &&
+        "text-[var(--calendar-muted)] opacity-60",
       !inRange && !disabled && inCurrentMonth && "text-[var(--calendar-text)]",
     );
   };
@@ -292,42 +379,54 @@
     return days;
   }
 
-  const monthDates = $derived(getMonthDates(displayMonth.year, displayMonth.month));
+  const monthDates = $derived(
+    getMonthDates(displayMonth.year, displayMonth.month),
+  );
 
   // Group the flat 35-day grid into week rows for row-level highlighting.
   const weeks = $derived(
     Array.from({ length: Math.ceil(monthDates.length / 7) }, (_, i) =>
-      monthDates.slice(i * 7, i * 7 + 7)
-    )
+      monthDates.slice(i * 7, i * 7 + 7),
+    ),
   );
 
   // Check if there are any selectable dates in the current month view
   const hasSelectableDates = $derived(
-    monthDates.some(date => !isDateDisabled(date))
+    monthDates.some((date) => !isDateDisabled(date)),
   );
 </script>
 
 <div class={cn("inline-block w-full", className)}>
-  <div
-    class="p-4 rounded-lg w-full min-h-80"
-    style={getThemeStyle(theme)}
-  >
+  <div class="p-4 rounded-lg w-full min-h-80" style={getThemeStyle(theme)}>
     <div class="flex items-center justify-between mb-2">
       <button
         class="inline-flex items-center justify-center rounded-md p-1 text-[var(--calendar-text)] hover:bg-[var(--calendar-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Previous month"
-onclick={(e) => { e.stopPropagation(); const prev = displayMonth.subtract({ months: 1 }); displayMonth = new CalendarDate(prev.year, prev.month, 1); }}
-        disabled={displayMonth.year <= (minValue?.year ?? 1900) && displayMonth.month <= (minValue?.month ?? 1)}
+        onclick={(e) => {
+          e.stopPropagation();
+          const prev = displayMonth.subtract({ months: 1 });
+          displayMonth = new CalendarDate(prev.year, prev.month, 1);
+        }}
+        disabled={displayMonth.year <= (minValue?.year ?? 1900) &&
+          displayMonth.month <= (minValue?.month ?? 1)}
       >
         <span class="text-xs">‹</span>
       </button>
       <span class="text-sm font-medium text-[var(--calendar-text)]">
-        {displayMonth.year} {formatLocaleDate(new Date(Date.UTC(displayMonth.year, displayMonth.month - 1, 1)), { month: 'short', timeZone: 'UTC' })}
+        {displayMonth.year}
+        {formatLocaleDate(
+          new Date(Date.UTC(displayMonth.year, displayMonth.month - 1, 1)),
+          { month: "short", timeZone: "UTC" },
+        )}
       </span>
       <button
         class="inline-flex items-center justify-center rounded-md p-1 text-[var(--calendar-text)] hover:bg-[var(--calendar-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Next month"
-onclick={(e) => { e.stopPropagation(); const next = displayMonth.add({ months: 1 }); displayMonth = new CalendarDate(next.year, next.month, 1); }}
+        onclick={(e) => {
+          e.stopPropagation();
+          const next = displayMonth.add({ months: 1 });
+          displayMonth = new CalendarDate(next.year, next.month, 1);
+        }}
         disabled={maxValue !== undefined && displayMonth.compare(maxValue) >= 0}
       >
         <span class="text-xs">›</span>
@@ -335,8 +434,10 @@ onclick={(e) => { e.stopPropagation(); const next = displayMonth.add({ months: 1
     </div>
 
     <div class="grid grid-cols-7 gap-0 mb-2">
-      {#each daysOfWeek as day}
-        <div class="h-11 w-full text-center text-xs font-medium text-[var(--calendar-muted)]">
+      {#each daysOfWeek as day (day)}
+        <div
+          class="h-11 w-full text-center text-xs font-medium text-[var(--calendar-muted)]"
+        >
           {day}
         </div>
       {/each}
@@ -344,44 +445,77 @@ onclick={(e) => { e.stopPropagation(); const next = displayMonth.add({ months: 1
 
     {#if !hasSelectableDates}
       <div class="text-xs text-center py-4 text-[var(--calendar-muted)]">
-        No selectable dates in this month.<br/>Click ‹ to view previous months.
+        No selectable dates in this month.<br />Click ‹ to view previous months.
       </div>
-    {:else if mode === 'week'}
-      <div class="flex flex-col gap-0" role="group" aria-label="Date grid" onmouseleave={handleMouseLeave}>
-        {#each weeks as week}
+    {:else if mode === "week"}
+      <div
+        class="flex flex-col gap-0"
+        role="group"
+        aria-label="Date grid"
+        onmouseleave={handleMouseLeave}
+      >
+        {#each weeks as week, i (i)}
           {@const weekStart = week[0]}
           {@const weekSelected = isWeekSelected(weekStart)}
           {@const weekHovered = isWeekHovered(weekStart)}
-          {@const activeRange = weekSelected ? getSelectedActiveRange() : weekHovered ? getHoveredActiveRange() : null}
+          {@const activeRange = weekSelected
+            ? getSelectedActiveRange()
+            : weekHovered
+              ? getHoveredActiveRange()
+              : null}
           <div class="grid grid-cols-7 gap-0">
-            {#each week as date}
+            {#each week as date, i (i)}
               {@const todayFlag = isToday(date)}
               {@const disabledFlag = isDateDisabled(date)}
               <button
                 type="button"
-                class={getWeekCellClass(date, activeRange?.start ?? null, activeRange?.end ?? null, weekSelected, disabledFlag)}
+                class={getWeekCellClass(
+                  date,
+                  activeRange?.start ?? null,
+                  activeRange?.end ?? null,
+                  weekSelected,
+                  disabledFlag,
+                )}
                 disabled={disabledFlag}
                 onmouseenter={() => handleMouseEnter(date)}
-                onclick={(e) => { e.stopPropagation(); handleDayClick(date); }}
+                onclick={(e) => {
+                  e.stopPropagation();
+                  handleDayClick(date);
+                }}
               >
-                <span class={cn(todayFlag && !disabledFlag && "font-bold")}>{date.day}</span>
+                <span class={cn(todayFlag && !disabledFlag && "font-bold")}
+                  >{date.day}</span
+                >
               </button>
             {/each}
           </div>
         {/each}
       </div>
     {:else}
-      <div class="grid grid-cols-7 gap-0" role="group" aria-label="Date grid" onmouseleave={handleMouseLeave}>
-        {#each monthDates as date}
+      <div
+        class="grid grid-cols-7 gap-0"
+        role="group"
+        aria-label="Date grid"
+        onmouseleave={handleMouseLeave}
+      >
+        {#each monthDates as date, i (i)}
           {@const todayFlag = isToday(date)}
           {@const disabledFlag = isDateDisabled(date)}
           <button
-            class={getDayClass(date, { year: displayMonth.year, month: displayMonth.month })}
+            class={getDayClass(date, {
+              year: displayMonth.year,
+              month: displayMonth.month,
+            })}
             disabled={disabledFlag}
             onmouseenter={() => handleMouseEnter(date)}
-            onclick={(e) => { e.stopPropagation(); handleDayClick(date); }}
+            onclick={(e) => {
+              e.stopPropagation();
+              handleDayClick(date);
+            }}
           >
-            <span class={cn(todayFlag && !disabledFlag && "font-bold")}>{date.day}</span>
+            <span class={cn(todayFlag && !disabledFlag && "font-bold")}
+              >{date.day}</span
+            >
           </button>
         {/each}
       </div>

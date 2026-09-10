@@ -1,24 +1,28 @@
 <script lang="ts">
-  import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui';
-  import { User, Pencil, Trash2, Users, Search } from 'lucide-svelte';
-  import { formatDateInJakarta, formatTimeInJakarta } from '$shared/utils/jakartaTime';
-  import { labels, t } from '$shared/i18n';
+  import { Badge, Button, Skeleton, SortableHeader } from "$shared/ui";
+  import { User as UserIcon, Pencil, Trash2, Users } from "lucide-svelte";
+  import {
+    formatDateInJakarta,
+    formatTimeInJakarta,
+  } from "$shared/utils/jakartaTime";
+import { labels, t } from "$shared/i18n";
+  import type { User } from "../types";
 
   let {
     users = [],
     loading = false,
-    searchQuery = '',
-    canEdit = false,
-    canDelete = false,
+    searchQuery = "",
+    canEdit: _canEdit = false,
+    canDelete: _canDelete = false,
     canEditSuperadmin = false,
     currentUserID = 0,
-    sortBy = $bindable('username'),
-    sortDir = $bindable<'asc' | 'desc'>('asc'),
-    onsort = (key: string) => {},
-    onedit = (user: any) => {},
-    ondelete = (user: any) => {},
+    sortBy = $bindable("username"),
+    sortDir = $bindable<"asc" | "desc">("asc"),
+    onsort = (_key: string) => {},
+    onedit = (_user: User) => {},
+    ondelete = (_user: User) => {},
   }: {
-    users: any[];
+    users: User[];
     loading: boolean;
     searchQuery: string;
     canEdit: boolean;
@@ -26,21 +30,34 @@
     canEditSuperadmin: boolean;
     currentUserID: number;
     sortBy: string;
-    sortDir: 'asc' | 'desc';
+    sortDir: "asc" | "desc";
     onsort?: (key: string) => void;
-    onedit?: (user: any) => void;
-    ondelete?: (user: any) => void;
+    onedit?: (user: User) => void;
+    ondelete?: (user: User) => void;
   } = $props();
 
-  function roleVariant(r: any): 'primary' | 'warning' | 'muted' {
-    const roleName = typeof r === 'object' ? r.name : r;
-    if (roleName === 'superadmin') return 'primary';
-    if (roleName === 'admin') return 'warning';
-    return 'muted';
+  function roleVariant(r: { id: number; name: string } | string): "primary" | "warning" | "muted" {
+    const roleName = typeof r === "object" ? r.name : r;
+    if (roleName === "superadmin") return "primary";
+    if (roleName === "admin") return "warning";
+    return "muted";
   }
 
-  function roleName(user: any): string {
-    return user.role?.name || (user.role_id === 1 ? 'superadmin' : user.role_id === 2 ? 'admin' : user.role_id === 3 ? 'cashier' : user.role_id === 4 ? 'manager' : user.role_id === 5 ? 'staff' : 'unknown');
+  function roleName(user: User): string {
+    return (
+      (typeof user.role === "object" && user.role?.name) ||
+      (user.role_id === 1
+        ? "superadmin"
+        : user.role_id === 2
+          ? "admin"
+          : user.role_id === 3
+            ? "cashier"
+            : user.role_id === 4
+              ? "manager"
+              : user.role_id === 5
+                ? "staff"
+                : "unknown")
+    );
   }
 </script>
 
@@ -49,24 +66,52 @@
     <thead class="bg-muted/50">
       <tr>
         <th class="text-left p-4 font-semibold" style="width: 30%;">
-          <SortableHeader label={labels.userLabel} column="username" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader
+            label={labels.userLabel}
+            column="username"
+            sortColumn={sortBy}
+            sortDirection={sortDir}
+            {onsort}
+          />
         </th>
         <th class="text-left p-4 font-semibold w-40">
-          <SortableHeader label={labels.roleLabel} column="role_id" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader
+            label={labels.roleLabel}
+            column="role_id"
+            sortColumn={sortBy}
+            sortDirection={sortDir}
+            {onsort}
+          />
         </th>
         <th class="text-left p-4 font-semibold w-28">{labels.statusLabel}</th>
         <th class="text-left p-4 font-semibold w-36">
-          <SortableHeader label={labels.reportsTo} column="reports_to_username" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader
+            label={labels.reportsTo}
+            column="reports_to_username"
+            sortColumn={sortBy}
+            sortDirection={sortDir}
+            {onsort}
+          />
         </th>
         <th class="text-left p-4 font-semibold w-44">
-          <SortableHeader label={labels.lastLoginLabel} column="last_login" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader
+            label={labels.lastLoginLabel}
+            column="last_login"
+            sortColumn={sortBy}
+            sortDirection={sortDir}
+            {onsort}
+          />
         </th>
-        <th class="text-center p-4 font-semibold w-20">{labels.actionsLabel}</th>
+        <th class="text-center p-4 font-semibold w-20">{labels.actionsLabel}</th
+        >
       </tr>
     </thead>
-    <tbody aria-busy={loading} aria-label={loading ? labels.loadingUsers : undefined}>
+    <tbody
+      aria-busy={loading}
+      aria-label={loading ? labels.loadingUsers : undefined}
+    >
       {#if loading}
-        {#each { length: 5 } as _}
+        {#each { length: 5 } as _, i (i)}
           <tr class="border-t border-border">
             <td class="p-4">
               <div class="flex items-center gap-3">
@@ -103,45 +148,68 @@
       {:else if users.length === 0}
         <tr>
           <td colspan="6" class="px-4 py-12 text-center" aria-live="polite">
-            <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
+            <div
+              class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center"
+            >
               <Users size={32} class="text-text-muted" />
             </div>
-            <p class="text-text-primary font-semibold mt-4">{labels.noUsersFound}</p>
+            <p class="text-text-primary font-semibold mt-4">
+              {labels.noUsersFound}
+            </p>
             <p class="text-text-muted text-sm mt-1">
-              {searchQuery ? t('noResultsFor', { query: searchQuery }) : `${labels.add} ${labels.user}`}
+              {searchQuery
+                ? t("noResultsFor", { query: searchQuery })
+                : `${labels.add} ${labels.user}`}
             </p>
           </td>
         </tr>
       {:else}
         {#each users as user (user.id)}
-          <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-            <td class="p-4 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+          <tr
+            class="border-t border-border hover:bg-surface-hover/50 transition-colors"
+          >
+            <td
+              class="p-4 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+            >
               <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
-                  <User size={14} class="text-white" />
+                <div
+                  class="w-8 h-8 rounded-full gradient-bg-primary flex items-center justify-center shrink-0"
+                >
+                  <UserIcon size={14} class="text-white" />
                 </div>
                 <div>
                   <p class="font-medium text-text-primary">{user.username}</p>
-                  <p class="text-xs text-text-muted">{user.email || '—'}</p>
+                  <p class="text-xs text-text-muted">{user.email || "—"}</p>
                 </div>
               </div>
             </td>
             <td class="p-4">
-              <Badge variant={roleVariant(user.role)}>{roleName(user)}</Badge>
+              <Badge variant={roleVariant(user.role ?? "unknown")}>{roleName(user)}</Badge>
             </td>
             <td class="p-4">
               <div class="flex items-center gap-2">
-                <span class="w-1.5 h-1.5 rounded-full {user.is_active !== false ? 'bg-success animate-pulse-dot' : 'bg-text-muted'}"></span>
-                <span class="text-sm text-text-secondary">{user.is_active !== false ? labels.active : labels.inactive}</span>
+                <span
+                  class="w-1.5 h-1.5 rounded-full {user.is_active !== false
+                    ? 'bg-success animate-pulse-dot'
+                    : 'bg-text-muted'}"
+                ></span>
+                <span class="text-sm text-text-secondary"
+                  >{user.is_active !== false
+                    ? labels.active
+                    : labels.inactive}</span
+                >
               </div>
             </td>
             <td class="p-4 text-sm text-text-muted">
-              {user.reports_to_username || '—'}
+              {user.reports_to_username || "—"}
             </td>
             <td class="p-4 text-text-muted text-sm leading-relaxed">
               {#if user.last_login}
-                <span class="block">{formatDateInJakarta(user.last_login)}</span>
-                <span class="block text-[10px] text-text-muted">{formatTimeInJakarta(user.last_login)}</span>
+                <span class="block">{formatDateInJakarta(user.last_login)}</span
+                >
+                <span class="block text-[10px] text-text-muted"
+                  >{formatTimeInJakarta(user.last_login)}</span
+                >
               {:else}
                 Never
               {/if}

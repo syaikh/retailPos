@@ -16,3 +16,13 @@ export interface StorageLocationFilters {
   search?: string;
   is_active?: boolean;
 }
+
+export interface StorageLocationUpdatePayload {
+  id: number;
+  code?: string;
+  name?: string;
+  warehouse_id?: number | null;
+  store_id?: number | null;
+  notes?: string | null;
+  is_active?: boolean;
+}

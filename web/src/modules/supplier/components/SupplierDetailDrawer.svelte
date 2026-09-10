@@ -1,16 +1,16 @@
 <script lang="ts">
-  import { Drawer, Button, Badge, Skeleton } from '$shared/ui';
-  import { labels, t } from '$shared/i18n';
-  import { Pencil, Trash2 } from 'lucide-svelte';
-  import type { Supplier, ProductSupplier } from '../types';
-  import { getProductsBySupplier } from '../services/supplier-service';
+  import { Drawer, Button, Badge, Skeleton } from "$shared/ui";
+  import { labels, t } from "$shared/i18n";
+  import { Pencil, Trash2 } from "lucide-svelte";
+  import type { Supplier, ProductSupplier } from "../types";
+  import { getProductsBySupplier } from "../services/supplier-service";
 
   function timeAgo(dateStr: string | undefined): string {
-    if (!dateStr) return '-';
+    if (!dateStr) return "-";
     const date = new Date(dateStr);
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    if (seconds < 60) return 'just now';
+    if (seconds < 60) return "just now";
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return `${minutes}m ago`;
     const hours = Math.floor(minutes / 60);
@@ -66,9 +66,9 @@
 
   function getInitials(name: string): string {
     return name
-      .split(' ')
-      .map(w => w[0])
-      .join('')
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
       .toUpperCase()
       .slice(0, 2);
   }
@@ -78,18 +78,26 @@
   }
 </script>
 
-<Drawer bind:open title={supplier?.name || labels.supplierDetails} onclose={handleClose}>
+<Drawer
+  bind:open
+  title={supplier?.name || labels.supplierDetails}
+  onclose={handleClose}
+>
   {#if supplier}
     <div class="space-y-6">
       <div class="flex items-start gap-4">
-        <div class="w-16 h-16 rounded-xl bg-primary-subtle flex items-center justify-center text-primary-light text-xl font-bold shrink-0">
+        <div
+          class="w-16 h-16 rounded-xl bg-primary-subtle flex items-center justify-center text-primary-light text-xl font-bold shrink-0"
+        >
           {getInitials(supplier.name)}
         </div>
         <div class="flex-1 min-w-0">
-          <h3 class="text-lg font-semibold text-text-primary">{supplier.name}</h3>
+          <h3 class="text-lg font-semibold text-text-primary">
+            {supplier.name}
+          </h3>
           <p class="text-sm text-text-muted">{labels.code}: {supplier.code}</p>
           <div class="mt-2">
-            <Badge variant={supplier.is_active ? 'success' : 'muted'}>
+            <Badge variant={supplier.is_active ? "success" : "muted"}>
               {supplier.is_active ? labels.active : labels.inactive}
             </Badge>
           </div>
@@ -98,7 +106,9 @@
 
       <div class="space-y-4">
         <div>
-          <h4 class="text-sm font-medium text-text-muted mb-2">{labels.contactInformation}</h4>
+          <h4 class="text-sm font-medium text-text-muted mb-2">
+            {labels.contactInformation}
+          </h4>
           <div class="space-y-2 text-sm">
             {#if supplier.contact_name}
               <div class="flex justify-between">
@@ -121,7 +131,9 @@
             {#if supplier.address}
               <div class="flex justify-between">
                 <span class="text-text-muted">{labels.address}</span>
-                <span class="text-text-secondary text-right max-w-[200px]">{supplier.address}</span>
+                <span class="text-text-secondary text-right max-w-[200px]"
+                  >{supplier.address}</span
+                >
               </div>
             {/if}
           </div>
@@ -129,16 +141,20 @@
 
         {#if supplier.notes}
           <div>
-            <h4 class="text-sm font-medium text-text-muted mb-2">{labels.notes}</h4>
+            <h4 class="text-sm font-medium text-text-muted mb-2">
+              {labels.notes}
+            </h4>
             <p class="text-sm text-text-secondary">{supplier.notes}</p>
           </div>
         {/if}
 
         <div>
-          <h4 class="text-sm font-medium text-text-muted mb-2">{labels.linkedProducts}</h4>
+          <h4 class="text-sm font-medium text-text-muted mb-2">
+            {labels.linkedProducts}
+          </h4>
           {#if loadingProducts}
             <div class="space-y-2">
-              {#each Array(3) as _}
+              {#each Array(3) as _, i (i)}
                 <Skeleton class="h-8 w-full" />
               {/each}
             </div>
@@ -146,22 +162,36 @@
             <p class="text-sm text-text-muted">{labels.noProductsLinked}</p>
           {:else}
             <div class="space-y-2">
-              {#each products.slice(0, 5) as ps}
-                <div class="flex items-center justify-between p-2 bg-surface-subtle rounded-lg">
+              {#each products.slice(0, 5) as ps, i (i)}
+                <div
+                  class="flex items-center justify-between p-2 bg-surface-subtle rounded-lg"
+                >
                   <div class="min-w-0">
-                    <p class="text-sm font-medium text-text-primary truncate">{ps.product_name || t('productWithId', { id: ps.product_id })}</p>
+                    <p class="text-sm font-medium text-text-primary truncate">
+                      {ps.product_name ||
+                        t("productWithId", { id: ps.product_id })}
+                    </p>
                     {#if ps.product_sku}
-                      <p class="text-xs text-text-muted">{labels.sku}: {ps.product_sku}</p>
+                      <p class="text-xs text-text-muted">
+                        {labels.sku}: {ps.product_sku}
+                      </p>
                     {/if}
                   </div>
                   {#if ps.is_preferred}
-                    <Badge variant="primary" class="shrink-0">{labels.preferred}</Badge>
+                    <Badge variant="primary" class="shrink-0"
+                      >{labels.preferred}</Badge
+                    >
                   {/if}
                 </div>
               {/each}
               {#if products.length > 0}
-                <Button variant="ghost" size="sm" class="w-full" onclick={() => onviewproducts(supplier)}>
-                  {t('viewAllProducts', { count: products.length })} →
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="w-full"
+                  onclick={() => onviewproducts(supplier)}
+                >
+                  {t("viewAllProducts", { count: products.length })} →
                 </Button>
               {/if}
             </div>
@@ -169,15 +199,21 @@
         </div>
 
         <div>
-          <h4 class="text-sm font-medium text-text-muted mb-2">{labels.timestamp}</h4>
+          <h4 class="text-sm font-medium text-text-muted mb-2">
+            {labels.timestamp}
+          </h4>
           <div class="space-y-2 text-sm">
             <div class="flex justify-between">
               <span class="text-text-muted">{labels.createdAt}</span>
-              <span class="text-text-secondary">{timeAgo(supplier.created_at)}</span>
+              <span class="text-text-secondary"
+                >{timeAgo(supplier.created_at)}</span
+              >
             </div>
             <div class="flex justify-between">
               <span class="text-text-muted">{labels.updatedAt}</span>
-              <span class="text-text-secondary">{timeAgo(supplier.updated_at)}</span>
+              <span class="text-text-secondary"
+                >{timeAgo(supplier.updated_at)}</span
+              >
             </div>
           </div>
         </div>

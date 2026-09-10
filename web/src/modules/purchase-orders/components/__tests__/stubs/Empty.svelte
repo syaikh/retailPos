@@ -1,4 +1,5 @@
 <script lang="ts">
-  let _props: any = $props();
+  const _props: unknown = $props();
 </script>
+
 <!-- test stub -->

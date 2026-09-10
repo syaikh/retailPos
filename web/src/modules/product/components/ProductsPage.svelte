@@ -1,28 +1,42 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { goto } from '$app/router';
-  import apiClient from '$shared/api/http-client';
-  import { useRBAC } from '$shared/composables/useRBAC.svelte';
-  import { Permissions } from '$shared/constants/permissions';
-  import { Roles } from '$shared/constants/roles';
-  import { debounce } from '$shared/utils/debounce';
-  import { useWebSocket } from '$shared/api/websocket';
+  import { onMount } from "svelte";
+  import { SvelteSet, SvelteURLSearchParams } from "svelte/reactivity";
+  import { goto } from "$app/router";
+  import apiClient from "$shared/api/http-client";
+  import { useRBAC } from "$shared/composables/useRBAC.svelte";
+  import { Permissions } from "$shared/constants/permissions";
+  import { debounce } from "$shared/utils/debounce";
+  import { useWebSocket } from "$shared/api/websocket";
 
-  import { Button, Modal, Pagination, ImportWizard, ConfirmDeleteModal } from '$shared/ui';
-  import ProductFilterDrawer from '$modules/product/components/ProductFilterDrawer.svelte';
-  import ProductActionsDropdown from '$modules/product/components/ProductActionsDropdown.svelte';
-  import ProductFormModal from '$modules/product/components/ProductFormModal.svelte';
-  import ProductDetailDrawer from './ProductDetailDrawer.svelte';
-  import StockAdjustModal from '$modules/inventory/components/StockAdjustModal.svelte';
-  import ProductFiltersToolbar from './ProductFiltersToolbar.svelte';
-  import ProductTable from './ProductTable.svelte';
-  import ProductBulkActions from './ProductBulkActions.svelte';
-  import { Plus, Pencil, Trash2, Package, ArrowLeft } from 'lucide-svelte';
-  import { toast } from '$shared/stores/toast.svelte';
-  import type { Product, Brand, TaxClass, UnitOfMeasure, ProductFormData } from '$modules/product/types';
-  import { labels, t } from '$shared/i18n';
-  import { useSortable } from '$shared/composables/useSortable.svelte';
-  import { getProductById, getNextSku } from '$modules/product/services/product-service';
+  import {
+    Button,
+    Modal,
+    Pagination,
+    ImportWizard,
+    ConfirmDeleteModal,
+  } from "$shared/ui";
+  import ProductFilterDrawer from "$modules/product/components/ProductFilterDrawer.svelte";
+  import ProductFormModal from "$modules/product/components/ProductFormModal.svelte";
+  import ProductDetailDrawer from "./ProductDetailDrawer.svelte";
+  import StockAdjustModal from "$modules/inventory/components/StockAdjustModal.svelte";
+  import ProductFiltersToolbar from "./ProductFiltersToolbar.svelte";
+  import ProductTable from "./ProductTable.svelte";
+  import ProductBulkActions from "./ProductBulkActions.svelte";
+  import { ArrowLeft } from "lucide-svelte";
+  import { toast } from "$shared/stores/toast.svelte";
+  import type {
+    Product,
+    Brand,
+    TaxClass,
+    UnitOfMeasure,
+    ProductFormData,
+  } from "$modules/product/types";
+  import { labels, t } from "$shared/i18n";
+  import { useSortable } from "$shared/composables/useSortable.svelte";
+  import {
+    getProductById,
+    getNextSku,
+  } from "$modules/product/services/product-service";
 
   const rbac = useRBAC();
 
@@ -31,18 +45,18 @@
   let total = $state(0);
   let limit = $state(20);
   let offset = $state(0);
-  let searchQuery = $state('');
-  let selectedCategories = $state(['All']);
-  let categories = $state(['All']);
+  let searchQuery = $state("");
+  let selectedCategories = $state(["All"]);
+  let categories = $state(["All"]);
   let showModal = $state(false);
   let showDeleteModal = $state(false);
   let selectedProduct = $state<Product | null>(null);
-  let modalMode = $state<'add' | 'edit'>('add');
+  let modalMode = $state<"add" | "edit">("add");
   let saving = $state(false);
   let isDeleting = $state(false);
   let showDetailDrawer = $state(false);
   let showCopySuccess = $state<Set<string> | null>(null);
-  let ws = useWebSocket();
+  const ws = useWebSocket();
   let brands = $state<Brand[]>([]);
   let unitsOfMeasure = $state<UnitOfMeasure[]>([]);
   let taxClasses = $state<TaxClass[]>([]);
@@ -54,24 +68,24 @@
   let adjustingStock = $state(false);
   let adjustProductId = $state<number | null>(null);
   let adjustQuantityChange = $state(0);
-  let adjustNotes = $state('');
+  let adjustNotes = $state("");
   let lowStockOnly = $state(false);
-  let filterStatus = $state('all');
+  let filterStatus = $state("all");
   let supplierFilterId = $state<number | null>(null);
-  let supplierFilterName = $state('');
+  let supplierFilterName = $state("");
   let selectedBrandIDs = $state<number[]>([]);
-  let ownershipFilter = $state('all');
+  let ownershipFilter = $state("all");
 
-  let previousCategories = ['All'];
+  let previousCategories = ["All"];
   let previousBrandIDs: number[] = [];
-  const { sortState, handleSort } = useSortable('name', 'asc', sortProducts);
+  const { sortState, handleSort } = useSortable("name", "asc", sortProducts);
   let showFilterDrawer = $state(false);
-  let modalCategorySearch = $state('');
-  let modalBrandSearch = $state('');
+  let modalCategorySearch = $state("");
+  let modalBrandSearch = $state("");
 
   let selectedIds = $state(new Set<number>());
   let showBulkStatusModal = $state(false);
-  let bulkStatusTarget = $state('active');
+  let bulkStatusTarget = $state("active");
   let isBulkUpdating = $state(false);
   let showImportWizard = $state(false);
 
@@ -86,24 +100,43 @@
 
   async function handleBulkStatusUpdate() {
     isBulkUpdating = true;
-    const eligibleIds = products.filter(p => selectedIds.has(p.id) && p.status !== bulkStatusTarget).map(p => p.id);
+    const eligibleIds = products
+      .filter((p) => selectedIds.has(p.id) && p.status !== bulkStatusTarget)
+      .map((p) => p.id);
     const skippedCount = selectedIds.size - eligibleIds.length;
     if (eligibleIds.length === 0) {
-      toast.warning(t('toastAllSelectedAlreadyStatus', { status: bulkStatusTarget }));
+      toast.warning(
+        t("toastAllSelectedAlreadyStatus", { status: bulkStatusTarget }),
+      );
       isBulkUpdating = false;
       showBulkStatusModal = false;
       return;
     }
     try {
-      await apiClient.post('/products/bulk/status', { ids: eligibleIds, status: bulkStatusTarget });
-      toast.success(t('toastUpdatedProductsToStatus', { count: eligibleIds.length, status: bulkStatusTarget }));
+      await apiClient.post("/products/bulk/status", {
+        ids: eligibleIds,
+        status: bulkStatusTarget,
+      });
+      toast.success(
+        t("toastUpdatedProductsToStatus", {
+          count: eligibleIds.length,
+          status: bulkStatusTarget,
+        }),
+      );
       if (skippedCount > 0) {
-        toast.warning(t('toastProductsAlreadyStatus', { count: skippedCount, status: bulkStatusTarget }));
+        toast.warning(
+          t("toastProductsAlreadyStatus", {
+            count: skippedCount,
+            status: bulkStatusTarget,
+          }),
+        );
       }
       selectedIds = new Set();
       await fetchProducts(offset, limit);
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || labels.toastFailedToUpdateStatuses);
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : labels.toastFailedToUpdateStatuses,
+      );
     } finally {
       isBulkUpdating = false;
       showBulkStatusModal = false;
@@ -111,12 +144,12 @@
   }
 
   function clearAllFilters() {
-    filterStatus = 'all';
+    filterStatus = "all";
     lowStockOnly = false;
-    previousCategories = ['All'];
-    selectedCategories = ['All'];
+    previousCategories = ["All"];
+    selectedCategories = ["All"];
     supplierFilterId = null;
-    supplierFilterName = '';
+    supplierFilterName = "";
     selectedBrandIDs = [];
     previousBrandIDs = [];
     offset = 0;
@@ -124,10 +157,10 @@
   }
 
   let form = $state<ProductFormData>({
-    name: '',
-    sku: '',
-    barcode: '',
-    category: '',
+    name: "",
+    sku: "",
+    barcode: "",
+    category: "",
     brand_id: null,
     price: 0,
     cost: 0,
@@ -135,16 +168,16 @@
     unit_of_measure_id: null,
     tax_class_id: null,
     weight_grams: null,
-    description: '',
-    status: 'draft'
+    description: "",
+    status: "draft",
   });
 
   async function fetchThresholds() {
     try {
-      const r = await apiClient.get('/stock-thresholds');
+      const r = await apiClient.get("/stock-thresholds");
       warningThreshold = r.data.warning ?? 10;
       criticalThreshold = r.data.critical ?? 5;
-    } catch (err) {
+    } catch (_err) {
       warningThreshold = 10;
       criticalThreshold = 5;
     }
@@ -159,27 +192,26 @@
     stockAdjustProduct = product;
     adjustProductId = product.id;
     adjustQuantityChange = 0;
-    adjustNotes = '';
+    adjustNotes = "";
     showAdjustStockModal = true;
   }
 
   async function handleAdjustStock() {
     adjustingStock = true;
     try {
-      await apiClient.post('/inventory/adjust', {
+      await apiClient.post("/inventory/adjust", {
         product_id: adjustProductId,
         quantity_change: Number(adjustQuantityChange),
-        notes: adjustNotes
+        notes: adjustNotes,
       });
       toast.success(labels.toastStockAdjusted);
       showAdjustStockModal = false;
       stockAdjustProduct = null;
       await fetchProducts(offset, limit);
-    } catch (err: any) {
-      const serverError = err.response?.data?.error;
-      const errorCode = typeof serverError === 'object' ? serverError?.code : undefined;
-      const errorMsg = (typeof serverError === 'string' ? serverError : serverError?.message) || err.message || labels.toastFailedToAdjustStock;
-      if (errorCode === 'CNS-402') {
+    } catch (err: unknown) {
+      const serverError = err instanceof Error ? err.message : labels.toastFailedToAdjustStock;
+      const errorMsg = serverError || labels.toastFailedToAdjustStock;
+      if (typeof serverError === "string" && serverError.includes("CNS-402")) {
         toast.error(labels.toastConsignmentProductBlocked);
       } else {
         toast.error(errorMsg);
@@ -191,40 +223,40 @@
 
   async function fetchCategories() {
     try {
-      const r = await apiClient.get('/categories');
+      const r = await apiClient.get("/categories");
       const catList: { name: string }[] = r.data.data || [];
-      categories = ['All', ...catList.map((c: { name: string }) => c.name)];
+      categories = ["All", ...catList.map((c: { name: string }) => c.name)];
       if (!form.category && catList.length > 0) {
         form.category = catList[0].name;
       }
-    } catch (err) {
+    } catch (_err) {
       toast.error(labels.toastFailedToLoadCategories);
     }
   }
 
   async function fetchBrands() {
     try {
-      const r = await apiClient.get('/brands');
+      const r = await apiClient.get("/brands");
       brands = r.data.data || [];
-    } catch (err) {
+    } catch (_err) {
       toast.error(labels.toastFailedToLoadBrands);
     }
   }
 
   async function fetchTaxClasses() {
     try {
-      const r = await apiClient.get('/tax-classes');
+      const r = await apiClient.get("/tax-classes");
       taxClasses = r.data.data || [];
-    } catch (err) {
+    } catch (_err) {
       toast.error(labels.toastFailedToLoadTaxClasses);
     }
   }
 
   async function fetchUnitsOfMeasure() {
     try {
-      const r = await apiClient.get('/units-of-measure');
+      const r = await apiClient.get("/units-of-measure");
       unitsOfMeasure = r.data.data || [];
-    } catch (err) {
+    } catch (_err) {
       toast.error(labels.toastFailedToLoadUnitsOfMeasure);
     }
   }
@@ -235,22 +267,28 @@
     selectedIds = new Set();
     try {
       loading = true;
-      const params = new URLSearchParams({
+      const params = new SvelteURLSearchParams({
         limit: limit.toString(),
         offset: offset.toString(),
-        search: searchQuery
+        search: searchQuery,
       });
-      const filteredCategories = selectedCategories.filter(c => c.toLowerCase() !== 'all');
-      if (filteredCategories.length > 0) params.append('category', filteredCategories.join(','));
-      if (lowStockOnly) params.append('maxStock', criticalThreshold.toString());
-      if (filterStatus !== 'all') params.append('status', filterStatus);
-      if (supplierFilterId !== null) params.append('supplier_id', supplierFilterId.toString());
-      if (selectedBrandIDs.length > 0) params.append('brand_id', selectedBrandIDs.join(','));
-      if (ownershipFilter !== 'all') params.append('ownership_type', ownershipFilter);
+      const filteredCategories = selectedCategories.filter(
+        (c) => c.toLowerCase() !== "all",
+      );
+      if (filteredCategories.length > 0)
+        params.append("category", filteredCategories.join(","));
+      if (lowStockOnly) params.append("maxStock", criticalThreshold.toString());
+      if (filterStatus !== "all") params.append("status", filterStatus);
+      if (supplierFilterId !== null)
+        params.append("supplier_id", supplierFilterId.toString());
+      if (selectedBrandIDs.length > 0)
+        params.append("brand_id", selectedBrandIDs.join(","));
+      if (ownershipFilter !== "all")
+        params.append("ownership_type", ownershipFilter);
       const r = await apiClient.get(`/products?${params.toString()}`);
       products = r.data.data || [];
       total = r.data.total || 0;
-    } catch (err) {
+    } catch (_err) {
       toast.error(labels.toastFailedToLoadProducts);
     } finally {
       loading = false;
@@ -263,13 +301,13 @@
   }, 400);
 
   let isInitialMount = $state(true);
-  let previousSearchQuery = '';
+  let previousSearchQuery = "";
 
   function handleSearchInput() {
     offset = 0;
-    if (searchQuery === '') {
+    if (searchQuery === "") {
       debouncedSearch.cancel();
-      previousSearchQuery = '';
+      previousSearchQuery = "";
       fetchProducts(0, limit);
       return;
     }
@@ -278,11 +316,10 @@
     debouncedSearch();
   }
 
-
   $effect(() => {
     if (isInitialMount) return;
-    const prevCatStr = previousCategories.slice().sort().join(',');
-    const currCatStr = selectedCategories.slice().sort().join(',');
+    const prevCatStr = previousCategories.slice().sort().join(",");
+    const currCatStr = selectedCategories.slice().sort().join(",");
     if (prevCatStr === currCatStr) return;
     previousCategories = [...selectedCategories];
     offset = 0;
@@ -291,24 +328,24 @@
 
   $effect(() => {
     if (isInitialMount) return;
-    const prevStr = previousBrandIDs.slice().sort().join(',');
-    const currStr = selectedBrandIDs.slice().sort().join(',');
+    const prevStr = previousBrandIDs.slice().sort().join(",");
+    const currStr = selectedBrandIDs.slice().sort().join(",");
     if (prevStr === currStr) return;
     previousBrandIDs = [...selectedBrandIDs];
     offset = 0;
     fetchProducts(0, limit);
   });
 
-  function toggleCategory(category: string) {
-    if (category === 'All') {
-      selectedCategories = ['All'];
+  function _toggleCategory(category: string) {
+    if (category === "All") {
+      selectedCategories = ["All"];
     } else {
-      if (selectedCategories.includes('All')) {
-        selectedCategories = selectedCategories.filter(c => c !== 'All');
+      if (selectedCategories.includes("All")) {
+        selectedCategories = selectedCategories.filter((c) => c !== "All");
       }
       if (selectedCategories.includes(category)) {
-        selectedCategories = selectedCategories.filter(c => c !== category);
-        if (selectedCategories.length === 0) selectedCategories = ['All'];
+        selectedCategories = selectedCategories.filter((c) => c !== category);
+        if (selectedCategories.length === 0) selectedCategories = ["All"];
       } else {
         selectedCategories = [...selectedCategories, category];
       }
@@ -330,16 +367,18 @@
         barcode: form.barcode?.trim() || undefined,
         description: form.description?.trim() || undefined,
         cost: form.cost >= 0 ? form.cost : undefined,
-        weight_grams: form.weight_grams ?? undefined
+        weight_grams: form.weight_grams ?? undefined,
       };
-      await apiClient.post('/products', payload);
+      await apiClient.post("/products", payload);
       toast.success(labels.toastProductAdded);
       showModal = false;
       resetForm();
       await fetchProducts(offset, limit);
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || labels.toastFailedToAddProduct;
-      console.error('Add product error:', err, errorMsg);
+    } catch (err: unknown) {
+      const errorMsg =
+        (err instanceof Error ? err.message : null) ||
+        labels.toastFailedToAddProduct;
+      console.error("Add product error:", err, errorMsg);
       toast.error(errorMsg);
     } finally {
       saving = false;
@@ -364,16 +403,18 @@
         barcode: form.barcode?.trim() || undefined,
         description: form.description?.trim() || undefined,
         cost: form.cost >= 0 ? form.cost : undefined,
-        weight_grams: form.weight_grams ?? undefined
+        weight_grams: form.weight_grams ?? undefined,
       };
       await apiClient.put(`/products/${selectedProduct.id}`, payload);
       toast.success(labels.toastProductUpdated);
       showModal = false;
       resetForm();
       await fetchProducts(offset, limit);
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || labels.toastFailedToUpdateProduct;
-      console.error('Update product error:', err, errorMsg);
+    } catch (err: unknown) {
+      const errorMsg =
+        (err instanceof Error ? err.message : null) ||
+        labels.toastFailedToUpdateProduct;
+      console.error("Update product error:", err, errorMsg);
       toast.error(errorMsg);
     } finally {
       saving = false;
@@ -392,9 +433,11 @@
       showDeleteModal = false;
       selectedProduct = null;
       await fetchProducts(offset, limit);
-    } catch (err: any) {
-      console.error('Delete error:', err);
-      const errorMessage = err.response?.data?.error || err.message || labels.toastFailedToDeleteProduct;
+    } catch (err: unknown) {
+      console.error("Delete error:", err);
+      const errorMessage =
+        (err instanceof Error ? err.message : null) ||
+        labels.toastFailedToDeleteProduct;
       toast.error(errorMessage);
     } finally {
       isDeleting = false;
@@ -402,33 +445,44 @@
   }
 
   function resetForm() {
-    const defaultTaxId = taxClasses.find(tc => tc.name === 'PPN 11%')?.id ?? null;
+    const defaultTaxId =
+      taxClasses.find((tc) => tc.name === "PPN 11%")?.id ?? null;
     form = {
-      name: '', sku: '', barcode: '', category: '', price: 0, cost: 0, stock: 0,
-      brand_id: null, description: '', unit_of_measure_id: null, tax_class_id: defaultTaxId,
-      weight_grams: null, status: 'draft'
+      name: "",
+      sku: "",
+      barcode: "",
+      category: "",
+      price: 0,
+      cost: 0,
+      stock: 0,
+      brand_id: null,
+      description: "",
+      unit_of_measure_id: null,
+      tax_class_id: defaultTaxId,
+      weight_grams: null,
+      status: "draft",
     };
-    modalCategorySearch = '';
-    modalBrandSearch = '';
+    modalCategorySearch = "";
+    modalBrandSearch = "";
   }
 
-  let canCreate = $derived(rbac.can(Permissions.product.create));
-  let canEdit = $derived(rbac.can(Permissions.product.update));
-  let canDelete = $derived(rbac.can(Permissions.product.delete));
-  let canAdjustStock = $derived(rbac.can(Permissions.inventory.adjust));
-  let canExport = $derived(rbac.can(Permissions.product.export));
-  let canImport = $derived(rbac.can(Permissions.product.import));
-  let isSensitive = $derived(rbac.can(Permissions.product.costView));
+  const canCreate = $derived(rbac.can(Permissions.product.create));
+  const canEdit = $derived(rbac.can(Permissions.product.update));
+  const canDelete = $derived(rbac.can(Permissions.product.delete));
+  const canAdjustStock = $derived(rbac.can(Permissions.inventory.adjust));
+  const canExport = $derived(rbac.can(Permissions.product.export));
+  const canImport = $derived(rbac.can(Permissions.product.import));
+  const isSensitive = $derived(rbac.can(Permissions.product.costView));
 
   function copyToClipboard(value: string, field: string, ms = 2000): void {
     navigator.clipboard.writeText(value).then(() => {
-      const base = showCopySuccess || new Set();
-      const next = new Set(base);
+      const base = showCopySuccess || new SvelteSet();
+      const next = new SvelteSet(base);
       next.add(field);
       showCopySuccess = next;
       toast.success(labels.copiedToClipboard);
       setTimeout(() => {
-        const removed = new Set(next);
+        const removed = new SvelteSet(next);
         removed.delete(field);
         showCopySuccess = removed;
       }, ms);
@@ -439,13 +493,26 @@
     products.sort((a, b) => {
       let aVal, bVal;
       switch (sortState.sortBy) {
-        case 'name': aVal = a.name.toLowerCase(); bVal = b.name.toLowerCase(); break;
-        case 'category': aVal = (a.category_name || '').toLowerCase(); bVal = (b.category_name || '').toLowerCase(); break;
-        case 'price': aVal = a.price || 0; bVal = b.price || 0; break;
-        case 'stock': aVal = a.stock || 0; bVal = b.stock || 0; break;
-        default: return 0;
+        case "name":
+          aVal = a.name.toLowerCase();
+          bVal = b.name.toLowerCase();
+          break;
+        case "category":
+          aVal = (a.category_name || "").toLowerCase();
+          bVal = (b.category_name || "").toLowerCase();
+          break;
+        case "price":
+          aVal = a.price || 0;
+          bVal = b.price || 0;
+          break;
+        case "stock":
+          aVal = a.stock || 0;
+          bVal = b.stock || 0;
+          break;
+        default:
+          return 0;
       }
-      if (sortState.sortDir === 'asc') {
+      if (sortState.sortDir === "asc") {
         return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       } else {
         return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
@@ -457,31 +524,36 @@
     isInitialMount = true;
 
     const urlParams = new URLSearchParams(window.location.search);
-    const sidParam = urlParams.get('supplier_id');
+    const sidParam = urlParams.get("supplier_id");
     if (sidParam) {
       const sid = parseInt(sidParam, 10);
       if (!isNaN(sid) && sid > 0) {
         supplierFilterId = sid;
-        supplierFilterName = urlParams.get('supplier_name') || t('supplierWithId', { id: sid });
+        supplierFilterName =
+          urlParams.get("supplier_name") || t("supplierWithId", { id: sid });
       }
     }
 
-    if (urlParams.get('low_stock') === 'true') {
+    if (urlParams.get("low_stock") === "true") {
       lowStockOnly = true;
     }
 
     (async () => {
       try {
         await Promise.all([
-          fetchCategories(), fetchBrands(), fetchTaxClasses(), fetchUnitsOfMeasure(), fetchThresholds()
+          fetchCategories(),
+          fetchBrands(),
+          fetchTaxClasses(),
+          fetchUnitsOfMeasure(),
+          fetchThresholds(),
         ]);
         await fetchProducts(0, limit);
 
-        const pidParam = urlParams.get('product_id');
+        const pidParam = urlParams.get("product_id");
         if (pidParam) {
           const pid = parseInt(pidParam, 10);
           if (!isNaN(pid) && pid > 0) {
-            let product = products.find(p => p.id === pid) || null;
+            let product = products.find((p) => p.id === pid) || null;
             if (!product) {
               try {
                 product = await getProductById(pid);
@@ -496,14 +568,14 @@
           }
         }
       } catch {
-        console.error('Failed to initialize product page data');
+        console.error("Failed to initialize product page data");
       }
       isInitialMount = false;
     })();
 
-    const unsubProduct = ws.on('product_updated', (raw) => {
+    const unsubProduct = ws.on("product_updated", (raw) => {
       const data = raw as { id: number; stock: number; price: number };
-      const product = products.find(p => p.id === data.id);
+      const product = products.find((p) => p.id === data.id);
       if (product) {
         product.stock = data.stock;
         product.price = data.price;
@@ -516,13 +588,12 @@
   });
 
   function handleWindowKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       if (showDetailDrawer) showDetailDrawer = false;
       if (showDeleteModal) showDeleteModal = false;
-      document.dispatchEvent(new CustomEvent('close-all-dropdowns'));
+      document.dispatchEvent(new CustomEvent("close-all-dropdowns"));
     }
   }
-
 </script>
 
 <svelte:window onkeydown={handleWindowKeydown} />
@@ -533,7 +604,6 @@
   {categories}
   {brands}
   bind:selectedBrandIDs
-  onClose={() => showFilterDrawer = false}
   onApply={() => {}}
 />
 
@@ -542,7 +612,7 @@
     <button
       type="button"
       class="inline-flex items-center gap-2 text-sm text-text-secondary hover:text-primary transition-colors"
-      onclick={() => goto('/suppliers')}
+      onclick={() => goto("/suppliers")}
     >
       <ArrowLeft size={16} />
       {labels.backToSuppliers}
@@ -563,31 +633,33 @@
     bind:selectedBrandIDs
     bind:ownershipFilter
     onsearch={handleSearchInput}
-    onfilter={() => showFilterDrawer = true}
-    onrefresh={() => { offset = 0; fetchProducts(0, limit); }}
+    onfilter={() => (showFilterDrawer = true)}
+    onrefresh={() => {
+      offset = 0;
+      fetchProducts(0, limit);
+    }}
     onclearall={clearAllFilters}
     onadd={() => {
       if (!canCreate) return;
-      modalMode = 'add';
+      modalMode = "add";
       resetForm();
       showModal = true;
     }}
-    onImport={() => showImportWizard = true}
+    onImport={() => (showImportWizard = true)}
   />
 
   <div class="card overflow-hidden">
     <ProductTable
       {products}
       {loading}
-      {searchQuery}
       bind:selectedIds
       sortBy={sortState.sortBy}
       sortDir={sortState.sortDir}
       bind:showCopySuccess
       onsort={handleSort}
-      canEdit={canEdit}
-      canDelete={canDelete}
-      canAdjustStock={canAdjustStock}
+      {canEdit}
+      {canDelete}
+      {canAdjustStock}
       {warningThreshold}
       {criticalThreshold}
       onproductclick={openProductDetails}
@@ -595,26 +667,35 @@
       onedit={(product) => {
         selectedProduct = product;
         form = {
-          name: product.name || '', sku: product.sku || '', barcode: product.barcode || '',
-          category: product.category_name || '', brand_id: product.brand_id || null,
-          price: product.price || 0, cost: product.cost || 0, stock: product.stock || 0,
+          name: product.name || "",
+          sku: product.sku || "",
+          barcode: product.barcode || "",
+          category: product.category_name || "",
+          brand_id: product.brand_id || null,
+          price: product.price || 0,
+          cost: product.cost || 0,
+          stock: product.stock || 0,
           unit_of_measure_id: product.unit_of_measure_id || null,
           tax_class_id: product.tax_class_id || null,
           weight_grams: product.weight_grams || null,
-          description: product.description || '', status: product.status || 'draft'
+          description: product.description || "",
+          status: product.status || "draft",
         };
-        modalCategorySearch = product.category_name || '';
-        modalBrandSearch = product.brand_name || '';
-        modalMode = 'edit';
+        modalCategorySearch = product.category_name || "";
+        modalBrandSearch = product.brand_name || "";
+        modalMode = "edit";
         showModal = true;
       }}
-      ondelete={(product) => { selectedProduct = product; showDeleteModal = true; }}
+      ondelete={(product) => {
+        selectedProduct = product;
+        showDeleteModal = true;
+      }}
       onadjuststock={openAdjustStock}
     />
 
     <ProductBulkActions
       selectedCount={selectedIds.size}
-      onstatus={() => showBulkStatusModal = true}
+      onstatus={() => (showBulkStatusModal = true)}
       onclear={clearSelection}
     />
 
@@ -626,7 +707,7 @@
   </div>
 </div>
 
-    <ProductFormModal
+<ProductFormModal
   bind:open={showModal}
   bind:mode={modalMode}
   bind:form
@@ -638,11 +719,27 @@
   {categories}
   {saving}
   {getNextSku}
-  onSubmit={() => { modalMode === 'add' ? handleAdd() : handleUpdate(); }}
-  onCancel={() => { showModal = false; }}
+  onSubmit={() => {
+    if (modalMode === "add") {
+      handleAdd();
+    } else {
+      handleUpdate();
+    }
+  }}
+  onCancel={() => {
+    showModal = false;
+  }}
 />
 
-<ConfirmDeleteModal bind:open={showDeleteModal} title={labels.deleteProduct} itemName={selectedProduct?.name} description={labels.deleteProductDescription} loading={isDeleting} onconfirm={handleDelete} oncancel={() => showDeleteModal = false} />
+<ConfirmDeleteModal
+  bind:open={showDeleteModal}
+  title={labels.deleteProduct}
+  itemName={selectedProduct?.name}
+  description={labels.deleteProductDescription}
+  loading={isDeleting}
+  onconfirm={handleDelete}
+  oncancel={() => (showDeleteModal = false)}
+/>
 
 <StockAdjustModal
   bind:open={showAdjustStockModal}
@@ -652,26 +749,55 @@
   bind:notes={adjustNotes}
   {adjustingStock}
   onSubmit={handleAdjustStock}
-  onCancel={() => { showAdjustStockModal = false; stockAdjustProduct = null; }}
+  onCancel={() => {
+    showAdjustStockModal = false;
+    stockAdjustProduct = null;
+  }}
 />
 
 <Modal bind:open={showBulkStatusModal} title={labels.changeStatus} size="sm">
   <div class="py-2">
-    <p class="text-text-primary font-semibold mb-3">{labels.setStatusToPrefix} <span class="text-primary-light">{bulkStatusTarget}</span> {t('setStatusToForCount', { count: products.filter(p => selectedIds.has(p.id) && p.status !== bulkStatusTarget).length, total: selectedIds.size })}</p>
+    <p class="text-text-primary font-semibold mb-3">
+      {labels.setStatusToPrefix}
+      <span class="text-primary-light">{bulkStatusTarget}</span>
+      {t("setStatusToForCount", {
+        count: products.filter(
+          (p) => selectedIds.has(p.id) && p.status !== bulkStatusTarget,
+        ).length,
+        total: selectedIds.size,
+      })}
+    </p>
     <div class="flex flex-wrap gap-2 justify-center">
-      {#each ['active', 'inactive', 'archived'] as status}
+      {#each ["active", "inactive", "archived"] as status, i (i)}
         <button
-          class="px-4 py-2 rounded-lg text-sm font-medium border transition-all {bulkStatusTarget === status ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
-          onclick={() => bulkStatusTarget = status}
+          class="px-4 py-2 rounded-lg text-sm font-medium border transition-all {bulkStatusTarget ===
+          status
+            ? 'bg-primary/10 border-primary/30 text-primary-light'
+            : 'bg-surface-default border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
+          onclick={() => (bulkStatusTarget = status)}
         >
-          {status === 'active' ? labels.active : status === 'inactive' ? labels.inactive : labels.archived}
+          {status === "active"
+            ? labels.active
+            : status === "inactive"
+              ? labels.inactive
+              : labels.archived}
         </button>
       {/each}
     </div>
   </div>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" disabled={isBulkUpdating} onclick={() => showBulkStatusModal = false}>{labels.cancel}</Button>
-    <Button variant="primary" class="px-5" disabled={isBulkUpdating} onclick={handleBulkStatusUpdate}>
+    <Button
+      variant="secondary"
+      class="px-5"
+      disabled={isBulkUpdating}
+      onclick={() => (showBulkStatusModal = false)}>{labels.cancel}</Button
+    >
+    <Button
+      variant="primary"
+      class="px-5"
+      disabled={isBulkUpdating}
+      onclick={handleBulkStatusUpdate}
+    >
       {isBulkUpdating ? labels.updating : labels.update}
     </Button>
   {/snippet}
@@ -683,29 +809,38 @@
   {selectedProduct}
   {warningThreshold}
   {criticalThreshold}
-  canEdit={canEdit}
-  canDelete={canDelete}
-  canAdjustStock={canAdjustStock}
-  isSensitive={isSensitive}
+  {canEdit}
+  {canDelete}
+  {canAdjustStock}
+  {isSensitive}
   onstockchanged={() => fetchProducts(offset, limit)}
   onedit={() => {
     showDetailDrawer = false;
-    modalMode = 'edit';
+    modalMode = "edit";
     const p = selectedProduct!;
     form = {
-      name: p.name || '', sku: p.sku || '', barcode: p.barcode || '',
-      category: p.category_name || '', brand_id: p.brand_id || null,
-      price: p.price || 0, cost: p.cost || 0, stock: p.stock || 0,
+      name: p.name || "",
+      sku: p.sku || "",
+      barcode: p.barcode || "",
+      category: p.category_name || "",
+      brand_id: p.brand_id || null,
+      price: p.price || 0,
+      cost: p.cost || 0,
+      stock: p.stock || 0,
       unit_of_measure_id: p.unit_of_measure_id || null,
       tax_class_id: p.tax_class_id || null,
       weight_grams: p.weight_grams || null,
-      description: p.description || '', status: p.status || 'draft'
+      description: p.description || "",
+      status: p.status || "draft",
     };
-    modalCategorySearch = p.category_name || '';
-    modalBrandSearch = p.brand_name || '';
+    modalCategorySearch = p.category_name || "";
+    modalBrandSearch = p.brand_name || "";
     showModal = true;
   }}
-  ondelete={() => { showDetailDrawer = false; showDeleteModal = true; }}
+  ondelete={() => {
+    showDetailDrawer = false;
+    showDeleteModal = true;
+  }}
 />
 
 <ImportWizard
@@ -713,7 +848,4 @@
   module="products"
   displayName={labels.products}
   onComplete={handleImportComplete}
- />
-
-
-
+/>

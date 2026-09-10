@@ -1,17 +1,23 @@
 <script lang="ts">
-  import { Button, Input, Modal } from '$shared/ui';
-  import { UserPlus, Loader2 } from 'lucide-svelte';
-  import { labels } from '$shared/i18n';
+  import { Button, Input, Modal } from "$shared/ui";
+  import { UserPlus, Loader2 } from "lucide-svelte";
+  import { labels } from "$shared/i18n";
 
   let {
     open = $bindable(false),
-    formName = $bindable(''),
-    formPhone = $bindable(''),
-    formEmail = $bindable(''),
-    formAddress = $bindable(''),
-    formNote = $bindable(''),
+    formName = $bindable(""),
+    formPhone = $bindable(""),
+    formEmail = $bindable(""),
+    formAddress = $bindable(""),
+    formNote = $bindable(""),
     formGroupId = $bindable(null as number | null),
-    fieldErrors = $bindable({ name: '', phone: '', email: '', address: '', note: '' }),
+    fieldErrors = $bindable({
+      name: "",
+      phone: "",
+      email: "",
+      address: "",
+      note: "",
+    }),
     creating = $bindable(false),
     groups = [] as { id: number; name: string }[],
     oncreate = () => {},
@@ -23,20 +29,30 @@
     formAddress?: string;
     formNote?: string;
     formGroupId?: number | null;
-    fieldErrors?: { name: string; phone: string; email: string; address: string; note: string };
+    fieldErrors?: {
+      name: string;
+      phone: string;
+      email: string;
+      address: string;
+      note: string;
+    };
     creating?: boolean;
     groups?: { id: number; name: string }[];
     oncreate?: () => void;
   } = $props();
 </script>
 
-<Modal bind:open={open} title={labels.addCustomer} size="md">
+<Modal bind:open title={labels.addCustomer} size="md">
   <div class="space-y-4">
     <div class="space-y-1">
-      <label for="customer-name" class="text-xs font-semibold text-text-secondary">{labels.name} <span class="text-danger">*</span></label>
+      <label
+        for="customer-name"
+        class="text-xs font-semibold text-text-secondary"
+        >{labels.name} <span class="text-danger">*</span></label
+      >
       <Input
         id="customer-name"
-        class={fieldErrors.name ? 'border-danger' : ''}
+        class={fieldErrors.name ? "border-danger" : ""}
         placeholder={labels.egName}
         bind:value={formName}
       />
@@ -46,10 +62,14 @@
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="space-y-1">
-        <label for="customer-phone" class="text-xs font-semibold text-text-secondary">{labels.phone} <span class="text-danger">*</span></label>
+        <label
+          for="customer-phone"
+          class="text-xs font-semibold text-text-secondary"
+          >{labels.phone} <span class="text-danger">*</span></label
+        >
         <Input
           id="customer-phone"
-          class={fieldErrors.phone ? 'border-danger' : ''}
+          class={fieldErrors.phone ? "border-danger" : ""}
           placeholder={labels.egPhone}
           bind:value={formPhone}
         />
@@ -58,10 +78,14 @@
         {/if}
       </div>
       <div class="space-y-1">
-        <label for="customer-email" class="text-xs font-semibold text-text-secondary">{labels.email} <span class="text-danger">*</span></label>
+        <label
+          for="customer-email"
+          class="text-xs font-semibold text-text-secondary"
+          >{labels.email} <span class="text-danger">*</span></label
+        >
         <Input
           id="customer-email"
-          class={fieldErrors.email ? 'border-danger' : ''}
+          class={fieldErrors.email ? "border-danger" : ""}
           placeholder={labels.egEmail}
           bind:value={formEmail}
         />
@@ -71,7 +95,11 @@
       </div>
     </div>
     <div class="space-y-1">
-      <label for="customer-address" class="text-xs font-semibold text-text-secondary">{labels.address}</label>
+      <label
+        for="customer-address"
+        class="text-xs font-semibold text-text-secondary"
+        >{labels.address}</label
+      >
       <Input
         id="customer-address"
         placeholder={labels.egAddress}
@@ -79,20 +107,27 @@
       />
     </div>
     <div class="space-y-1">
-      <label for="customer-group" class="text-xs font-semibold text-text-secondary">{labels.customerGroup}</label>
+      <label
+        for="customer-group"
+        class="text-xs font-semibold text-text-secondary"
+        >{labels.customerGroup}</label
+      >
       <select
         id="customer-group"
         class="w-full rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary focus:border-primary-default focus:outline-none focus:ring-2 focus:ring-primary-default/20 transition-colors duration-200"
         bind:value={formGroupId}
       >
         <option value={null}>{labels.noGroup}</option>
-        {#each groups as g}
+        {#each groups as g (g.id || g)}
           <option value={g.id}>{g.name}</option>
         {/each}
       </select>
     </div>
     <div class="space-y-1">
-      <label for="customer-note" class="text-xs font-semibold text-text-secondary">{labels.note}</label>
+      <label
+        for="customer-note"
+        class="text-xs font-semibold text-text-secondary">{labels.note}</label
+      >
       <Input
         tag="textarea"
         id="customer-note"
@@ -103,8 +138,15 @@
     </div>
   </div>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={() => open = false}>{labels.cancel}</Button>
-    <Button variant="primary" class="px-5" disabled={creating} onclick={oncreate}>
+    <Button variant="secondary" class="px-5" onclick={() => (open = false)}
+      >{labels.cancel}</Button
+    >
+    <Button
+      variant="primary"
+      class="px-5"
+      disabled={creating}
+      onclick={oncreate}
+    >
       {#if creating}
         <Loader2 size={14} class="animate-spin mr-1" /> {labels.creating}
       {:else}

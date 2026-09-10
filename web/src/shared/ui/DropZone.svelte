@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { Upload, FileText } from 'lucide-svelte';
-  import { cn } from '$shared/utils/cn';
-  import { labels } from '$shared/i18n';
+  import { Upload, FileText } from "lucide-svelte";
+  import { cn } from "$shared/utils/cn";
+  import { labels } from "$shared/i18n";
 
   let {
     file = $bindable(null),
-    accept = '.csv,.xlsx',
+    accept = ".csv,.xlsx",
     disabled = false,
   }: {
     file?: File | null;
@@ -14,7 +14,7 @@
   } = $props();
 
   let dragOver = $state(false);
-  let inputId = $state(`dropzone-${Math.random().toString(36).slice(2, 9)}`);
+  const inputId = $state(`dropzone-${Math.random().toString(36).slice(2, 9)}`);
 
   function handleDrop(e: DragEvent) {
     dragOver = false;
@@ -27,7 +27,7 @@
     const input = e.target as HTMLInputElement;
     const f = input.files?.[0];
     if (f) file = f;
-    input.value = '';
+    input.value = "";
   }
 
   function reset() {
@@ -46,7 +46,7 @@
       type="button"
       class="text-xs text-text-muted hover:text-text-primary transition-colors"
       onclick={reset}
-      disabled={disabled}
+      {disabled}
     >
       {labels.change}
     </button>
@@ -54,20 +54,35 @@
 {:else}
   <div
     class={cn(
-      'border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer',
-      dragOver ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-border-strong',
-      disabled && 'opacity-40 pointer-events-none',
+      "border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer",
+      dragOver
+        ? "border-primary/50 bg-primary/5"
+        : "border-border hover:border-border-strong",
+      disabled && "opacity-40 pointer-events-none",
     )}
-    ondragover={(e) => { e.preventDefault(); dragOver = true; }}
-    ondragleave={() => dragOver = false}
-    ondrop={(e) => { e.preventDefault(); handleDrop(e); }}
+    ondragover={(e) => {
+      e.preventDefault();
+      dragOver = true;
+    }}
+    ondragleave={() => (dragOver = false)}
+    ondrop={(e) => {
+      e.preventDefault();
+      handleDrop(e);
+    }}
     onclick={() => document.getElementById(inputId)?.click()}
     role="button"
     tabindex="0"
-    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById(inputId)?.click(); } }}
+    onkeydown={(e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        document.getElementById(inputId)?.click();
+      }
+    }}
   >
     <Upload size={36} class="mx-auto mb-3 text-text-muted" />
-    <p class="text-text-primary font-semibold">{labels.dropFileHereOrClickToBrowse}</p>
+    <p class="text-text-primary font-semibold">
+      {labels.dropFileHereOrClickToBrowse}
+    </p>
     <p class="text-text-muted text-sm mt-1">{labels.supportsCSVAndXLSX}</p>
     <input
       id={inputId}

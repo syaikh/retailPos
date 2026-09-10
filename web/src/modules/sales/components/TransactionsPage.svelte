@@ -1,23 +1,29 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
-  import { useSalesStore } from '../stores/sales-store.svelte';
-  import { createQueryManager } from '../lib/query-manager';
-  import { useAuthStore } from '$modules/auth';
-  import { useRBAC } from '$shared/composables/useRBAC.svelte';
-  import { useShiftStore } from '$modules/shifts';
-  import { goto, subscribe as subscribeRoute } from '$app/router';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { labels } from '$shared/i18n';
-  import { RefreshCw } from 'lucide-svelte';
-  import { useWebSocket } from '$shared/api/websocket';
-  import { Button } from '$shared/ui';
-  import TransactionFilters from './TransactionFilters.svelte';
-  import TransactionTable from './TransactionTable.svelte';
-  import TransactionDrawer from './TransactionDrawer.svelte';
-  import FindTransaction from './FindTransaction.svelte';
-  import { Permissions } from '$shared/constants/permissions';
-  import { getSaleById, getSaleLookupDetail } from '../services/sales-service';
+  import { onMount } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
+  import {
+    getTodayInJakarta,
+    getDateNDaysAgoInJakarta,
+    JAKARTA_OFFSET_MS,
+  } from "$shared/utils/jakartaTime";
+  import { useSalesStore } from "../stores/sales-store.svelte";
+  import type { Sale, SaleLookupDetail } from "../types";
+  import { createQueryManager } from "../lib/query-manager";
+  import { useAuthStore } from "$modules/auth";
+  import { useRBAC } from "$shared/composables/useRBAC.svelte";
+  import { useShiftStore } from "$modules/shifts";
+  import { goto, subscribe as subscribeRoute } from "$app/router";
+  import { toast } from "$shared/stores/toast.svelte";
+  import { labels } from "$shared/i18n";
+  import { RefreshCw } from "lucide-svelte";
+  import { useWebSocket } from "$shared/api/websocket";
+  import { Button } from "$shared/ui";
+  import TransactionFilters from "./TransactionFilters.svelte";
+  import TransactionTable from "./TransactionTable.svelte";
+  import TransactionDrawer from "./TransactionDrawer.svelte";
+  import FindTransaction from "./FindTransaction.svelte";
+  import { Permissions } from "$shared/constants/permissions";
+  import { getSaleById, getSaleLookupDetail } from "../services/sales-service";
 
   const store = useSalesStore();
   const authStore = useAuthStore();
@@ -33,12 +39,12 @@
 
   store.startDate = getDateNDaysAgoInJakarta(30);
   store.endDate = getTodayInJakarta();
-  store.dateRange = 'last30d';
+  store.dateRange = "last30d";
 
   // Default scope is the cashier's own sales ("My Transactions"). The
   // cross-cashier "Find Transaction" tab is only offered to holders of
   // sale.lookup.
-  let activeTab = $state<'mine' | 'lookup'>('mine');
+  let activeTab = $state<"mine" | "lookup">("mine");
   const canLookup = $derived(rbac.can(Permissions.sale.lookup));
   // report.view holders already see every cashier's sales in "My Transactions",
   // so the tab bar (My Transactions + Find Transaction) is redundant for them.
@@ -46,10 +52,10 @@
 
   let showDatePicker = $state(false);
   let showTransactionDrawer = $state(false);
-  let selectedTransaction = $state(null);
+  let selectedTransaction: Sale | SaleLookupDetail | null = $state(null);
   // Deep-link mode for notifications ("/transactions?txn=<id>"): 'history' uses
   // the owner-scoped endpoint, 'lookup' the cross-cashier redacted endpoint.
-  let drawerMode = $state<'history' | 'lookup'>('history');
+  let drawerMode = $state<"history" | "lookup">("history");
 
   // Refresh + freshness state (Part B).
   let lastUpdated = $state<Date | null>(null);
@@ -58,7 +64,7 @@
   let newTxnCount = $state(0);
   let newTxnSince = $state<Date | null>(null);
 
-  let prevFilters = '';
+  let prevFilters = "";
 
   const qm = createQueryManager({
     getFilters: () => store.currentFilters,
@@ -87,24 +93,27 @@
     const json = JSON.stringify(current);
     if (json === prevFilters) return;
 
-    const changed = new Set<string>();
+    const changed = new SvelteSet<string>();
     if (prevFilters) {
       try {
         const prev = JSON.parse(prevFilters);
         for (const key of Object.keys(current)) {
-          if (JSON.stringify((current as Record<string, unknown>)[key]) !== JSON.stringify((prev as Record<string, unknown>)[key])) {
+          if (
+            JSON.stringify((current as Record<string, unknown>)[key]) !==
+            JSON.stringify((prev as Record<string, unknown>)[key])
+          ) {
             changed.add(key);
           }
         }
       } catch {
-        Object.keys(current).forEach(k => changed.add(k));
+        Object.keys(current).forEach((k) => changed.add(k));
       }
     } else {
-      Object.keys(current).forEach(k => changed.add(k));
+      Object.keys(current).forEach((k) => changed.add(k));
     }
 
-    const paginationKeys = new Set(['page', 'pageSize', 'sortBy', 'sortDir']);
-    const hasFilterChange = [...changed].some(k => !paginationKeys.has(k));
+    const paginationKeys = new Set(["page", "pageSize", "sortBy", "sortDir"]);
+    const hasFilterChange = [...changed].some((k) => !paginationKeys.has(k));
     if (hasFilterChange && prevFilters) {
       store.page = 0;
     }
@@ -124,7 +133,7 @@
   // in their list, so a banner there would be wrong.
   $effect(() => {
     const ws = useWebSocket();
-    const unsub = ws.on('sale_created', () => {
+    const unsub = ws.on("sale_created", () => {
       if (!canAccessAll) return;
       newTxnCount += 1;
       if (!newTxnSince) newTxnSince = new Date();
@@ -134,8 +143,8 @@
 
   function jakartaHHMM(d: Date = new Date()): string {
     const shifted = new Date(d.getTime() + JAKARTA_OFFSET_MS);
-    const h = String(shifted.getUTCHours()).padStart(2, '0');
-    const m = String(shifted.getUTCMinutes()).padStart(2, '0');
+    const h = String(shifted.getUTCHours()).padStart(2, "0");
+    const m = String(shifted.getUTCMinutes()).padStart(2, "0");
     return `${h}:${m} WIB`;
   }
 
@@ -164,15 +173,15 @@
 
   function toggleSort(column: string) {
     if (store.sortBy === column) {
-      store.sortDir = store.sortDir === 'asc' ? 'desc' : 'asc';
+      store.sortDir = store.sortDir === "asc" ? "desc" : "asc";
     } else {
       store.sortBy = column;
-      store.sortDir = 'asc';
+      store.sortDir = "asc";
     }
     store.page = 0;
   }
 
-  function openTransactionDetails(transaction: any) {
+  function openTransactionDetails(transaction: Sale | SaleLookupDetail) {
     selectedTransaction = transaction;
     showTransactionDrawer = true;
   }
@@ -182,34 +191,34 @@
   // transaction already in the loaded list, then owner-scoped detail, then the
   // cross-cashier lookup detail as a fallback.
   async function openTxnFromQuery() {
-    const txn = new URLSearchParams(window.location.search).get('txn');
+    const txn = new URLSearchParams(window.location.search).get("txn");
     const id = Number(txn);
     if (!txn || !Number.isInteger(id) || id <= 0) return;
 
     let opened = false;
-    const existing = store.salesData.find((t: any) => t.id === id);
+    const existing = store.salesData.find((t: Sale) => t.id === id);
     if (existing) {
-      drawerMode = 'history';
-      activeTab = 'mine';
+      drawerMode = "history";
+      activeTab = "mine";
       openTransactionDetails(existing);
       opened = true;
     } else {
       const sale = await getSaleById(id);
       if (sale) {
-        drawerMode = 'history';
-        activeTab = 'mine';
+        drawerMode = "history";
+        activeTab = "mine";
         openTransactionDetails(sale);
         opened = true;
       } else {
         const lookup = await getSaleLookupDetail(id);
         if (lookup) {
-          drawerMode = 'lookup';
+          drawerMode = "lookup";
           // A cross-cashier (foreign) sale belongs in the Find Transaction
           // context, not "My Transactions". Switch to that tab when the
           // caller holds sale.lookup; otherwise fall back to the default
           // "mine" tab (the drawer simply will not open without the
           // permission, matching prior behaviour).
-          if (canLookup) activeTab = 'lookup';
+          if (canLookup) activeTab = "lookup";
           openTransactionDetails(lookup);
           opened = true;
         }
@@ -230,7 +239,7 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       showTransactionDrawer = false;
       showDatePicker = false;
     }
@@ -241,7 +250,7 @@
     await shiftStore.loadActiveShift();
     if (rbac.isCashier && !shiftStore.activeShift) {
       toast.error(labels.toastMustOpenShiftFirst);
-      goto('/shifts');
+      goto("/shifts");
       return;
     }
     await store.loadPaymentMethods();
@@ -266,15 +275,21 @@
   {#if !canAccessAll}
     <div class="flex items-center gap-1 border-b border-border">
       <button
-        class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {activeTab === 'mine' ? 'border-primary-default text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'}"
-        onclick={() => (activeTab = 'mine')}
+        class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {activeTab ===
+        'mine'
+          ? 'border-primary-default text-text-primary'
+          : 'border-transparent text-text-muted hover:text-text-secondary'}"
+        onclick={() => (activeTab = "mine")}
       >
         {labels.myTransactions}
       </button>
       {#if canLookup}
         <button
-          class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {activeTab === 'lookup' ? 'border-primary-default text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'}"
-          onclick={() => (activeTab = 'lookup')}
+          class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {activeTab ===
+          'lookup'
+            ? 'border-primary-default text-text-primary'
+            : 'border-transparent text-text-muted hover:text-text-secondary'}"
+          onclick={() => (activeTab = "lookup")}
         >
           {labels.findTransaction}
         </button>
@@ -282,7 +297,7 @@
     </div>
   {/if}
 
-  {#if activeTab === 'mine'}
+  {#if activeTab === "mine"}
     <TransactionFilters
       bind:searchQuery={store.searchQuery}
       bind:startDate={store.startDate}
@@ -296,21 +311,35 @@
     />
 
     {#if canAccessAll && newTxnCount > 0}
-      <div class="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm">
+      <div
+        class="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm"
+      >
         <span class="text-text-secondary">
           <span class="font-semibold text-primary">{newTxnCount}</span>
-          {labels.newTransactionsSince} {jakartaHHMM(newTxnSince ?? new Date())}
+          {labels.newTransactionsSince}
+          {jakartaHHMM(newTxnSince ?? new Date())}
         </span>
-        <Button variant="secondary" size="sm" onclick={viewNew}>{labels.view}</Button>
+        <Button variant="secondary" size="sm" onclick={viewNew}
+          >{labels.view}</Button
+        >
       </div>
     {/if}
 
     <div class="flex items-center justify-between px-1 py-1">
       <span class="text-xs text-text-muted">
-        {store.total} {labels.transaction} · {labels.updated} {jakartaHHMM(lastUpdated ?? new Date())}
+        {store.total}
+        {labels.transaction} · {labels.updated}
+        {jakartaHHMM(lastUpdated ?? new Date())}
       </span>
-      <Button variant="ghost" size="icon" onclick={refresh} disabled={refreshing} aria-label={labels.refresh} title={labels.refresh}>
-        <RefreshCw size={16} class={refreshing ? 'animate-spin' : ''} />
+      <Button
+        variant="ghost"
+        size="icon"
+        onclick={refresh}
+        disabled={refreshing}
+        aria-label={labels.refresh}
+        title={labels.refresh}
+      >
+        <RefreshCw size={16} class={refreshing ? "animate-spin" : ""} />
       </Button>
     </div>
 

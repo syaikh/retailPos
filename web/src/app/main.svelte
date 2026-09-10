@@ -1,114 +1,157 @@
 <script>
-  import { goto, getPath, subscribe } from '$app/router';
-  import { restoreSession, useAuthStore, startProactiveRefresh, handleCrossTabLogout } from '$modules/auth';
-  import { initWebSocket } from '$app/providers/websocket';
-  import { initAuth } from '$app/providers/auth-init';
-  import ReceiptPrintOverlay from '$app/components/ReceiptPrintOverlay.svelte';
-  import NotFoundPage from '$app/components/NotFoundPage.svelte';
-  import { fade } from 'svelte/transition';
-  import { routePermissions } from '$app/config/permissions';
-  import { getDefaultRoute } from '$shared/utils/default-route';
-  import { useRBAC } from '$shared/composables/useRBAC.svelte';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { initSettings, loadFullSettings, settingsStore } from '$shared/stores/settings.svelte';
-  import { initTheme } from '$shared/utils/theme';
+  import { goto, getPath, subscribe } from "$app/router";
+  import {
+    useAuthStore,
+    startProactiveRefresh,
+    handleCrossTabLogout,
+  } from "$modules/auth";
+  import { initWebSocket } from "$app/providers/websocket";
+  import { initAuth } from "$app/providers/auth-init";
+  import ReceiptPrintOverlay from "$app/components/ReceiptPrintOverlay.svelte";
+  import NotFoundPage from "$app/components/NotFoundPage.svelte";
+  import { fade } from "svelte/transition";
+  import { routePermissions } from "$app/config/permissions";
+  import { getDefaultRoute } from "$shared/utils/default-route";
+  import { useRBAC } from "$shared/composables/useRBAC.svelte";
+  import { toast } from "$shared/stores/toast.svelte";
+  import {
+    initSettings,
+    loadFullSettings,
+    settingsStore,
+  } from "$shared/stores/settings.svelte";
+  import { initTheme } from "$shared/utils/theme";
 
-  import Layout from '$app/layouts/Layout.svelte';
-  import { Toast } from '$shared/ui';
-  import { labels, t } from '$shared/i18n';
+  import Layout from "$app/layouts/Layout.svelte";
+  import { Toast } from "$shared/ui";
+  import { labels, t } from "$shared/i18n";
 
   // Apply saved theme before first paint
   initTheme();
 
   // Always-needed pages (loaded eagerly)
-  import LoginPage from '$modules/auth/components/LoginPage.svelte';
-  import Home from '$modules/dashboard/components/Home.svelte';
+  import LoginPage from "$modules/auth/components/LoginPage.svelte";
+  import Home from "$modules/dashboard/components/Home.svelte";
 
   let Component = $state(LoginPage);
   let currentPath = $state(getPath());
   let isInitializing = $state(true);
 
   const pageTitles = {
-    '/login':              () => labels.login,
-    '/':                   () => labels.dashboard,
-    '/pos':                () => labels.pointOfSale,
-    '/inventory':          () => labels.products,
-    '/inventory/products': () => labels.products,
-    '/reports':            () => labels.reports,
-    '/transactions':       () => labels.transactionHistory,
-    '/customers':          () => labels.customers,
-    '/categories':          () => labels.categoryManagement,
-    '/categories/import-history': () => t('importHistoryWithName', { name: labels.categories }),
-    '/brands/import-history':     () => t('importHistoryWithName', { name: labels.brands }),
-    '/units-of-measure/import-history': () => t('importHistoryWithName', { name: labels.unitsOfMeasure }),
-    '/customers/import-history':  () => t('importHistoryWithName', { name: labels.customers }),
-    '/products/import-history':   () => t('importHistoryWithName', { name: labels.products }),
-    '/admin':              () => labels.administration,
-    '/admin/users':        () => labels.userManagement,
-    '/admin/roles':        () => labels.roleManagement,
-    '/admin/audit-logs':   () => labels.auditLogs,
-    '/admin/settings':     () => labels.settings,
-    '/admin/categories':   () => labels.categoryManagement,
-    '/stores':             () => labels.storeManagement,
-    '/stores/import-history': () => t('importHistoryWithName', { name: labels.stores }),
-    '/brands':             () => labels.brandManagement,
-    '/units-of-measure':   () => labels.unitOfMeasureManagement,
-    '/pricing-rules':      () => labels.pricingRules,
-    '/customer-groups':    () => labels.customerGroups,
-    '/suppliers':          () => labels.supplierManagement,
-    '/consignment':        () => labels.consignmentManagement,
-    '/admin/brands':       () => labels.brandManagement,
-    '/admin/units-of-measure': () => labels.unitOfMeasureManagement,
-    '/shifts':             () => labels.shiftManagement,
-    '/purchase-orders':    () => labels.purchaseOrders,
-    '/stock-opnames':      () => labels.stockOpname,
-    '/stock-opnames/adjustments': () => labels.stockOpnameAdjustments,
-    '/storage-locations':  () => labels.storageLocations,
+    "/login": () => labels.login,
+    "/": () => labels.dashboard,
+    "/pos": () => labels.pointOfSale,
+    "/inventory": () => labels.products,
+    "/inventory/products": () => labels.products,
+    "/reports": () => labels.reports,
+    "/transactions": () => labels.transactionHistory,
+    "/customers": () => labels.customers,
+    "/categories": () => labels.categoryManagement,
+    "/categories/import-history": () =>
+      t("importHistoryWithName", { name: labels.categories }),
+    "/brands/import-history": () =>
+      t("importHistoryWithName", { name: labels.brands }),
+    "/units-of-measure/import-history": () =>
+      t("importHistoryWithName", { name: labels.unitsOfMeasure }),
+    "/customers/import-history": () =>
+      t("importHistoryWithName", { name: labels.customers }),
+    "/products/import-history": () =>
+      t("importHistoryWithName", { name: labels.products }),
+    "/admin": () => labels.administration,
+    "/admin/users": () => labels.userManagement,
+    "/admin/roles": () => labels.roleManagement,
+    "/admin/audit-logs": () => labels.auditLogs,
+    "/admin/settings": () => labels.settings,
+    "/admin/categories": () => labels.categoryManagement,
+    "/stores": () => labels.storeManagement,
+    "/stores/import-history": () =>
+      t("importHistoryWithName", { name: labels.stores }),
+    "/brands": () => labels.brandManagement,
+    "/units-of-measure": () => labels.unitOfMeasureManagement,
+    "/pricing-rules": () => labels.pricingRules,
+    "/customer-groups": () => labels.customerGroups,
+    "/suppliers": () => labels.supplierManagement,
+    "/consignment": () => labels.consignmentManagement,
+    "/admin/brands": () => labels.brandManagement,
+    "/admin/units-of-measure": () => labels.unitOfMeasureManagement,
+    "/shifts": () => labels.shiftManagement,
+    "/purchase-orders": () => labels.purchaseOrders,
+    "/stock-opnames": () => labels.stockOpname,
+    "/stock-opnames/adjustments": () => labels.stockOpnameAdjustments,
+    "/storage-locations": () => labels.storageLocations,
   };
 
   const pageModules = {
-    '/':                   () => Promise.resolve({ default: Home }),
-    '/pos':                () => import('$modules/pos/components/PosPage.svelte'),
-    '/inventory':           () => import('$modules/product/components/ProductsPage.svelte'),
-    '/inventory/products':  () => import('$modules/product/components/ProductsPage.svelte'),
-    '/reports':             () => import('$modules/reporting/components/ReportsPage.svelte'),
-    '/transactions':        () => import('$modules/sales/components/TransactionsPage.svelte'),
-    '/customers':           () => import('$modules/customers/components/CustomersPage.svelte'),
-    '/categories':          () => import('$modules/settings/components/CategoriesPage.svelte'),
-    '/categories/import-history':  () => import('$modules/import-export/components/ImportHistoryPage.svelte'),
-    '/brands/import-history':      () => import('$modules/import-export/components/ImportHistoryPage.svelte'),
-    '/units-of-measure/import-history': () => import('$modules/import-export/components/ImportHistoryPage.svelte'),
-    '/customers/import-history':   () => import('$modules/import-export/components/ImportHistoryPage.svelte'),
-    '/products/import-history':    () => import('$modules/import-export/components/ImportHistoryPage.svelte'),
-    '/admin':               () => import('$modules/admin/components/UsersPage.svelte'),
-    '/admin/users':         () => import('$modules/admin/components/UsersPage.svelte'),
-    '/admin/roles':         () => import('$modules/admin/components/RolesPage.svelte'),
-    '/admin/audit-logs':    () => import('$modules/admin/components/AuditLogsPage.svelte'),
-    '/admin/settings':      () => import('$modules/admin/components/SettingsPage.svelte'),
-    '/stores':              () => import('$modules/stores/components/StoresPage.svelte'),
-    '/stores/import-history': () => import('$modules/import-export/components/ImportHistoryPage.svelte'),
-    '/admin/categories':    () => import('$modules/settings/components/CategoriesPage.svelte'),
-    '/brands':              () => import('$modules/settings/components/BrandsPage.svelte'),
-    '/units-of-measure':    () => import('$modules/settings/components/UnitsOfMeasurePage.svelte'),
-    '/pricing-rules':       () => import('$modules/pricing/components/PricingRulesPage.svelte'),
-    '/customer-groups':     () => import('$modules/customer-groups/components/CustomerGroupsPage.svelte'),
-    '/suppliers':           () => import('$modules/supplier/components/SuppliersPage.svelte'),
-    '/admin/brands':        () => import('$modules/settings/components/BrandsPage.svelte'),
-    '/admin/units-of-measure': () => import('$modules/settings/components/UnitsOfMeasurePage.svelte'),
-    '/shifts':              () => import('$modules/shifts/components/ShiftsPage.svelte'),
-    '/purchase-orders':     () => import('$modules/purchase-orders/components/PurchaseOrdersPage.svelte'),
-    '/stock-opnames':       () => import('$modules/stock-opname/components/StockOpnamesPage.svelte'),
-    '/stock-opnames/adjustments': () => import('$modules/stock-opname/components/AdjustmentsReportPage.svelte'),
-    '/storage-locations':   () => import('$modules/storage-location/components/StorageLocationsPage.svelte'),
-    '/consignment':         () => import('$modules/consignment/components/ArrangementsPage.svelte'),
+    "/": () => Promise.resolve({ default: Home }),
+    "/pos": () => import("$modules/pos/components/PosPage.svelte"),
+    "/inventory": () =>
+      import("$modules/product/components/ProductsPage.svelte"),
+    "/inventory/products": () =>
+      import("$modules/product/components/ProductsPage.svelte"),
+    "/reports": () =>
+      import("$modules/reporting/components/ReportsPage.svelte"),
+    "/transactions": () =>
+      import("$modules/sales/components/TransactionsPage.svelte"),
+    "/customers": () =>
+      import("$modules/customers/components/CustomersPage.svelte"),
+    "/categories": () =>
+      import("$modules/settings/components/CategoriesPage.svelte"),
+    "/categories/import-history": () =>
+      import("$modules/import-export/components/ImportHistoryPage.svelte"),
+    "/brands/import-history": () =>
+      import("$modules/import-export/components/ImportHistoryPage.svelte"),
+    "/units-of-measure/import-history": () =>
+      import("$modules/import-export/components/ImportHistoryPage.svelte"),
+    "/customers/import-history": () =>
+      import("$modules/import-export/components/ImportHistoryPage.svelte"),
+    "/products/import-history": () =>
+      import("$modules/import-export/components/ImportHistoryPage.svelte"),
+    "/admin": () => import("$modules/admin/components/UsersPage.svelte"),
+    "/admin/users": () => import("$modules/admin/components/UsersPage.svelte"),
+    "/admin/roles": () => import("$modules/admin/components/RolesPage.svelte"),
+    "/admin/audit-logs": () =>
+      import("$modules/admin/components/AuditLogsPage.svelte"),
+    "/admin/settings": () =>
+      import("$modules/admin/components/SettingsPage.svelte"),
+    "/stores": () => import("$modules/stores/components/StoresPage.svelte"),
+    "/stores/import-history": () =>
+      import("$modules/import-export/components/ImportHistoryPage.svelte"),
+    "/admin/categories": () =>
+      import("$modules/settings/components/CategoriesPage.svelte"),
+    "/brands": () => import("$modules/settings/components/BrandsPage.svelte"),
+    "/units-of-measure": () =>
+      import("$modules/settings/components/UnitsOfMeasurePage.svelte"),
+    "/pricing-rules": () =>
+      import("$modules/pricing/components/PricingRulesPage.svelte"),
+    "/customer-groups": () =>
+      import("$modules/customer-groups/components/CustomerGroupsPage.svelte"),
+    "/suppliers": () =>
+      import("$modules/supplier/components/SuppliersPage.svelte"),
+    "/admin/brands": () =>
+      import("$modules/settings/components/BrandsPage.svelte"),
+    "/admin/units-of-measure": () =>
+      import("$modules/settings/components/UnitsOfMeasurePage.svelte"),
+    "/shifts": () => import("$modules/shifts/components/ShiftsPage.svelte"),
+    "/purchase-orders": () =>
+      import("$modules/purchase-orders/components/PurchaseOrdersPage.svelte"),
+    "/stock-opnames": () =>
+      import("$modules/stock-opname/components/StockOpnamesPage.svelte"),
+    "/stock-opnames/adjustments": () =>
+      import("$modules/stock-opname/components/AdjustmentsReportPage.svelte"),
+    "/storage-locations": () =>
+      import("$modules/storage-location/components/StorageLocationsPage.svelte"),
+    "/consignment": () =>
+      import("$modules/consignment/components/ArrangementsPage.svelte"),
   };
 
   let loadId = 0;
 
   async function getComponent(path) {
-    const loader = pageModules[path] ?? (path.startsWith('/stock-opnames/')
-      ? () => import('$modules/stock-opname/components/StockOpnameDetailPage.svelte')
-      : null);
+    const loader =
+      pageModules[path] ??
+      (path.startsWith("/stock-opnames/")
+        ? () =>
+            import("$modules/stock-opname/components/StockOpnameDetailPage.svelte")
+        : null);
     if (!loader) return NotFoundPage;
     const id = ++loadId;
     try {
@@ -116,7 +159,7 @@
       if (id !== loadId) return;
       return mod.default;
     } catch (err) {
-      console.error('Failed to load page:', err);
+      console.error("Failed to load page:", err);
       return NotFoundPage;
     }
   }
@@ -133,22 +176,23 @@
   }
 
   async function handleRoute(fullPath) {
-    const path = fullPath.split('?')[0];
-    const token = sessionStorage.getItem('access_token');
-    const hasValidToken = token && token !== 'null' && token !== 'undefined' && token.length > 10;
+    const path = fullPath.split("?")[0];
+    const token = sessionStorage.getItem("access_token");
+    const hasValidToken =
+      token && token !== "null" && token !== "undefined" && token.length > 10;
 
     if (!hasValidToken) {
       Component = LoginPage;
-      currentPath = '/login';
-      if (path !== '/login') {
-        window.history.replaceState({}, '', '/login');
+      currentPath = "/login";
+      if (path !== "/login") {
+        window.history.replaceState({}, "", "/login");
       }
       isInitializing = false;
-      updateTitle('/login');
+      updateTitle("/login");
       return;
     }
 
-    if (path === '/login') {
+    if (path === "/login") {
       const defaultRoute = getDefaultRoute(useAuthStore().user);
       goto(defaultRoute);
       return;
@@ -158,7 +202,7 @@
       toast.error(labels.noPermissionToAccessPage);
       const fallback = getDefaultRoute(useAuthStore().user);
       if (fallback === path) {
-        goto('/');
+        goto("/");
       } else {
         goto(fallback);
       }
@@ -185,15 +229,15 @@
     const authStore = useAuthStore();
 
     if (!authStore.isAuthenticated) {
-      if (path !== '/login') {
+      if (path !== "/login") {
         Component = LoginPage;
-        currentPath = '/login';
-        window.history.replaceState({}, '', '/login');
+        currentPath = "/login";
+        window.history.replaceState({}, "", "/login");
       } else {
         Component = LoginPage;
-        currentPath = '/login';
+        currentPath = "/login";
       }
-      updateTitle('/login');
+      updateTitle("/login");
       isInitializing = false;
       subscribe(handleRoute);
       return;
@@ -206,21 +250,21 @@
     loadFullSettings();
     subscribe(handleRoute);
 
-    if (path === '/login') {
+    if (path === "/login") {
       const defaultRoute = getDefaultRoute(authStore.user);
       currentPath = defaultRoute;
-      window.history.replaceState({}, '', defaultRoute);
+      window.history.replaceState({}, "", defaultRoute);
       const comp = await getComponent(defaultRoute);
       if (comp) Component = comp;
       updateTitle(defaultRoute);
     } else {
-      if (path === '/inventory') {
-        goto('/inventory/products');
+      if (path === "/inventory") {
+        goto("/inventory/products");
         isInitializing = false;
         return;
       }
-      if (path === '/inventory/stock') {
-        goto('/inventory/products');
+      if (path === "/inventory/stock") {
+        goto("/inventory/products");
         isInitializing = false;
         return;
       }
@@ -229,12 +273,12 @@
         toast.error(labels.noPermissionToAccessPage);
         let fallback = getDefaultRoute(authStore.user);
         if (fallback === path) {
-          fallback = '/';
+          fallback = "/";
         }
         const comp = await getComponent(fallback);
         if (comp) Component = comp;
         currentPath = fallback;
-        window.history.replaceState({}, '', fallback);
+        window.history.replaceState({}, "", fallback);
         updateTitle(fallback);
         isInitializing = false;
         return;
@@ -254,19 +298,33 @@
 </script>
 
 {#if isInitializing}
-  <div class="min-h-screen bg-bg flex items-center justify-center absolute inset-0 z-50" out:fade={{ duration: 300 }}>
+  <div
+    class="min-h-screen bg-bg flex items-center justify-center absolute inset-0 z-50"
+    out:fade={{ duration: 300 }}
+  >
     <div class="flex flex-col items-center gap-4">
-      <div class="w-12 h-12 rounded-2xl gradient-bg-primary flex items-center justify-center shadow-glow-primary animate-pulse">
+      <div
+        class="w-12 h-12 rounded-2xl gradient-bg-primary flex items-center justify-center shadow-glow-primary animate-pulse"
+      >
         <span class="text-white text-xl font-bold">R</span>
       </div>
       <div class="flex gap-1.5">
-        <span class="w-2 h-2 bg-primary rounded-full animate-bounce" style="animation-delay:0ms"></span>
-        <span class="w-2 h-2 bg-primary rounded-full animate-bounce" style="animation-delay:150ms"></span>
-        <span class="w-2 h-2 bg-primary rounded-full animate-bounce" style="animation-delay:300ms"></span>
+        <span
+          class="w-2 h-2 bg-primary rounded-full animate-bounce"
+          style="animation-delay:0ms"
+        ></span>
+        <span
+          class="w-2 h-2 bg-primary rounded-full animate-bounce"
+          style="animation-delay:150ms"
+        ></span>
+        <span
+          class="w-2 h-2 bg-primary rounded-full animate-bounce"
+          style="animation-delay:300ms"
+        ></span>
       </div>
     </div>
   </div>
-{:else if currentPath === '/login'}
+{:else if currentPath === "/login"}
   <Component />
 {:else}
   <Layout {currentPath}>

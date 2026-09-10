@@ -1,207 +1,254 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockApiFetch = vi.fn();
 
-vi.mock('$shared/api/http-client', () => ({
+vi.mock("$shared/api/http-client", () => ({
   apiFetch: (...args: unknown[]) => mockApiFetch(...args),
 }));
 
-describe('supplier-service', () => {
+describe("supplier-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('getSuppliers', () => {
-    it('builds basic query params', async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ data: [{ id: 1, name: 'PT Maju' }], total: 1 }) });
+  describe("getSuppliers", () => {
+    it("builds basic query params", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ data: [{ id: 1, name: "PT Maju" }], total: 1 }),
+      });
 
-      const { getSuppliers } = await import('../supplier-service');
+      const { getSuppliers } = await import("../supplier-service");
       const result = await getSuppliers({ limit: 20, offset: 0 });
 
       expect(mockApiFetch).toHaveBeenCalled();
       const url = mockApiFetch.mock.calls[0][0] as string;
-      expect(url).toContain('limit=20');
-      expect(url).toContain('offset=0');
+      expect(url).toContain("limit=20");
+      expect(url).toContain("offset=0");
       expect(result.data).toHaveLength(1);
       expect(result.total).toBe(1);
     });
 
-    it('includes search and is_active filters', async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ data: [], total: 0 }) });
+    it("includes search and is_active filters", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: [], total: 0 }),
+      });
 
-      const { getSuppliers } = await import('../supplier-service');
-      await getSuppliers({ limit: 10, offset: 0, search: 'Maju', is_active: true });
+      const { getSuppliers } = await import("../supplier-service");
+      await getSuppliers({
+        limit: 10,
+        offset: 0,
+        search: "Maju",
+        is_active: true,
+      });
 
       const url = mockApiFetch.mock.calls[0][0] as string;
-      expect(url).toContain('search=Maju');
-      expect(url).toContain('is_active=true');
+      expect(url).toContain("search=Maju");
+      expect(url).toContain("is_active=true");
     });
 
-    it('includes is_consignment filter', async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ data: [], total: 0 }) });
+    it("includes is_consignment filter", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: [], total: 0 }),
+      });
 
-      const { getSuppliers } = await import('../supplier-service');
+      const { getSuppliers } = await import("../supplier-service");
       await getSuppliers({ limit: 10, offset: 0, is_consignment: true });
 
       const url = mockApiFetch.mock.calls[0][0] as string;
-      expect(url).toContain('is_consignment=true');
+      expect(url).toContain("is_consignment=true");
     });
 
-    it('does not include is_consignment when undefined', async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ data: [], total: 0 }) });
+    it("does not include is_consignment when undefined", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: [], total: 0 }),
+      });
 
-      const { getSuppliers } = await import('../supplier-service');
+      const { getSuppliers } = await import("../supplier-service");
       await getSuppliers({ limit: 10, offset: 0 });
 
       const url = mockApiFetch.mock.calls[0][0] as string;
-      expect(url).not.toContain('is_consignment');
+      expect(url).not.toContain("is_consignment");
     });
 
-    it('includes sort_by and sort_dir', async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ data: [], total: 0 }) });
+    it("includes sort_by and sort_dir", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: [], total: 0 }),
+      });
 
-      const { getSuppliers } = await import('../supplier-service');
-      await getSuppliers({ limit: 10, offset: 0, sort_by: 'name', sort_dir: 'asc' });
+      const { getSuppliers } = await import("../supplier-service");
+      await getSuppliers({
+        limit: 10,
+        offset: 0,
+        sort_by: "name",
+        sort_dir: "asc",
+      });
 
       const url = mockApiFetch.mock.calls[0][0] as string;
-      expect(url).toContain('sort_by=name');
-      expect(url).toContain('sort_dir=asc');
+      expect(url).toContain("sort_by=name");
+      expect(url).toContain("sort_dir=asc");
     });
 
-    it('returns empty on error', async () => {
+    it("returns empty on error", async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: false });
 
-      const { getSuppliers } = await import('../supplier-service');
+      const { getSuppliers } = await import("../supplier-service");
       const result = await getSuppliers({ limit: 10, offset: 0 });
       expect(result.data).toEqual([]);
       expect(result.total).toBe(0);
     });
   });
 
-  describe('getSupplier', () => {
-    it('returns single supplier', async () => {
+  describe("getSupplier", () => {
+    it("returns single supplier", async () => {
       mockApiFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ data: { id: 1, name: 'PT Maju', code: 'SUP-001' } }),
+        json: () =>
+          Promise.resolve({
+            data: { id: 1, name: "PT Maju", code: "SUP-001" },
+          }),
       });
 
-      const { getSupplier } = await import('../supplier-service');
+      const { getSupplier } = await import("../supplier-service");
       const result = await getSupplier(1);
 
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers/1');
-      expect(result).toEqual({ id: 1, name: 'PT Maju', code: 'SUP-001' });
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/suppliers/1");
+      expect(result).toEqual({ id: 1, name: "PT Maju", code: "SUP-001" });
     });
 
-    it('returns null on error', async () => {
+    it("returns null on error", async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: false });
 
-      const { getSupplier } = await import('../supplier-service');
+      const { getSupplier } = await import("../supplier-service");
       const result = await getSupplier(99);
       expect(result).toBeNull();
     });
   });
 
-  describe('createSupplier', () => {
-    it('sends POST with correct payload', async () => {
+  describe("createSupplier", () => {
+    it("sends POST with correct payload", async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: true });
 
-      const { createSupplier } = await import('../supplier-service');
+      const { createSupplier } = await import("../supplier-service");
       const result = await createSupplier({
-        name: 'PT Baru',
-        code: 'SUP-NEW',
+        name: "PT Baru",
+        code: "SUP-NEW",
         is_active: true,
       });
 
       expect(result).toBe(true);
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers', expect.objectContaining({
-        method: 'POST',
-      }));
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/suppliers",
+        expect.objectContaining({
+          method: "POST",
+        }),
+      );
       const body = JSON.parse(mockApiFetch.mock.calls[0][1].body);
-      expect(body.name).toBe('PT Baru');
-      expect(body.code).toBe('SUP-NEW');
+      expect(body.name).toBe("PT Baru");
+      expect(body.code).toBe("SUP-NEW");
       expect(body.is_active).toBe(true);
     });
 
-    it('omits code when not provided (server auto-generates)', async () => {
+    it("omits code when not provided (server auto-generates)", async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: true });
 
-      const { createSupplier } = await import('../supplier-service');
+      const { createSupplier } = await import("../supplier-service");
       const result = await createSupplier({
-        name: 'PT Tanpa Kode',
+        name: "PT Tanpa Kode",
         is_active: true,
       });
 
       expect(result).toBe(true);
       const body = JSON.parse(mockApiFetch.mock.calls[0][1].body);
-      expect(body.name).toBe('PT Tanpa Kode');
+      expect(body.name).toBe("PT Tanpa Kode");
       expect(body.code).toBeUndefined();
     });
   });
 
-  describe('updateSupplier', () => {
-    it('sends PUT with correct payload', async () => {
+  describe("updateSupplier", () => {
+    it("sends PUT with correct payload", async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: true });
 
-      const { updateSupplier } = await import('../supplier-service');
+      const { updateSupplier } = await import("../supplier-service");
       const result = await updateSupplier(1, {
-        name: 'PT Update',
+        name: "PT Update",
         is_active: false,
       });
 
       expect(result).toBe(true);
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers/1', expect.objectContaining({
-        method: 'PUT',
-      }));
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/suppliers/1",
+        expect.objectContaining({
+          method: "PUT",
+        }),
+      );
       const body = JSON.parse(mockApiFetch.mock.calls[0][1].body);
-      expect(body.name).toBe('PT Update');
+      expect(body.name).toBe("PT Update");
       expect(body.is_active).toBe(false);
     });
   });
 
-  describe('deleteSupplier', () => {
-    it('sends DELETE request', async () => {
+  describe("deleteSupplier", () => {
+    it("sends DELETE request", async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: true });
 
-      const { deleteSupplier } = await import('../supplier-service');
+      const { deleteSupplier } = await import("../supplier-service");
       const result = await deleteSupplier(5);
 
       expect(result).toBe(true);
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers/5', { method: 'DELETE' });
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/suppliers/5", {
+        method: "DELETE",
+      });
     });
   });
 
-  describe('getSuppliersByProduct', () => {
-    it('returns suppliers for product', async () => {
+  describe("getSuppliersByProduct", () => {
+    it("returns suppliers for product", async () => {
       mockApiFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({
-          data: [{ id: 1, product_id: 10, supplier_id: 1, unit_cost: 50000, lead_time_days: 3, is_preferred: true }],
-        }),
+        json: () =>
+          Promise.resolve({
+            data: [
+              {
+                id: 1,
+                product_id: 10,
+                supplier_id: 1,
+                unit_cost: 50000,
+                lead_time_days: 3,
+                is_preferred: true,
+              },
+            ],
+          }),
       });
 
-      const { getSuppliersByProduct } = await import('../supplier-service');
+      const { getSuppliersByProduct } = await import("../supplier-service");
       const result = await getSuppliersByProduct(10);
 
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/products/10/suppliers');
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/products/10/suppliers");
       expect(result).toHaveLength(1);
       expect(result[0].unit_cost).toBe(50000);
       expect(result[0].is_preferred).toBe(true);
     });
 
-    it('returns empty on error', async () => {
+    it("returns empty on error", async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: false });
 
-      const { getSuppliersByProduct } = await import('../supplier-service');
+      const { getSuppliersByProduct } = await import("../supplier-service");
       const result = await getSuppliersByProduct(99);
       expect(result).toEqual([]);
     });
   });
 
-  describe('linkProduct', () => {
-    it('sends POST with correct payload', async () => {
+  describe("linkProduct", () => {
+    it("sends POST with correct payload", async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: true });
 
-      const { linkProduct } = await import('../supplier-service');
+      const { linkProduct } = await import("../supplier-service");
       const result = await linkProduct(1, {
         product_id: 10,
         unit_cost: 50000,
@@ -210,9 +257,12 @@ describe('supplier-service', () => {
       });
 
       expect(result).toBe(true);
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers/1/products', expect.objectContaining({
-        method: 'POST',
-      }));
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/suppliers/1/products",
+        expect.objectContaining({
+          method: "POST",
+        }),
+      );
       const body = JSON.parse(mockApiFetch.mock.calls[0][1].body);
       expect(body.product_id).toBe(10);
       expect(body.unit_cost).toBe(50000);
@@ -221,89 +271,105 @@ describe('supplier-service', () => {
     });
   });
 
-  describe('unlinkProduct', () => {
-    it('sends DELETE request', async () => {
+  describe("unlinkProduct", () => {
+    it("sends DELETE request", async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: true });
 
-      const { unlinkProduct } = await import('../supplier-service');
+      const { unlinkProduct } = await import("../supplier-service");
       const result = await unlinkProduct(1, 10);
 
       expect(result).toBe(true);
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers/1/products/10', { method: 'DELETE' });
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/suppliers/1/products/10",
+        { method: "DELETE" },
+      );
     });
   });
 
-  describe('getProductsBySupplier', () => {
-    it('returns products for supplier', async () => {
+  describe("getProductsBySupplier", () => {
+    it("returns products for supplier", async () => {
       mockApiFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({
-          data: [{ id: 1, supplier_id: 1, product_id: 10, unit_cost: 25000 }],
-        }),
+        json: () =>
+          Promise.resolve({
+            data: [{ id: 1, supplier_id: 1, product_id: 10, unit_cost: 25000 }],
+          }),
       });
 
-      const { getProductsBySupplier } = await import('../supplier-service');
+      const { getProductsBySupplier } = await import("../supplier-service");
       const result = await getProductsBySupplier(1);
 
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers/1/products');
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/suppliers/1/products");
       expect(result).toHaveLength(1);
     });
 
-    it('returns empty on error', async () => {
+    it("returns empty on error", async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: false });
 
-      const { getProductsBySupplier } = await import('../supplier-service');
+      const { getProductsBySupplier } = await import("../supplier-service");
       const result = await getProductsBySupplier(99);
 
       expect(result).toEqual([]);
     });
   });
 
-  describe('bulkUpdateSuppliers', () => {
-    it('sends PUT with ids and is_active', async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ updated: 2 }) });
+  describe("bulkUpdateSuppliers", () => {
+    it("sends PUT with ids and is_active", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ updated: 2 }),
+      });
 
-      const { bulkUpdateSuppliers } = await import('../supplier-service');
+      const { bulkUpdateSuppliers } = await import("../supplier-service");
       const result = await bulkUpdateSuppliers([1, 2], true);
 
       expect(result).toBe(2);
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers/bulk', expect.objectContaining({
-        method: 'PUT',
-      }));
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/suppliers/bulk",
+        expect.objectContaining({
+          method: "PUT",
+        }),
+      );
       const body = JSON.parse(mockApiFetch.mock.calls[0][1].body);
       expect(body.ids).toEqual([1, 2]);
       expect(body.is_active).toBe(true);
     });
 
-    it('returns 0 on error', async () => {
+    it("returns 0 on error", async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: false });
 
-      const { bulkUpdateSuppliers } = await import('../supplier-service');
+      const { bulkUpdateSuppliers } = await import("../supplier-service");
       const result = await bulkUpdateSuppliers([1], false);
 
       expect(result).toBe(0);
     });
   });
 
-  describe('bulkDeleteSuppliers', () => {
-    it('sends DELETE with ids', async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ deleted: 2 }) });
+  describe("bulkDeleteSuppliers", () => {
+    it("sends DELETE with ids", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ deleted: 2 }),
+      });
 
-      const { bulkDeleteSuppliers } = await import('../supplier-service');
+      const { bulkDeleteSuppliers } = await import("../supplier-service");
       const result = await bulkDeleteSuppliers([1, 2]);
 
       expect(result).toBe(2);
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers/bulk', expect.objectContaining({
-        method: 'DELETE',
-      }));
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/suppliers/bulk",
+        expect.objectContaining({
+          method: "DELETE",
+        }),
+      );
       const body = JSON.parse(mockApiFetch.mock.calls[0][1].body);
       expect(body.ids).toEqual([1, 2]);
     });
 
-    it('returns 0 on error', async () => {
+    it("returns 0 on error", async () => {
       mockApiFetch.mockResolvedValueOnce({ ok: false });
 
-      const { bulkDeleteSuppliers } = await import('../supplier-service');
+      const { bulkDeleteSuppliers } = await import("../supplier-service");
       const result = await bulkDeleteSuppliers([1]);
 
       expect(result).toBe(0);

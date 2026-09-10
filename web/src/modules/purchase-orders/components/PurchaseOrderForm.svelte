@@ -1,16 +1,18 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { usePurchaseOrderStore } from '../stores/po-store.svelte';
-  import { getSuppliers } from '$modules/supplier/services/supplier-service';
-  import { getProductsBySupplier } from '$modules/supplier/services/supplier-service';
-  import { getActiveStores } from '$modules/stores/services/stores-service';
-  import { Button, Input, Modal, SelectSearch } from '$shared/ui';
-  import CurrencyInput from '$shared/ui/CurrencyInput.svelte';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { labels, t } from '$shared/i18n';
-  import { Loader2, ChevronLeft, ChevronRight } from 'lucide-svelte';
-  import { getTodayInJakarta } from '$shared/utils/jakartaTime';
-  import { useAuthStore } from '$modules/auth';
+  import { onMount } from "svelte";
+  import { usePurchaseOrderStore } from "../stores/po-store.svelte";
+  import { getSuppliers } from "$modules/supplier/services/supplier-service";
+  import { getProductsBySupplier } from "$modules/supplier/services/supplier-service";
+  import { getActiveStores } from "$modules/stores/services/stores-service";
+  import { Button, Input, Modal, SelectSearch } from "$shared/ui";
+  import CurrencyInput from "$shared/ui/CurrencyInput.svelte";
+  import { toast } from "$shared/stores/toast.svelte";
+  import { labels, t } from "$shared/i18n";
+  import { Loader2, ChevronLeft, ChevronRight } from "lucide-svelte";
+  import { getTodayInJakarta } from "$shared/utils/jakartaTime";
+  import { useAuthStore } from "$modules/auth";
+  import type { PurchaseOrderItem } from "../types";
+  import type { ProductSupplier } from "$modules/supplier/types";
 
   const store = usePurchaseOrderStore();
 
@@ -22,40 +24,71 @@
 
   let saving = $state(false);
   let currentStep = $state(1);
-  let supplierProducts = $state<any[]>([]);
+  let supplierProducts = $state<ProductSupplier[]>([]);
   let loadingProducts = $state(false);
 
-  let po = $state<any>(store.selectedPO || {
-    supplier_id: 0,
-    expected_date: '',
-    payment_term: 'Cash on Delivery',
-    delivery_address: '',
-    supplier_reference_number: '',
-    notes: '',
-    items: [],
-  });
-  let suppliers = $state<any[]>([]);
-  let stores = $state<any[]>([]);
+  type POFormData = {
+    items: PurchaseOrderItem[];
+    supplier_id: number;
+    expected_date: string;
+    payment_term: string;
+    delivery_address: string;
+    supplier_reference_number: string;
+    notes: string;
+    store_id?: number;
+  };
+
+  let po = $state<POFormData>(
+    store.selectedPO ? {
+      supplier_id: store.selectedPO.supplier_id,
+      expected_date: store.selectedPO.expected_date || "",
+      payment_term: store.selectedPO.payment_term || "Cash on Delivery",
+      delivery_address: store.selectedPO.delivery_address || "",
+      supplier_reference_number: store.selectedPO.supplier_reference_number || "",
+      notes: store.selectedPO.notes || "",
+      items: store.selectedPO.items?.map((item: PurchaseOrderItem) => ({ ...item })) || [],
+    } : {
+      supplier_id: 0,
+      expected_date: "",
+      payment_term: "Cash on Delivery",
+      delivery_address: "",
+      supplier_reference_number: "",
+      notes: "",
+      items: [],
+    },
+  );
+  let suppliers = $state<{ id: number; name: string }[]>([]);
+  let stores = $state<{ id: number; name: string }[]>([]);
   let selectedStoreId = $state<number | undefined>(undefined);
-  let customPaymentTerm = $state('');
+  let customPaymentTerm = $state("");
 
   const PAYMENT_TERMS = [
-    'Cash on Delivery',
-    'Net 15',
-    'Net 30',
-    'Net 60',
-    'Net 90',
-    'Due on Receipt',
-    '50% Upfront, 50% on Delivery',
+    "Cash on Delivery",
+    "Net 15",
+    "Net 30",
+    "Net 60",
+    "Net 90",
+    "Due on Receipt",
+    "50% Upfront, 50% on Delivery",
   ];
 
-  let selectedPaymentTerm = $state('Cash on Delivery');
+  let selectedPaymentTerm = $state("Cash on Delivery");
   const todayJakarta = $derived(getTodayInJakarta());
 
   $effect(() => {
     if (store.selectedPO) {
-      po = { ...store.selectedPO, items: store.selectedPO.items?.map((item: any) => ({ ...item })) || [] };
-      selectedStoreId = store.selectedPO.store_id ?? useAuthStore().user?.store_id ?? undefined;
+      po = {
+        supplier_id: store.selectedPO.supplier_id,
+        expected_date: store.selectedPO.expected_date || "",
+        payment_term: store.selectedPO.payment_term || "Cash on Delivery",
+        delivery_address: store.selectedPO.delivery_address || "",
+        supplier_reference_number: store.selectedPO.supplier_reference_number || "",
+        notes: store.selectedPO.notes || "",
+        store_id: store.selectedPO.store_id,
+        items: store.selectedPO.items?.map((item: PurchaseOrderItem) => ({ ...item })) || [],
+      };
+      selectedStoreId =
+        store.selectedPO.store_id ?? useAuthStore().user?.store_id ?? undefined;
       open = true;
       currentStep = 1;
       if (!selectedStoreId) {
@@ -69,11 +102,11 @@
       currentStep = 1;
       po = {
         supplier_id: 0,
-        expected_date: '',
-        payment_term: 'Cash on Delivery',
-        delivery_address: '',
-        supplier_reference_number: '',
-        notes: '',
+        expected_date: "",
+        payment_term: "Cash on Delivery",
+        delivery_address: "",
+        supplier_reference_number: "",
+        notes: "",
         items: [],
       };
       supplierProducts = [];
@@ -88,9 +121,9 @@
   $effect(() => {
     if (PAYMENT_TERMS.includes(po.payment_term)) {
       selectedPaymentTerm = po.payment_term;
-      customPaymentTerm = '';
+      customPaymentTerm = "";
     } else {
-      selectedPaymentTerm = 'Other';
+      selectedPaymentTerm = "Other";
       customPaymentTerm = po.payment_term;
     }
   });
@@ -109,7 +142,7 @@
 
   function handlePaymentTermChange(term: string) {
     selectedPaymentTerm = term;
-    if (term === 'Other') {
+    if (term === "Other") {
       po.payment_term = customPaymentTerm;
     } else {
       po.payment_term = term;
@@ -152,31 +185,49 @@
   });
 
   function displayNum(n: number): string {
-    return n ? n.toLocaleString('id-ID') : '';
+    return n ? n.toLocaleString("id-ID") : "";
   }
 
   function addItem() {
-    po.items = [...po.items, { product_id: 0, qty_ordered: 1, unit_cost: 0, discount_amount: 0 }];
+    po.items = [
+      ...po.items,
+      {
+        id: 0,
+        purchase_order_id: 0,
+        product_id: 0,
+        qty_ordered: 1,
+        qty_received: 0,
+        unit_cost: 0,
+        discount_amount: 0,
+        subtotal: 0,
+        product_name: "",
+        created_at: "",
+        updated_at: "",
+      },
+    ];
   }
 
   function removeItem(index: number) {
-    po.items = po.items.filter((_: any, i: number) => i !== index);
+    po.items = po.items.filter((_: PurchaseOrderItem, i: number) => i !== index);
   }
 
-  function calculateSubtotal(item: any) {
+  function calculateSubtotal(item: PurchaseOrderItem) {
     return item.qty_ordered * item.unit_cost - item.discount_amount;
   }
 
   function getTotalSubtotal() {
-    return po.items.reduce((sum: number, item: any) => sum + calculateSubtotal(item), 0);
+    return po.items.reduce(
+      (sum: number, item: PurchaseOrderItem) => sum + calculateSubtotal(item),
+      0,
+    );
   }
 
   async function handleSubmit() {
     saving = true;
     try {
       const items = po.items
-        .filter((item: any) => item.product_id > 0 && item.qty_ordered > 0)
-        .map((item: any) => ({
+        .filter((item: PurchaseOrderItem) => item.product_id > 0 && item.qty_ordered > 0)
+        .map((item: PurchaseOrderItem) => ({
           product_id: Number(item.product_id),
           qty_ordered: Number(item.qty_ordered),
           unit_cost: Number(item.unit_cost),
@@ -206,8 +257,8 @@
       }
       open = false;
       store.load(store.currentFilters);
-    } catch (e: any) {
-      toast.error(e.message || labels.failedToSavePurchaseOrder);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : labels.failedToSavePurchaseOrder);
     } finally {
       saving = false;
     }
@@ -220,74 +271,137 @@
   }
 </script>
 
-<Modal bind:open title={store.selectedPO ? labels.editPurchaseOrder : labels.createPurchaseOrder} size="xl" panelClass="max-w-6xl">
+<Modal
+  bind:open
+  title={store.selectedPO
+    ? labels.editPurchaseOrder
+    : labels.createPurchaseOrder}
+  size="xl"
+  panelClass="max-w-6xl"
+>
   <div class="flex items-center gap-2 mb-4">
-    <span class="w-7 h-7 rounded-full bg-primary-default text-white text-xs font-bold flex items-center justify-center">1</span>
-    <span class="text-sm font-medium text-text-primary">{labels.poDetails}</span>
+    <span
+      class="w-7 h-7 rounded-full bg-primary-default text-white text-xs font-bold flex items-center justify-center"
+      >1</span
+    >
+    <span class="text-sm font-medium text-text-primary">{labels.poDetails}</span
+    >
     <span class="text-text-muted text-sm mx-1">→</span>
-    <span class="w-7 h-7 rounded-full {currentStep === 2 ? 'bg-primary-default text-white' : 'bg-muted text-text-muted'} text-xs font-bold flex items-center justify-center">2</span>
-    <span class="text-sm {currentStep === 2 ? 'font-medium text-text-primary' : 'text-text-muted'}">{labels.items}</span>
+    <span
+      class="w-7 h-7 rounded-full {currentStep === 2
+        ? 'bg-primary-default text-white'
+        : 'bg-muted text-text-muted'} text-xs font-bold flex items-center justify-center"
+      >2</span
+    >
+    <span
+      class="text-sm {currentStep === 2
+        ? 'font-medium text-text-primary'
+        : 'text-text-muted'}">{labels.items}</span
+    >
   </div>
 
   {#if currentStep === 1}
     <div class="min-h-[340px] grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
-        <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <label
+          class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+        >
           <span>{labels.supplier} <span class="text-danger">*</span></span>
           <SelectSearch
             bind:value={po.supplier_id}
-            options={suppliers.map(s => ({ value: s.id, label: s.name }))}
+            options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
             placeholder={labels.selectSupplier}
           />
         </label>
       </div>
       {#if !useAuthStore().user?.store_id}
         <div>
-          <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+          <label
+            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+          >
             <span>{labels.store} <span class="text-danger">*</span></span>
             <SelectSearch
               bind:value={selectedStoreId}
-              options={stores.map((s: any) => ({ value: s.id, label: s.name }))}
+              options={stores.map((s: { id: number; name: string }) => ({ value: s.id, label: s.name }))}
               placeholder={labels.pilihToko}
             />
           </label>
         </div>
       {/if}
       <div>
-        <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <label
+          class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+        >
           <span>{labels.expectedDate} <span class="text-danger">*</span></span>
-          <Input type="date" bind:value={po.expected_date} min={todayJakarta} selectOnFocus />
+          <Input
+            type="date"
+            bind:value={po.expected_date}
+            min={todayJakarta}
+            selectOnFocus
+          />
         </label>
       </div>
       <div>
-        <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <label
+          class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+        >
           <span>{labels.paymentTerm} <span class="text-danger">*</span></span>
-          <Input tag="select" bind:value={selectedPaymentTerm} onchange={(e: Event) => handlePaymentTermChange((e.target as HTMLSelectElement).value)}>
+          <Input
+            tag="select"
+            bind:value={selectedPaymentTerm}
+            onchange={(e: Event) =>
+              handlePaymentTermChange((e.target as HTMLSelectElement).value)}
+          >
             <option value="" disabled>{labels.selectPaymentTerm}</option>
-            {#each PAYMENT_TERMS as term}
+            {#each PAYMENT_TERMS as term (term)}
               <option value={term}>{term}</option>
             {/each}
             <option value="Other">{labels.other}...</option>
           </Input>
         </label>
-        {#if selectedPaymentTerm === 'Other'}
-          <Input type="text" bind:value={customPaymentTerm} oninput={() => { po.payment_term = customPaymentTerm; }} placeholder={labels.enterCustomTerm} class="mt-2" required selectOnFocus />
+        {#if selectedPaymentTerm === "Other"}
+          <Input
+            type="text"
+            bind:value={customPaymentTerm}
+            oninput={() => {
+              po.payment_term = customPaymentTerm;
+            }}
+            placeholder={labels.enterCustomTerm}
+            class="mt-2"
+            required
+            selectOnFocus
+          />
         {/if}
       </div>
       <div>
-        <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <label
+          class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+        >
           <span>{labels.supplierReferenceNumber}</span>
-          <Input type="text" bind:value={po.supplier_reference_number} selectOnFocus />
+          <Input
+            type="text"
+            bind:value={po.supplier_reference_number}
+            selectOnFocus
+          />
         </label>
       </div>
       <div class="sm:col-span-2">
-        <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <label
+          class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+        >
           <span>{labels.deliveryAddress}</span>
-          <Input tag="textarea" bind:value={po.delivery_address} rows={2} selectOnFocus />
+          <Input
+            tag="textarea"
+            bind:value={po.delivery_address}
+            rows={2}
+            selectOnFocus
+          />
         </label>
       </div>
       <div class="sm:col-span-2">
-        <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <label
+          class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+        >
           <span>{labels.notes}</span>
           <Input tag="textarea" bind:value={po.notes} rows={2} selectOnFocus />
         </label>
@@ -295,78 +409,174 @@
     </div>
   {:else}
     <div class="min-h-[340px]">
-    <div class="bg-muted/30 rounded-xl px-4 py-3 text-sm text-text-secondary mb-4">
-      {labels.supplier}: <span class="font-medium text-text-primary">{suppliers.find(s => s.id === po.supplier_id)?.name || labels.unknown}</span>
-    </div>
-
-    {#if loadingProducts}
-      <div class="flex items-center justify-center py-8">
-        <Loader2 size={24} class="animate-spin text-text-muted" />
+      <div
+        class="bg-muted/30 rounded-xl px-4 py-3 text-sm text-text-secondary mb-4"
+      >
+        {labels.supplier}:
+        <span class="font-medium text-text-primary"
+          >{suppliers.find((s) => s.id === po.supplier_id)?.name ||
+            labels.unknown}</span
+        >
       </div>
-    {:else}
-      <div>
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-base font-semibold text-text-primary">{labels.items}</h3>
-          <Button variant="secondary" size="sm" onclick={addItem} disabled={supplierProducts.length === 0}>{labels.addItem}</Button>
+
+      {#if loadingProducts}
+        <div class="flex items-center justify-center py-8">
+          <Loader2 size={24} class="animate-spin text-text-muted" />
         </div>
-
-        {#if supplierProducts.length === 0}
-          <p class="text-text-muted text-sm">{labels.noProductsForSupplier}</p>
-        {/if}
-
-        {#if po.items.length === 0}
-          <p class="text-text-muted text-sm">{labels.noItemsAdded}</p>
-        {:else}
-          <div class="border border-border rounded-xl">
-            <table class="w-full">
-              <thead class="bg-muted/50">
-                <tr class="border-b text-left text-xs text-text-muted">
-                  <th class="px-3 py-2 font-semibold w-[32%]" scope="col">{labels.product}</th>
-                  <th class="px-3 py-2 font-semibold text-right w-[12%]" scope="col">{labels.qty}</th>
-                  <th class="px-3 py-2 font-semibold text-right w-[22%]" scope="col">{labels.unitCost}</th>
-                  <th class="px-3 py-2 font-semibold text-right w-[14%]" scope="col">{labels.discount}</th>
-                  <th class="px-3 py-2 font-semibold text-right w-[14%]" scope="col">{labels.subtotal}</th>
-                  <th class="px-3 py-2 w-[48px]" scope="col"></th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-border">
-                {#each po.items as item, index}
-                  <tr>
-                    <td class="px-3 py-2">
-                      <SelectSearch
-                        bind:value={item.product_id}
-                        options={supplierProducts.map(sp => ({ value: sp.product_id, label: `${sp.product_name || t('productWithId', { id: sp.product_id })} (${sp.product_sku || 'N/A'})` }))}
-                        placeholder={labels.selectProduct}
-                        searchPlaceholder={labels.searchProducts}
-                      />
-                    </td>
-                    <td class="px-3 py-2">
-                      <div class="flex items-center bg-bg-secondary border border-border-default rounded-xl px-3 h-[42px] w-full transition-colors duration-200">
-                        <input type="text" inputmode="numeric" value={displayNum(item.qty_ordered)} oninput={(e) => { const el = e.target as HTMLInputElement; const raw = el.value.replace(/[^0-9]/g, ''); item.qty_ordered = raw ? parseInt(raw, 10) : 0; const fmt = displayNum(item.qty_ordered); if (el.value !== fmt) el.value = fmt; }} onfocus={(e) => (e.target as HTMLInputElement).select()} class="w-full bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted" placeholder="0" />
-                      </div>
-                    </td>
-                    <td class="px-3 py-2">
-                      <CurrencyInput bind:value={item.unit_cost} class="w-full text-sm" />
-                    </td>
-                    <td class="px-3 py-2">
-                      <div class="flex items-center bg-bg-secondary border border-border-default rounded-xl px-3 h-[42px] w-full transition-colors duration-200">
-                        <input type="text" inputmode="numeric" value={displayNum(item.discount_amount)} oninput={(e) => { const el = e.target as HTMLInputElement; const raw = el.value.replace(/[^0-9]/g, ''); item.discount_amount = raw ? parseInt(raw, 10) : 0; const fmt = displayNum(item.discount_amount); if (el.value !== fmt) el.value = fmt; }} onfocus={(e) => (e.target as HTMLInputElement).select()} class="w-full bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted" placeholder="0" />
-                      </div>
-                    </td>
-                    <td class="px-3 py-3 text-sm text-text-secondary text-right tabular-nums">{calculateSubtotal(item).toLocaleString('id-ID')}</td>
-                    <td class="px-3 py-2">
-                      <Button variant="ghost" size="icon" onclick={() => removeItem(index)} aria-label={labels.removeItem} class="text-danger hover:text-danger-light">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                      </Button>
-                    </td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
+      {:else}
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-base font-semibold text-text-primary">
+              {labels.items}
+            </h3>
+            <Button
+              variant="secondary"
+              size="sm"
+              onclick={addItem}
+              disabled={supplierProducts.length === 0}>{labels.addItem}</Button
+            >
           </div>
-        {/if}
-      </div>
-    {/if}
+
+          {#if supplierProducts.length === 0}
+            <p class="text-text-muted text-sm">
+              {labels.noProductsForSupplier}
+            </p>
+          {/if}
+
+          {#if po.items.length === 0}
+            <p class="text-text-muted text-sm">{labels.noItemsAdded}</p>
+          {:else}
+            <div class="border border-border rounded-xl">
+              <table class="w-full">
+                <thead class="bg-muted/50">
+                  <tr class="border-b text-left text-xs text-text-muted">
+                    <th class="px-3 py-2 font-semibold w-[32%]" scope="col"
+                      >{labels.product}</th
+                    >
+                    <th
+                      class="px-3 py-2 font-semibold text-right w-[12%]"
+                      scope="col">{labels.qty}</th
+                    >
+                    <th
+                      class="px-3 py-2 font-semibold text-right w-[22%]"
+                      scope="col">{labels.unitCost}</th
+                    >
+                    <th
+                      class="px-3 py-2 font-semibold text-right w-[14%]"
+                      scope="col">{labels.discount}</th
+                    >
+                    <th
+                      class="px-3 py-2 font-semibold text-right w-[14%]"
+                      scope="col">{labels.subtotal}</th
+                    >
+                    <th class="px-3 py-2 w-[48px]" scope="col"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-border">
+                  {#each po.items as item, index (index)}
+                    <tr>
+                      <td class="px-3 py-2">
+                        <SelectSearch
+                          bind:value={item.product_id}
+                          options={supplierProducts.map((sp) => ({
+                            value: sp.product_id,
+                            label: `${sp.product_name || t("productWithId", { id: sp.product_id })} (${sp.product_sku || "N/A"})`,
+                          }))}
+                          placeholder={labels.selectProduct}
+                          searchPlaceholder={labels.searchProducts}
+                        />
+                      </td>
+                      <td class="px-3 py-2">
+                        <div
+                          class="flex items-center bg-bg-secondary border border-border-default rounded-xl px-3 h-[42px] w-full transition-colors duration-200"
+                        >
+                          <input
+                            type="text"
+                            inputmode="numeric"
+                            value={displayNum(item.qty_ordered)}
+                            oninput={(e) => {
+                              const el = e.target as HTMLInputElement;
+                              const raw = el.value.replace(/[^0-9]/g, "");
+                              item.qty_ordered = raw ? parseInt(raw, 10) : 0;
+                              const fmt = displayNum(item.qty_ordered);
+                              if (el.value !== fmt) el.value = fmt;
+                            }}
+                            onfocus={(e) =>
+                              (e.target as HTMLInputElement).select()}
+                            class="w-full bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted"
+                            placeholder="0"
+                          />
+                        </div>
+                      </td>
+                      <td class="px-3 py-2">
+                        <CurrencyInput
+                          bind:value={item.unit_cost}
+                          class="w-full text-sm"
+                        />
+                      </td>
+                      <td class="px-3 py-2">
+                        <div
+                          class="flex items-center bg-bg-secondary border border-border-default rounded-xl px-3 h-[42px] w-full transition-colors duration-200"
+                        >
+                          <input
+                            type="text"
+                            inputmode="numeric"
+                            value={displayNum(item.discount_amount)}
+                            oninput={(e) => {
+                              const el = e.target as HTMLInputElement;
+                              const raw = el.value.replace(/[^0-9]/g, "");
+                              item.discount_amount = raw
+                                ? parseInt(raw, 10)
+                                : 0;
+                              const fmt = displayNum(item.discount_amount);
+                              if (el.value !== fmt) el.value = fmt;
+                            }}
+                            onfocus={(e) =>
+                              (e.target as HTMLInputElement).select()}
+                            class="w-full bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted"
+                            placeholder="0"
+                          />
+                        </div>
+                      </td>
+                      <td
+                        class="px-3 py-3 text-sm text-text-secondary text-right tabular-nums"
+                        >{calculateSubtotal(item).toLocaleString("id-ID")}</td
+                      >
+                      <td class="px-3 py-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onclick={() => removeItem(index)}
+                          aria-label={labels.removeItem}
+                          class="text-danger hover:text-danger-light"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            ><line x1="18" y1="6" x2="6" y2="18"></line><line
+                              x1="6"
+                              y1="6"
+                              x2="18"
+                              y2="18"
+                            ></line></svg
+                          >
+                        </Button>
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -375,27 +585,47 @@
       {#if currentStep === 1}
         <div></div>
         <div class="flex items-center gap-2">
-          <Button variant="secondary" onclick={handleClose}>{labels.cancel}</Button>
-          <Button variant="primary" onclick={nextStep} disabled={po.supplier_id === 0 || !po.expected_date || !po.payment_term || (selectedPaymentTerm === 'Other' && !customPaymentTerm) || (!useAuthStore().user?.store_id && !selectedStoreId)}>
+          <Button variant="secondary" onclick={handleClose}
+            >{labels.cancel}</Button
+          >
+          <Button
+            variant="primary"
+            onclick={nextStep}
+            disabled={po.supplier_id === 0 ||
+              !po.expected_date ||
+              !po.payment_term ||
+              (selectedPaymentTerm === "Other" && !customPaymentTerm) ||
+              (!useAuthStore().user?.store_id && !selectedStoreId)}
+          >
             {labels.next}
             <ChevronRight size={16} />
           </Button>
         </div>
       {:else}
         <div class="text-base font-semibold text-text-primary tabular-nums">
-          {labels.total}: {getTotalSubtotal().toLocaleString('id-ID')}
+          {labels.total}: {getTotalSubtotal().toLocaleString("id-ID")}
         </div>
         <div class="flex items-center gap-2">
           <Button variant="secondary" onclick={prevStep}>
             <ChevronLeft size={16} />
             {labels.back}
           </Button>
-          <Button variant="secondary" onclick={handleClose}>{labels.cancel}</Button>
-          <Button variant="primary" onclick={handleSubmit} disabled={saving || po.items.length === 0}>
+          <Button variant="secondary" onclick={handleClose}
+            >{labels.cancel}</Button
+          >
+          <Button
+            variant="primary"
+            onclick={handleSubmit}
+            disabled={saving || po.items.length === 0}
+          >
             {#if saving}
               <Loader2 size={16} class="animate-spin" />
             {/if}
-            {saving ? labels.saving : (store.selectedPO ? labels.update : labels.createDraft)}
+            {saving
+              ? labels.saving
+              : store.selectedPO
+                ? labels.update
+                : labels.createDraft}
           </Button>
         </div>
       {/if}

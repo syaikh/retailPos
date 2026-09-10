@@ -1,26 +1,30 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { usePurchaseOrderStore } from '../stores/po-store.svelte';
-  import { useAuthStore } from '$modules/auth';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { Pagination } from '$shared/ui';
-  import type { PurchaseOrder } from '../types';
-  import PurchaseOrderForm from './PurchaseOrderForm.svelte';
-  import GoodsReceiptModal from './GoodsReceiptModal.svelte';
-  import PurchaseOrderDetail from './PurchaseOrderDetail.svelte';
-  import PurchaseOrdersToolbar from './PurchaseOrdersToolbar.svelte';
-  import PurchaseOrdersTable from './PurchaseOrdersTable.svelte';
+  import { onMount } from "svelte";
+  import { usePurchaseOrderStore } from "../stores/po-store.svelte";
+  import { useAuthStore } from "$modules/auth";
+  import { toast } from "$shared/stores/toast.svelte";
+  import { Pagination } from "$shared/ui";
+  import type { PurchaseOrder } from "../types";
+  import PurchaseOrderForm from "./PurchaseOrderForm.svelte";
+  import GoodsReceiptModal from "./GoodsReceiptModal.svelte";
+  import PurchaseOrderDetail from "./PurchaseOrderDetail.svelte";
+  import PurchaseOrdersToolbar from "./PurchaseOrdersToolbar.svelte";
+  import PurchaseOrdersTable from "./PurchaseOrdersTable.svelte";
 
   const store = usePurchaseOrderStore();
   const authStore = useAuthStore();
 
   const userPermissions = $derived(authStore.user?.permissions || []);
-  const canCreate = $derived(userPermissions.includes('purchase_order.create'));
-  const canView = $derived(userPermissions.includes('purchase_order.view'));
-  const canEdit = $derived(userPermissions.includes('purchase_order.update'));
-  const canConfirm = $derived(userPermissions.includes('purchase_order.confirm'));
-  const canReceive = $derived(userPermissions.includes('purchase_order.receive'));
-  const canCancel = $derived(userPermissions.includes('purchase_order.cancel'));
+  const canCreate = $derived(userPermissions.includes("purchase_order.create"));
+  const canView = $derived(userPermissions.includes("purchase_order.view"));
+  const canEdit = $derived(userPermissions.includes("purchase_order.update"));
+  const canConfirm = $derived(
+    userPermissions.includes("purchase_order.confirm"),
+  );
+  const canReceive = $derived(
+    userPermissions.includes("purchase_order.receive"),
+  );
+  const canCancel = $derived(userPermissions.includes("purchase_order.cancel"));
 
   let showForm = $state(false);
   let selectedPOForDetail = $state<number | null>(null);
@@ -67,12 +71,12 @@
     showForm = true;
   }
 
-  function handleEdit(po: any) {
+  function handleEdit(po: PurchaseOrder) {
     store.selectedPO = po;
     showForm = true;
   }
 
-  function handleView(po: any) {
+  function handleView(po: PurchaseOrder) {
     selectedPOForDetail = po.id;
     detailReloadKey += 1;
     showDetail = true;
@@ -84,8 +88,8 @@
       await store.confirm(po.id);
       toast.success(`${po.po_number} confirmed`);
       store.load(store.currentFilters);
-    } catch (e: any) {
-      toast.error(e.message || 'Failed to confirm');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to confirm");
     }
   }
 
@@ -100,8 +104,8 @@
       await store.cancel(po.id);
       toast.success(`${po.po_number} cancelled`);
       store.load(store.currentFilters);
-    } catch (e: any) {
-      toast.error(e.message || 'Failed to cancel purchase order');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to cancel purchase order");
     }
   }
 
@@ -113,10 +117,10 @@
 
   function handleSort(column: string) {
     if (store.sortBy === column) {
-      store.sortDir = store.sortDir === 'asc' ? 'desc' : 'asc';
+      store.sortDir = store.sortDir === "asc" ? "desc" : "asc";
     } else {
       store.sortBy = column;
-      store.sortDir = 'asc';
+      store.sortDir = "asc";
     }
     store.page = 0;
     store.load(store.currentFilters);
@@ -155,26 +159,47 @@
 
     {#if !store.loading && store.purchaseOrdersData.length > 0}
       <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
-        <Pagination total={store.total} limit={store.pageSize} offset={store.offset} onPageChange={handlePageChange} />
+        <Pagination
+          total={store.total}
+          limit={store.pageSize}
+          offset={store.offset}
+          onPageChange={handlePageChange}
+        />
       </div>
     {/if}
   </div>
 </div>
 
-  <PurchaseOrderForm bind:open={showForm} />
+<PurchaseOrderForm bind:open={showForm} />
 
-  <PurchaseOrderDetail
-    bind:poId={selectedPOForDetail}
-    bind:open={showDetail}
-    reloadKey={detailReloadKey}
-    {canEdit}
-    {canConfirm}
-    {canCancel}
-    {canReceive}
-    onedit={(po) => { showDetail = false; handleEdit(po); }}
-    onconfirm={(po) => { showDetail = false; handleConfirm(po); }}
-    oncancel={(po) => { showDetail = false; handleCancel(po); }}
-    onreceive={(po) => { showDetail = false; handleReceipt(po); }}
-  />
+<PurchaseOrderDetail
+  bind:poId={selectedPOForDetail}
+  bind:open={showDetail}
+  reloadKey={detailReloadKey}
+  {canEdit}
+  {canConfirm}
+  {canCancel}
+  {canReceive}
+  onedit={(po) => {
+    showDetail = false;
+    handleEdit(po);
+  }}
+  onconfirm={(po) => {
+    showDetail = false;
+    handleConfirm(po);
+  }}
+  oncancel={(po) => {
+    showDetail = false;
+    handleCancel(po);
+  }}
+  onreceive={(po) => {
+    showDetail = false;
+    handleReceipt(po);
+  }}
+/>
 
-  <GoodsReceiptModal poId={selectedPOForReceipt} bind:open={showReceiptModal} onReceiptCreated={() => store.load(store.currentFilters)} />
+<GoodsReceiptModal
+  poId={selectedPOForReceipt}
+  bind:open={showReceiptModal}
+  onReceiptCreated={() => store.load(store.currentFilters)}
+/>

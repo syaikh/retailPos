@@ -1,14 +1,14 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+  import type { Snippet } from "svelte";
 
-  let {
-    content = '',
-    placement = 'top',
+  const {
+    content = "",
+    placement = "top",
     delay = 300,
     children,
   }: {
     content: string;
-    placement?: 'top' | 'bottom' | 'left' | 'right';
+    placement?: "top" | "bottom" | "left" | "right";
     delay?: number;
     children: Snippet;
   } = $props();
@@ -16,31 +16,32 @@
   let visible = $state(false);
   let timeout: ReturnType<typeof setTimeout> | null = null;
   let triggerEl: HTMLSpanElement | null = null;
-  let tooltipStyle = $state('');
+  let tooltipStyle = $state("");
 
   function computePosition() {
     if (!triggerEl) return;
     const r = triggerEl.getBoundingClientRect();
     const gap = 8;
-    let top = 0, left = 0;
+    let top = 0,
+      left = 0;
 
     switch (placement) {
-      case 'top':
+      case "top":
         top = r.top - gap;
         left = r.left + r.width / 2;
         tooltipStyle = `position:fixed;bottom:auto;right:auto;top:${top}px;left:${left}px;transform:translate(-50%,-100%);`;
         break;
-      case 'bottom':
+      case "bottom":
         top = r.bottom + gap;
         left = r.left + r.width / 2;
         tooltipStyle = `position:fixed;bottom:auto;right:auto;top:${top}px;left:${left}px;transform:translate(-50%,0);`;
         break;
-      case 'left':
+      case "left":
         top = r.top + r.height / 2;
         left = r.left - gap;
         tooltipStyle = `position:fixed;bottom:auto;right:auto;top:${top}px;left:${left}px;transform:translate(-100%,-50%);`;
         break;
-      case 'right':
+      case "right":
         top = r.top + r.height / 2;
         left = r.right + gap;
         tooltipStyle = `position:fixed;bottom:auto;right:auto;top:${top}px;left:${left}px;transform:translate(0,-50%);`;
@@ -57,7 +58,10 @@
   }
 
   function hide() {
-    if (timeout) { clearTimeout(timeout); timeout = null; }
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
     visible = false;
   }
 </script>

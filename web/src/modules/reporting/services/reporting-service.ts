@@ -1,5 +1,5 @@
-import { apiFetch } from '$shared/api/http-client';
-import type { ChartDataPoint, ComparisonData } from '../types';
+import { apiFetch } from "$shared/api/http-client";
+import type { ChartDataPoint, ComparisonData } from "../types";
 
 export interface ChartResponse {
   current: ChartDataPoint[];
@@ -17,7 +17,7 @@ export interface ComparisonResponse {
 
 export async function getAvailableYears(): Promise<number[]> {
   try {
-    const res = await apiFetch('/api/dashboard/years');
+    const res = await apiFetch("/api/dashboard/years");
     if (res.ok) {
       const data = await res.json();
       return data.data || [];
@@ -35,7 +35,7 @@ export async function getChartData(
   prevStart?: string,
   prevEnd?: string,
 ): Promise<ChartResponse | null> {
-  const url = `${endpoint}?startDate=${startDate}&endDate=${endDate}${prevStart && prevEnd ? `&prevStart=${prevStart}&prevEnd=${prevEnd}` : ''}`;
+  const url = `${endpoint}?startDate=${startDate}&endDate=${endDate}${prevStart && prevEnd ? `&prevStart=${prevStart}&prevEnd=${prevEnd}` : ""}`;
   const res = await apiFetch(url);
   if (res.ok) {
     const data = await res.json();
@@ -52,7 +52,9 @@ export async function getComparison(
   mode: string,
   date: string,
 ): Promise<ComparisonResponse | null> {
-  const res = await apiFetch(`/api/dashboard/comparison?period=${period}&mode=${mode}&date=${date}`);
+  const res = await apiFetch(
+    `/api/dashboard/comparison?period=${period}&mode=${mode}&date=${date}`,
+  );
   if (res.ok) {
     return await res.json();
   }
@@ -66,13 +68,13 @@ export async function exportDashboard(
   chartImage?: string,
 ): Promise<Blob | null> {
   const formData = new FormData();
-  if (period) formData.set('period', period);
-  if (mode) formData.set('mode', mode);
-  if (date) formData.set('date', date);
-  if (chartImage) formData.set('chartData', chartImage);
+  if (period) formData.set("period", period);
+  if (mode) formData.set("mode", mode);
+  if (date) formData.set("date", date);
+  if (chartImage) formData.set("chartData", chartImage);
 
-  const res = await apiFetch('/api/dashboard/export', {
-    method: 'POST',
+  const res = await apiFetch("/api/dashboard/export", {
+    method: "POST",
     body: formData,
   });
   if (!res.ok) return null;

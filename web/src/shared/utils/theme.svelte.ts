@@ -4,14 +4,14 @@
  * in components recompute when the theme changes.
  */
 
-export type Theme = 'light' | 'dark';
+export type Theme = "light" | "dark";
 
-const STORAGE_KEY = 'pos.theme';
+const STORAGE_KEY = "pos.theme";
 
 function loadInitialTheme(): Theme {
-  if (typeof localStorage === 'undefined') return 'dark';
+  if (typeof localStorage === "undefined") return "dark";
   const saved = localStorage.getItem(STORAGE_KEY);
-  return saved === 'light' ? 'light' : 'dark';
+  return saved === "light" ? "light" : "dark";
 }
 
 class ThemeStore {
@@ -19,15 +19,15 @@ class ThemeStore {
 
   setTheme(theme: Theme): void {
     this.current = theme;
-    if (typeof document !== 'undefined') {
+    if (typeof document !== "undefined") {
       const root = document.documentElement;
-      if (theme === 'dark') {
-        root.classList.add('dark');
+      if (theme === "dark") {
+        root.classList.add("dark");
       } else {
-        root.classList.remove('dark');
+        root.classList.remove("dark");
       }
     }
-    if (typeof localStorage !== 'undefined') {
+    if (typeof localStorage !== "undefined") {
       localStorage.setItem(STORAGE_KEY, theme);
     }
   }

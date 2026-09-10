@@ -1,12 +1,24 @@
-export type ImportStatus = 'queued' | 'parsing' | 'validating' | 'preview_ready' | 'confirmed' | 'importing' | 'completed' | 'failed' | 'cancelled';
+export type ImportStatus =
+  | "queued"
+  | "parsing"
+  | "validating"
+  | "preview_ready"
+  | "confirmed"
+  | "importing"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
-export type RowStatus = 'insert' | 'update' | 'error';
+export type RowStatus = "insert" | "update" | "error";
 
 export interface PreviewRow {
   rowNumber: number;
+  row_number?: number;
   status: RowStatus;
   oldValues: Record<string, string> | null;
+  old_values?: Record<string, string> | null;
   newValues: Record<string, string>;
+  new_values?: Record<string, string>;
   errors: ValidationError[];
 }
 
@@ -67,7 +79,7 @@ export interface ModuleInfo {
   };
 }
 
-export type ExportFormat = 'csv' | 'xlsx';
+export type ExportFormat = "csv" | "xlsx";
 
 export interface ImportSnapshot {
   rows_data: Record<string, string>[];

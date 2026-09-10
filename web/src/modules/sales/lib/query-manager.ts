@@ -1,4 +1,4 @@
-import type { SaleFilters } from '../types';
+import type { SaleFilters } from "../types";
 
 export interface QueryManagerConfig {
   getFilters: () => SaleFilters;
@@ -23,14 +23,23 @@ export function createQueryManager(config: QueryManagerConfig): QueryManager {
   let batchTimer: ReturnType<typeof setTimeout> | null = null;
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
   let amountTimer: ReturnType<typeof setTimeout> | null = null;
-  let previousFiltersJson = '';
+  let previousFiltersJson = "";
   let pendingFilters: SaleFilters | null = null;
   let destroyed = false;
 
   function clearAllTimers() {
-    if (batchTimer) { clearTimeout(batchTimer); batchTimer = null; }
-    if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; }
-    if (amountTimer) { clearTimeout(amountTimer); amountTimer = null; }
+    if (batchTimer) {
+      clearTimeout(batchTimer);
+      batchTimer = null;
+    }
+    if (searchTimer) {
+      clearTimeout(searchTimer);
+      searchTimer = null;
+    }
+    if (amountTimer) {
+      clearTimeout(amountTimer);
+      amountTimer = null;
+    }
   }
 
   function isDuplicate(filters: SaleFilters): boolean {
@@ -51,7 +60,7 @@ export function createQueryManager(config: QueryManagerConfig): QueryManager {
     try {
       await config.fetch(filters, abortController.signal);
     } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return;
+      if (e instanceof DOMException && e.name === "AbortError") return;
       throw e;
     }
   }
@@ -79,20 +88,31 @@ export function createQueryManager(config: QueryManagerConfig): QueryManager {
     pendingFilters = filters;
 
     if (!previousFiltersJson) {
-      previousFiltersJson = ' ';
+      previousFiltersJson = " ";
       doFetch(filters);
       return;
     }
 
-    const hasSearch = changed.has('searchQuery');
-    const hasAmount = changed.has('minTotal') || changed.has('maxTotal');
-    const hasImmediate = changed.has('paymentMethods') || changed.has('dateRange') || changed.has('startDate') || changed.has('endDate') || changed.has('page') || changed.has('pageSize') || changed.has('sortBy') || changed.has('sortDir');
+    const hasSearch = changed.has("searchQuery");
+    const hasAmount = changed.has("minTotal") || changed.has("maxTotal");
+    const hasImmediate =
+      changed.has("paymentMethods") ||
+      changed.has("dateRange") ||
+      changed.has("startDate") ||
+      changed.has("endDate") ||
+      changed.has("page") ||
+      changed.has("pageSize") ||
+      changed.has("sortBy") ||
+      changed.has("sortDir");
 
     if (hasSearch) {
       if (searchTimer) clearTimeout(searchTimer);
       searchTimer = setTimeout(() => {
         searchTimer = null;
-        if (batchTimer) { clearTimeout(batchTimer); batchTimer = null; }
+        if (batchTimer) {
+          clearTimeout(batchTimer);
+          batchTimer = null;
+        }
         if (pendingFilters) {
           const f = pendingFilters;
           pendingFilters = null;
@@ -105,7 +125,10 @@ export function createQueryManager(config: QueryManagerConfig): QueryManager {
       if (amountTimer) clearTimeout(amountTimer);
       amountTimer = setTimeout(() => {
         amountTimer = null;
-        if (batchTimer) { clearTimeout(batchTimer); batchTimer = null; }
+        if (batchTimer) {
+          clearTimeout(batchTimer);
+          batchTimer = null;
+        }
         if (pendingFilters) {
           const f = pendingFilters;
           pendingFilters = null;
@@ -121,15 +144,18 @@ export function createQueryManager(config: QueryManagerConfig): QueryManager {
       if (hasSearch) maxTimer = Math.max(maxTimer, searchDebounceMs);
       if (hasAmount) maxTimer = Math.max(maxTimer, amountDebounceMs);
       if (batchTimer) clearTimeout(batchTimer);
-      batchTimer = setTimeout(() => {
-        batchTimer = null;
-        if (searchTimer || amountTimer) return;
-        if (pendingFilters) {
-          const f = pendingFilters;
-          pendingFilters = null;
-          doFetch(f);
-        }
-      }, Math.min(maxTimer, batchWindowMs));
+      batchTimer = setTimeout(
+        () => {
+          batchTimer = null;
+          if (searchTimer || amountTimer) return;
+          if (pendingFilters) {
+            const f = pendingFilters;
+            pendingFilters = null;
+            doFetch(f);
+          }
+        },
+        Math.min(maxTimer, batchWindowMs),
+      );
     }
   }
 
@@ -141,7 +167,9 @@ export function createQueryManager(config: QueryManagerConfig): QueryManager {
       abortController = null;
     },
     isPending() {
-      return batchTimer !== null || searchTimer !== null || amountTimer !== null;
+      return (
+        batchTimer !== null || searchTimer !== null || amountTimer !== null
+      );
     },
     notify,
   };

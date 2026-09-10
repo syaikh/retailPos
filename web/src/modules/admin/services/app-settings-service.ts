@@ -1,4 +1,4 @@
-import { apiFetch } from '$shared/api/http-client';
+import { apiFetch } from "$shared/api/http-client";
 
 export interface BrandingSettings {
   store_name: string;
@@ -25,9 +25,11 @@ export interface AllSettings {
  */
 export async function fetchPublicBranding(): Promise<BrandingSettings | null> {
   try {
-    const res = await fetch('/api/settings/public');
+    const res = await fetch("/api/settings/public");
     if (res.ok) return res.json();
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
@@ -36,21 +38,25 @@ export async function fetchPublicBranding(): Promise<BrandingSettings | null> {
  */
 export async function fetchAllSettings(): Promise<AllSettings | null> {
   try {
-    const res = await apiFetch('/api/settings');
+    const res = await apiFetch("/api/settings");
     if (res.ok) {
       const data = await res.json();
       return data.settings ?? null;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
 /**
  * Bulk-update settings (auth required).
  */
-export async function updateSettings(settings: Record<string, string>): Promise<boolean> {
-  const res = await apiFetch('/api/settings', {
-    method: 'PUT',
+export async function updateSettings(
+  settings: Record<string, string>,
+): Promise<boolean> {
+  const res = await apiFetch("/api/settings", {
+    method: "PUT",
     body: JSON.stringify({ settings }),
   });
   return res.ok;
@@ -61,9 +67,9 @@ export async function updateSettings(settings: Record<string, string>): Promise<
  */
 export async function uploadLogo(file: File): Promise<string | null> {
   const formData = new FormData();
-  formData.append('file', file);
-  const res = await apiFetch('/api/settings/logo', {
-    method: 'POST',
+  formData.append("file", file);
+  const res = await apiFetch("/api/settings/logo", {
+    method: "POST",
     body: formData,
   });
   if (res.ok) {
@@ -77,6 +83,6 @@ export async function uploadLogo(file: File): Promise<string | null> {
  * Remove the current logo (auth required).
  */
 export async function removeLogo(): Promise<boolean> {
-  const res = await apiFetch('/api/settings/logo', { method: 'DELETE' });
+  const res = await apiFetch("/api/settings/logo", { method: "DELETE" });
   return res.ok;
 }

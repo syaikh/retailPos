@@ -1,41 +1,41 @@
 <script lang="ts">
-  import { fly } from 'svelte/transition';
-  import { Button, Input } from '$shared/ui';
-  import { X } from 'lucide-svelte';
-  import { tick } from 'svelte';
-  import { labels } from '$shared/i18n';
+  import { fly } from "svelte/transition";
+  import { Input } from "$shared/ui";
+  import { X } from "lucide-svelte";
+  import { tick } from "svelte";
+  import { labels } from "$shared/i18n";
 
   let dialogEl: HTMLDivElement | undefined = $state();
   let previousFocus: HTMLElement | null = null;
 
   let {
     showCustomerModal = $bindable(false),
-    customerSearch = $bindable(''),
+    customerSearch = $bindable(""),
     customerResults = [],
     customerSearching = false,
-    onselectcustomer = (id: number | null) => {},
+    onselectcustomer = (_id: number | null) => {},
   }: {
     showCustomerModal: boolean;
     customerSearch: string;
-    customerResults: any[];
+    customerResults: Array<{ id: number; name: string; phone?: string; email?: string }>;
     customerSearching: boolean;
     onselectcustomer?: (id: number | null) => void;
   } = $props();
 
   function close() {
     showCustomerModal = false;
-    customerSearch = '';
+    customerSearch = "";
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       e.preventDefault();
       close();
       return;
     }
-    if (e.key === 'Tab' && dialogEl) {
+    if (e.key === "Tab" && dialogEl) {
       const focusable = dialogEl.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
       );
       if (focusable.length === 0) return;
       const first = focusable[0];
@@ -58,7 +58,7 @@
     if (showCustomerModal) {
       previousFocus = document.activeElement as HTMLElement;
       tick().then(() => {
-        const input = dialogEl?.querySelector<HTMLInputElement>('input');
+        const input = dialogEl?.querySelector<HTMLInputElement>("input");
         input?.focus();
       });
     } else if (previousFocus) {
@@ -69,32 +69,79 @@
 </script>
 
 {#if showCustomerModal}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="fixed inset-0 z-[60] flex items-center justify-center" transition:fly={{ y: 40, duration: 300 }} onkeydown={handleKeydown} role="none">
-    <div class="absolute inset-0 bg-black/60" onclick={close} role="presentation"></div>
-    <div bind:this={dialogEl} class="relative z-[65] w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-border-default bg-bg-card shadow-modal p-5" role="dialog" aria-modal="true" aria-labelledby="customer-modal-heading">
+  <div
+    class="fixed inset-0 z-[60] flex items-center justify-center"
+    transition:fly={{ y: 40, duration: 300 }}
+    onkeydown={handleKeydown}
+    role="none"
+  >
+    <div
+      class="absolute inset-0 bg-black/60"
+      onclick={close}
+      role="presentation"
+    ></div>
+    <div
+      bind:this={dialogEl}
+      class="relative z-[65] w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-border-default bg-bg-card shadow-modal p-5"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="customer-modal-heading"
+    >
       <div class="flex items-center justify-between mb-4">
-        <h2 id="customer-modal-heading" class="text-lg font-bold text-text-primary">{labels.selectCustomer}</h2>
-        <button type="button" onclick={close} class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50" aria-label={labels.close}>
+        <h2
+          id="customer-modal-heading"
+          class="text-lg font-bold text-text-primary"
+        >
+          {labels.selectCustomer}
+        </h2>
+        <button
+          type="button"
+          onclick={close}
+          class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50"
+          aria-label={labels.close}
+        >
           <X size={18} />
         </button>
       </div>
-      <Input class="w-full mb-3" placeholder={labels.searchByNameOrPhone} bind:value={customerSearch} />
+      <Input
+        class="w-full mb-3"
+        placeholder={labels.searchByNameOrPhone}
+        bind:value={customerSearch}
+      />
       {#if customerSearching}
         <p class="text-sm text-text-muted mb-2">{labels.searching}</p>
       {/if}
       <div class="max-h-80 overflow-y-auto space-y-1">
-        <button type="button" class="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-subtle transition-colors" onclick={() => { close(); onselectcustomer(null); }}>
+        <button
+          type="button"
+          class="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-subtle transition-colors"
+          onclick={() => {
+            close();
+            onselectcustomer(null);
+          }}
+        >
           <span class="text-sm font-medium">{labels.walkInGeneral}</span>
         </button>
-        {#each customerResults as c}
-          <button type="button" class="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-subtle transition-colors" onclick={() => { close(); onselectcustomer(c.id); }}>
+        {#each customerResults as c (c.id || c)}
+          <button
+            type="button"
+            class="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-subtle transition-colors"
+            onclick={() => {
+              close();
+              onselectcustomer(c.id);
+            }}
+          >
             <div class="text-sm font-medium">{c.name}</div>
-            <div class="text-xs text-text-muted">{c.phone || labels.noPhone} {c.email ? `· ${c.email}` : ''}</div>
+            <div class="text-xs text-text-muted">
+              {c.phone || labels.noPhone}
+              {c.email ? `· ${c.email}` : ""}
+            </div>
           </button>
         {:else}
           {#if customerSearch.trim() && !customerSearching}
-            <p class="text-sm text-text-muted text-center py-4">{labels.customerNotFound}</p>
+            <p class="text-sm text-text-muted text-center py-4">
+              {labels.customerNotFound}
+            </p>
           {/if}
         {/each}
       </div>

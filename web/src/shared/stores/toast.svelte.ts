@@ -1,6 +1,6 @@
-import { writable } from 'svelte/store';
+import { writable } from "svelte/store";
 
-export type ToastVariant = 'success' | 'error' | 'warning' | 'info';
+export type ToastVariant = "success" | "error" | "warning" | "info";
 
 export interface ToastMessage {
   id: string;
@@ -12,9 +12,13 @@ export interface ToastMessage {
 function createToastStore() {
   const { subscribe, update } = writable<ToastMessage[]>([]);
 
-  function add(message: string, variant: ToastVariant = 'info', duration = 4000) {
+  function add(
+    message: string,
+    variant: ToastVariant = "info",
+    duration = 4000,
+  ) {
     const id = crypto.randomUUID();
-    update(toasts => [...toasts, { id, message, variant, duration }]);
+    update((toasts) => [...toasts, { id, message, variant, duration }]);
 
     if (duration > 0) {
       setTimeout(() => remove(id), duration);
@@ -23,15 +27,15 @@ function createToastStore() {
   }
 
   function remove(id: string) {
-    update(toasts => toasts.filter(t => t.id !== id));
+    update((toasts) => toasts.filter((t) => t.id !== id));
   }
 
   return {
     subscribe,
-    success: (msg: string, duration?: number) => add(msg, 'success', duration),
-    error:   (msg: string, duration?: number) => add(msg, 'error',   duration),
-    warning: (msg: string, duration?: number) => add(msg, 'warning', duration),
-    info:    (msg: string, duration?: number) => add(msg, 'info',    duration),
+    success: (msg: string, duration?: number) => add(msg, "success", duration),
+    error: (msg: string, duration?: number) => add(msg, "error", duration),
+    warning: (msg: string, duration?: number) => add(msg, "warning", duration),
+    info: (msg: string, duration?: number) => add(msg, "info", duration),
     remove,
   };
 }

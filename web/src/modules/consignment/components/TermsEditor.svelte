@@ -1,20 +1,28 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { Button, Modal, Input, NumberInput, SelectSearch, EmptyState, Pagination } from '$shared/ui';
-  import { Plus, Trash2 } from 'lucide-svelte';
-  import { labels } from '$shared/i18n';
-  import { getProductOptions } from '$modules/product/services/product-service';
-  import { setTerms } from '../services/consignment-service';
-  import type { Arrangement, Term, SetTermsPayload } from '../types';
+  import { onMount } from "svelte";
+  import { toast } from "$shared/stores/toast.svelte";
+  import {
+    Button,
+    Modal,
+    Input,
+    NumberInput,
+    SelectSearch,
+    EmptyState,
+    Pagination,
+  } from "$shared/ui";
+  import { Plus } from "lucide-svelte";
+  import { labels } from "$shared/i18n";
+  import { getProductOptions } from "$modules/product/services/product-service";
+  import { setTerms } from "../services/consignment-service";
+  import type { Arrangement, Term, SetTermsPayload } from "../types";
   import {
     SHARE_TYPE_PERCENTAGE,
     SHARE_TYPE_FIXED_AMOUNT,
     SHARE_TYPE_LABELS,
-  } from '../types';
-  import { formatCurrency } from '../lib/format';
+  } from "../types";
+  import { formatCurrency } from "../lib/format";
 
-  let {
+  const {
     arrangement,
     canUpdate,
     onsaved,
@@ -83,11 +91,17 @@
       toast.error(labels.consignmentSelectProductError);
       return;
     }
-    if (newRow.store_share_type === SHARE_TYPE_PERCENTAGE && (newRow.store_share_value <= 0 || newRow.store_share_value >= 100)) {
+    if (
+      newRow.store_share_type === SHARE_TYPE_PERCENTAGE &&
+      (newRow.store_share_value <= 0 || newRow.store_share_value >= 100)
+    ) {
       toast.error(labels.consignmentPercentRange);
       return;
     }
-    if (newRow.store_share_type === SHARE_TYPE_FIXED_AMOUNT && newRow.store_share_value <= 0) {
+    if (
+      newRow.store_share_type === SHARE_TYPE_FIXED_AMOUNT &&
+      newRow.store_share_value <= 0
+    ) {
       toast.error(labels.consignmentShareGreaterThanZero);
       return;
     }
@@ -112,16 +126,17 @@
       toast.success(labels.consignmentTermsSaved);
       showAddModal = false;
       onsaved?.();
-    } catch (e: any) {
-      const raw = e?.response?.data?.error;
-      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentTermsSaveError);
+    } catch (e: unknown) {
+      const raw = e instanceof Error ? e.message : labels.consignmentTermsSaveError;
+      toast.error(raw);
     } finally {
       saving = false;
     }
   }
 
   function shareLabel(t: Term): string {
-    if (t.store_share_type === SHARE_TYPE_PERCENTAGE) return `${t.store_share_value}%`;
+    if (t.store_share_type === SHARE_TYPE_PERCENTAGE)
+      return `${t.store_share_value}%`;
     return formatCurrency(t.store_share_value);
   }
 
@@ -137,17 +152,24 @@
 </script>
 
 <div class="card">
-  <div class="flex items-center justify-between px-4 py-3 border-b border-border/50">
-    <h2 class="font-semibold text-text-primary">{labels.consignmentTermsHeader}</h2>
+  <div
+    class="flex items-center justify-between px-4 py-3 border-b border-border/50"
+  >
+    <h2 class="font-semibold text-text-primary">
+      {labels.consignmentTermsHeader}
+    </h2>
     {#if canUpdate}
       <Button variant="secondary" size="sm" onclick={openAdd}>
-        <Plus class="w-4 h-4" /> {labels.consignmentAddTerm}
+        <Plus class="w-4 h-4" />
+        {labels.consignmentAddTerm}
       </Button>
     {/if}
   </div>
 
   {#if loading}
-    <div class="p-8 text-center text-sm text-text-secondary">{labels.loading}</div>
+    <div class="p-8 text-center text-sm text-text-secondary">
+      {labels.loading}
+    </div>
   {:else if terms.length === 0}
     <EmptyState
       icon={Plus}
@@ -158,22 +180,32 @@
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
         <thead class="bg-muted/50">
-          <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+          <tr
+            class="text-left text-xs uppercase tracking-wider text-text-secondary"
+          >
             <th class="p-4">{labels.consignmentProduct}</th>
             <th class="p-4 text-right">{labels.consignmentPrice}</th>
             <th class="p-4">{labels.consignmentStoreShare}</th>
           </tr>
         </thead>
         <tbody>
-          {#each pagedTerms as t}
-            <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+          {#each pagedTerms as t (t.id || t)}
+            <tr
+              class="border-t border-border hover:bg-surface-hover/50 transition-colors"
+            >
               <td class="p-4">
-                <div class="font-medium text-text-primary">{t.product_name}</div>
+                <div class="font-medium text-text-primary">
+                  {t.product_name}
+                </div>
                 <div class="text-xs text-text-secondary">{t.product_sku}</div>
               </td>
-              <td class="p-4 text-right text-text-primary">{formatCurrency(t.price)}</td>
+              <td class="p-4 text-right text-text-primary"
+                >{formatCurrency(t.price)}</td
+              >
               <td class="p-4 text-text-secondary">
-                {labels[SHARE_TYPE_LABELS[t.store_share_type]]} — {shareLabel(t)}
+                {labels[SHARE_TYPE_LABELS[t.store_share_type]]} — {shareLabel(
+                  t,
+                )}
               </td>
             </tr>
           {/each}
@@ -181,47 +213,83 @@
       </table>
     </div>
     <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
-      <Pagination total={terms.length} limit={pageLimit} offset={pageOffset} onPageChange={handlePageChange} />
+      <Pagination
+        total={terms.length}
+        limit={pageLimit}
+        offset={pageOffset}
+        onPageChange={handlePageChange}
+      />
     </div>
   {/if}
 </div>
 
 <Modal bind:open={showAddModal} title={labels.consignmentAddTerm} size="md">
-  {#snippet children()}
-    <div class="space-y-4">
-      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>{labels.consignmentProduct} <span class="text-danger">*</span></span>
-        <SelectSearch
-          bind:value={newRow.product_id}
-          options={productOptions}
-          placeholder={labels.consignmentSelectProduct}
-          searchPlaceholder={labels.consignmentSearchProduct}
-          notFoundText={labels.consignmentProductNotFound}
-        />
-      </label>
-      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>{labels.consignmentPrice} (Rp) <span class="text-danger">*</span></span>
+  <div class="space-y-4">
+    <label
+      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    >
+      <span
+        >{labels.consignmentProduct} <span class="text-danger">*</span></span
+      >
+      <SelectSearch
+        bind:value={newRow.product_id}
+        options={productOptions}
+        placeholder={labels.consignmentSelectProduct}
+        searchPlaceholder={labels.consignmentSearchProduct}
+        notFoundText={labels.consignmentProductNotFound}
+      />
+    </label>
+      <label
+        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+      >
+        <span
+          >{labels.consignmentPrice} (Rp)
+          <span class="text-danger">*</span></span
+        >
         <NumberInput min="0" bind:value={newRow.price} class="h-9 text-sm" />
       </label>
-      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>{labels.consignmentShareType} <span class="text-danger">*</span></span>
-        <Input tag="select" bind:value={newRow.store_share_type} class="h-9 text-sm">
-          {#snippet children()}
-            <option value={SHARE_TYPE_PERCENTAGE}>{labels[SHARE_TYPE_LABELS[SHARE_TYPE_PERCENTAGE]]}</option>
-            <option value={SHARE_TYPE_FIXED_AMOUNT}>{labels[SHARE_TYPE_LABELS[SHARE_TYPE_FIXED_AMOUNT]]}</option>
-          {/snippet}
+      <label
+        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+      >
+        <span
+          >{labels.consignmentShareType}
+          <span class="text-danger">*</span></span
+        >
+        <Input
+          tag="select"
+          bind:value={newRow.store_share_type}
+          class="h-9 text-sm"
+        >
+          <option value={SHARE_TYPE_PERCENTAGE}
+            >{labels[SHARE_TYPE_LABELS[SHARE_TYPE_PERCENTAGE]]}</option
+          >
+          <option value={SHARE_TYPE_FIXED_AMOUNT}
+            >{labels[SHARE_TYPE_LABELS[SHARE_TYPE_FIXED_AMOUNT]]}</option
+          >
         </Input>
       </label>
-      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>{newRow.store_share_type === SHARE_TYPE_PERCENTAGE ? labels.consignmentSharePercentLabel : labels.consignmentShareFixedLabel} <span class="text-danger">*</span></span>
-        <NumberInput min="0" bind:value={newRow.store_share_value} class="h-9 text-sm" />
+      <label
+        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+      >
+        <span
+          >{newRow.store_share_type === SHARE_TYPE_PERCENTAGE
+            ? labels.consignmentSharePercentLabel
+            : labels.consignmentShareFixedLabel}
+          <span class="text-danger">*</span></span
+        >
+        <NumberInput
+          min="0"
+          bind:value={newRow.store_share_value}
+          class="h-9 text-sm"
+        />
       </label>
       <p class="text-xs text-text-muted">{labels.consignmentTermsNote}</p>
     </div>
-  {/snippet}
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
-      <Button variant="secondary" onclick={() => (showAddModal = false)}>{labels.cancel}</Button>
+      <Button variant="secondary" onclick={() => (showAddModal = false)}
+        >{labels.cancel}</Button
+      >
       <Button onclick={submitAdd} disabled={saving}>
         {saving ? labels.saving : labels.save}
       </Button>

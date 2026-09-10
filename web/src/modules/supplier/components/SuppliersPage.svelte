@@ -1,49 +1,58 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { useAuthStore } from '$modules/auth';
-  import { goto } from '$app/router';
-  import { labels } from '$shared/i18n';
-  import { getSuppliers, createSupplier, updateSupplier, deleteSupplier, bulkUpdateSuppliers, bulkDeleteSuppliers } from '../services/supplier-service';
-  import type { Supplier } from '../types';
-  import { Pagination } from '$shared/ui';
-  import { ArrowLeft } from 'lucide-svelte';
-  import { debounce } from '$shared/utils/debounce';
-  import { useSortable } from '$shared/composables/useSortable.svelte';
-  import SuppliersToolbar from './SuppliersToolbar.svelte';
-  import SuppliersTable from './SuppliersTable.svelte';
-  import SupplierFormModal from './SupplierFormModal.svelte';
-  import SupplierDetailDrawer from './SupplierDetailDrawer.svelte';
-  import ConfirmDeleteModal from '$shared/ui/ConfirmDeleteModal.svelte';
-  import ImportWizard from '$shared/ui/ImportWizard.svelte';
+  import { onMount } from "svelte";
+  import { SvelteURLSearchParams } from "svelte/reactivity";
+  import { toast } from "$shared/stores/toast.svelte";
+  import { useAuthStore } from "$modules/auth";
+  import { goto } from "$app/router";
+  import { labels } from "$shared/i18n";
+  import {
+    getSuppliers,
+    createSupplier,
+    updateSupplier,
+    deleteSupplier,
+    bulkUpdateSuppliers,
+    bulkDeleteSuppliers,
+  } from "../services/supplier-service";
+  import type { SupplierListParams } from "../services/supplier-service";
+  import type { Supplier, CreateSupplierPayload, UpdateSupplierPayload } from "../types";
+  import { Pagination } from "$shared/ui";
+  import { ArrowLeft } from "lucide-svelte";
+  import { debounce } from "$shared/utils/debounce";
+  import { useSortable } from "$shared/composables/useSortable.svelte";
+  import SuppliersToolbar from "./SuppliersToolbar.svelte";
+  import SuppliersTable from "./SuppliersTable.svelte";
+  import SupplierFormModal from "./SupplierFormModal.svelte";
+  import SupplierDetailDrawer from "./SupplierDetailDrawer.svelte";
+  import ConfirmDeleteModal from "$shared/ui/ConfirmDeleteModal.svelte";
+  import ImportWizard from "$shared/ui/ImportWizard.svelte";
 
   const authStore = useAuthStore();
 
   const userPermissions = $derived(authStore.user?.permissions || []);
-  const canCreate = $derived(userPermissions.includes('pricing.create'));
-  const canUpdate = $derived(userPermissions.includes('pricing.update'));
-  const canDelete = $derived(userPermissions.includes('pricing.delete'));
-  const canExport = $derived(userPermissions.includes('pricing.view'));
-  const canImport = $derived(userPermissions.includes('pricing.create'));
+  const canCreate = $derived(userPermissions.includes("pricing.create"));
+  const canUpdate = $derived(userPermissions.includes("pricing.update"));
+  const canDelete = $derived(userPermissions.includes("pricing.delete"));
+  const canExport = $derived(userPermissions.includes("pricing.view"));
+  const canImport = $derived(userPermissions.includes("pricing.create"));
 
   let loading = $state(true);
   let suppliers = $state<Supplier[]>([]);
   let total = $state(0);
   let limit = $state(20);
   let offset = $state(0);
-  let searchQuery = $state('');
-  let statusFilter = $state('all');
+  let searchQuery = $state("");
+  let statusFilter = $state("all");
   let consignmentFilter = $state(false);
   let referrer = $state<string | null>(null);
-  const { sortState, handleSort } = useSortable('name', 'asc', load);
+  const { sortState, handleSort } = useSortable("name", "asc", load);
 
   let showFormModal = $state(false);
-  let formMode = $state<'add' | 'edit'>('add');
+  let formMode = $state<"add" | "edit">("add");
   let selectedSupplier = $state<Supplier | null>(null);
   let saving = $state(false);
 
   let showDeleteModal = $state(false);
-  let deleteTargetName = $state('');
+  let deleteTargetName = $state("");
   let deleting = $state(false);
 
   let showImportWizard = $state(false);
@@ -53,34 +62,55 @@
   async function load() {
     loading = true;
     try {
-      const params: any = { limit, offset, search: searchQuery, sort_by: sortState.sortBy, sort_dir: sortState.sortDir };
-      if (statusFilter === 'active') params.is_active = true;
-      else if (statusFilter === 'inactive') params.is_active = false;
+      const params: SupplierListParams = {
+        limit,
+        offset,
+        search: searchQuery,
+        sort_by: sortState.sortBy,
+        sort_dir: sortState.sortDir,
+      };
+      if (statusFilter === "active") params.is_active = true;
+      else if (statusFilter === "inactive") params.is_active = false;
       if (consignmentFilter) params.is_consignment = true;
 
       const result = await getSuppliers(params);
       suppliers = result.data;
       total = result.total;
     } catch {
-      toast.error('Failed to load suppliers');
+      toast.error("Failed to load suppliers");
     } finally {
       loading = false;
     }
   }
 
-  const debouncedSearch = debounce(() => { offset = 0; load(); }, 300);
+  const debouncedSearch = debounce(() => {
+    offset = 0;
+    load();
+  }, 300);
 
-  function handleSearch() { debouncedSearch(); }
-  function handleStatusChange() { offset = 0; syncUrl(); load(); }
-  function handleConsignmentChange() { offset = 0; syncUrl(); load(); }
+  function handleSearch() {
+    debouncedSearch();
+  }
+  function handleStatusChange() {
+    offset = 0;
+    syncUrl();
+    load();
+  }
+  function handleConsignmentChange() {
+    offset = 0;
+    syncUrl();
+    load();
+  }
 
   function syncUrl() {
-    const params = new URLSearchParams(window.location.search);
-    if (consignmentFilter) params.set('is_consignment', 'true');
-    else params.delete('is_consignment');
+    const params = new SvelteURLSearchParams(window.location.search);
+    if (consignmentFilter) params.set("is_consignment", "true");
+    else params.delete("is_consignment");
     const qs = params.toString();
-    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
-    window.history.replaceState({}, '', url);
+    const url = qs
+      ? `${window.location.pathname}?${qs}`
+      : window.location.pathname;
+    window.history.replaceState({}, "", url);
   }
   function handlePageChange(newOffset: number, newLimit: number) {
     limit = newLimit;
@@ -89,41 +119,41 @@
   }
 
   function openAdd() {
-    formMode = 'add';
+    formMode = "add";
     selectedSupplier = null;
     showFormModal = true;
   }
 
   function openEdit(supplier: Supplier) {
-    formMode = 'edit';
+    formMode = "edit";
     selectedSupplier = supplier;
     showFormModal = true;
   }
 
-  async function handleFormSave(data: any) {
+  async function handleFormSave(data: CreateSupplierPayload | UpdateSupplierPayload) {
     saving = true;
     try {
-      if (formMode === 'add') {
-        const ok = await createSupplier(data);
+      if (formMode === "add") {
+        const ok = await createSupplier(data as CreateSupplierPayload);
         if (ok) {
-          toast.success('Supplier created');
+          toast.success("Supplier created");
           showFormModal = false;
           await load();
         } else {
-          toast.error('Failed to create supplier');
+          toast.error("Failed to create supplier");
         }
       } else {
         const ok = await updateSupplier(selectedSupplier!.id, data);
         if (ok) {
-          toast.success('Supplier updated');
+          toast.success("Supplier updated");
           showFormModal = false;
           await load();
         } else {
-          toast.error('Failed to update supplier');
+          toast.error("Failed to update supplier");
         }
       }
     } catch {
-      toast.error('Failed to save supplier');
+      toast.error("Failed to save supplier");
     } finally {
       saving = false;
     }
@@ -141,15 +171,15 @@
     try {
       const ok = await deleteSupplier(selectedSupplier.id);
       if (ok) {
-        toast.success('Supplier deleted');
+        toast.success("Supplier deleted");
         showDeleteModal = false;
         selectedSupplier = null;
         await load();
       } else {
-        toast.error('Failed to delete supplier');
+        toast.error("Failed to delete supplier");
       }
     } catch {
-      toast.error('Failed to delete supplier');
+      toast.error("Failed to delete supplier");
     } finally {
       deleting = false;
     }
@@ -161,7 +191,7 @@
       toast.success(`${updated} suppliers activated`);
       await load();
     } catch {
-      toast.error('Failed to activate suppliers');
+      toast.error("Failed to activate suppliers");
     }
   }
 
@@ -171,7 +201,7 @@
       toast.success(`${updated} suppliers deactivated`);
       await load();
     } catch {
-      toast.error('Failed to deactivate suppliers');
+      toast.error("Failed to deactivate suppliers");
     }
   }
 
@@ -181,7 +211,7 @@
       toast.success(`${deleted} suppliers deleted`);
       await load();
     } catch {
-      toast.error('Failed to delete suppliers');
+      toast.error("Failed to delete suppliers");
     }
   }
 
@@ -195,33 +225,41 @@
   }
 
   function duplicateSupplier(supplier: Supplier) {
-    selectedSupplier = { ...supplier, name: `${supplier.name} (Copy)`, id: 0 } as Supplier;
-    formMode = 'add';
+    selectedSupplier = {
+      ...supplier,
+      name: `${supplier.name} (Copy)`,
+      id: 0,
+    } as Supplier;
+    formMode = "add";
     showFormModal = true;
   }
 
   function viewSupplierProducts(supplier: Supplier) {
-    const params = new URLSearchParams({ supplier_id: supplier.id.toString(), supplier_name: supplier.name });
+    const params = new URLSearchParams({
+      supplier_id: supplier.id.toString(),
+      supplier_name: supplier.name,
+    });
     goto(`/inventory/products?${params.toString()}`);
   }
 
   onMount(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('is_consignment') === 'true') {
+    if (urlParams.get("is_consignment") === "true") {
       consignmentFilter = true;
     }
-    referrer = urlParams.get('referrer');
+    referrer = urlParams.get("referrer");
     load();
   });
 </script>
 
 <div class="space-y-5">
-  {#if referrer === 'consignment'}
+  {#if referrer === "consignment"}
     <button
       class="inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-text-secondary transition-colors"
-      onclick={() => goto('/consignment')}
+      onclick={() => goto("/consignment")}
     >
-      <ArrowLeft size={16} /> {labels.back}
+      <ArrowLeft size={16} />
+      {labels.back}
     </button>
   {/if}
   <SuppliersToolbar
@@ -273,7 +311,10 @@
   supplier={selectedSupplier}
   {saving}
   onsave={handleFormSave}
-  oncancel={() => { showFormModal = false; selectedSupplier = null; }}
+  oncancel={() => {
+    showFormModal = false;
+    selectedSupplier = null;
+  }}
 />
 
 <ConfirmDeleteModal
@@ -283,15 +324,32 @@
   itemName={deleteTargetName}
 />
 
-<ImportWizard bind:open={showImportWizard} module="suppliers" displayName="Suppliers" onComplete={() => load()} />
+<ImportWizard
+  bind:open={showImportWizard}
+  module="suppliers"
+  displayName="Suppliers"
+  onComplete={() => load()}
+/>
 
 <SupplierDetailDrawer
   bind:open={showDetailDrawer}
   supplier={detailSupplier}
   canEdit={canUpdate}
   {canDelete}
-  onclose={() => { showDetailDrawer = false; detailSupplier = null; }}
-  onedit={(s) => { showDetailDrawer = false; openEdit(s); }}
-  ondelete={(s) => { showDetailDrawer = false; openDelete(s); }}
-  onviewproducts={(s) => { showDetailDrawer = false; viewSupplierProducts(s); }}
+  onclose={() => {
+    showDetailDrawer = false;
+    detailSupplier = null;
+  }}
+  onedit={(s) => {
+    showDetailDrawer = false;
+    openEdit(s);
+  }}
+  ondelete={(s) => {
+    showDetailDrawer = false;
+    openDelete(s);
+  }}
+  onviewproducts={(s) => {
+    showDetailDrawer = false;
+    viewSupplierProducts(s);
+  }}
 />

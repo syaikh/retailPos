@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ToastMessage, toast as ToastStore } from '../toast.svelte.ts';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { ToastMessage, toast as ToastStore } from "../toast.svelte.ts";
 
-describe('toast store', () => {
+describe("toast store", () => {
   let toast: typeof ToastStore;
 
   beforeEach(() => {
@@ -13,79 +13,95 @@ describe('toast store', () => {
     vi.useRealTimers();
   });
 
-  it('returns expected API shape', async () => {
-    const { toast: t } = await import('../toast.svelte');
+  it("returns expected API shape", async () => {
+    const { toast: t } = await import("../toast.svelte");
     toast = t;
-    expect(toast).toHaveProperty('subscribe');
-    expect(toast).toHaveProperty('success');
-    expect(toast).toHaveProperty('error');
-    expect(toast).toHaveProperty('warning');
-    expect(toast).toHaveProperty('info');
-    expect(toast).toHaveProperty('remove');
+    expect(toast).toHaveProperty("subscribe");
+    expect(toast).toHaveProperty("success");
+    expect(toast).toHaveProperty("error");
+    expect(toast).toHaveProperty("warning");
+    expect(toast).toHaveProperty("info");
+    expect(toast).toHaveProperty("remove");
   });
 
-  it('success adds toast with success variant', async () => {
-    const { toast: t } = await import('../toast.svelte');
+  it("success adds toast with success variant", async () => {
+    const { toast: t } = await import("../toast.svelte");
     toast = t;
-    toast.success('Test message');
+    toast.success("Test message");
     let toasts: ToastMessage[] = [];
-    toast.subscribe((value) => { toasts = value; })();
+    toast.subscribe((value) => {
+      toasts = value;
+    })();
     expect(toasts).toHaveLength(1);
-    expect(toasts[0].variant).toBe('success');
-    expect(toasts[0].message).toBe('Test message');
+    expect(toasts[0].variant).toBe("success");
+    expect(toasts[0].message).toBe("Test message");
     expect(toasts[0].id).toBeDefined();
   });
 
-  it('error adds toast with error variant', async () => {
-    const { toast: t } = await import('../toast.svelte');
+  it("error adds toast with error variant", async () => {
+    const { toast: t } = await import("../toast.svelte");
     toast = t;
-    toast.error('Error message');
+    toast.error("Error message");
     let toasts: ToastMessage[] = [];
-    toast.subscribe((value) => { toasts = value; })();
-    expect(toasts[0].variant).toBe('error');
-    expect(toasts[0].message).toBe('Error message');
+    toast.subscribe((value) => {
+      toasts = value;
+    })();
+    expect(toasts[0].variant).toBe("error");
+    expect(toasts[0].message).toBe("Error message");
   });
 
-  it('warning adds toast with warning variant', async () => {
-    const { toast: t } = await import('../toast.svelte');
+  it("warning adds toast with warning variant", async () => {
+    const { toast: t } = await import("../toast.svelte");
     toast = t;
-    toast.warning('Warning message');
+    toast.warning("Warning message");
     let toasts: ToastMessage[] = [];
-    toast.subscribe((value) => { toasts = value; })();
-    expect(toasts[0].variant).toBe('warning');
+    toast.subscribe((value) => {
+      toasts = value;
+    })();
+    expect(toasts[0].variant).toBe("warning");
   });
 
-  it('info adds toast with info variant', async () => {
-    const { toast: t } = await import('../toast.svelte');
+  it("info adds toast with info variant", async () => {
+    const { toast: t } = await import("../toast.svelte");
     toast = t;
-    toast.info('Info message');
+    toast.info("Info message");
     let toasts: ToastMessage[] = [];
-    toast.subscribe((value) => { toasts = value; })();
-    expect(toasts[0].variant).toBe('info');
+    toast.subscribe((value) => {
+      toasts = value;
+    })();
+    expect(toasts[0].variant).toBe("info");
   });
 
-  it('remove removes toast by id', async () => {
-    const { toast: t } = await import('../toast.svelte');
+  it("remove removes toast by id", async () => {
+    const { toast: t } = await import("../toast.svelte");
     toast = t;
-    const id = toast.success('Test');
+    const id = toast.success("Test");
     let toasts: ToastMessage[] = [];
-    toast.subscribe((value) => { toasts = value; })();
+    toast.subscribe((value) => {
+      toasts = value;
+    })();
     expect(toasts).toHaveLength(1);
     toast.remove(id);
-    toast.subscribe((value) => { toasts = value; })();
+    toast.subscribe((value) => {
+      toasts = value;
+    })();
     expect(toasts).toHaveLength(0);
   });
 
-  it('auto-dismisses based on duration', async () => {
-    const { toast: t } = await import('../toast.svelte');
+  it("auto-dismisses based on duration", async () => {
+    const { toast: t } = await import("../toast.svelte");
     toast = t;
-    toast.success('Test', 4000);
+    toast.success("Test", 4000);
     let toasts: ToastMessage[] = [];
-    toast.subscribe((value) => { toasts = value; })();
+    toast.subscribe((value) => {
+      toasts = value;
+    })();
     expect(toasts).toHaveLength(1);
     vi.advanceTimersByTime(4000);
     await vi.runAllTimersAsync();
-    toast.subscribe((value) => { toasts = value; })();
+    toast.subscribe((value) => {
+      toasts = value;
+    })();
     expect(toasts).toHaveLength(0);
   });
 });

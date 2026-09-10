@@ -98,11 +98,47 @@ export interface UpdatePOItemRequest {
   notes?: string;
 }
 
+export interface CreatePurchaseOrderPayload {
+  supplier_id: number;
+  store_id?: number;
+  expected_date: string;
+  payment_term: string;
+  delivery_address: string;
+  supplier_reference_number: string;
+  notes: string;
+  items: CreatePOItemRequest[];
+}
+
+export interface UpdatePurchaseOrderPayload {
+  supplier_id: number;
+  store_id?: number;
+  expected_date: string;
+  payment_term: string;
+  delivery_address: string;
+  supplier_reference_number: string;
+  notes: string;
+  items: UpdatePOItemRequest[];
+}
+
 export interface CreateGRItemRequest {
   purchase_order_item_id: number;
   qty_good: number;
   qty_damaged?: number;
   notes?: string;
+}
+
+export interface CreateGoodsReceiptPayload {
+  purchase_order_id: number;
+  store_id: number;
+  notes: string;
+  items: (CreateGRItemRequest & {
+    product_id: number;
+    unit_cost: number;
+    product_name: string;
+    sku?: string;
+    qty_ordered: number;
+    qty_received: number;
+  })[];
 }
 
 export interface PurchaseOrderFilters {
@@ -114,5 +150,5 @@ export interface PurchaseOrderFilters {
   page: number;
   pageSize: number;
   sortBy: string;
-  sortDir: 'asc' | 'desc';
+  sortDir: "asc" | "desc";
 }

@@ -6,15 +6,17 @@
 
   interface Props {
     value?: { start: DateValue; end: DateValue } | null;
-    onValueChange?: (value: { start: DateValue; end: DateValue } | null) => void;
+    onValueChange?: (
+      value: { start: DateValue; end: DateValue } | null,
+    ) => void;
     minValue?: DateValue;
     maxValue?: DateValue;
     theme?: Theme;
     class?: string;
   }
 
-  let {
-    value = null,
+  const {
+    value = $bindable(null),
     onValueChange,
     minValue,
     maxValue,
@@ -27,7 +29,11 @@
   let hoverYear: number = $state(0);
 
   const jakartaToday = getTodayJakartaDate();
-  const today = new CalendarDate(jakartaToday.year, jakartaToday.month, jakartaToday.day);
+  const today = new CalendarDate(
+    jakartaToday.year,
+    jakartaToday.month,
+    jakartaToday.day,
+  );
 
   // Initialize year from maxValue if available
   $effect(() => {
@@ -38,11 +44,17 @@
 
   const months = $derived(
     Array.from({ length: 12 }, (_, i) =>
-      formatLocaleDate(new Date(Date.UTC(2000, i, 1)), { month: 'short', timeZone: 'UTC' })
-    )
+      formatLocaleDate(new Date(Date.UTC(2000, i, 1)), {
+        month: "short",
+        timeZone: "UTC",
+      }),
+    ),
   );
 
-  const getMonthRange = (year: number, month: number): { start: DateValue; end: DateValue } => {
+  const getMonthRange = (
+    year: number,
+    month: number,
+  ): { start: DateValue; end: DateValue } => {
     const monthStart = new CalendarDate(year, month, 1);
     const nextMonth = monthStart.add({ months: 1 });
     const monthEnd = nextMonth.subtract({ days: 1 });
@@ -55,7 +67,9 @@
     const nextMonth = monthStart.add({ months: 1 });
     const monthEnd = nextMonth.subtract({ days: 1 });
     // Check if month overlaps with selected range (partial selection support)
-    return monthStart.compare(value.end) <= 0 && monthEnd.compare(value.start) >= 0;
+    return (
+      monthStart.compare(value.end) <= 0 && monthEnd.compare(value.start) >= 0
+    );
   };
 
   const isMonthInHover = (year: number, month: number): boolean => {
@@ -63,7 +77,7 @@
     return hoverMonth === month && hoverYear === year;
   };
 
-  const isCurrentMonth = (month: number): boolean => {
+  const _isCurrentMonth = (month: number): boolean => {
     return year === today.year && month === today.month;
   };
 
@@ -86,15 +100,17 @@
   const getMonthClass = (yearNum: number, month: number) => {
     const selected = isMonthSelected(yearNum, month);
     const hover = isMonthInHover(yearNum, month);
-    const current = isCurrentMonth(month);
     const disabled = isMonthDisabled(month);
 
     return cn(
       "w-14 h-11 flex items-center justify-center text-sm rounded transition-colors",
       // Selected takes priority - always show with selected text regardless of disabled
-      selected && "bg-[var(--calendar-selected)] text-[var(--calendar-selected-text)]",
+      selected &&
+        "bg-[var(--calendar-selected)] text-[var(--calendar-selected-text)]",
       // Then disabled (not selected) - grey out with rounded corners
-      disabled && !selected && "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed rounded-md bg-[var(--calendar-disabled-bg)]",
+      disabled &&
+        !selected &&
+        "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed rounded-md bg-[var(--calendar-disabled-bg)]",
       !disabled && !selected && "text-[var(--calendar-text)]",
       // Then hover (not selected or disabled)
       hover && !selected && !disabled && "bg-[var(--calendar-hover)]",
@@ -104,19 +120,25 @@
 
   const isMonthDisabled = (month: number): boolean => {
     const monthStart = new CalendarDate(year, month, 1);
-    const monthEnd = new CalendarDate(year, month, 1).add({ months: 1 }).subtract({ days: 1 });
+    const monthEnd = new CalendarDate(year, month, 1)
+      .add({ months: 1 })
+      .subtract({ days: 1 });
 
     if (minValue) {
-      if (monthEnd.year < minValue.year ||
-          (monthEnd.year === minValue.year && monthEnd.month < minValue.month)) {
+      if (
+        monthEnd.year < minValue.year ||
+        (monthEnd.year === minValue.year && monthEnd.month < minValue.month)
+      ) {
         return true;
       }
     }
     if (maxValue) {
       // Compare month starts with maxValue month
       // If monthStart is after maxValue's month, disable it
-      if (monthStart.year > maxValue.year ||
-          (monthStart.year === maxValue.year && monthStart.month > maxValue.month)) {
+      if (
+        monthStart.year > maxValue.year ||
+        (monthStart.year === maxValue.year && monthStart.month > maxValue.month)
+      ) {
         return true;
       }
     }
@@ -125,7 +147,7 @@
 
   // Check if any month is selectable
   const hasSelectableMonths = $derived(
-    months.some((_, i) => !isMonthDisabled(i + 1))
+    months.some((_, i) => !isMonthDisabled(i + 1)),
   );
 </script>
 
@@ -138,16 +160,23 @@
       <button
         class="inline-flex items-center justify-center rounded-md p-1 text-[var(--calendar-text)] hover:bg-[var(--calendar-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Previous year"
-        onclick={(e) => { e.stopPropagation(); year = Math.max(minValue?.year ?? 1900, year - 1); }}
+        onclick={(e) => {
+          e.stopPropagation();
+          year = Math.max(minValue?.year ?? 1900, year - 1);
+        }}
         disabled={year <= (minValue?.year ?? 1900)}
       >
         <span class="text-xs">‹</span>
       </button>
-      <span class="text-sm font-medium text-[var(--calendar-text)]">{year}</span>
+      <span class="text-sm font-medium text-[var(--calendar-text)]">{year}</span
+      >
       <button
         class="inline-flex items-center justify-center rounded-md p-1 text-[var(--calendar-text)] hover:bg-[var(--calendar-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Next year"
-        onclick={(e) => { e.stopPropagation(); year = Math.min(maxValue?.year ?? 2100, year + 1); }}
+        onclick={(e) => {
+          e.stopPropagation();
+          year = Math.min(maxValue?.year ?? 2100, year + 1);
+        }}
         disabled={year >= (maxValue?.year ?? 2100)}
       >
         <span class="text-xs">›</span>
@@ -156,22 +185,28 @@
 
     <div class="grid grid-cols-4 gap-2 flex-1">
       {#if hasSelectableMonths}
-        {#each months as monthName, i}
+        {#each months as monthName, i (i)}
           {@const month = i + 1}
           {@const disabled = isMonthDisabled(month)}
           <button
             class={getMonthClass(year, month)}
-            disabled={disabled}
+            {disabled}
             onmouseenter={() => !disabled && handleMouseEnter(month)}
             onmouseleave={() => handleMouseLeave()}
-            onclick={(e) => { e.stopPropagation(); handleMonthClick(month); }}
+            onclick={(e) => {
+              e.stopPropagation();
+              handleMonthClick(month);
+            }}
           >
             {monthName}
           </button>
         {/each}
       {:else}
-        <div class="col-span-4 flex items-center justify-center text-xs text-center text-[var(--calendar-muted)]">
-          No selectable months in this year.<br/>Click ‹ to view previous years.
+        <div
+          class="col-span-4 flex items-center justify-center text-xs text-center text-[var(--calendar-muted)]"
+        >
+          No selectable months in this year.<br />Click ‹ to view previous
+          years.
         </div>
       {/if}
     </div>

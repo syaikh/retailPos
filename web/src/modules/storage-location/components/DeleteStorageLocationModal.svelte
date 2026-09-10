@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { Button, Modal } from '$shared/ui';
-  import { Trash2, Loader2 } from 'lucide-svelte';
-  import { labels } from '$shared/i18n';
+  import { Button, Modal } from "$shared/ui";
+  import { Trash2, Loader2 } from "lucide-svelte";
+  import { labels } from "$shared/i18n";
 
   let {
     open = $bindable(false),
-    targetName = '',
+    targetName = "",
     deleting = $bindable(false),
     oncancel = () => {},
     onconfirm = () => {},
@@ -18,13 +18,21 @@
   } = $props();
 </script>
 
-<Modal bind:open={open} title={labels.deleteStorageLocation} size="sm">
+<Modal bind:open title={labels.deleteStorageLocation} size="sm">
   <p class="text-sm text-text-secondary">
-    {labels.deleteConfirmPrefix} <strong class="text-text-primary">{targetName}</strong>? {labels.thisActionCannotBeUndone}
+    {labels.deleteConfirmPrefix}
+    <strong class="text-text-primary">{targetName}</strong>? {labels.thisActionCannotBeUndone}
   </p>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={oncancel}>{labels.cancel}</Button>
-    <Button variant="danger" class="px-5" disabled={deleting} onclick={onconfirm}>
+    <Button variant="secondary" class="px-5" onclick={oncancel}
+      >{labels.cancel}</Button
+    >
+    <Button
+      variant="danger"
+      class="px-5"
+      disabled={deleting}
+      onclick={onconfirm}
+    >
       {#if deleting}
         <Loader2 size={14} class="animate-spin mr-1" /> {labels.deleting}
       {:else}

@@ -1,74 +1,77 @@
-import { describe, it, expect } from 'vitest';
-import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
+import { describe, it, expect } from "vitest";
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
 function getSource(): string {
-  return readFileSync(path.join(path.dirname(__filename), '..', 'KPICards.svelte'), 'utf-8');
+  return readFileSync(
+    path.join(path.dirname(__filename), "..", "KPICards.svelte"),
+    "utf-8",
+  );
 }
 
-describe('KPICards.svelte source-structure guards', () => {
+describe("KPICards.svelte source-structure guards", () => {
   const src = getSource();
 
-  it('uses $props()', () => {
-    expect(src).toContain('$props()');
+  it("uses $props()", () => {
+    expect(src).toContain("$props()");
   });
 
-  it('imports Skeleton from $shared/ui', () => {
+  it("imports Skeleton from $shared/ui", () => {
     expect(src).toContain("import { Skeleton } from '$shared/ui'");
   });
 
-  it('imports TrendingUp and TrendingDown from lucide-svelte', () => {
+  it("imports TrendingUp and TrendingDown from lucide-svelte", () => {
     expect(src).toContain("TrendingUp");
     expect(src).toContain("TrendingDown");
   });
 
-  it('imports formatCurrencyShort and formatLargeNumber', () => {
+  it("imports formatCurrencyShort and formatLargeNumber", () => {
     expect(src).toContain("formatCurrencyShort");
     expect(src).toContain("formatLargeNumber");
   });
 
-  it('has loading skeleton with 5 cards', () => {
+  it("has loading skeleton with 5 cards", () => {
     expect(src).toContain("length: 5");
     expect(src).toContain("Skeleton");
   });
 
-  it('imports labels from $shared/i18n', () => {
+  it("imports labels from $shared/i18n", () => {
     expect(src).toContain("import { labels } from '$shared/i18n'");
   });
 
-  it('has Total Revenue card', () => {
-    expect(src).toContain('labels.totalRevenue');
+  it("has Total Revenue card", () => {
+    expect(src).toContain("labels.totalRevenue");
   });
 
-  it('has Total Orders card', () => {
-    expect(src).toContain('labels.totalOrders');
+  it("has Total Orders card", () => {
+    expect(src).toContain("labels.totalOrders");
   });
 
-  it('has Avg Order Value card', () => {
-    expect(src).toContain('labels.avgOrderValue');
+  it("has Avg Order Value card", () => {
+    expect(src).toContain("labels.avgOrderValue");
   });
 
-  it('has Peak Revenue / Avg Revenue per Day card (card4)', () => {
+  it("has Peak Revenue / Avg Revenue per Day card (card4)", () => {
     expect(src).toContain("statCardLabels.card4");
   });
 
-  it('has comparison / change card (card5)', () => {
+  it("has comparison / change card (card5)", () => {
     expect(src).toContain("statCardLabels.comparisonLabel");
   });
 
-  it('displays surge label for previousHasAnyData with zero previous revenue', () => {
+  it("displays surge label for previousHasAnyData with zero previous revenue", () => {
     expect(src).toContain("'surge'");
     expect(src).toContain("'+100%'");
   });
 
-  it('displays previousHasAnyData in default kpiData', () => {
+  it("displays previousHasAnyData in default kpiData", () => {
     expect(src).toContain("previousHasAnyData: false");
   });
 
-  it('displays same hours label when previousHasAnyData is true', () => {
+  it("displays same hours label when previousHasAnyData is true", () => {
     expect(src).toContain("previousHasAnyData");
-    expect(src).toContain('labels.sameHours');
+    expect(src).toContain("labels.sameHours");
   });
 });

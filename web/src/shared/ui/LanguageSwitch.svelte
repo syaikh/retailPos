@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { Globe, Check } from 'lucide-svelte';
-  import Dropdown from './Dropdown.svelte';
-  import { currentLocale, labels, setLocale } from '$shared/i18n';
-  import type { Locale } from '$shared/i18n';
+  import { Globe, Check } from "lucide-svelte";
+  import Dropdown from "./Dropdown.svelte";
+  import { currentLocale, labels, setLocale } from "$shared/i18n";
+  import type { Locale } from "$shared/i18n";
 
   const options: { code: Locale; label: string }[] = [
-    { code: 'id', label: 'Bahasa Indonesia' },
-    { code: 'en', label: 'English' },
+    { code: "id", label: "Bahasa Indonesia" },
+    { code: "en", label: "English" },
   ];
 
   let open = $state(false);
@@ -30,12 +30,15 @@
 
   {#snippet content({ close })}
     <div role="menu" aria-label={labels.switchLanguage}>
-      {#each options as opt}
+      {#each options as opt (opt.code)}
         <button
           type="button"
           role="menuitem"
           class="w-full flex items-center gap-3 px-3 py-2 text-sm transition-colors text-text-secondary hover:bg-surface-hover hover:text-text-primary"
-          onclick={() => { setLocale(opt.code); close(); }}
+          onclick={() => {
+            setLocale(opt.code);
+            close();
+          }}
         >
           <span class="flex-1 text-left">{opt.label}</span>
           {#if currentLocale() === opt.code}

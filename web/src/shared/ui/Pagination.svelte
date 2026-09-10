@@ -1,13 +1,18 @@
 <script lang="ts">
-  import { Button } from '$shared/ui';
-  import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-svelte';
-  import { labels, t } from '$shared/i18n';
+  import { Button } from "$shared/ui";
+  import {
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
+  } from "lucide-svelte";
+  import { labels, t } from "$shared/i18n";
 
-  let { 
-    total = 0, 
-    limit = 20, 
-    offset = 0, 
-    onPageChange 
+  const {
+    total = 0,
+    limit = 20,
+    offset = 0,
+    onPageChange,
   }: {
     total: number;
     limit: number;
@@ -17,11 +22,11 @@
 
   const currentPage = $derived(Math.floor(offset / limit) + 1);
   const totalPages = $derived(Math.max(1, Math.ceil(total / limit)));
-  
+
   const canPrev = $derived(currentPage > 1);
   const canNext = $derived(currentPage < totalPages);
 
-  let pageInput = $state<string>('');
+  let pageInput = $state<string>("");
   let editing = $state(false);
   let cancelled = $state(false);
   let pageInputEl: HTMLInputElement = $state()!;
@@ -48,12 +53,15 @@
 
   function cancelEdit() {
     cancelled = true;
-    pageInput = '';
+    pageInput = "";
     editing = false;
   }
 
   function submitEdit() {
-    if (cancelled) { editing = false; return; }
+    if (cancelled) {
+      editing = false;
+      return;
+    }
     const parsed = parseInt(pageInput);
     if (isNaN(parsed) || parsed < 1) {
       // Empty input or invalid — stay on current page, no rerender
@@ -66,31 +74,33 @@
     } else {
       goToPage(parsed);
     }
-    pageInput = '';
+    pageInput = "";
     editing = false;
   }
 
   function handleInput(e: Event) {
     const val = (e.target as HTMLInputElement).value;
-    pageInput = val.replace(/[^0-9]/g, '');
+    pageInput = val.replace(/[^0-9]/g, "");
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault();
       submitEdit();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       e.preventDefault();
       cancelEdit();
     }
   }
 </script>
 
-<div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 mt-4 border-t border-border-subtle">
+<div
+  class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 mt-4 border-t border-border-subtle"
+>
   <!-- Rows per page -->
   <div class="flex items-center gap-3 text-sm text-text-secondary">
     <label for="rows-per-page">{labels.rowsPerPage}</label>
-    <select 
+    <select
       id="rows-per-page"
       class="bg-surface-default border border-border-strong rounded-xl px-2 py-1 text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-default cursor-pointer"
       value={limit}
@@ -102,19 +112,38 @@
       <option value={100}>100</option>
     </select>
     <span class="ml-2">
-      {labels.showing} {Math.min(offset + 1, total)}-{Math.min(offset + limit, total)} {labels.of} {total}
+      {labels.showing}
+      {Math.min(offset + 1, total)}-{Math.min(offset + limit, total)}
+      {labels.of}
+      {total}
     </span>
   </div>
 
   <!-- Navigation -->
   <div class="flex items-center gap-1">
-    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(1)} disabled={!canPrev} title={labels.firstPage} aria-label={labels.firstPage}>
+    <Button
+      variant="ghost"
+      size="icon"
+      class="p-1.5 disabled:opacity-30"
+      onclick={() => goToPage(1)}
+      disabled={!canPrev}
+      title={labels.firstPage}
+      aria-label={labels.firstPage}
+    >
       <ChevronsLeft size={18} />
     </Button>
-    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(currentPage - 1)} disabled={!canPrev} title={labels.previous} aria-label={labels.previousPage}>
+    <Button
+      variant="ghost"
+      size="icon"
+      class="p-1.5 disabled:opacity-30"
+      onclick={() => goToPage(currentPage - 1)}
+      disabled={!canPrev}
+      title={labels.previous}
+      aria-label={labels.previousPage}
+    >
       <ChevronLeft size={18} />
     </Button>
-    
+
     {#if editing}
       <label for="page-input" class="sr-only">{labels.goToPage}</label>
       <input
@@ -129,7 +158,9 @@
         onblur={submitEdit}
         aria-label={labels.goToPage}
       />
-      <span class="text-sm text-text-muted" aria-hidden="true">/ {totalPages}</span>
+      <span class="text-sm text-text-muted" aria-hidden="true"
+        >/ {totalPages}</span
+      >
     {:else}
       <button
         class="px-4 py-1.5 text-sm font-medium bg-surface-default border border-border-strong rounded-xl min-w-[100px] text-center hover:border-primary-default/50 transition-colors cursor-text"
@@ -137,14 +168,30 @@
         title={labels.clickToJumpToPage}
         aria-label={labels.currentPageClickToJump}
       >
-        {t('pageXOfY', { page: currentPage, total: totalPages })}
+        {t("pageXOfY", { page: currentPage, total: totalPages })}
       </button>
     {/if}
 
-    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(currentPage + 1)} disabled={!canNext} title={labels.next} aria-label={labels.nextPage}>
+    <Button
+      variant="ghost"
+      size="icon"
+      class="p-1.5 disabled:opacity-30"
+      onclick={() => goToPage(currentPage + 1)}
+      disabled={!canNext}
+      title={labels.next}
+      aria-label={labels.nextPage}
+    >
       <ChevronRight size={18} />
     </Button>
-    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(totalPages)} disabled={!canNext} title={labels.lastPage} aria-label={labels.lastPage}>
+    <Button
+      variant="ghost"
+      size="icon"
+      class="p-1.5 disabled:opacity-30"
+      onclick={() => goToPage(totalPages)}
+      disabled={!canNext}
+      title={labels.lastPage}
+      aria-label={labels.lastPage}
+    >
       <ChevronsRight size={18} />
     </Button>
   </div>

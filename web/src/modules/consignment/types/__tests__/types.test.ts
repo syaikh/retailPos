@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import type { SettlementItem } from '..';
+import { describe, it, expect } from "vitest";
+import type { SettlementItem } from "..";
 
-describe('Consignment types', () => {
-  describe('SettlementItem', () => {
-    it('product_id accepts null (nullable column)', () => {
+describe("Consignment types", () => {
+  describe("SettlementItem", () => {
+    it("product_id accepts null (nullable column)", () => {
       const item: SettlementItem = {
         id: 1,
         consignment_settlement_id: 1,
@@ -17,7 +17,7 @@ describe('Consignment types', () => {
       expect(item.product_id).toBeNull();
     });
 
-    it('product_id accepts a number', () => {
+    it("product_id accepts a number", () => {
       const item: SettlementItem = {
         id: 1,
         consignment_settlement_id: 1,

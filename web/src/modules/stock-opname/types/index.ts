@@ -1,15 +1,23 @@
-export type StockOpnameScopeType = 'store' | 'warehouse' | 'category' | 'brand' | 'supplier' | 'product' | 'location' | 'manual';
+export type StockOpnameScopeType =
+  | "store"
+  | "warehouse"
+  | "category"
+  | "brand"
+  | "supplier"
+  | "product"
+  | "location"
+  | "manual";
 
 export type StockOpnameStatus =
-  | 'draft'
-  | 'open'
-  | 'counting'
-  | 'verification'
-  | 'needs_recount'
-  | 'approved'
-  | 'posted'
-  | 'closed'
-  | 'cancelled';
+  | "draft"
+  | "open"
+  | "counting"
+  | "verification"
+  | "needs_recount"
+  | "approved"
+  | "posted"
+  | "closed"
+  | "cancelled";
 
 export interface StockOpnameScope {
   id: number;
@@ -67,7 +75,7 @@ export interface StockOpnameItem {
   physical_qty: number;
   difference_qty: number;
   adjustment_qty: number;
-  status: 'pending' | 'counted';
+  status: "pending" | "counted";
   reason: string;
   count_sequence: number;
   last_counted_by: number | null;
@@ -79,7 +87,7 @@ export interface StockOpnameAssignment {
   stock_opname_id: number;
   user_id: number;
   username: string;
-  role: 'counter' | 'supervisor';
+  role: "counter" | "supervisor";
   assigned_at: string;
 }
 
@@ -136,11 +144,11 @@ export interface CreateStockOpnamePayload {
 
 export interface AssignPayload {
   user_id: number;
-  role: 'counter' | 'supervisor';
+  role: "counter" | "supervisor";
 }
 
 export interface ReassignPayload {
-  role: 'counter' | 'supervisor';
+  role: "counter" | "supervisor";
 }
 
 export interface SaveCountPayload {
@@ -202,35 +210,35 @@ export interface Adjustment {
 }
 
 export const STOCK_OPNAME_STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  open: 'Open',
-  counting: 'Counting',
-  verification: 'Verification',
-  needs_recount: 'Needs Recount',
-  approved: 'Approved',
-  posted: 'Posted',
-  closed: 'Closed',
-  cancelled: 'Cancelled',
+  draft: "Draft",
+  open: "Open",
+  counting: "Counting",
+  verification: "Verification",
+  needs_recount: "Needs Recount",
+  approved: "Approved",
+  posted: "Posted",
+  closed: "Closed",
+  cancelled: "Cancelled",
 };
 
 export const STOCK_OPNAME_SCOPE_LABELS: Record<StockOpnameScopeType, string> = {
-  store: 'Store',
-  warehouse: 'Warehouse',
-  category: 'Category',
-  brand: 'Brand',
-  supplier: 'Supplier',
-  product: 'Product',
-  location: 'Storage Location (Rack)',
-  manual: 'Manual (all active products)',
+  store: "Store",
+  warehouse: "Warehouse",
+  category: "Category",
+  brand: "Brand",
+  supplier: "Supplier",
+  product: "Product",
+  location: "Storage Location (Rack)",
+  manual: "Manual (all active products)",
 };
 
 export const STOCK_OPNAME_SCOPE_TYPES: StockOpnameScopeType[] = [
-  'store',
-  'warehouse',
-  'category',
-  'brand',
-  'supplier',
-  'product',
-  'location',
-  'manual',
+  "store",
+  "warehouse",
+  "category",
+  "brand",
+  "supplier",
+  "product",
+  "location",
+  "manual",
 ];

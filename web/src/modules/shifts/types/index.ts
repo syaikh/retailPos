@@ -4,7 +4,7 @@ export interface Shift {
   username: string;
   store_id: number | null;
   store_name: string;
-  status: 'open' | 'closed';
+  status: "open" | "closed";
   opening_balance: number;
   closing_balance: number | null;
   cash_sales: number;
@@ -38,7 +38,7 @@ export interface CashMovement {
   shift_id: number;
   user_id: number;
   username?: string;
-  type: 'cash_drop' | 'paid_in' | 'paid_out';
+  type: "cash_drop" | "paid_in" | "paid_out";
   amount: number;
   description?: string;
   created_at: string;
@@ -63,7 +63,7 @@ export interface ShiftReportData {
   username: string;
   store_id: number | null;
   store_name: string;
-  status: 'open' | 'closed';
+  status: "open" | "closed";
   opening_balance: number;
   closing_balance: number | null;
   cash_sales: number;

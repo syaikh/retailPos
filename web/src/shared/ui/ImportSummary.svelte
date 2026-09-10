@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { CheckCircle2, AlertCircle } from 'lucide-svelte';
-  import type { ImportProgress } from '$shared/types/import-export';
-  import { labels } from '$shared/i18n';
+  import { CheckCircle2, AlertCircle } from "lucide-svelte";
+  import type { ImportProgress } from "$shared/types/import-export";
+  import { labels } from "$shared/i18n";
 
-  let {
+  const {
     progress,
-    error_report = '',
+    error_report = "",
   }: {
     progress: ImportProgress | null;
     error_report?: string;
@@ -14,10 +14,12 @@
 
 {#if progress}
   <div class="space-y-4 text-center">
-    <div class="w-14 h-14 rounded-full bg-success-subtle flex items-center justify-center mx-auto">
-      {#if progress.status === 'completed'}
+    <div
+      class="w-14 h-14 rounded-full bg-success-subtle flex items-center justify-center mx-auto"
+    >
+      {#if progress.status === "completed"}
         <CheckCircle2 size={28} class="text-success-light" />
-      {:else if progress.status === 'failed'}
+      {:else if progress.status === "failed"}
         <AlertCircle size={28} class="text-danger" />
       {:else}
         <CheckCircle2 size={28} class="text-success-light" />
@@ -25,9 +27,9 @@
     </div>
 
     <p class="text-text-primary font-semibold">
-      {#if progress.status === 'completed'}
+      {#if progress.status === "completed"}
         {labels.importCompleted}
-      {:else if progress.status === 'failed'}
+      {:else if progress.status === "failed"}
         {labels.importFailed}
       {:else}
         {labels.importCancelled}
@@ -36,11 +38,15 @@
 
     <div class="grid grid-cols-3 gap-3">
       <div class="p-3 bg-surface-subtle rounded-lg">
-        <p class="text-lg font-bold text-success-light">{progress.inserted ?? 0}</p>
+        <p class="text-lg font-bold text-success-light">
+          {progress.inserted ?? 0}
+        </p>
         <p class="text-xs text-text-muted">{labels.inserted}</p>
       </div>
       <div class="p-3 bg-surface-subtle rounded-lg">
-        <p class="text-lg font-bold text-warning-light">{progress.updated ?? 0}</p>
+        <p class="text-lg font-bold text-warning-light">
+          {progress.updated ?? 0}
+        </p>
         <p class="text-xs text-text-muted">{labels.updated}</p>
       </div>
       <div class="p-3 bg-surface-subtle rounded-lg">

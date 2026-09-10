@@ -1,87 +1,107 @@
 <script lang="ts">
-import { onMount } from 'svelte';
-import { MoreVertical, Package, Pencil, Trash2, ArrowUpDown } from 'lucide-svelte';
-import { labels } from '$shared/i18n';
+  import { onMount } from "svelte";
+  import {
+    MoreVertical,
+    Package,
+    Pencil,
+    Trash2,
+    ArrowUpDown,
+  } from "lucide-svelte";
+  import { labels } from "$shared/i18n";
+  import type { Product } from "../types";
 
-let {
-  product,
-  canEdit = false,
-  canDelete = false,
-  canAdjustStock = false,
-  onView,
-  onEdit,
-  onDelete,
-  onAdjustStock,
-}: {
-  product: any;
-  canEdit?: boolean;
-  canDelete?: boolean;
-  canAdjustStock?: boolean;
-  onView?: () => void;
-  onEdit?: () => void;
-  onDelete?: () => void;
-  onAdjustStock?: () => void;
-} = $props();
+  const {
+    product,
+    canEdit = false,
+    canDelete = false,
+    canAdjustStock = false,
+    onView,
+    onEdit,
+    onDelete,
+    onAdjustStock,
+  }: {
+    product: Product;
+    canEdit?: boolean;
+    canDelete?: boolean;
+    canAdjustStock?: boolean;
+    onView?: () => void;
+    onEdit?: () => void;
+    onDelete?: () => void;
+    onAdjustStock?: () => void;
+  } = $props();
 
-let showDropdown = $state(false);
-let dropdownRef = $state<HTMLDivElement | null>(null);
-let buttonRef = $state<HTMLButtonElement | null>(null);
-let menuStyle = $state('');
+  let showDropdown = $state(false);
+  let dropdownRef = $state<HTMLDivElement | null>(null);
+  let buttonRef = $state<HTMLButtonElement | null>(null);
+  let menuStyle = $state("");
 
-function computePosition() {
-  if (!buttonRef) return;
-  const r = buttonRef.getBoundingClientRect();
-  menuStyle = `position:fixed;top:${r.bottom + 4}px;right:${window.innerWidth - r.right}px`;
-}
-
-function toggleDropdown() {
-  if (!showDropdown) {
-    document.dispatchEvent(new CustomEvent('close-all-dropdowns'));
+  function computePosition() {
+    if (!buttonRef) return;
+    const r = buttonRef.getBoundingClientRect();
+    menuStyle = `position:fixed;top:${r.bottom + 4}px;right:${window.innerWidth - r.right}px`;
   }
-  showDropdown = !showDropdown;
-}
 
-function closeDropdown() {
-  showDropdown = false;
-}
+  function toggleDropdown() {
+    if (!showDropdown) {
+      document.dispatchEvent(new CustomEvent("close-all-dropdowns"));
+    }
+    showDropdown = !showDropdown;
+  }
 
-onMount(() => {
-  const closeHandler = () => {
-    showDropdown = false;
-  };
-  document.addEventListener('close-all-dropdowns', closeHandler);
-  document.addEventListener('click', handleClickOutside);
-  return () => {
-    document.removeEventListener('close-all-dropdowns', closeHandler);
-    document.removeEventListener('click', handleClickOutside);
-  };
-});
-
-$effect(() => {
-  if (!showDropdown) return;
-  computePosition();
-  function reposition() { computePosition(); }
-  window.addEventListener('scroll', reposition, { passive: true, capture: true });
-  window.addEventListener('resize', reposition, { passive: true });
-  return () => {
-    window.removeEventListener('scroll', reposition, { capture: true } as EventListenerOptions);
-    window.removeEventListener('resize', reposition);
-  };
-});
-
-function handleClickOutside(e: MouseEvent) {
-  if (showDropdown && dropdownRef && !dropdownRef.contains(e.target as Node) && buttonRef && !buttonRef.contains(e.target as Node)) {
+  function closeDropdown() {
     showDropdown = false;
   }
-}
 
-function handleAction(action: 'view' | 'edit' | 'delete' | 'adjust') {
-  closeDropdown();
-  if (action === 'view' && onView) onView();
-  if (action === 'edit' && onEdit) onEdit();
-  if (action === 'delete' && onDelete) onDelete();
-  if (action === 'adjust' && onAdjustStock) onAdjustStock();
-}
+  onMount(() => {
+    const closeHandler = () => {
+      showDropdown = false;
+    };
+    document.addEventListener("close-all-dropdowns", closeHandler);
+    document.addEventListener("click", handleClickOutside);
+    return () => {
+      document.removeEventListener("close-all-dropdowns", closeHandler);
+      document.removeEventListener("click", handleClickOutside);
+    };
+  });
+
+  $effect(() => {
+    if (!showDropdown) return;
+    computePosition();
+    function reposition() {
+      computePosition();
+    }
+    window.addEventListener("scroll", reposition, {
+      passive: true,
+      capture: true,
+    });
+    window.addEventListener("resize", reposition, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", reposition, {
+        capture: true,
+      } as EventListenerOptions);
+      window.removeEventListener("resize", reposition);
+    };
+  });
+
+  function handleClickOutside(e: MouseEvent) {
+    if (
+      showDropdown &&
+      dropdownRef &&
+      !dropdownRef.contains(e.target as Node) &&
+      buttonRef &&
+      !buttonRef.contains(e.target as Node)
+    ) {
+      showDropdown = false;
+    }
+  }
+
+  function handleAction(action: "view" | "edit" | "delete" | "adjust") {
+    closeDropdown();
+    if (action === "view" && onView) onView();
+    if (action === "edit" && onEdit) onEdit();
+    if (action === "delete" && onDelete) onDelete();
+    if (action === "adjust" && onAdjustStock) onAdjustStock();
+  }
 </script>
 
 <div class="relative inline-block">
@@ -108,14 +128,14 @@ function handleAction(action: 'view' | 'edit' | 'delete' | 'adjust') {
       tabindex="-1"
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => {
-        if (e.key === 'Escape') {
+        if (e.key === "Escape") {
           e.stopPropagation();
           closeDropdown();
         }
       }}
     >
       <button
-        onclick={() => handleAction('view')}
+        onclick={() => handleAction("view")}
         class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover rounded-t-lg transition-colors"
         role="menuitem"
       >
@@ -124,7 +144,7 @@ function handleAction(action: 'view' | 'edit' | 'delete' | 'adjust') {
       </button>
       {#if canAdjustStock}
         <button
-          onclick={() => handleAction('adjust')}
+          onclick={() => handleAction("adjust")}
           class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors"
           role="menuitem"
         >
@@ -134,7 +154,7 @@ function handleAction(action: 'view' | 'edit' | 'delete' | 'adjust') {
       {/if}
       {#if canEdit}
         <button
-          onclick={() => handleAction('edit')}
+          onclick={() => handleAction("edit")}
           class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors"
           role="menuitem"
         >
@@ -144,7 +164,7 @@ function handleAction(action: 'view' | 'edit' | 'delete' | 'adjust') {
       {/if}
       {#if canDelete && product.stock === 0}
         <button
-          onclick={() => handleAction('delete')}
+          onclick={() => handleAction("delete")}
           class="w-full flex items-center gap-3 px-3 py-2 text-sm text-danger hover:bg-danger-subtle rounded-b-lg transition-colors"
           role="menuitem"
         >

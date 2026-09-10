@@ -22,4 +22,5 @@ export interface AuthState {
   loading: boolean;
 }
 
-export type LoginResult = { access_token: string; refresh_token: string; user: User } | false;
+export type LoginResult =
+  { access_token: string; refresh_token: string; user: User } | false;

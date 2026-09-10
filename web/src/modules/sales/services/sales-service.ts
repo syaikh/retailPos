@@ -1,30 +1,38 @@
-import { apiFetch } from '$shared/api/http-client';
-import { getAuthToken } from '$modules/auth';
-import type { Sale, SaleFilters, SaleLookupDetail, SaleLookupSummary } from '../types';
+import { apiFetch } from "$shared/api/http-client";
+import { getAuthToken } from "$modules/auth";
+import type {
+  Sale,
+  SaleFilters,
+  SaleLookupDetail,
+  SaleLookupSummary,
+} from "../types";
 
 const SLIDER_MAX_BOUND = 50000000;
 
-export async function getSalesHistory(filters: SaleFilters, signal?: AbortSignal): Promise<{ data: Sale[]; total: number }> {
+export async function getSalesHistory(
+  filters: SaleFilters,
+  signal?: AbortSignal,
+): Promise<{ data: Sale[]; total: number }> {
   const params = new URLSearchParams({
     start_date: filters.startDate,
     end_date: filters.endDate,
     limit: filters.limit.toString(),
     offset: filters.offset.toString(),
-    search: filters.search || '',
-    sort_by: filters.sortBy || 'created_at',
-    sort_dir: (filters.sortDir || 'desc').toUpperCase(),
+    search: filters.search || "",
+    sort_by: filters.sortBy || "created_at",
+    sort_dir: (filters.sortDir || "desc").toUpperCase(),
   });
   if (filters.paymentMethods && filters.paymentMethods.length > 0) {
-    params.set('payment_methods', filters.paymentMethods.join(','));
+    params.set("payment_methods", filters.paymentMethods.join(","));
   }
   if (filters.minTotal !== undefined && filters.minTotal > 0) {
-    params.set('min_total', filters.minTotal.toString());
+    params.set("min_total", filters.minTotal.toString());
   }
   if (filters.maxTotal !== undefined && filters.maxTotal < SLIDER_MAX_BOUND) {
-    params.set('max_total', filters.maxTotal.toString());
+    params.set("max_total", filters.maxTotal.toString());
   }
   if (filters.cashierId !== undefined) {
-    params.set('cashier_id', filters.cashierId.toString());
+    params.set("cashier_id", filters.cashierId.toString());
   }
   const res = await apiFetch(`/api/sales?${params.toString()}`, { signal });
   if (res.ok) {
@@ -34,12 +42,16 @@ export async function getSalesHistory(filters: SaleFilters, signal?: AbortSignal
   return { data: [], total: 0 };
 }
 
-export async function getPaymentMethods(signal?: AbortSignal): Promise<{ code: string; name: string }[]> {
+export async function getPaymentMethods(
+  signal?: AbortSignal,
+): Promise<{ code: string; name: string }[]> {
   try {
-    const res = await apiFetch('/api/payment-methods', { signal });
+    const res = await apiFetch("/api/payment-methods", { signal });
     if (res.ok) {
       const data = await res.json();
-      return (data.data || data || []).filter((m: any) => m.is_active !== false);
+      return (data.data || data || []).filter(
+        (m: { is_active?: boolean }) => m.is_active !== false,
+      );
     }
     return [];
   } catch {
@@ -60,26 +72,31 @@ export async function getSaleById(id: number): Promise<Sale | null> {
   }
 }
 
-export async function getSalesLookup(filters: SaleFilters, signal?: AbortSignal): Promise<{ data: SaleLookupSummary[]; total: number }> {
+export async function getSalesLookup(
+  filters: SaleFilters,
+  signal?: AbortSignal,
+): Promise<{ data: SaleLookupSummary[]; total: number }> {
   const params = new URLSearchParams({
     start_date: filters.startDate,
     end_date: filters.endDate,
     limit: filters.limit.toString(),
     offset: filters.offset.toString(),
-    search: filters.search || '',
-    sort_by: filters.sortBy || 'created_at',
-    sort_dir: (filters.sortDir || 'desc').toUpperCase(),
+    search: filters.search || "",
+    sort_by: filters.sortBy || "created_at",
+    sort_dir: (filters.sortDir || "desc").toUpperCase(),
   });
   if (filters.paymentMethods && filters.paymentMethods.length > 0) {
-    params.set('payment_methods', filters.paymentMethods.join(','));
+    params.set("payment_methods", filters.paymentMethods.join(","));
   }
   if (filters.minTotal !== undefined && filters.minTotal > 0) {
-    params.set('min_total', filters.minTotal.toString());
+    params.set("min_total", filters.minTotal.toString());
   }
   if (filters.maxTotal !== undefined && filters.maxTotal < SLIDER_MAX_BOUND) {
-    params.set('max_total', filters.maxTotal.toString());
+    params.set("max_total", filters.maxTotal.toString());
   }
-  const res = await apiFetch(`/api/sales/lookup?${params.toString()}`, { signal });
+  const res = await apiFetch(`/api/sales/lookup?${params.toString()}`, {
+    signal,
+  });
   if (res.ok) {
     const data = await res.json();
     return { data: data.data || [], total: data.total || 0 };
@@ -89,7 +106,10 @@ export async function getSalesLookup(filters: SaleFilters, signal?: AbortSignal)
 
 // getSaleLookupDetail fetches the redacted itemized detail of a single transaction
 // for receipt reprint (cross-cashier). Gated by sale.detail on the backend.
-export async function getSaleLookupDetail(id: number, signal?: AbortSignal): Promise<SaleLookupDetail | null> {
+export async function getSaleLookupDetail(
+  id: number,
+  signal?: AbortSignal,
+): Promise<SaleLookupDetail | null> {
   try {
     const res = await apiFetch(`/api/sales/lookup/${id}`, { signal });
     if (res.ok) {
@@ -102,7 +122,10 @@ export async function getSaleLookupDetail(id: number, signal?: AbortSignal): Pro
   }
 }
 
-export async function exportSales(format: 'csv' | 'xlsx', filters: SaleFilters): Promise<Blob | null> {
+export async function exportSales(
+  format: "csv" | "xlsx",
+  filters: SaleFilters,
+): Promise<Blob | null> {
   const token = getAuthToken();
   if (!token) return null;
 
@@ -110,21 +133,21 @@ export async function exportSales(format: 'csv' | 'xlsx', filters: SaleFilters):
     format,
     start_date: filters.startDate,
     end_date: filters.endDate,
-    search: filters.search || '',
-    sort_by: filters.sortBy || 'created_at',
-    sort_dir: (filters.sortDir || 'desc').toUpperCase(),
+    search: filters.search || "",
+    sort_by: filters.sortBy || "created_at",
+    sort_dir: (filters.sortDir || "desc").toUpperCase(),
   });
   if (filters.paymentMethods && filters.paymentMethods.length > 0) {
-    params.set('payment_methods', filters.paymentMethods.join(','));
+    params.set("payment_methods", filters.paymentMethods.join(","));
   }
   if (filters.minTotal !== undefined && filters.minTotal > 0) {
-    params.set('min_total', filters.minTotal.toString());
+    params.set("min_total", filters.minTotal.toString());
   }
   if (filters.maxTotal !== undefined && filters.maxTotal < SLIDER_MAX_BOUND) {
-    params.set('max_total', filters.maxTotal.toString());
+    params.set("max_total", filters.maxTotal.toString());
   }
   if (filters.cashierId !== undefined) {
-    params.set('cashier_id', filters.cashierId.toString());
+    params.set("cashier_id", filters.cashierId.toString());
   }
 
   const res = await fetch(`/api/sales/export?${params.toString()}`, {

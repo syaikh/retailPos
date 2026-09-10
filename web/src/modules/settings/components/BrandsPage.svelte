@@ -1,82 +1,102 @@
 <script>
-  import { onMount } from 'svelte';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { debounce } from '$shared/utils/debounce';
-  import { useAuthStore } from '$modules/auth';
-  import { useRBAC } from '$shared/composables/useRBAC.svelte';
-  import { Permissions } from '$shared/constants/permissions';
-  import { formatDateInJakarta } from '$shared/utils/jakartaTime';
-  import { labels, t } from '$shared/i18n';
-  import { useSortable } from '$shared/composables/useSortable.svelte';
-  import { getBrands, createBrand, updateBrand, deleteBrand } from '$modules/settings/services/settings-service';
+  import { onMount } from "svelte";
+  import { toast } from "$shared/stores/toast.svelte";
+  import { debounce } from "$shared/utils/debounce";
+  import { useRBAC } from "$shared/composables/useRBAC.svelte";
+  import { Permissions } from "$shared/constants/permissions";
+  import { formatDateInJakarta } from "$shared/utils/jakartaTime";
+  import { labels, t } from "$shared/i18n";
+  import { useSortable } from "$shared/composables/useSortable.svelte";
+  import {
+    getBrands,
+    createBrand,
+    updateBrand,
+    deleteBrand,
+  } from "$modules/settings/services/settings-service";
 
   const rbac = useRBAC();
 
-  import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, SearchBar, ToggleSwitch, ConfirmDeleteModal, Pagination, SortableHeader } from '$shared/ui';
-  import { Plus, Pencil, Trash2, Tag, Loader2 } from 'lucide-svelte';
+  import {
+    Button,
+    Input,
+    Modal,
+    Skeleton,
+    BulkActionDropdown,
+    ImportWizard,
+    SearchBar,
+    ToggleSwitch,
+    ConfirmDeleteModal,
+    Pagination,
+    SortableHeader,
+  } from "$shared/ui";
+  import { Plus, Pencil, Trash2, Tag, Loader2 } from "lucide-svelte";
 
   let loading = $state(true);
   let brands = $state([]);
-  let searchQuery = $state('');
+  let searchQuery = $state("");
   let showModal = $state(false);
   let showDeleteModal = $state(false);
   let selectedBrand = $state(null);
-  let modalMode = $state('add');
+  let modalMode = $state("add");
   let saving = $state(false);
 
   let form = $state({
-    name: '',
-    description: '',
-    is_active: true
+    name: "",
+    description: "",
+    is_active: true,
   });
 
-  let canCreate = $derived(rbac.can(Permissions.product.create));
-  let canEdit = $derived(rbac.can(Permissions.product.update));
-  let canDelete = $derived(rbac.can(Permissions.product.delete));
+  const canCreate = $derived(rbac.can(Permissions.product.create));
+  const canEdit = $derived(rbac.can(Permissions.product.update));
+  const canDelete = $derived(rbac.can(Permissions.product.delete));
 
   function formatDate(dateStr) {
-    if (!dateStr) return '—';
+    if (!dateStr) return "—";
     return formatDateInJakarta(dateStr);
   }
 
   let pageSize = $state(20);
   let page = $state(0);
   let total = $state(0);
-  const { sortState, handleSort } = useSortable('name', 'asc');
+  const { sortState, handleSort } = useSortable("name", "asc");
 
-  let offset = $derived(page * pageSize);
+  const offset = $derived(page * pageSize);
 
-  let sortedBrands = $derived(
+  const sortedBrands = $derived(
     [...brands].sort((a, b) => {
       let aVal, bVal;
       switch (sortState.sortBy) {
-        case 'name':
-          aVal = (a.name || '').toLowerCase();
-          bVal = (b.name || '').toLowerCase();
+        case "name":
+          aVal = (a.name || "").toLowerCase();
+          bVal = (b.name || "").toLowerCase();
           break;
-        case 'description':
-          aVal = (a.description || '').toLowerCase();
-          bVal = (b.description || '').toLowerCase();
+        case "description":
+          aVal = (a.description || "").toLowerCase();
+          bVal = (b.description || "").toLowerCase();
           break;
-        case 'created_at':
+        case "created_at":
           aVal = new Date(a.created_at).getTime();
           bVal = new Date(b.created_at).getTime();
           break;
         default:
           return 0;
       }
-      if (sortState.sortDir === 'asc') {
+      if (sortState.sortDir === "asc") {
         return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       } else {
         return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
       }
-    })
+    }),
   );
 
   async function fetchBrands(offset = 0, limit = 20) {
     try {
       loading = true;
-      const result = await getBrands({ limit, offset, search: searchQuery || undefined });
+      const result = await getBrands({
+        limit,
+        offset,
+        search: searchQuery || undefined,
+      });
       brands = result.data;
       total = result.total;
       page = Math.floor(offset / limit);
@@ -104,18 +124,18 @@
   let showImportWizard = $state(false);
 
   function openAdd() {
-    modalMode = 'add';
-    form = { name: '', description: '', is_active: true };
+    modalMode = "add";
+    form = { name: "", description: "", is_active: true };
     showModal = true;
   }
 
   function openEdit(brand) {
-    modalMode = 'edit';
+    modalMode = "edit";
     selectedBrand = brand;
     form = {
       name: brand.name,
-      description: brand.description || '',
-      is_active: brand.is_active !== false
+      description: brand.description || "",
+      is_active: brand.is_active !== false,
     };
     showModal = true;
   }
@@ -133,17 +153,24 @@
     try {
       saving = true;
       let ok;
-      if (modalMode === 'add') {
-        ok = await createBrand({ name: form.name.trim(), description: form.description.trim() || undefined });
+      if (modalMode === "add") {
+        ok = await createBrand({
+          name: form.name.trim(),
+          description: form.description.trim() || undefined,
+        });
       } else {
         ok = await updateBrand(selectedBrand.id, {
           name: form.name.trim(),
           description: form.description.trim() || undefined,
-          is_active: form.is_active
+          is_active: form.is_active,
         });
       }
       if (ok) {
-        toast.success(modalMode === 'add' ? labels.toastBrandAdded : labels.toastBrandUpdated);
+        toast.success(
+          modalMode === "add"
+            ? labels.toastBrandAdded
+            : labels.toastBrandUpdated,
+        );
         showModal = false;
         await fetchBrands();
       } else {
@@ -161,7 +188,7 @@
     try {
       const ok = await deleteBrand(selectedBrand.id);
       if (ok) {
-        toast.success(t('toastBrandDeleted', { name: selectedBrand.name }));
+        toast.success(t("toastBrandDeleted", { name: selectedBrand.name }));
         await fetchBrands();
       } else {
         toast.error(labels.toastFailedDeleteBrand);
@@ -184,7 +211,12 @@
   <div class="card p-4">
     <div class="flex items-center gap-4">
       <div class="flex-2">
-        <SearchBar bind:value={searchQuery} placeholder={labels.searchByName} oninput={handleSearchInput} inputClass="h-10" />
+        <SearchBar
+          bind:value={searchQuery}
+          placeholder={labels.searchByName}
+          oninput={handleSearchInput}
+          inputClass="h-10"
+        />
       </div>
       {#if canCreate}
         <div class="flex items-center gap-2">
@@ -192,9 +224,13 @@
             module="brands"
             canExport={true}
             canImport={true}
-            onImport={() => showImportWizard = true}
+            onImport={() => (showImportWizard = true)}
           />
-          <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+          <Button
+            variant="primary"
+            class="shrink-0 shadow-glow-primary-sm px-5"
+            onclick={openAdd}
+          >
             <Plus size={18} />
             {labels.addBrand}
           </Button>
@@ -208,14 +244,18 @@
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 40%;">{labels.brandName}</th>
-            <th class="text-left p-4 font-semibold w-48">{labels.description}</th>
+            <th class="text-left p-4 font-semibold" style="width: 40%;"
+              >{labels.brandName}</th
+            >
+            <th class="text-left p-4 font-semibold w-48"
+              >{labels.description}</th
+            >
             <th class="text-left p-4 font-semibold w-36">{labels.createdAt}</th>
             <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
           </tr>
         </thead>
         <tbody>
-          {#each Array(5) as _}
+          {#each Array(5) as _, i (i)}
             <tr class="border-t border-border">
               <td class="p-4 min-w-0"><Skeleton class="h-4 w-full" /></td>
               <td class="p-4 w-48"><Skeleton class="h-4 w-3/4" /></td>
@@ -227,12 +267,18 @@
       </table>
     {:else if brands.length === 0}
       <div class="px-4 py-12 text-center">
-        <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
+        <div
+          class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center"
+        >
           <Tag size={32} class="text-text-muted" />
         </div>
-        <p class="text-text-primary font-semibold mt-4">{labels.noBrandsFound}</p>
+        <p class="text-text-primary font-semibold mt-4">
+          {labels.noBrandsFound}
+        </p>
         <p class="text-text-muted text-sm mt-1">
-          {searchQuery ? t('noResultsFor', { query: searchQuery }) : labels.addFirstBrand}
+          {searchQuery
+            ? t("noResultsFor", { query: searchQuery })
+            : labels.addFirstBrand}
         </p>
       </div>
     {:else}
@@ -240,32 +286,56 @@
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold" style="width: 40%;">
-              <SortableHeader label={labels.brandName} column="name" sortColumn={sortState.sortBy} sortDirection={sortState.sortDir} onsort={handleSort} />
+              <SortableHeader
+                label={labels.brandName}
+                column="name"
+                sortColumn={sortState.sortBy}
+                sortDirection={sortState.sortDir}
+                onsort={handleSort}
+              />
             </th>
             <th class="text-left p-4 font-semibold w-48">
-              <SortableHeader label={labels.description} column="description" sortColumn={sortState.sortBy} sortDirection={sortState.sortDir} onsort={handleSort} />
+              <SortableHeader
+                label={labels.description}
+                column="description"
+                sortColumn={sortState.sortBy}
+                sortDirection={sortState.sortDir}
+                onsort={handleSort}
+              />
             </th>
             <th class="text-left p-4 font-semibold w-36">
-              <SortableHeader label={labels.createdAt} column="created_at" sortColumn={sortState.sortBy} sortDirection={sortState.sortDir} onsort={handleSort} />
+              <SortableHeader
+                label={labels.createdAt}
+                column="created_at"
+                sortColumn={sortState.sortBy}
+                sortDirection={sortState.sortDir}
+                onsort={handleSort}
+              />
             </th>
             <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
           </tr>
         </thead>
         <tbody>
           {#each sortedBrands as brand (brand.id)}
-            <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+            <tr
+              class="border-t border-border hover:bg-surface-hover/50 transition-colors"
+            >
               <td class="p-4 pr-6" style="width: 40%;">
                 <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-full bg-primary-subtle flex items-center justify-center shrink-0">
+                  <div
+                    class="w-8 h-8 rounded-full bg-primary-subtle flex items-center justify-center shrink-0"
+                  >
                     <Tag size={14} class="text-primary-light" />
                   </div>
                   <div class="min-w-0">
-                    <p class="font-medium truncate" title={brand.name}>{brand.name}</p>
+                    <p class="font-medium truncate" title={brand.name}>
+                      {brand.name}
+                    </p>
                   </div>
                 </div>
               </td>
               <td class="p-4 w-40 text-text-secondary text-sm">
-                {brand.description || '—'}
+                {brand.description || "—"}
               </td>
               <td class="p-4 w-36 text-text-secondary text-sm">
                 {formatDate(brand.created_at)}
@@ -309,9 +379,9 @@
     {#if !loading && total > 0}
       <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
         <Pagination
-          total={total}
+          {total}
           limit={pageSize}
-          offset={offset}
+          {offset}
           onPageChange={(newOffset, newLimit) => {
             fetchBrands(newOffset, newLimit);
           }}
@@ -321,29 +391,73 @@
   </div>
 </div>
 
-<Modal bind:open={showModal} title={modalMode === 'add' ? labels.addBrand : labels.editBrand} size="md">
-  <form onsubmit={(e) => { e.preventDefault(); saveBrand(); }} class="space-y-4">
+<Modal
+  bind:open={showModal}
+  title={modalMode === "add" ? labels.addBrand : labels.editBrand}
+  size="md"
+>
+  <form
+    onsubmit={(e) => {
+      e.preventDefault();
+      saveBrand();
+    }}
+    class="space-y-4"
+  >
     <div>
-      <label for="brand-name" class="block text-sm font-medium text-text-secondary mb-2">{labels.brandName} <span class="text-danger">*</span></label>
-      <Input id="brand-name" type="text" placeholder={labels.contohBrand} bind:value={form.name} required />
+      <label
+        for="brand-name"
+        class="block text-sm font-medium text-text-secondary mb-2"
+        >{labels.brandName} <span class="text-danger">*</span></label
+      >
+      <Input
+        id="brand-name"
+        type="text"
+        placeholder={labels.contohBrand}
+        bind:value={form.name}
+        required
+      />
     </div>
     <div>
-      <label for="brand-desc" class="block text-sm font-medium text-text-secondary mb-2">{labels.description} <span class="text-text-muted text-xs">{labels.optionalShort}</span></label>
-      <Input tag="textarea" id="brand-desc" placeholder={labels.deskripsiSingkatBrand} class="min-h-[80px] resize-y" bind:value={form.description} />
+      <label
+        for="brand-desc"
+        class="block text-sm font-medium text-text-secondary mb-2"
+        >{labels.description}
+        <span class="text-text-muted text-xs">{labels.optionalShort}</span
+        ></label
+      >
+      <Input
+        tag="textarea"
+        id="brand-desc"
+        placeholder={labels.deskripsiSingkatBrand}
+        class="min-h-[80px] resize-y"
+        bind:value={form.description}
+      />
     </div>
-    {#if modalMode === 'edit'}
+    {#if modalMode === "edit"}
       <div class="flex items-center gap-3">
-        <ToggleSwitch bind:checked={form.is_active} label={form.is_active ? labels.active : labels.inactive} />
+        <ToggleSwitch
+          bind:checked={form.is_active}
+          label={form.is_active ? labels.active : labels.inactive}
+        />
       </div>
     {/if}
   </form>
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>{labels.cancel}</Button>
-    <Button variant="primary" class="min-w-32" onclick={saveBrand} disabled={saving}>
+    <Button
+      variant="secondary"
+      onclick={() => (showModal = false)}
+      disabled={saving}>{labels.cancel}</Button
+    >
+    <Button
+      variant="primary"
+      class="min-w-32"
+      onclick={saveBrand}
+      disabled={saving}
+    >
       {#if saving}
         <Loader2 size={16} class="animate-spin" /> {labels.saving}
       {:else}
-        {modalMode === 'add' ? labels.addBrand : labels.simpanPerubahan}
+        {modalMode === "add" ? labels.addBrand : labels.simpanPerubahan}
       {/if}
     </Button>
   {/snippet}
@@ -356,4 +470,14 @@
   onComplete={handleImportComplete}
 />
 
-<ConfirmDeleteModal bind:open={showDeleteModal} title={labels.deleteBrand} itemName={selectedBrand?.name} confirmLabel={labels.delete} cancelLabel={labels.cancel} description={labels.deleteBrandDescription} loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />
+<ConfirmDeleteModal
+  bind:open={showDeleteModal}
+  title={labels.deleteBrand}
+  itemName={selectedBrand?.name}
+  confirmLabel={labels.delete}
+  cancelLabel={labels.cancel}
+  description={labels.deleteBrandDescription}
+  loading={false}
+  onconfirm={confirmDelete}
+  oncancel={() => (showDeleteModal = false)}
+/>

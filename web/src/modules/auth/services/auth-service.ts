@@ -1,10 +1,13 @@
-import axios from 'axios';
-import type { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
-import { useAuthStore } from '../stores/auth-store.svelte';
-import { setAccessToken, removeAccessToken, getAuthToken } from '../lib/session';
-import type { User } from '../types';
-import { applyTheme } from '$shared/utils/theme';
-import { setLocale } from '$shared/i18n';
+import axios from "axios";
+import type { AxiosInstance, AxiosError, AxiosRequestConfig } from "axios";
+import { useAuthStore } from "../stores/auth-store.svelte";
+import {
+  setAccessToken,
+  getAuthToken,
+} from "../lib/session";
+import type { User } from "../types";
+import { applyTheme } from "$shared/utils/theme";
+import { setLocale } from "$shared/i18n";
 import {
   initTabCoordination,
   destroyTabCoordination,
@@ -13,14 +16,14 @@ import {
   onLeaderChange,
   onCrossTabLogout,
   broadcastLogout,
-} from '$shared/utils/tab-coordination';
+} from "$shared/utils/tab-coordination";
 
 function decodeTokenPayload(token: string): Record<string, unknown> | null {
   try {
-    const parts = token.split('.');
+    const parts = token.split(".");
     if (parts.length !== 3) return null;
     const payload = parts[1];
-    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const decoded = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
     return JSON.parse(decoded);
   } catch {
     return null;
@@ -28,13 +31,16 @@ function decodeTokenPayload(token: string): Record<string, unknown> | null {
 }
 
 const authApi = axios.create({
-  baseURL: '/api',
+  baseURL: "/api",
   withCredentials: true,
 });
 
 // --- Shared refresh lock (deduplication queue) ---
 let refreshPromise: Promise<string | null> | null = null;
-let refreshQueue: Array<{ resolve: (token: string | null) => void; reject: (err: unknown) => void }> = [];
+const refreshQueue: Array<{
+  resolve: (token: string | null) => void;
+  reject: (err: unknown) => void;
+}> = [];
 
 async function doRefresh(): Promise<string | null> {
   // Cross-tab: if follower, ask leader to refresh and wait for result
@@ -56,11 +62,11 @@ async function doRefresh(): Promise<string | null> {
 
   refreshPromise = (async () => {
     try {
-      const response = await authApi.post('/refresh');
+      const response = await authApi.post("/refresh");
       const newAccessToken = response.data.access_token;
       setAccessToken(newAccessToken);
       return newAccessToken;
-    } catch (err) {
+  } catch (err) {
       // Notify all queued callers of the failure
       const queue = refreshQueue.splice(0);
       queue.forEach((cb) => cb.reject(err));
@@ -150,7 +156,9 @@ export function setupAxiosInterceptors(apiClient: AxiosInstance) {
   apiClient.interceptors.response.use(
     (response) => response,
     async (error: AxiosError) => {
-      const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+      const originalRequest = error.config as AxiosRequestConfig & {
+        _retry?: boolean;
+      };
 
       if (error.response?.status === 401 && !originalRequest._retry) {
         if (refreshPromise) {
@@ -159,7 +167,7 @@ export function setupAxiosInterceptors(apiClient: AxiosInstance) {
           })
             .then((token: string) => {
               originalRequest.headers = originalRequest.headers || {};
-              originalRequest.headers['Authorization'] = 'Bearer ' + token;
+              originalRequest.headers["Authorization"] = "Bearer " + token;
               return apiClient(originalRequest);
             })
             .catch((err) => Promise.reject(err));
@@ -170,15 +178,15 @@ export function setupAxiosInterceptors(apiClient: AxiosInstance) {
         try {
           const newToken = await doRefresh();
           if (!newToken) {
-            processQueue(new Error('Refresh failed'), null);
+            processQueue(new Error("Refresh failed"), null);
             logout();
-            return Promise.reject(new Error('Refresh failed'));
+            return Promise.reject(new Error("Refresh failed"));
           }
 
           processQueue(null, newToken);
 
           originalRequest.headers = originalRequest.headers || {};
-          originalRequest.headers['Authorization'] = 'Bearer ' + newToken;
+          originalRequest.headers["Authorization"] = "Bearer " + newToken;
           return apiClient(originalRequest);
         } catch (refreshError) {
           processQueue(refreshError, null);
@@ -188,25 +196,29 @@ export function setupAxiosInterceptors(apiClient: AxiosInstance) {
       }
 
       return Promise.reject(error);
-    }
+    },
   );
 }
 
 function getAuthHeaders(): Record<string, string> {
-  const accessToken = sessionStorage.getItem('access_token');
+  const accessToken = sessionStorage.getItem("access_token");
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
 export async function checkAuth(): Promise<boolean> {
   try {
-    await authApi.post('/validate', {}, { headers: getAuthHeaders() });
+    await authApi.post("/validate", {}, { headers: getAuthHeaders() });
     return true;
   } catch (err: unknown) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
       const newToken = await doRefresh();
       if (!newToken) return false;
       try {
-        await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${newToken}` } });
+        await authApi.post(
+          "/validate",
+          {},
+          { headers: { Authorization: `Bearer ${newToken}` } },
+        );
         return true;
       } catch {
         return false;
@@ -216,10 +228,13 @@ export async function checkAuth(): Promise<boolean> {
   }
 }
 
-export async function restoreSession(): Promise<{ success: boolean; user?: User }> {
+export async function restoreSession(): Promise<{
+  success: boolean;
+  user?: User;
+}> {
   let accessToken: string | null;
   try {
-    accessToken = sessionStorage.getItem('access_token');
+    accessToken = sessionStorage.getItem("access_token");
     if (!accessToken) {
       return { success: false };
     }
@@ -230,7 +245,11 @@ export async function restoreSession(): Promise<{ success: boolean; user?: User 
   const getHeaders = () => ({ Authorization: `Bearer ${accessToken}` });
 
   try {
-    const response = await authApi.post('/validate', {}, { headers: getHeaders() });
+    const response = await authApi.post(
+      "/validate",
+      {},
+      { headers: getHeaders() },
+    );
     if (response.data.user) {
       const user = response.data.user as User;
       if (response.data.permissions) {
@@ -244,7 +263,11 @@ export async function restoreSession(): Promise<{ success: boolean; user?: User 
       const newToken = await doRefresh();
       if (!newToken) return { success: false };
       try {
-        const retry = await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${newToken}` } });
+        const retry = await authApi.post(
+          "/validate",
+          {},
+          { headers: { Authorization: `Bearer ${newToken}` } },
+        );
         if (retry.data.user) {
           const user = retry.data.user as User;
           if (retry.data.permissions) {
@@ -260,14 +283,23 @@ export async function restoreSession(): Promise<{ success: boolean; user?: User 
   }
 }
 
-export async function login(username: string, password: string): Promise<{ access_token: string; refresh_token: string; user: User } | false> {
+export async function login(
+  username: string,
+  password: string,
+): Promise<
+  { access_token: string; refresh_token: string; user: User } | false
+> {
   try {
-    const response = await authApi.post('/login', { username, password });
+    const response = await authApi.post("/login", { username, password });
     const data = response.data;
     if (data.access_token) {
-      sessionStorage.setItem('access_token', data.access_token);
+      sessionStorage.setItem("access_token", data.access_token);
       const claims = decodeTokenPayload(data.access_token);
-      if (claims?.permissions && Array.isArray(claims.permissions) && data.user) {
+      if (
+        claims?.permissions &&
+        Array.isArray(claims.permissions) &&
+        data.user
+      ) {
         data.user.permissions = claims.permissions as string[];
       }
     }
@@ -285,13 +317,13 @@ export async function logout(): Promise<void> {
   stopProactiveRefresh();
   broadcastLogout();
   try {
-    await authApi.post('/logout', {}, { headers: getAuthHeaders() });
-  } catch (err) {
+    await authApi.post("/logout", {}, { headers: getAuthHeaders() });
+  } catch (_err) {
     // Ignore errors on logout
   }
   const store = useAuthStore();
   store.clearUser();
-  window.location.replace('/login');
+  window.location.replace("/login");
 }
 
 export function handleCrossTabLogout(): void {
@@ -299,22 +331,31 @@ export function handleCrossTabLogout(): void {
     stopProactiveRefresh();
     const store = useAuthStore();
     store.clearUser();
-    window.location.replace('/login');
+    window.location.replace("/login");
   });
 }
 
-export async function updatePreferences(language: string, theme: string): Promise<boolean> {
+export async function updatePreferences(
+  language: string,
+  theme: string,
+): Promise<boolean> {
   try {
-    const res = await authApi.put('/users/me/preferences', { language, theme }, { headers: getAuthHeaders() });
+    const res = await authApi.put(
+      "/users/me/preferences",
+      { language, theme },
+      { headers: getAuthHeaders() },
+    );
     if (res.status === 200) {
       const store = useAuthStore();
       if (store.user) {
         store.user = { ...store.user, language, theme };
       }
-      applyTheme(theme as 'light' | 'dark');
-      setLocale(language as 'id' | 'en');
+      applyTheme(theme as "light" | "dark");
+      setLocale(language as "id" | "en");
       return true;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return false;
 }

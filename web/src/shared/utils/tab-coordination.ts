@@ -7,23 +7,26 @@
  * Falls back to independent refresh if BroadcastChannel is not supported.
  */
 
-const CHANNEL_NAME = 'pos-auth-coordination';
+const CHANNEL_NAME = "pos-auth-coordination";
 const HEARTBEAT_INTERVAL = 5_000;
 const LEADER_TIMEOUT = 10_000;
 const ELECTION_TIMEOUT = 500;
 
 type Message =
-  | { type: 'PING'; tabId: string }
-  | { type: 'PONG'; tabId: string }
-  | { type: 'HEARTBEAT'; tabId: string }
-  | { type: 'REFRESH_REQUEST'; tabId: string }
-  | { type: 'REFRESH_RESULT'; token: string }
-  | { type: 'REFRESH_FAILED' }
-  | { type: 'LOGOUT' };
+  | { type: "PING"; tabId: string }
+  | { type: "PONG"; tabId: string }
+  | { type: "HEARTBEAT"; tabId: string }
+  | { type: "REFRESH_REQUEST"; tabId: string }
+  | { type: "REFRESH_RESULT"; token: string }
+  | { type: "REFRESH_FAILED" }
+  | { type: "LOGOUT" };
 
 // --- Tab identity ---
 function generateTabId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -50,30 +53,38 @@ let refreshResolvers: {
 
 function notifyLeaderChange() {
   onLeaderChangeCallbacks.forEach((cb) => {
-    try { cb(isLeader); } catch { /* ignore callback errors */ }
+    try {
+      cb(isLeader);
+    } catch {
+      /* ignore callback errors */
+    }
   });
 }
 
 function notifyLogout() {
   onLogoutCallbacks.forEach((cb) => {
-    try { cb(); } catch { /* ignore callback errors */ }
+    try {
+      cb();
+    } catch {
+      /* ignore callback errors */
+    }
   });
 }
 
 // --- Message handling ---
 function handleMessage(event: MessageEvent<Message>) {
   const msg = event.data;
-  if ('tabId' in msg && msg.tabId === tabId) return; // ignore own messages
+  if ("tabId" in msg && msg.tabId === tabId) return; // ignore own messages
 
   switch (msg.type) {
-    case 'PING':
+    case "PING":
       // Someone is electing — respond if we think we're leader
       if (isLeader) {
-        send({ type: 'PONG', tabId });
+        send({ type: "PONG", tabId });
       }
       break;
 
-    case 'PONG':
+    case "PONG":
       // Someone else is leader — we are not
       if (electionPending) {
         electionPending = false;
@@ -81,21 +92,21 @@ function handleMessage(event: MessageEvent<Message>) {
       }
       break;
 
-    case 'HEARTBEAT':
+    case "HEARTBEAT":
       lastHeartbeat = Date.now();
       if (leaderTabId !== msg.tabId) {
         setLeader(msg.tabId);
       }
       break;
 
-    case 'REFRESH_REQUEST':
+    case "REFRESH_REQUEST":
       // Follower is asking us to refresh — perform it if we're leader
       if (isLeader) {
         performRefreshForFollowers();
       }
       break;
 
-    case 'REFRESH_RESULT':
+    case "REFRESH_RESULT":
       // Leader completed refresh — resolve pending request
       if (refreshResolvers) {
         refreshResolvers.resolve(msg.token);
@@ -103,15 +114,15 @@ function handleMessage(event: MessageEvent<Message>) {
       }
       break;
 
-    case 'REFRESH_FAILED':
+    case "REFRESH_FAILED":
       // Leader failed — reject pending request
       if (refreshResolvers) {
-        refreshResolvers.reject(new Error('Refresh failed on leader'));
+        refreshResolvers.reject(new Error("Refresh failed on leader"));
         refreshResolvers = null;
       }
       break;
 
-    case 'LOGOUT':
+    case "LOGOUT":
       // Another tab logged out — follow suit
       notifyLogout();
       break;
@@ -128,7 +139,8 @@ function send(msg: Message) {
 
 // --- Leader election ---
 function setLeader(newLeaderId: string) {
-  if (leaderTabId === newLeaderId && isLeader === (newLeaderId === tabId)) return;
+  if (leaderTabId === newLeaderId && isLeader === (newLeaderId === tabId))
+    return;
 
   leaderTabId = newLeaderId;
   const wasLeader = isLeader;
@@ -148,7 +160,7 @@ function startElection() {
   if (electionPending) return;
   electionPending = true;
 
-  send({ type: 'PING', tabId });
+  send({ type: "PING", tabId });
 
   setTimeout(() => {
     if (electionPending) {
@@ -163,10 +175,10 @@ function startElection() {
 function startHeartbeat() {
   stopHeartbeat();
   heartbeatTimer = setInterval(() => {
-    send({ type: 'HEARTBEAT', tabId });
+    send({ type: "HEARTBEAT", tabId });
   }, HEARTBEAT_INTERVAL);
   // Send immediately
-  send({ type: 'HEARTBEAT', tabId });
+  send({ type: "HEARTBEAT", tabId });
 }
 
 function stopHeartbeat() {
@@ -179,7 +191,11 @@ function stopHeartbeat() {
 function startLeaderCheck() {
   stopLeaderCheck();
   leaderCheckTimer = setInterval(() => {
-    if (!isLeader && leaderTabId && Date.now() - lastHeartbeat > LEADER_TIMEOUT) {
+    if (
+      !isLeader &&
+      leaderTabId &&
+      Date.now() - lastHeartbeat > LEADER_TIMEOUT
+    ) {
       // Leader is gone — start election
       leaderTabId = null;
       startElection();
@@ -198,20 +214,20 @@ function stopLeaderCheck() {
 async function performRefreshForFollowers() {
   // Only called on the leader tab
   try {
-    const { default: authApi } = await import('axios');
-    const client = authApi.create({ baseURL: '/api', withCredentials: true });
-    const response = await client.post('/refresh');
+    const { default: authApi } = await import("axios");
+    const client = authApi.create({ baseURL: "/api", withCredentials: true });
+    const response = await client.post("/refresh");
     const newToken = response.data.access_token as string;
-    send({ type: 'REFRESH_RESULT', token: newToken });
+    send({ type: "REFRESH_RESULT", token: newToken });
   } catch {
-    send({ type: 'REFRESH_FAILED' });
+    send({ type: "REFRESH_FAILED" });
   }
 }
 
 // --- Public API ---
 
 export function initTabCoordination(): void {
-  if (typeof BroadcastChannel === 'undefined') return;
+  if (typeof BroadcastChannel === "undefined") return;
 
   channel = new BroadcastChannel(CHANNEL_NAME);
   channel.onmessage = handleMessage;
@@ -254,14 +270,18 @@ export function requestRefresh(): Promise<string | null> {
   // Follower: wait for leader's result
   return new Promise<string>((resolve, reject) => {
     refreshResolvers = { resolve, reject };
-    send({ type: 'REFRESH_REQUEST', tabId });
+    send({ type: "REFRESH_REQUEST", tabId });
   });
 }
 
-export function onLeaderChange(callback: (leader: boolean) => void): () => void {
+export function onLeaderChange(
+  callback: (leader: boolean) => void,
+): () => void {
   onLeaderChangeCallbacks.push(callback);
   return () => {
-    onLeaderChangeCallbacks = onLeaderChangeCallbacks.filter((cb) => cb !== callback);
+    onLeaderChangeCallbacks = onLeaderChangeCallbacks.filter(
+      (cb) => cb !== callback,
+    );
   };
 }
 
@@ -273,5 +293,5 @@ export function onCrossTabLogout(callback: () => void): () => void {
 }
 
 export function broadcastLogout(): void {
-  send({ type: 'LOGOUT' });
+  send({ type: "LOGOUT" });
 }

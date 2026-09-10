@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { Badge, Button, Pagination, Skeleton } from '$shared/ui';
-  import { Plus, Copy, Package } from 'lucide-svelte';
-  import { labels } from '$shared/i18n';
+  import { Badge, Button, Pagination, Skeleton } from "$shared/ui";
+  import { Plus, Copy, Package } from "lucide-svelte";
+  import { labels } from "$shared/i18n";
+  import type { PosProduct } from "../types";
 
   let {
     products = [],
@@ -14,11 +15,11 @@
     criticalThreshold = 5,
     selectedIndex = $bindable(-1),
     element = $bindable(undefined as HTMLElement | undefined),
-    onaddtocart = (product: any) => {},
-    oncopy = (value: string, field: string) => {},
-    onpagechange = (newOffset: number) => {},
+    onaddtocart = (_product: PosProduct) => {},
+    oncopy = (_value: string, _field: string) => {},
+    onpagechange = (_newOffset: number) => {},
   }: {
-    products: any[];
+    products: PosProduct[];
     loading: boolean;
     total: number;
     limit: number;
@@ -28,7 +29,7 @@
     criticalThreshold: number;
     selectedIndex?: number;
     element?: HTMLElement;
-    onaddtocart?: (product: any) => void;
+    onaddtocart?: (product: PosProduct) => void;
     oncopy?: (value: string, field: string) => void;
     onpagechange?: (newOffset: number) => void;
   } = $props();
@@ -36,7 +37,7 @@
 
 {#if loading}
   <div class="flex-1 overflow-y-auto">
-    {#each { length: 8 } as _}
+    {#each { length: 8 } as _, i (i)}
       <div class="flex items-center gap-4 px-4 py-3 border-b border-border">
         <Skeleton width="w-40" height="h-4" />
         <Skeleton width="w-20" height="h-4" class="ml-auto" />
@@ -47,11 +48,15 @@
   </div>
 {:else if products.length === 0}
   <div class="px-4 py-12 text-center">
-    <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
+    <div
+      class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center"
+    >
       <Package size={32} class="text-text-muted" />
     </div>
     <p class="text-text-primary font-semibold mt-4">{labels.noProductsFound}</p>
-    <p class="text-text-muted text-sm mt-1">{labels.addProductsToStartSelling}</p>
+    <p class="text-text-muted text-sm mt-1">
+      {labels.addProductsToStartSelling}
+    </p>
   </div>
 {:else}
   <div class="flex-1 overflow-y-auto" bind:this={element}>
@@ -67,16 +72,27 @@
       <tbody>
         {#each products as product, idx (product.id)}
           <tr
-            class="border-t border-border transition-colors cursor-pointer {idx === selectedIndex ? 'bg-primary/10 hover:bg-primary/15' : 'hover:bg-surface-hover/50'}"
+            class="border-t border-border transition-colors cursor-pointer {idx ===
+            selectedIndex
+              ? 'bg-primary/10 hover:bg-primary/15'
+              : 'hover:bg-surface-hover/50'}"
             tabindex="-1"
-            onclick={() => selectedIndex = idx}
-            ondblclick={() => { selectedIndex = idx; onaddtocart(product); }}
+            onclick={() => (selectedIndex = idx)}
+            ondblclick={() => {
+              selectedIndex = idx;
+              onaddtocart(product);
+            }}
           >
             <td class="p-4 w-52">
-              <div class="font-medium truncate w-full text-text-primary" title={product.name}>
+              <div
+                class="font-medium truncate w-full text-text-primary"
+                title={product.name}
+              >
                 {product.name}
               </div>
-              <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
+              <div
+                class="flex items-baseline gap-2 mt-1 text-xs text-text-muted"
+              >
                 <span class="flex items-center gap-1">
                   {product.sku}
                   <button
@@ -88,23 +104,31 @@
                     {#if showCopySuccess?.has(`sku_${product.id}`)}
                       <span class="text-sm text-primary font-semibold">✓</span>
                     {:else}
-                      <Copy size={14} class="text-text-muted hover:text-primary" />
+                      <Copy
+                        size={14}
+                        class="text-text-muted hover:text-primary"
+                      />
                     {/if}
                   </button>
                 </span>
                 {#if product.barcode}
                   <span class="flex items-center gap-1 ml-4">
-                     {product.barcode}
+                    {product.barcode}
                     <button
                       class="p-0.5 hover:text-primary transition-colors"
                       title={labels.copyBarcode}
                       aria-label={labels.copyBarcode}
-                      onclick={() => oncopy(product.barcode, `barcode_${product.id}`)}
+                      onclick={() =>
+                        oncopy(product.barcode ?? "", `barcode_${product.id}`)}
                     >
                       {#if showCopySuccess?.has(`barcode_${product.id}`)}
-                        <span class="text-sm text-primary font-semibold">✓</span>
+                        <span class="text-sm text-primary font-semibold">✓</span
+                        >
                       {:else}
-                        <Copy size={14} class="text-text-muted hover:text-primary" />
+                        <Copy
+                          size={14}
+                          class="text-text-muted hover:text-primary"
+                        />
                       {/if}
                     </button>
                   </span>
@@ -123,7 +147,7 @@
               {/if}
             </td>
             <td class="p-4 text-right font-semibold text-text-primary w-28">
-              {product.price?.toLocaleString('id-ID')}
+              {product.price?.toLocaleString("id-ID")}
             </td>
             <td class="p-4 text-right w-20">
               <Button
@@ -132,7 +156,8 @@
                 onclick={() => onaddtocart(product)}
                 disabled={product.stock === 0}
               >
-                <Plus size={14} /> {labels.add}
+                <Plus size={14} />
+                {labels.add}
               </Button>
             </td>
           </tr>

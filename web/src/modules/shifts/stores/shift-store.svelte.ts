@@ -7,22 +7,22 @@ import {
   reviewShift,
   auditShift,
   exportShifts,
-} from '../services/shift-service';
-import type { Shift, ShiftFilters } from '../types';
+} from "../services/shift-service";
+import type { Shift, ShiftFilters } from "../types";
 
 let activeShift = $state<Shift | null>(null);
 let shifts = $state<Shift[]>([]);
 let total = $state(0);
 let loading = $state(false);
 
-let statusFilter = $state('');
+let statusFilter = $state("");
 let needsReviewFilter = $state<boolean | null>(null);
-let discrepancyFilter = $state('');
+let discrepancyFilter = $state("");
 let userIdFilter = $state<number | null>(null);
 let page = $state(0);
 let pageSize = $state(20);
-let sortBy = $state('opened_at');
-let sortDir = $state<'asc' | 'desc'>('desc');
+let sortBy = $state("opened_at");
+let sortDir = $state<"asc" | "desc">("desc");
 
 let abortController: AbortController | null = null;
 
@@ -34,28 +34,72 @@ export function useShiftStore() {
   }
 
   return {
-    get activeShift() { return activeShift; },
-    get shifts() { return shifts; },
-    get total() { return total; },
-    get loading() { return loading; },
-    set loading(v: boolean) { loading = v; },
-    get statusFilter() { return statusFilter; },
-    set statusFilter(v: string) { statusFilter = v; },
-    get needsReviewFilter() { return needsReviewFilter; },
-    set needsReviewFilter(v: boolean | null) { needsReviewFilter = v; },
-    get discrepancyFilter() { return discrepancyFilter; },
-    set discrepancyFilter(v: string) { discrepancyFilter = v; },
-    get userIdFilter() { return userIdFilter; },
-    set userIdFilter(v: number | null) { userIdFilter = v; },
-    get page() { return page; },
-    set page(v: number) { page = v; },
-    get pageSize() { return pageSize; },
-    set pageSize(v: number) { pageSize = v; },
-    get sortBy() { return sortBy; },
-    set sortBy(v: string) { sortBy = v; },
-    get sortDir() { return sortDir; },
-    set sortDir(v: 'asc' | 'desc') { sortDir = v; },
-    get offset() { return page * pageSize; },
+    get activeShift() {
+      return activeShift;
+    },
+    get shifts() {
+      return shifts;
+    },
+    get total() {
+      return total;
+    },
+    get loading() {
+      return loading;
+    },
+    set loading(v: boolean) {
+      loading = v;
+    },
+    get statusFilter() {
+      return statusFilter;
+    },
+    set statusFilter(v: string) {
+      statusFilter = v;
+    },
+    get needsReviewFilter() {
+      return needsReviewFilter;
+    },
+    set needsReviewFilter(v: boolean | null) {
+      needsReviewFilter = v;
+    },
+    get discrepancyFilter() {
+      return discrepancyFilter;
+    },
+    set discrepancyFilter(v: string) {
+      discrepancyFilter = v;
+    },
+    get userIdFilter() {
+      return userIdFilter;
+    },
+    set userIdFilter(v: number | null) {
+      userIdFilter = v;
+    },
+    get page() {
+      return page;
+    },
+    set page(v: number) {
+      page = v;
+    },
+    get pageSize() {
+      return pageSize;
+    },
+    set pageSize(v: number) {
+      pageSize = v;
+    },
+    get sortBy() {
+      return sortBy;
+    },
+    set sortBy(v: string) {
+      sortBy = v;
+    },
+    get sortDir() {
+      return sortDir;
+    },
+    set sortDir(v: "asc" | "desc") {
+      sortDir = v;
+    },
+    get offset() {
+      return page * pageSize;
+    },
 
     get currentFilters(): ShiftFilters {
       return {
@@ -107,7 +151,11 @@ export function useShiftStore() {
       return shift;
     },
 
-    async doCloseShift(shiftId: number, closingBalance: number, notes: string | null) {
+    async doCloseShift(
+      shiftId: number,
+      closingBalance: number,
+      notes: string | null,
+    ) {
       const shift = await closeShift(shiftId, closingBalance, notes);
       activeShift = null;
       return shift;
@@ -119,7 +167,7 @@ export function useShiftStore() {
 
     async doReviewShift(shiftId: number) {
       const shift = await reviewShift(shiftId);
-      const idx = shifts.findIndex(s => s.id === shiftId);
+      const idx = shifts.findIndex((s) => s.id === shiftId);
       if (idx !== -1) shifts[idx] = shift;
       if (activeShift?.id === shiftId) activeShift = shift;
       return shift;
@@ -129,7 +177,7 @@ export function useShiftStore() {
       return auditShift(shiftId, actualBalance);
     },
 
-    async doExport(format: 'csv' | 'xlsx') {
+    async doExport(format: "csv" | "xlsx") {
       return exportShifts(this.currentFilters, format);
     },
   };

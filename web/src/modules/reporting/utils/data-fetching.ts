@@ -1,13 +1,19 @@
-import { apiFetch } from '$shared/api/http-client';
-import { toast } from '$shared/stores/toast.svelte';
-import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour } from '$shared/utils/jakartaTime';
+import { apiFetch } from "$shared/api/http-client";
+import {
+  getTodayInJakarta,
+  getDateNDaysAgoInJakarta,
+  getCurrentJakartaHour,
+} from "$shared/utils/jakartaTime";
 
 interface FetchSalesWithRangeParams {
   start: string;
   end: string;
   chartType: string;
   activePeriodType: string;
-  selectedMonthlyRange?: { start: { year: number; month: number; day: number }; end: { year: number; month: number; day: number } };
+  selectedMonthlyRange?: {
+    start: { year: number; month: number; day: number };
+    end: { year: number; month: number; day: number };
+  };
   selectedYearlyRange?: { start: { year: number }; end: { year: number } };
   peakChartValue: number;
 }
@@ -59,37 +65,55 @@ export async function fetchSalesWithRange({
   selectedYearlyRange,
   peakChartValue,
 }: FetchSalesWithRangeParams): Promise<FetchSalesResult> {
-  const chartEndpoint = chartType === 'yearly'
-    ? '/api/dashboard/chart/monthly'
-    : '/api/dashboard/chart';
+  const chartEndpoint =
+    chartType === "yearly"
+      ? "/api/dashboard/chart/monthly"
+      : "/api/dashboard/chart";
 
-  const backendPeriodType = activePeriodType === 'realtime' || activePeriodType === 'yesterday' || activePeriodType === 'daily'
-    ? 'daily'
-    : activePeriodType === '7days' ? '7days'
-    : activePeriodType === 'weekly' ? 'weekly'
-    : activePeriodType === 'monthly' ? 'monthly'
-    : activePeriodType === 'yearly' ? 'yearly'
-    : 'daily';
+  const backendPeriodType =
+    activePeriodType === "realtime" ||
+    activePeriodType === "yesterday" ||
+    activePeriodType === "daily"
+      ? "daily"
+      : activePeriodType === "7days"
+        ? "7days"
+        : activePeriodType === "weekly"
+          ? "weekly"
+          : activePeriodType === "monthly"
+            ? "monthly"
+            : activePeriodType === "yearly"
+              ? "yearly"
+              : "daily";
 
-  const comparisonMode = activePeriodType === 'realtime' ? 'realtime' :
-    activePeriodType === 'daily' ? 'completed' :
-    activePeriodType === 'yesterday' ? 'completed' :
-    activePeriodType === 'yearly' ? 'todate' :
-    activePeriodType === '30days' ? '30days' : 'todate';
+  const comparisonMode =
+    activePeriodType === "realtime"
+      ? "realtime"
+      : activePeriodType === "daily"
+        ? "completed"
+        : activePeriodType === "yesterday"
+          ? "completed"
+          : activePeriodType === "yearly"
+            ? "todate"
+            : activePeriodType === "30days"
+              ? "30days"
+              : "todate";
 
   let _chartEndDate = end;
-  if (activePeriodType === 'monthly' && selectedMonthlyRange) {
+  if (activePeriodType === "monthly" && selectedMonthlyRange) {
     const calendarEnd = selectedMonthlyRange.end;
-    _chartEndDate = `${calendarEnd.year}-${String(calendarEnd.month).padStart(2, '0')}-${String(calendarEnd.day).padStart(2, '0')}`;
-    const todayJakarta = getTodayInJakarta().split('-').map(Number);
+    _chartEndDate = `${calendarEnd.year}-${String(calendarEnd.month).padStart(2, "0")}-${String(calendarEnd.day).padStart(2, "0")}`;
+    const todayJakarta = getTodayInJakarta().split("-").map(Number);
     const selStart = selectedMonthlyRange.start;
-    if (selStart.year === todayJakarta[0] && selStart.month === todayJakarta[1]) {
+    if (
+      selStart.year === todayJakarta[0] &&
+      selStart.month === todayJakarta[1]
+    ) {
       _chartEndDate = getDateNDaysAgoInJakarta(1);
     }
   }
-  if (activePeriodType === 'yearly' && selectedYearlyRange) {
+  if (activePeriodType === "yearly" && selectedYearlyRange) {
     const year = selectedYearlyRange.start.year;
-    const currentYear = parseInt(getTodayInJakarta().split('-')[0]);
+    const currentYear = parseInt(getTodayInJakarta().split("-")[0]);
     if (year === currentYear) {
       _chartEndDate = end;
     } else {
@@ -97,16 +121,19 @@ export async function fetchSalesWithRange({
     }
   }
   let comparisonDate = end;
-  if (activePeriodType === 'monthly' && selectedMonthlyRange) {
-    const todayJakarta = getTodayInJakarta().split('-').map(Number);
+  if (activePeriodType === "monthly" && selectedMonthlyRange) {
+    const todayJakarta = getTodayInJakarta().split("-").map(Number);
     const selStart = selectedMonthlyRange.start;
-    if (selStart.year === todayJakarta[0] && selStart.month === todayJakarta[1]) {
+    if (
+      selStart.year === todayJakarta[0] &&
+      selStart.month === todayJakarta[1]
+    ) {
       comparisonDate = getDateNDaysAgoInJakarta(1);
     }
   }
-  if (activePeriodType === 'yearly' && selectedYearlyRange) {
+  if (activePeriodType === "yearly" && selectedYearlyRange) {
     const year = selectedYearlyRange.start.year;
-    const currentYear = parseInt(getTodayInJakarta().split('-')[0]);
+    const currentYear = parseInt(getTodayInJakarta().split("-")[0]);
     if (year === currentYear) {
       comparisonDate = end;
     } else {
@@ -114,44 +141,61 @@ export async function fetchSalesWithRange({
     }
   }
 
-  const shiftDays = activePeriodType === 'realtime' || activePeriodType === 'daily' || activePeriodType === 'yesterday' ? 1 :
-    activePeriodType === 'weekly' || activePeriodType === '7days' ? 7 :
-    activePeriodType === '30days' ? 30 : 0;
+  const shiftDays =
+    activePeriodType === "realtime" ||
+    activePeriodType === "daily" ||
+    activePeriodType === "yesterday"
+      ? 1
+      : activePeriodType === "weekly" || activePeriodType === "7days"
+        ? 7
+        : activePeriodType === "30days"
+          ? 30
+          : 0;
 
-  let prevStart = '';
-  let prevEnd = '';
+  let prevStart = "";
+  let prevEnd = "";
 
   if (shiftDays > 0) {
-    const startParts = start.split('-').map(Number);
-    const endParts = _chartEndDate.split('-').map(Number);
-    const startDateObj = new Date(Date.UTC(startParts[0], startParts[1] - 1, startParts[2]));
-    const endDateObj = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
-    const prevStartObj = new Date(startDateObj.getTime() - shiftDays * 86400000);
+    const startParts = start.split("-").map(Number);
+    const endParts = _chartEndDate.split("-").map(Number);
+    const startDateObj = new Date(
+      Date.UTC(startParts[0], startParts[1] - 1, startParts[2]),
+    );
+    const endDateObj = new Date(
+      Date.UTC(endParts[0], endParts[1] - 1, endParts[2]),
+    );
+    const prevStartObj = new Date(
+      startDateObj.getTime() - shiftDays * 86400000,
+    );
     const prevEndObj = new Date(endDateObj.getTime() - shiftDays * 86400000);
-    prevStart = `${prevStartObj.getUTCFullYear()}-${String(prevStartObj.getUTCMonth() + 1).padStart(2, '0')}-${String(prevStartObj.getUTCDate()).padStart(2, '0')}`;
-    prevEnd = `${prevEndObj.getUTCFullYear()}-${String(prevEndObj.getUTCMonth() + 1).padStart(2, '0')}-${String(prevEndObj.getUTCDate()).padStart(2, '0')}`;
-  } else if (activePeriodType === 'monthly' && selectedMonthlyRange) {
+    prevStart = `${prevStartObj.getUTCFullYear()}-${String(prevStartObj.getUTCMonth() + 1).padStart(2, "0")}-${String(prevStartObj.getUTCDate()).padStart(2, "0")}`;
+    prevEnd = `${prevEndObj.getUTCFullYear()}-${String(prevEndObj.getUTCMonth() + 1).padStart(2, "0")}-${String(prevEndObj.getUTCDate()).padStart(2, "0")}`;
+  } else if (activePeriodType === "monthly" && selectedMonthlyRange) {
     const startM = selectedMonthlyRange.start;
     const prevMonth = startM.month === 1 ? 12 : startM.month - 1;
     const prevYear = startM.month === 1 ? startM.year - 1 : startM.year;
-    const _chartEndParts = _chartEndDate.split('-').map(Number);
-    const lastDayOfPrevMonth = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate();
+    const _chartEndParts = _chartEndDate.split("-").map(Number);
+    const lastDayOfPrevMonth = new Date(
+      Date.UTC(prevYear, prevMonth, 0),
+    ).getUTCDate();
     const prevEndDay = Math.min(_chartEndParts[2], lastDayOfPrevMonth);
     const prevEndMonth = prevMonth;
     const prevEndYear = prevYear;
-    prevStart = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
-    prevEnd = `${prevEndYear}-${String(prevEndMonth).padStart(2, '0')}-${String(prevEndDay).padStart(2, '0')}`;
-  } else if (activePeriodType === 'yearly' && selectedYearlyRange) {
+    prevStart = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
+    prevEnd = `${prevEndYear}-${String(prevEndMonth).padStart(2, "0")}-${String(prevEndDay).padStart(2, "0")}`;
+  } else if (activePeriodType === "yearly" && selectedYearlyRange) {
     const year = selectedYearlyRange.start.year;
     prevStart = `${year - 1}-01-01`;
     prevEnd = `${year - 1}-12-31`;
   }
 
-  const chartUrl = `${chartEndpoint}?startDate=${start}&endDate=${_chartEndDate}${prevStart ? `&prevStart=${prevStart}&prevEnd=${prevEnd}` : ''}`;
+  const chartUrl = `${chartEndpoint}?startDate=${start}&endDate=${_chartEndDate}${prevStart ? `&prevStart=${prevStart}&prevEnd=${prevEnd}` : ""}`;
 
   const [dualRes, comparisonRes] = await Promise.all([
     apiFetch(chartUrl),
-    apiFetch(`/api/dashboard/comparison?period=${backendPeriodType}&mode=${comparisonMode}&date=${comparisonDate}`)
+    apiFetch(
+      `/api/dashboard/comparison?period=${backendPeriodType}&mode=${comparisonMode}&date=${comparisonDate}`,
+    ),
   ]);
 
   let chartData = [];
@@ -160,28 +204,36 @@ export async function fetchSalesWithRange({
 
   if (dualRes.ok) {
     const dualData = await dualRes.json();
-    const rawCurrent = dualData.data?.current || dualData.current || dualData.data || [];
+    const rawCurrent =
+      dualData.data?.current || dualData.current || dualData.data || [];
     const rawPrevious = dualData.data?.previous || dualData.previous || [];
 
-    if (activePeriodType === 'realtime') {
+    if (activePeriodType === "realtime") {
       const currentHour = getCurrentJakartaHour();
-      chartData = rawCurrent.filter((item: { date?: string; total: number }) => {
-        const hour = parseInt(item.date || '');
-        return !isNaN(hour) && hour < currentHour;
-      });
-      prevChartData = rawPrevious.filter((item: { date?: string; total: number }) => {
-        const hour = parseInt(item.date || '');
-        return !isNaN(hour) && hour < currentHour;
-      });
+      chartData = rawCurrent.filter(
+        (item: { date?: string; total: number }) => {
+          const hour = parseInt(item.date || "");
+          return !isNaN(hour) && hour < currentHour;
+        },
+      );
+      prevChartData = rawPrevious.filter(
+        (item: { date?: string; total: number }) => {
+          const hour = parseInt(item.date || "");
+          return !isNaN(hour) && hour < currentHour;
+        },
+      );
     } else {
       chartData = rawCurrent;
       prevChartData = rawPrevious;
     }
 
-    todayChartTotal = chartData.reduce((sum: number, item: { date?: string; total: number }) => {
-      const val = item.total || 0;
-      return sum + (val > 0 ? val : 0);
-    }, 0);
+    todayChartTotal = chartData.reduce(
+      (sum: number, item: { date?: string; total: number }) => {
+        const val = item.total || 0;
+        return sum + (val > 0 ? val : 0);
+      },
+      0,
+    );
   }
 
   let kpiData = null;
@@ -192,33 +244,48 @@ export async function fetchSalesWithRange({
     const meta = compData.meta;
 
     let percentChange = 0;
-    let comparisonType = 'zero';
+    let comparisonType = "zero";
 
-    const totalRevenue = (chartType === 'hourly' || (chartType === 'daily' && activePeriodType !== '7days' && activePeriodType !== '30days'))
-      ? todayChartTotal
-      : comparison.current_revenue;
+    const totalRevenue =
+      chartType === "hourly" ||
+      (chartType === "daily" &&
+        activePeriodType !== "7days" &&
+        activePeriodType !== "30days")
+        ? todayChartTotal
+        : comparison.current_revenue;
 
     const previousRevenue = comparison.previous_revenue;
     const previousHasAnyData = comparison.previous_has_any_data;
 
     if (previousRevenue === 0 && totalRevenue > 0 && !previousHasAnyData) {
-      comparisonType = 'new';
+      comparisonType = "new";
       percentChange = Infinity;
-    } else if (previousRevenue === 0 && totalRevenue > 0 && previousHasAnyData) {
-      comparisonType = 'surge';
+    } else if (
+      previousRevenue === 0 &&
+      totalRevenue > 0 &&
+      previousHasAnyData
+    ) {
+      comparisonType = "surge";
       percentChange = Infinity;
     } else if (previousRevenue === 0 && totalRevenue === 0) {
-      comparisonType = 'zero';
+      comparisonType = "zero";
       percentChange = 0;
     } else if (previousRevenue > 0) {
-      comparisonType = 'normal';
-      percentChange = ((totalRevenue - previousRevenue) / previousRevenue) * 100;
+      comparisonType = "normal";
+      percentChange =
+        ((totalRevenue - previousRevenue) / previousRevenue) * 100;
     }
 
     kpiData = {
-      totalRevenue: (chartType === 'hourly' || (chartType === 'daily' && (activePeriodType === 'monthly' || activePeriodType === 'weekly' || activePeriodType === 'daily')) && chartData.length > 0)
-        ? todayChartTotal
-        : comparison.current_revenue,
+      totalRevenue:
+        chartType === "hourly" ||
+        (chartType === "daily" &&
+          (activePeriodType === "monthly" ||
+            activePeriodType === "weekly" ||
+            activePeriodType === "daily") &&
+          chartData.length > 0)
+          ? todayChartTotal
+          : comparison.current_revenue,
       previousRevenue,
       totalOrders: comparison.current_orders,
       previousOrders: comparison.previous_orders,
@@ -234,7 +301,7 @@ export async function fetchSalesWithRange({
       comparisonType,
       previousHasAnyData,
       isPartial: meta.is_partial,
-      periodInfo: meta
+      periodInfo: meta,
     };
   }
 

@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { Button, Modal } from '$shared/ui';
-  import { Trash2, Loader2 } from 'lucide-svelte';
-  import { labels } from '$shared/i18n';
+  import { Button, Modal } from "$shared/ui";
+  import { Trash2, Loader2 } from "lucide-svelte";
+  import { labels } from "$shared/i18n";
 
   let {
     open = $bindable(false),
-    targetName = '',
+    targetName = "",
     deactivating = $bindable(false),
     oncancel = () => {},
     onconfirm = () => {},
@@ -18,13 +18,21 @@
   } = $props();
 </script>
 
-<Modal bind:open={open} title={labels.deactivateCustomer} size="sm">
+<Modal bind:open title={labels.deactivateCustomer} size="sm">
   <p class="text-sm text-text-secondary">
-    {labels.deactivateConfirmPrefix} <strong class="text-text-primary">{targetName}</strong>? {labels.deactivateConfirmSuffix}
+    {labels.deactivateConfirmPrefix}
+    <strong class="text-text-primary">{targetName}</strong>? {labels.deactivateConfirmSuffix}
   </p>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={oncancel}>{labels.cancel}</Button>
-    <Button variant="danger" class="px-5" disabled={deactivating} onclick={onconfirm}>
+    <Button variant="secondary" class="px-5" onclick={oncancel}
+      >{labels.cancel}</Button
+    >
+    <Button
+      variant="danger"
+      class="px-5"
+      disabled={deactivating}
+      onclick={onconfirm}
+    >
       {#if deactivating}
         <Loader2 size={14} class="animate-spin mr-1" /> {labels.deactivating}
       {:else}

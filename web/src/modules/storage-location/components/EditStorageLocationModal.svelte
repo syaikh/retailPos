@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { Button, Input, Modal, SelectSearch } from '$shared/ui';
-  import { Save, Loader2 } from 'lucide-svelte';
-  import { labels } from '$shared/i18n';
-  import type { StorageLocation } from '../types';
+  import { Button, Input, Modal, SelectSearch } from "$shared/ui";
+  import { Save, Loader2 } from "lucide-svelte";
+  import { labels } from "$shared/i18n";
+  import type { StorageLocation, StorageLocationUpdatePayload } from "../types";
 
   let {
     open = $bindable(false),
@@ -10,7 +10,7 @@
     saving = $bindable(false),
     warehouseOptions = [] as { value: number; label: string }[],
     storeOptions = [] as { value: number; label: string }[],
-    onsave = (data: any) => {},
+    onsave = (_data: Partial<StorageLocationUpdatePayload>) => {},
     oncancel = () => {},
   }: {
     open: boolean;
@@ -18,47 +18,47 @@
     saving: boolean;
     warehouseOptions?: { value: number; label: string }[];
     storeOptions?: { value: number; label: string }[];
-    onsave?: (data: any) => void;
+    onsave?: (data: Partial<StorageLocationUpdatePayload>) => void;
     oncancel?: () => void;
   } = $props();
 
-  let code = $state('');
-  let name = $state('');
+  let code = $state("");
+  let name = $state("");
   let isActive = $state(true);
-  let scopeType = $state<'warehouse' | 'store'>('warehouse');
+  let scopeType = $state<"warehouse" | "store">("warehouse");
   let warehouseId = $state<number | undefined>(undefined);
   let storeId = $state<number | undefined>(undefined);
-  let notes = $state('');
-  let fieldErrors = $state({ code: '', name: '', scope: '' });
+  let notes = $state("");
+  let fieldErrors = $state({ code: "", name: "", scope: "" });
 
-  let origCode = $state('');
-  let origName = $state('');
+  let origCode = $state("");
+  let origName = $state("");
   let origNotes = $state<string | undefined>();
   let origWarehouseId = $state<number | null>(null);
   let origStoreId = $state<number | null>(null);
 
   $effect(() => {
     if (open && location) {
-      code = location.code || '';
-      name = location.name || '';
+      code = location.code || "";
+      name = location.name || "";
       isActive = location.is_active !== false;
-      notes = location.notes || '';
-      origCode = location.code || '';
-      origName = location.name || '';
+      notes = location.notes || "";
+      origCode = location.code || "";
+      origName = location.name || "";
       origNotes = location.notes;
       origWarehouseId = location.warehouse_id ?? null;
       origStoreId = location.store_id ?? null;
-      scopeType = location.warehouse_id != null ? 'warehouse' : 'store';
+      scopeType = location.warehouse_id != null ? "warehouse" : "store";
       warehouseId = location.warehouse_id ?? undefined;
       storeId = location.store_id ?? undefined;
-      fieldErrors = { code: '', name: '', scope: '' };
+      fieldErrors = { code: "", name: "", scope: "" };
     }
   });
 
   function handleSave() {
     if (!location) return;
 
-    const errors = { code: '', name: '', scope: '' };
+    const errors = { code: "", name: "", scope: "" };
     let valid = true;
 
     if (!code.trim()) {
@@ -77,7 +77,8 @@
       valid = false;
     }
 
-    const scopeValid = scopeType === 'warehouse' ? warehouseId != null : storeId != null;
+    const scopeValid =
+      scopeType === "warehouse" ? warehouseId != null : storeId != null;
     if (!scopeValid) {
       errors.scope = labels.pilihGudangAtauToko;
       valid = false;
@@ -86,33 +87,40 @@
     fieldErrors = errors;
     if (!valid) return;
 
-    const payload: Record<string, any> = { id: location.id };
+    const payload: Partial<StorageLocationUpdatePayload> = { id: location.id };
     if (code.trim() !== origCode) payload.code = code.trim();
     if (name.trim() !== origName) payload.name = name.trim();
-    if ((notes.trim() || undefined) !== (origNotes || undefined)) payload.notes = notes.trim() || null;
+    if ((notes.trim() || undefined) !== (origNotes || undefined))
+      payload.notes = notes.trim() || null;
     if (isActive !== location.is_active) payload.is_active = isActive;
-    if (scopeType === 'warehouse') {
-      if (warehouseId != null && warehouseId !== origWarehouseId) payload.warehouse_id = warehouseId;
+    if (scopeType === "warehouse") {
+      if (warehouseId != null && warehouseId !== origWarehouseId)
+        payload.warehouse_id = warehouseId;
     } else {
-      if (storeId != null && storeId !== origStoreId) payload.store_id = storeId;
+      if (storeId != null && storeId !== origStoreId)
+        payload.store_id = storeId;
     }
     onsave(payload);
   }
 
   function handleCancel() {
-    fieldErrors = { code: '', name: '', scope: '' };
+    fieldErrors = { code: "", name: "", scope: "" };
     oncancel();
   }
 </script>
 
-<Modal bind:open={open} title={labels.editStorageLocation} size="md">
+<Modal bind:open title={labels.editStorageLocation} size="md">
   <div class="space-y-4">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="space-y-1">
-        <label for="edit-sl-code" class="text-xs font-semibold text-text-secondary">{labels.code} <span class="text-danger">*</span></label>
+        <label
+          for="edit-sl-code"
+          class="text-xs font-semibold text-text-secondary"
+          >{labels.code} <span class="text-danger">*</span></label
+        >
         <Input
           id="edit-sl-code"
-          class={fieldErrors.code ? 'border-danger' : ''}
+          class={fieldErrors.code ? "border-danger" : ""}
           placeholder={labels.codeExamplePlaceholder}
           bind:value={code}
         />
@@ -121,10 +129,14 @@
         {/if}
       </div>
       <div class="space-y-1">
-        <label for="edit-sl-name" class="text-xs font-semibold text-text-secondary">{labels.name} <span class="text-danger">*</span></label>
+        <label
+          for="edit-sl-name"
+          class="text-xs font-semibold text-text-secondary"
+          >{labels.name} <span class="text-danger">*</span></label
+        >
         <Input
           id="edit-sl-name"
-          class={fieldErrors.name ? 'border-danger' : ''}
+          class={fieldErrors.name ? "border-danger" : ""}
           placeholder={labels.nameExamplePlaceholder}
           bind:value={name}
         />
@@ -135,21 +147,41 @@
     </div>
 
     <div class="space-y-1" role="group" aria-labelledby="edit-sl-scope-label">
-      <span id="edit-sl-scope-label" class="text-xs font-semibold text-text-secondary">{labels.scope} <span class="text-danger">*</span></span>
-      <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border/30 w-fit" role="group" aria-label={labels.tipeLingkup}>
+      <span
+        id="edit-sl-scope-label"
+        class="text-xs font-semibold text-text-secondary"
+        >{labels.scope} <span class="text-danger">*</span></span
+      >
+      <div
+        class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border/30 w-fit"
+        role="group"
+        aria-label={labels.tipeLingkup}
+      >
         <button
-          class="h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 {scopeType === 'warehouse' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-          onclick={() => { scopeType = 'warehouse'; warehouseId = undefined; }}
-          aria-pressed={scopeType === 'warehouse'}
-        >{labels.gudang}</button>
+          class="h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 {scopeType ===
+          'warehouse'
+            ? 'bg-primary-subtle text-primary-light border border-primary-default/20'
+            : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => {
+            scopeType = "warehouse";
+            warehouseId = undefined;
+          }}
+          aria-pressed={scopeType === "warehouse"}>{labels.gudang}</button
+        >
         <button
-          class="h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 {scopeType === 'store' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-          onclick={() => { scopeType = 'store'; storeId = undefined; }}
-          aria-pressed={scopeType === 'store'}
-        >{labels.toko}</button>
+          class="h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 {scopeType ===
+          'store'
+            ? 'bg-primary-subtle text-primary-light border border-primary-default/20'
+            : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => {
+            scopeType = "store";
+            storeId = undefined;
+          }}
+          aria-pressed={scopeType === "store"}>{labels.toko}</button
+        >
       </div>
       <div class="mt-2">
-        {#if scopeType === 'warehouse'}
+        {#if scopeType === "warehouse"}
           <SelectSearch
             bind:value={warehouseId}
             options={warehouseOptions}
@@ -157,7 +189,9 @@
             searchPlaceholder={labels.cariGudang}
             disabled={warehouseOptions.length === 0}
             notFoundText={labels.tidakAdaGudang}
-            onchange={() => { fieldErrors = { ...fieldErrors, scope: '' }; }}
+            onchange={() => {
+              fieldErrors = { ...fieldErrors, scope: "" };
+            }}
           />
         {:else}
           <SelectSearch
@@ -167,7 +201,9 @@
             searchPlaceholder={labels.cariToko}
             disabled={storeOptions.length === 0}
             notFoundText={labels.tidakAdaToko}
-            onchange={() => { fieldErrors = { ...fieldErrors, scope: '' }; }}
+            onchange={() => {
+              fieldErrors = { ...fieldErrors, scope: "" };
+            }}
           />
         {/if}
         {#if fieldErrors.scope}
@@ -177,7 +213,10 @@
     </div>
 
     <div class="space-y-1">
-      <label for="edit-sl-notes" class="text-xs font-semibold text-text-secondary">{labels.notes}</label>
+      <label
+        for="edit-sl-notes"
+        class="text-xs font-semibold text-text-secondary">{labels.notes}</label
+      >
       <Input
         tag="textarea"
         id="edit-sl-notes"
@@ -192,8 +231,15 @@
     </label>
   </div>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={handleCancel}>{labels.cancel}</Button>
-    <Button variant="primary" class="px-5" disabled={saving} onclick={handleSave}>
+    <Button variant="secondary" class="px-5" onclick={handleCancel}
+      >{labels.cancel}</Button
+    >
+    <Button
+      variant="primary"
+      class="px-5"
+      disabled={saving}
+      onclick={handleSave}
+    >
       {#if saving}
         <Loader2 size={14} class="animate-spin mr-1" /> {labels.saving}
       {:else}

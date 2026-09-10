@@ -1,75 +1,98 @@
-import { describe, it, expect } from 'vitest';
-import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
+import { describe, it, expect } from "vitest";
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
 function getSource(): string {
-  return readFileSync(path.join(path.dirname(__filename), '..', 'CustomersPage.svelte'), 'utf-8');
+  return readFileSync(
+    path.join(path.dirname(__filename), "..", "CustomersPage.svelte"),
+    "utf-8",
+  );
 }
 
-describe('CustomersPage.svelte source-structure guards', () => {
+describe("CustomersPage.svelte source-structure guards", () => {
   const src = getSource();
 
-  it('imports apiClient for HTTP calls', () => {
+  it("imports apiClient for HTTP calls", () => {
     expect(src).toContain("import apiClient from '$shared/api/http-client'");
   });
 
-  it('imports auth store', () => {
+  it("imports auth store", () => {
     expect(src).toContain("import { useAuthStore } from '$modules/auth'");
   });
 
-  it('imports Pagination, ImportWizard from shared/ui', () => {
-    expect(src).toContain("import { Pagination, ImportWizard } from '$shared/ui'");
+  it("imports Pagination, ImportWizard from shared/ui", () => {
+    expect(src).toContain(
+      "import { Pagination, ImportWizard } from '$shared/ui'",
+    );
   });
 
-  it('imports i18n labels', () => {
+  it("imports i18n labels", () => {
     expect(src).toContain("import { labels, t } from '$shared/i18n'");
   });
 
-  it('imports extracted modal and table components', () => {
-    expect(src).toContain("import CreateCustomerModal from './CreateCustomerModal.svelte'");
-    expect(src).toContain("import DeactivateCustomerModal from './DeactivateCustomerModal.svelte'");
-    expect(src).toContain("import BulkStatusModal from './BulkStatusModal.svelte'");
-    expect(src).toContain("import BulkDeleteModal from './BulkDeleteModal.svelte'");
-    expect(src).toContain("import CustomerToolbar from './CustomerToolbar.svelte'");
+  it("imports extracted modal and table components", () => {
+    expect(src).toContain(
+      "import CreateCustomerModal from './CreateCustomerModal.svelte'",
+    );
+    expect(src).toContain(
+      "import DeactivateCustomerModal from './DeactivateCustomerModal.svelte'",
+    );
+    expect(src).toContain(
+      "import BulkStatusModal from './BulkStatusModal.svelte'",
+    );
+    expect(src).toContain(
+      "import BulkDeleteModal from './BulkDeleteModal.svelte'",
+    );
+    expect(src).toContain(
+      "import CustomerToolbar from './CustomerToolbar.svelte'",
+    );
     expect(src).toContain("import CustomerTable from './CustomerTable.svelte'");
     expect(src).toContain("import BulkActionBar from './BulkActionBar.svelte'");
   });
 
-  it('uses $state for customers, loading, pagination', () => {
-    expect(src).toContain('let customers = $state');
-    expect(src).toContain('let loading = $state');
-    expect(src).toContain('let total = $state(0)');
-    expect(src).toContain('let searchQuery = $state');
+  it("uses $state for customers, loading, pagination", () => {
+    expect(src).toContain("let customers = $state");
+    expect(src).toContain("let loading = $state");
+    expect(src).toContain("let total = $state(0)");
+    expect(src).toContain("let searchQuery = $state");
   });
 
-  it('has permission-based RBAC (canCreate, canUpdate, canDelete, canRead)', () => {
-    expect(src).toContain("const canCreate = $derived(userPermissions.includes('customer.create'))");
-    expect(src).toContain("const canUpdate = $derived(userPermissions.includes('customer.update'))");
-    expect(src).toContain("const canDelete = $derived(userPermissions.includes('customer.delete'))");
-    expect(src).toContain("const canRead = $derived(userPermissions.includes('customer.view'))");
+  it("has permission-based RBAC (canCreate, canUpdate, canDelete, canRead)", () => {
+    expect(src).toContain(
+      "const canCreate = $derived(userPermissions.includes('customer.create'))",
+    );
+    expect(src).toContain(
+      "const canUpdate = $derived(userPermissions.includes('customer.update'))",
+    );
+    expect(src).toContain(
+      "const canDelete = $derived(userPermissions.includes('customer.delete'))",
+    );
+    expect(src).toContain(
+      "const canRead = $derived(userPermissions.includes('customer.view'))",
+    );
   });
 
-  it('has bulk operations (handleBulkStatusUpdate, handleBulkDelete, clearSelection)', () => {
-    expect(src).toContain('async function handleBulkStatusUpdate');
-    expect(src).toContain('async function handleBulkDelete');
-    expect(src).toContain('function clearSelection');
+  it("has bulk operations (handleBulkStatusUpdate, handleBulkDelete, clearSelection)", () => {
+    expect(src).toContain("async function handleBulkStatusUpdate");
+    expect(src).toContain("async function handleBulkDelete");
+    expect(src).toContain("function clearSelection");
   });
 
-  it('has load, createCustomer, handleEditSave functions', () => {
-    expect(src).toContain('async function load');
-    expect(src).toContain('async function createCustomer');
-    expect(src).toContain('async function handleEditSave');
+  it("has load, createCustomer, handleEditSave functions", () => {
+    expect(src).toContain("async function load");
+    expect(src).toContain("async function createCustomer");
+    expect(src).toContain("async function handleEditSave");
   });
 
-  it('has edit modal functions (startEdit, handleEditSave, handleEditCancel)', () => {
-    expect(src).toContain('function startEdit');
-    expect(src).toContain('async function handleEditSave');
-    expect(src).toContain('function handleEditCancel');
+  it("has edit modal functions (startEdit, handleEditSave, handleEditCancel)", () => {
+    expect(src).toContain("function startEdit");
+    expect(src).toContain("async function handleEditSave");
+    expect(src).toContain("function handleEditCancel");
   });
 
-  it('renders Pagination component', () => {
-    expect(src).toContain('<Pagination');
+  it("renders Pagination component", () => {
+    expect(src).toContain("<Pagination");
   });
 });

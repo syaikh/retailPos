@@ -1,7 +1,9 @@
-import { writable } from 'svelte/store';
+import { writable } from "svelte/store";
 
 class WebSocketService {
-  status = writable<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
+  status = writable<"disconnected" | "connecting" | "connected" | "error">(
+    "disconnected",
+  );
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
@@ -14,80 +16,102 @@ class WebSocketService {
       return;
     }
     if (this.ws) {
-      console.log('[WebSocket] Existing ws state:', this.ws.readyState, '| closing before reconnect');
+      console.log(
+        "[WebSocket] Existing ws state:",
+        this.ws.readyState,
+        "| closing before reconnect",
+      );
       this.ws.close();
       this.ws = null;
     }
 
     this.disconnectRequested = false;
     this.reconnectAttempts = 0;
-    this.status.set('connecting');
+    this.status.set("connecting");
 
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const backendPort = String(__BACKEND_PORT__) || '9095';
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const backendPort = String(__BACKEND_PORT__) || "9095";
       const backendHost = `${window.location.hostname}:${backendPort}`;
       const wsUrl = `${protocol}//${backendHost}/ws`;
 
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        this.ws?.send(JSON.stringify({ type: 'auth', token }));
-        this.status.set('connected');
+        this.ws?.send(JSON.stringify({ type: "auth", token }));
+        this.status.set("connected");
         this.reconnectAttempts = 0;
-        this.emit('connection', { status: 'connected' });
+        this.emit("connection", { status: "connected" });
       };
 
       this.ws.onmessage = (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data);
-          this.emit(data.type || 'message', data.payload || data);
+          this.emit(data.type || "message", data.payload || data);
         } catch (e) {
-          console.error('[WebSocket] Parse error:', e);
+          console.error("[WebSocket] Parse error:", e);
         }
       };
 
       this.ws.onclose = async (event: CloseEvent) => {
-        console.log('[WebSocket] Closed. Code:', event.code, '| Reason:', event.reason, '| Was clean:', event.wasClean);
-        this.status.set('disconnected');
-        this.emit('disconnection', { status: 'disconnected', code: event.code });
+        console.log(
+          "[WebSocket] Closed. Code:",
+          event.code,
+          "| Reason:",
+          event.reason,
+          "| Was clean:",
+          event.wasClean,
+        );
+        this.status.set("disconnected");
+        this.emit("disconnection", {
+          status: "disconnected",
+          code: event.code,
+        });
 
         if (this.disconnectRequested) {
-          console.log('[WebSocket] Close was requested, not reconnecting');
+          console.log("[WebSocket] Close was requested, not reconnecting");
           return;
         }
 
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
-          console.log(`[WebSocket] Reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+          console.log(
+            `[WebSocket] Reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`,
+          );
 
-          const currentToken = sessionStorage.getItem('access_token');
+          const currentToken = sessionStorage.getItem("access_token");
           if (!currentToken) {
-            console.warn('[WebSocket] No token available, stopping reconnects');
-            this.status.set('error');
+            console.warn("[WebSocket] No token available, stopping reconnects");
+            this.status.set("error");
             return;
           }
           const delay = Math.min(2000 * this.reconnectAttempts, 30000);
           console.log(`[WebSocket] Reconnecting in ${delay}ms`);
-          this.reconnectTimeout = setTimeout(() => this.connect(currentToken), delay);
+          this.reconnectTimeout = setTimeout(
+            () => this.connect(currentToken),
+            delay,
+          );
         } else {
-          console.warn('[WebSocket] Max reconnect attempts reached, giving up');
-          this.status.set('error');
+          console.warn("[WebSocket] Max reconnect attempts reached, giving up");
+          this.status.set("error");
         }
       };
 
       this.ws.onerror = (err: Event) => {
-        console.error('[WebSocket] Error event:', err);
-        this.status.set('error');
+        console.error("[WebSocket] Error event:", err);
+        this.status.set("error");
         if (!this.disconnectRequested && this.ws) {
-          if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+          if (
+            this.ws.readyState === WebSocket.OPEN ||
+            this.ws.readyState === WebSocket.CONNECTING
+          ) {
             this.ws.close();
           }
         }
       };
     } catch (e) {
-      this.status.set('error');
-      console.error('[WebSocket] Connection failed:', e);
+      this.status.set("error");
+      console.error("[WebSocket] Connection failed:", e);
     }
   }
 
@@ -101,23 +125,25 @@ class WebSocketService {
       this.ws.close();
       this.ws = null;
     }
-    this.status.set('disconnected');
+    this.status.set("disconnected");
   }
 
   emit(event: string, data: unknown) {
     if (this.eventHandlers[event]) {
-      this.eventHandlers[event].forEach(callback => callback(data));
+      this.eventHandlers[event].forEach((callback) => callback(data));
     }
   }
 
-  on(event: string, callback: (data: unknown) => void) {
+  on<T = unknown>(event: string, callback: (data: T) => void): () => void {
     if (!this.eventHandlers[event]) {
       this.eventHandlers[event] = [];
     }
-    this.eventHandlers[event].push(callback);
-    
+    this.eventHandlers[event].push(callback as (data: unknown) => void);
+
     return () => {
-      this.eventHandlers[event] = this.eventHandlers[event].filter(cb => cb !== callback);
+      this.eventHandlers[event] = this.eventHandlers[event].filter(
+        (cb) => cb !== callback,
+      );
     };
   }
 

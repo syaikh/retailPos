@@ -1,39 +1,50 @@
 <script lang="ts">
-  let {
+  const {
     label,
     column,
-    sortColumn = '',
-    sortDirection = 'asc',
+    sortColumn = "",
+    sortDirection = "asc",
     onsort,
-    align = 'left',
-    class: className = '',
+    align = "left",
+    class: _className = "",
   }: {
     label: string;
     column: string;
     sortColumn?: string;
-    sortDirection?: 'asc' | 'desc' | 'ASC' | 'DESC';
+    sortDirection?: "asc" | "desc" | "ASC" | "DESC";
     onsort: (col: string) => void;
-    align?: 'left' | 'right';
+    align?: "left" | "right";
     class?: string;
   } = $props();
 
   const isActive = $derived(sortColumn === column);
   const normalizedDirection = $derived(
-    sortDirection === 'ASC' ? 'asc' : sortDirection === 'DESC' ? 'desc' : sortDirection
+    sortDirection === "ASC"
+      ? "asc"
+      : sortDirection === "DESC"
+        ? "desc"
+        : sortDirection,
   );
   const ariaSort = $derived(
-    !isActive ? 'none' as const : normalizedDirection === 'asc' ? 'ascending' as const : 'descending' as const
+    !isActive
+      ? ("none" as const)
+      : normalizedDirection === "asc"
+        ? ("ascending" as const)
+        : ("descending" as const),
   );
 </script>
 
 <button
   type="button"
-  class="flex items-center gap-1 uppercase hover:text-primary transition-colors {align === 'right' ? 'justify-end w-full text-right' : 'text-left'}"
+  class="flex items-center gap-1 uppercase hover:text-primary transition-colors {align ===
+  'right'
+    ? 'justify-end w-full text-right'
+    : 'text-left'}"
   onclick={() => onsort(column)}
   aria-label={`Sort by ${label}, currently ${ariaSort}`}
 >
   {label}
   {#if isActive}
-    <span>{normalizedDirection === 'asc' ? '▲' : '▼'}</span>
+    <span>{normalizedDirection === "asc" ? "▲" : "▼"}</span>
   {/if}
 </button>

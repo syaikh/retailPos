@@ -1,4 +1,4 @@
-import Chart, { type ChartConfiguration } from 'chart.js/auto';
+import Chart, { type ChartConfiguration, type ChartDataset } from "chart.js/auto";
 
 export function chart(node: HTMLCanvasElement, config: ChartConfiguration) {
   let chartInstance: Chart | null = null;
@@ -7,7 +7,7 @@ export function chart(node: HTMLCanvasElement, config: ChartConfiguration) {
   try {
     chartInstance = new Chart(node, config);
   } catch (e) {
-    console.error('Failed to create chart:', e);
+    console.error("Failed to create chart:", e);
   }
 
   return {
@@ -16,22 +16,24 @@ export function chart(node: HTMLCanvasElement, config: ChartConfiguration) {
         if (newConfig.data?.labels) {
           chartInstance.data.labels = [...newConfig.data.labels];
         }
-        
+
         if (newConfig.data?.datasets) {
-          chartInstance.data.datasets = newConfig.data.datasets.map((ds) => ({...ds} as any));
+          chartInstance.data.datasets = newConfig.data.datasets.map(
+            (ds) => ({ ...ds }) as ChartDataset,
+          );
         }
-        
+
         if (newConfig.options) {
-          chartInstance.options = {...newConfig.options};
+          chartInstance.options = { ...newConfig.options };
         }
-        
-        chartInstance.update('active');
+
+        chartInstance.update("active");
       }
     },
     destroy() {
       if (chartInstance) {
         chartInstance.destroy();
       }
-    }
+    },
   };
 }

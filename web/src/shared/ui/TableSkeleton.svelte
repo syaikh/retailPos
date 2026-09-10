@@ -1,29 +1,34 @@
 <script lang="ts">
-  import { Skeleton } from '$shared/ui';
+  import { Skeleton } from "$shared/ui";
 
-  let {
+  const {
     rows = 5,
-    variant = 'table',
+    variant = "table",
   }: {
     rows?: number;
-    variant?: 'table' | 'list';
+    variant?: "table" | "list";
   } = $props();
 </script>
 
-{#if variant === 'list'}
+{#if variant === "list"}
   <div class="divide-y divide-border">
-    {#each Array(rows) as _}
+    {#each Array(rows) as _, i (i)}
       <div class="flex items-center gap-4 px-4 py-3.5">
         <Skeleton width="w-32" height="h-4" />
         <Skeleton width="w-24" height="h-4" />
-        <Skeleton width="w-20" height="h-6" rounded="rounded-full" class="ml-auto" />
+        <Skeleton
+          width="w-20"
+          height="h-6"
+          rounded="rounded-full"
+          class="ml-auto"
+        />
         <Skeleton width="w-28" height="h-4" />
       </div>
     {/each}
   </div>
 {:else}
   <div class="divide-y divide-border">
-    {#each Array(rows) as _}
+    {#each Array(rows) as _, i (i)}
       <div class="flex items-center gap-4 px-4 py-3">
         <Skeleton width="w-4" height="h-4" />
         <Skeleton width="w-1/3" height="h-4" />

@@ -46,6 +46,9 @@ export default tseslint.config(
         parser: tseslint.parser,
       },
     },
+    rules: {
+      'prefer-const': 'off',
+    },
   },
   {
     files: ['**/*.svelte.ts'],

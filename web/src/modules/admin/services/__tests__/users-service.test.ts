@@ -1,144 +1,179 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGet = vi.fn();
 const mockDelete = vi.fn();
 const mockClient = vi.fn();
 
-vi.mock('$shared/api/http-client', () => ({
-  default: Object.assign(
-    (...args: unknown[]) => mockClient(...args),
-    { get: (...args: unknown[]) => mockGet(...args), delete: (...args: unknown[]) => mockDelete(...args) },
-  ),
+vi.mock("$shared/api/http-client", () => ({
+  default: Object.assign((...args: unknown[]) => mockClient(...args), {
+    get: (...args: unknown[]) => mockGet(...args),
+    delete: (...args: unknown[]) => mockDelete(...args),
+  }),
 }));
 
-describe('users-service', () => {
+describe("users-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('getUsers returns users list and total', async () => {
+  it("getUsers returns users list and total", async () => {
     mockGet.mockResolvedValueOnce({
-      data: { data: [{ id: 1, username: 'admin' }], total: 1 },
+      data: { data: [{ id: 1, username: "admin" }], total: 1 },
     });
 
-    const { getUsers } = await import('../users-service');
+    const { getUsers } = await import("../users-service");
     const result = await getUsers({ limit: 20, offset: 0 });
 
-    expect(mockGet).toHaveBeenCalledWith('/admin/users', { params: { limit: 20, offset: 0 } });
+    expect(mockGet).toHaveBeenCalledWith("/admin/users", {
+      params: { limit: 20, offset: 0 },
+    });
     expect(result.data).toHaveLength(1);
     expect(result.total).toBe(1);
   });
 
-  it('getUsers returns defaults on missing data', async () => {
+  it("getUsers returns defaults on missing data", async () => {
     mockGet.mockResolvedValueOnce({ data: {} });
 
-    const { getUsers } = await import('../users-service');
+    const { getUsers } = await import("../users-service");
     const result = await getUsers({ limit: 20, offset: 0 });
 
     expect(result.data).toEqual([]);
     expect(result.total).toBe(0);
   });
 
-  it('getRolesList returns roles array', async () => {
-    mockGet.mockResolvedValueOnce({ data: { data: [{ id: 1, name: 'admin' }] } });
+  it("getRolesList returns roles array", async () => {
+    mockGet.mockResolvedValueOnce({
+      data: { data: [{ id: 1, name: "admin" }] },
+    });
 
-    const { getRolesList } = await import('../users-service');
+    const { getRolesList } = await import("../users-service");
     const result = await getRolesList();
 
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe('admin');
+    expect(result[0].name).toBe("admin");
   });
 
-  it('getRolesList returns empty array on no data', async () => {
+  it("getRolesList returns empty array on no data", async () => {
     mockGet.mockResolvedValueOnce({ data: {} });
 
-    const { getRolesList } = await import('../users-service');
+    const { getRolesList } = await import("../users-service");
     const result = await getRolesList();
 
     expect(result).toEqual([]);
   });
 
-  it('createUser posts to /admin/users', async () => {
+  it("createUser posts to /admin/users", async () => {
     mockClient.mockResolvedValueOnce({});
 
-    const { createUser } = await import('../users-service');
-    await createUser({ username: 'newuser', email: 'a@b.com', password: 'secret', role_id: 2, is_active: true });
+    const { createUser } = await import("../users-service");
+    await createUser({
+      username: "newuser",
+      email: "a@b.com",
+      password: "secret",
+      role_id: 2,
+      is_active: true,
+    });
 
-    expect(mockClient).toHaveBeenCalledWith({ url: '/admin/users', method: 'POST', data: { username: 'newuser', email: 'a@b.com', password: 'secret', role_id: 2, is_active: true } });
+    expect(mockClient).toHaveBeenCalledWith({
+      url: "/admin/users",
+      method: "POST",
+      data: {
+        username: "newuser",
+        email: "a@b.com",
+        password: "secret",
+        role_id: 2,
+        is_active: true,
+      },
+    });
   });
 
-  it('updateUser puts to /admin/users/:id', async () => {
+  it("updateUser puts to /admin/users/:id", async () => {
     mockClient.mockResolvedValueOnce({});
 
-    const { updateUser } = await import('../users-service');
-    await updateUser(1, { email: 'new@b.com' });
+    const { updateUser } = await import("../users-service");
+    await updateUser(1, { email: "new@b.com" });
 
-    expect(mockClient).toHaveBeenCalledWith({ url: '/admin/users/1', method: 'PUT', data: { email: 'new@b.com' } });
+    expect(mockClient).toHaveBeenCalledWith({
+      url: "/admin/users/1",
+      method: "PUT",
+      data: { email: "new@b.com" },
+    });
   });
 
-  it('deleteUser deletes /admin/users/:id', async () => {
+  it("deleteUser deletes /admin/users/:id", async () => {
     mockDelete.mockResolvedValueOnce({});
 
-    const { deleteUser } = await import('../users-service');
+    const { deleteUser } = await import("../users-service");
     await deleteUser(1);
 
-    expect(mockDelete).toHaveBeenCalledWith('/admin/users/1');
+    expect(mockDelete).toHaveBeenCalledWith("/admin/users/1");
   });
 
-  it('getSubordinates returns users array', async () => {
-    mockGet.mockResolvedValueOnce({ data: { data: [{ id: 2, username: 'staff1' }] } });
+  it("getSubordinates returns users array", async () => {
+    mockGet.mockResolvedValueOnce({
+      data: { data: [{ id: 2, username: "staff1" }] },
+    });
 
-    const { getSubordinates } = await import('../users-service');
+    const { getSubordinates } = await import("../users-service");
     const result = await getSubordinates(1);
 
-    expect(mockGet).toHaveBeenCalledWith('/admin/users/1/subordinates');
+    expect(mockGet).toHaveBeenCalledWith("/admin/users/1/subordinates");
     expect(result).toHaveLength(1);
-    expect(result[0].username).toBe('staff1');
+    expect(result[0].username).toBe("staff1");
   });
 
-  it('getSubordinates returns empty array on no data', async () => {
+  it("getSubordinates returns empty array on no data", async () => {
     mockGet.mockResolvedValueOnce({ data: {} });
 
-    const { getSubordinates } = await import('../users-service');
+    const { getSubordinates } = await import("../users-service");
     const result = await getSubordinates(1);
 
     expect(result).toEqual([]);
   });
 
-  it('getManager returns user', async () => {
-    mockGet.mockResolvedValueOnce({ data: { data: { id: 3, username: 'manager' } } });
+  it("getManager returns user", async () => {
+    mockGet.mockResolvedValueOnce({
+      data: { data: { id: 3, username: "manager" } },
+    });
 
-    const { getManager } = await import('../users-service');
+    const { getManager } = await import("../users-service");
     const result = await getManager(2);
 
-    expect(mockGet).toHaveBeenCalledWith('/admin/users/2/manager');
+    expect(mockGet).toHaveBeenCalledWith("/admin/users/2/manager");
     expect(result).not.toBeNull();
-    expect(result!.username).toBe('manager');
+    expect(result!.username).toBe("manager");
   });
 
-  it('getManager returns null on no data', async () => {
+  it("getManager returns null on no data", async () => {
     mockGet.mockResolvedValueOnce({ data: {} });
 
-    const { getManager } = await import('../users-service');
+    const { getManager } = await import("../users-service");
     const result = await getManager(2);
 
     expect(result).toBeNull();
   });
 
-  it('getOrgChart returns users array', async () => {
-    mockGet.mockResolvedValueOnce({ data: { data: [{ id: 1, username: 'ceo' }, { id: 2, username: 'manager' }] } });
+  it("getOrgChart returns users array", async () => {
+    mockGet.mockResolvedValueOnce({
+      data: {
+        data: [
+          { id: 1, username: "ceo" },
+          { id: 2, username: "manager" },
+        ],
+      },
+    });
 
-    const { getOrgChart } = await import('../users-service');
+    const { getOrgChart } = await import("../users-service");
     const result = await getOrgChart();
 
-    expect(mockGet).toHaveBeenCalledWith('/admin/users/org-chart');
+    expect(mockGet).toHaveBeenCalledWith("/admin/users/org-chart");
     expect(result).toHaveLength(2);
   });
 
-  it('getOrgChart returns empty array on no data', async () => {
+  it("getOrgChart returns empty array on no data", async () => {
     mockGet.mockResolvedValueOnce({ data: {} });
 
-    const { getOrgChart } = await import('../users-service');
+    const { getOrgChart } = await import("../users-service");
     const result = await getOrgChart();
 
     expect(result).toEqual([]);

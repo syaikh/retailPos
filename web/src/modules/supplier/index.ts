@@ -1,1 +1,1 @@
-export { default as SuppliersPage } from './components/SuppliersPage.svelte';
+export { default as SuppliersPage } from "./components/SuppliersPage.svelte";

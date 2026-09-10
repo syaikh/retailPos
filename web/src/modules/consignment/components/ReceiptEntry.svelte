@@ -1,14 +1,27 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { toast } from '$shared/stores/toast.svelte';
-  import { Button, Modal, Input, NumberInput, SelectSearch, EmptyState, Pagination } from '$shared/ui';
-  import { Plus, Trash2, Truck, Eye, Pencil } from 'lucide-svelte';
-  import { labels, t } from '$shared/i18n';
-  import { createReceipt, editReceipt, listReceipts, getReceipt } from '../services/consignment-service';
-  import type { Arrangement, Receipt, ReceiptItem } from '../types';
-  import { formatCurrency, formatDateTime } from '../lib/format';
+  import { onMount } from "svelte";
+  import { toast } from "$shared/stores/toast.svelte";
+  import {
+    Button,
+    Modal,
+    Input,
+    NumberInput,
+    SelectSearch,
+    EmptyState,
+    Pagination,
+  } from "$shared/ui";
+  import { Plus, Trash2, Truck, Pencil } from "lucide-svelte";
+  import { labels, t } from "$shared/i18n";
+  import {
+    createReceipt,
+    editReceipt,
+    listReceipts,
+    getReceipt,
+  } from "../services/consignment-service";
+  import type { Arrangement, Receipt } from "../types";
+  import { formatCurrency, formatDateTime } from "../lib/format";
 
-  let {
+  const {
     arrangement,
     canCreate,
     oncreated,
@@ -32,22 +45,41 @@
   let showEntryModal = $state(false);
   let submitting = $state(false);
   let lines = $state<Line[]>([]);
-  let entryNotes = $state('');
-  let termByProduct = $state<Record<number, { price: number; store_share_type: string; store_share_value: number }>>({});
+  let entryNotes = $state("");
+  let termByProduct = $state<
+    Record<
+      number,
+      { price: number; store_share_type: string; store_share_value: number }
+    >
+  >({});
 
   let showDetailModal = $state(false);
   let detailReceipt = $state<Receipt | null>(null);
   let loadingDetail = $state(false);
 
   let editMode = $state(false);
-  let editItems = $state<{ id: number; product_id: number; product_name: string; product_sku: string; accepted_qty: number; price: number; store_share_type: string; store_share_value: number; notes: string }[]>([]);
-  let editNotes = $state('');
-  let editReason = $state('');
+  let editItems = $state<
+    {
+      id: number;
+      product_id: number;
+      product_name: string;
+      product_sku: string;
+      accepted_qty: number;
+      price: number;
+      store_share_type: string;
+      store_share_value: number;
+      notes: string;
+    }[]
+  >([]);
+  let editNotes = $state("");
+  let editReason = $state("");
   let savingEdit = $state(false);
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
-  const pagedReceipts = $derived(receipts.slice(pageOffset, pageOffset + pageLimit));
+  const pagedReceipts = $derived(
+    receipts.slice(pageOffset, pageOffset + pageLimit),
+  );
 
   const EDIT_WINDOW_DAYS = 7;
   const editWindowExpired = $derived.by(() => {
@@ -74,14 +106,18 @@
     productOptions = terms.map((term) => ({
       value: term.product_id,
       label: term.product_name
-        ? (term.product_sku ? `${term.product_name} (${term.product_sku})` : term.product_name)
+        ? term.product_sku
+          ? `${term.product_name} (${term.product_sku})`
+          : term.product_name
         : `Product #${term.product_id}`,
     }));
   }
 
   function openEntry() {
-    lines = [{ product_id: undefined, brought_qty: 1, rejected_qty: 0, notes: '' }];
-    entryNotes = '';
+    lines = [
+      { product_id: undefined, brought_qty: 1, rejected_qty: 0, notes: "" },
+    ];
+    entryNotes = "";
     termByProduct = {};
     (arrangement.terms || []).forEach((t) => {
       termByProduct[t.product_id] = {
@@ -94,7 +130,10 @@
   }
 
   function addLine() {
-    lines = [...lines, { product_id: undefined, brought_qty: 1, rejected_qty: 0, notes: '' }];
+    lines = [
+      ...lines,
+      { product_id: undefined, brought_qty: 1, rejected_qty: 0, notes: "" },
+    ];
   }
 
   function removeLine(index: number) {
@@ -129,13 +168,15 @@
         notes: entryNotes || undefined,
         items,
       });
-      toast.success(t('consignmentReceiptRecorded', { number: rec.receipt_number }));
+      toast.success(
+        t("consignmentReceiptRecorded", { number: rec.receipt_number }),
+      );
       showEntryModal = false;
       await load();
       oncreated?.();
-    } catch (e: any) {
-      const raw = e?.response?.data?.error;
-      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentRecordReceiptError);
+    } catch (e: unknown) {
+      const raw = e instanceof Error ? e.message : labels.consignmentRecordReceiptError;
+      toast.error(raw);
     } finally {
       submitting = false;
     }
@@ -147,9 +188,9 @@
     editMode = false;
     try {
       detailReceipt = await getReceipt(receiptId);
-    } catch (e: any) {
-      const raw = e?.response?.data?.error;
-      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentLoadError);
+    } catch (e: unknown) {
+      const raw = e instanceof Error ? e.message : labels.consignmentLoadError;
+      toast.error(raw);
       showDetailModal = false;
     } finally {
       loadingDetail = false;
@@ -162,29 +203,31 @@
       id: item.id,
       product_id: item.product_id,
       product_name: item.product_name || `Product #${item.product_id}`,
-      product_sku: item.product_sku || '',
+      product_sku: item.product_sku || "",
       accepted_qty: item.accepted_qty,
       price: item.price,
       store_share_type: item.store_share_type,
       store_share_value: item.store_share_value,
-      notes: item.notes || '',
+      notes: item.notes || "",
     }));
-    editNotes = detailReceipt.notes || '';
-    editReason = '';
+    editNotes = detailReceipt.notes || "";
+    editReason = "";
     editMode = true;
   }
 
   function cancelEdit() {
     editMode = false;
     editItems = [];
-    editReason = '';
+    editReason = "";
   }
 
   function updateEditItemQty(index: number, delta: number) {
     const item = editItems[index];
     if (!item) return;
     const newQty = Math.max(0, item.accepted_qty + delta);
-    editItems = editItems.map((it, i) => i === index ? { ...it, accepted_qty: newQty } : it);
+    editItems = editItems.map((it, i) =>
+      i === index ? { ...it, accepted_qty: newQty } : it,
+    );
   }
 
   async function saveEdit() {
@@ -211,9 +254,9 @@
       toast.success(labels.consignmentReceiptUpdated);
       detailReceipt = await getReceipt(detailReceipt.id);
       editMode = false;
-    } catch (e: any) {
-      const raw = e?.response?.data?.error;
-      toast.error((typeof raw === 'string' ? raw : raw?.message) || e.message || labels.consignmentEditError);
+    } catch (e: unknown) {
+      const raw = e instanceof Error ? e.message : labels.consignmentEditError;
+      toast.error(raw);
     } finally {
       savingEdit = false;
     }
@@ -232,17 +275,24 @@
 
 <div class="space-y-4">
   <div class="card">
-    <div class="flex items-center justify-between px-4 py-3 border-b border-border/50">
-      <h2 class="font-semibold text-text-primary">{labels.consignmentReceiptHistory}</h2>
+    <div
+      class="flex items-center justify-between px-4 py-3 border-b border-border/50"
+    >
+      <h2 class="font-semibold text-text-primary">
+        {labels.consignmentReceiptHistory}
+      </h2>
       {#if canCreate}
         <Button variant="secondary" size="sm" onclick={openEntry}>
-          <Plus class="w-4 h-4" /> {labels.consignmentRecordReceipt}
+          <Plus class="w-4 h-4" />
+          {labels.consignmentRecordReceipt}
         </Button>
       {/if}
     </div>
 
     {#if loading}
-      <div class="p-8 text-center text-sm text-text-secondary">{labels.loading}</div>
+      <div class="p-8 text-center text-sm text-text-secondary">
+        {labels.loading}
+      </div>
     {:else if receipts.length === 0}
       <EmptyState
         icon={Truck}
@@ -253,7 +303,9 @@
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="bg-muted/50">
-            <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+            <tr
+              class="text-left text-xs uppercase tracking-wider text-text-secondary"
+            >
               <th class="p-4">{labels.consignmentReceiptNo}</th>
               <th class="p-4">{labels.consignmentDate}</th>
               <th class="p-4 text-right">{labels.consignmentItems}</th>
@@ -261,19 +313,34 @@
             </tr>
           </thead>
           <tbody>
-            {#each pagedReceipts as r}
+            {#each pagedReceipts as r (r.id || r)}
               <tr
                 class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
                 onclick={() => openDetail(r.id)}
                 role="button"
                 tabindex="0"
-                onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDetail(r.id); }}
+                onkeydown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") openDetail(r.id);
+                }}
               >
-                <td class="p-4 font-medium text-text-primary">{r.receipt_number}</td>
-                <td class="p-4 text-text-secondary">{formatDateTime(r.received_at)}</td>
-                <td class="p-4 text-right text-text-secondary">{t('consignmentItemCount', { count: r.items?.length ?? 0 })}</td>
+                <td class="p-4 font-medium text-text-primary"
+                  >{r.receipt_number}</td
+                >
+                <td class="p-4 text-text-secondary"
+                  >{formatDateTime(r.received_at)}</td
+                >
+                <td class="p-4 text-right text-text-secondary"
+                  >{t("consignmentItemCount", {
+                    count: r.items?.length ?? 0,
+                  })}</td
+                >
                 <td class="p-4 text-text-primary">
-                  {formatCurrency((r.items || []).reduce((s, i) => s + i.accepted_qty * i.price, 0))}
+                  {formatCurrency(
+                    (r.items || []).reduce(
+                      (s, i) => s + i.accepted_qty * i.price,
+                      0,
+                    ),
+                  )}
                 </td>
               </tr>
             {/each}
@@ -281,27 +348,45 @@
         </table>
       </div>
       <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
-        <Pagination total={receipts.length} limit={pageLimit} offset={pageOffset} onPageChange={handlePageChange} />
+        <Pagination
+          total={receipts.length}
+          limit={pageLimit}
+          offset={pageOffset}
+          onPageChange={handlePageChange}
+        />
       </div>
     {/if}
   </div>
 </div>
 
-<Modal bind:open={showEntryModal} title={labels.consignmentRecordReceipt} size="lg">
-  {#snippet children()}
-    <div class="space-y-4">
-      <div class="flex items-center justify-between">
-        <span class="text-sm font-medium text-text-secondary">{labels.consignmentItemLines}</span>
-        <Button variant="secondary" size="sm" onclick={addLine}>
-          <Plus class="w-4 h-4" /> {labels.consignmentAddLine}
-        </Button>
-      </div>
+<Modal
+  bind:open={showEntryModal}
+  title={labels.consignmentRecordReceipt}
+  size="lg"
+>
+  <div class="space-y-4">
+    <div class="flex items-center justify-between">
+      <span class="text-sm font-medium text-text-secondary"
+        >{labels.consignmentItemLines}</span
+      >
+      <Button variant="secondary" size="sm" onclick={addLine}>
+        <Plus class="w-4 h-4" />
+        {labels.consignmentAddLine}
+      </Button>
+    </div>
 
       {#each lines as line, i (i)}
         <div class="rounded-xl border border-border-default p-3 space-y-3">
-          <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-3 items-end">
-            <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-              <span>{labels.consignmentProduct} <span class="text-danger">*</span></span>
+          <div
+            class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-3 items-end"
+          >
+            <label
+              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+            >
+              <span
+                >{labels.consignmentProduct}
+                <span class="text-danger">*</span></span
+              >
               <SelectSearch
                 bind:value={line.product_id}
                 options={productOptions}
@@ -310,30 +395,56 @@
                 notFoundText={labels.consignmentProductNotFound}
               />
             </label>
-            <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+            <label
+              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+            >
               <span>{labels.consignmentBrought}</span>
-              <NumberInput min="0" bind:value={line.brought_qty} class="h-9 w-24 text-sm" />
+              <NumberInput
+                min="0"
+                bind:value={line.brought_qty}
+                class="h-9 w-24 text-sm"
+              />
             </label>
-            <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+            <label
+              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+            >
               <span>{labels.consignmentRejected}</span>
-              <NumberInput min="0" bind:value={line.rejected_qty} class="h-9 w-24 text-sm" />
+              <NumberInput
+                min="0"
+                bind:value={line.rejected_qty}
+                class="h-9 w-24 text-sm"
+              />
             </label>
             {#if lines.length > 1}
-              <Button variant="ghost" size="sm" aria-label={labels.consignmentDeleteLine} onclick={() => removeLine(i)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={labels.consignmentDeleteLine}
+                onclick={() => removeLine(i)}
+              >
                 <Trash2 class="w-4 h-4" />
               </Button>
             {/if}
           </div>
           <div class="flex flex-wrap items-center gap-4 text-xs">
             <span class="text-text-secondary">
-              {labels.consignmentAccepted} <span class="font-semibold text-text-primary">{acceptedQty(line)}</span>
+              {labels.consignmentAccepted}
+              <span class="font-semibold text-text-primary"
+                >{acceptedQty(line)}</span
+              >
             </span>
             {#if line.product_id && termByProduct[line.product_id]}
               <span class="text-text-secondary">
-                {labels.consignmentTabTerms}: <span class="font-medium text-text-primary">{formatCurrency(termByProduct[line.product_id].price)}</span> {labels.consignmentPerUnit}
+                {labels.consignmentTabTerms}:
+                <span class="font-medium text-text-primary"
+                  >{formatCurrency(termByProduct[line.product_id].price)}</span
+                >
+                {labels.consignmentPerUnit}
               </span>
             {:else if line.product_id}
-              <span class="text-amber-600">{labels.consignmentNoTermsWarning}</span>
+              <span class="text-amber-600"
+                >{labels.consignmentNoTermsWarning}</span
+              >
             {/if}
             {#if line.conflict}
               <span class="text-danger">{line.conflict}</span>
@@ -342,15 +453,24 @@
         </div>
       {/each}
 
-      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+      <label
+        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+      >
         <span>{labels.notes}</span>
-        <Input tag="textarea" bind:value={entryNotes} rows={2} placeholder={labels.consignmentReceiptNotesPlaceholder} class="text-sm" />
+        <Input
+          tag="textarea"
+          bind:value={entryNotes}
+          rows={2}
+          placeholder={labels.consignmentReceiptNotesPlaceholder}
+          class="text-sm"
+        />
       </label>
     </div>
-  {/snippet}
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
-      <Button variant="secondary" onclick={() => (showEntryModal = false)}>{labels.cancel}</Button>
+      <Button variant="secondary" onclick={() => (showEntryModal = false)}
+        >{labels.cancel}</Button
+      >
       <Button onclick={submitEntry} disabled={submitting}>
         {submitting ? labels.saving : labels.save}
       </Button>
@@ -358,29 +478,53 @@
   {/snippet}
 </Modal>
 
-<Modal bind:open={showDetailModal} title={detailReceipt?.receipt_number || labels.consignmentReceiptDetail} size="xl">
-  {#snippet children()}
-    {#if loadingDetail}
-      <div class="p-8 text-center text-sm text-text-secondary">{labels.loading}</div>
-    {:else if detailReceipt}
+<Modal
+  bind:open={showDetailModal}
+  title={detailReceipt?.receipt_number || labels.consignmentReceiptDetail}
+  size="xl"
+>
+  {#if loadingDetail}
+    <div class="p-8 text-center text-sm text-text-secondary">
+      {labels.loading}
+    </div>
+  {:else if detailReceipt}
       <div class="space-y-4">
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
-            <div class="text-text-secondary text-xs uppercase tracking-wider">{labels.consignmentReceiptNo}</div>
-            <div class="font-medium text-text-primary">{detailReceipt.receipt_number}</div>
-          </div>
-          <div>
-            <div class="text-text-secondary text-xs uppercase tracking-wider">{labels.consignmentDate}</div>
-            <div class="font-medium text-text-primary">{formatDateTime(detailReceipt.received_at)}</div>
-          </div>
-          <div>
-            <div class="text-text-secondary text-xs uppercase tracking-wider">{labels.consignmentReceivedBy}</div>
-            <div class="font-medium text-text-primary">{detailReceipt.received_by_username || '-'}</div>
-          </div>
-          <div>
-            <div class="text-text-secondary text-xs uppercase tracking-wider">{labels.consignmentTotalValue}</div>
+            <div class="text-text-secondary text-xs uppercase tracking-wider">
+              {labels.consignmentReceiptNo}
+            </div>
             <div class="font-medium text-text-primary">
-              {formatCurrency((detailReceipt.items || []).reduce((s, i) => s + i.accepted_qty * i.price, 0))}
+              {detailReceipt.receipt_number}
+            </div>
+          </div>
+          <div>
+            <div class="text-text-secondary text-xs uppercase tracking-wider">
+              {labels.consignmentDate}
+            </div>
+            <div class="font-medium text-text-primary">
+              {formatDateTime(detailReceipt.received_at)}
+            </div>
+          </div>
+          <div>
+            <div class="text-text-secondary text-xs uppercase tracking-wider">
+              {labels.consignmentReceivedBy}
+            </div>
+            <div class="font-medium text-text-primary">
+              {detailReceipt.received_by_username || "-"}
+            </div>
+          </div>
+          <div>
+            <div class="text-text-secondary text-xs uppercase tracking-wider">
+              {labels.consignmentTotalValue}
+            </div>
+            <div class="font-medium text-text-primary">
+              {formatCurrency(
+                (detailReceipt.items || []).reduce(
+                  (s, i) => s + i.accepted_qty * i.price,
+                  0,
+                ),
+              )}
             </div>
           </div>
         </div>
@@ -390,11 +534,19 @@
             <div class="overflow-x-auto">
               <table class="w-full text-sm">
                 <thead>
-                  <tr class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50">
+                  <tr
+                    class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50"
+                  >
                     <th class="px-4 py-3">{labels.consignmentProduct}</th>
-                    <th class="px-4 py-3 text-right">{labels.consignmentAccepted}</th>
-                    <th class="px-4 py-3 text-right">{labels.consignmentPricePerUnit}</th>
-                    <th class="px-4 py-3 text-right">{labels.consignmentTotalValue}</th>
+                    <th class="px-4 py-3 text-right"
+                      >{labels.consignmentAccepted}</th
+                    >
+                    <th class="px-4 py-3 text-right"
+                      >{labels.consignmentPricePerUnit}</th
+                    >
+                    <th class="px-4 py-3 text-right"
+                      >{labels.consignmentTotalValue}</th
+                    >
                     <th class="px-4 py-3">{labels.consignmentStoreShare}</th>
                     <th class="px-4 py-3">{labels.notes}</th>
                   </tr>
@@ -403,25 +555,50 @@
                   {#each editItems as item, idx (item.id)}
                     <tr class="border-b border-border/40">
                       <td class="px-4 py-3">
-                        <div class="font-medium text-text-primary">{item.product_name}</div>
-                        <div class="text-xs text-text-secondary">{item.product_sku}</div>
+                        <div class="font-medium text-text-primary">
+                          {item.product_name}
+                        </div>
+                        <div class="text-xs text-text-secondary">
+                          {item.product_sku}
+                        </div>
                       </td>
                       <td class="px-4 py-3 text-right">
                         <div class="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" onclick={() => updateEditItemQty(idx, -1)}>-</Button>
-                          <NumberInput min="0" bind:value={item.accepted_qty} class="h-8 w-20 text-sm text-right" />
-                          <Button variant="ghost" size="sm" onclick={() => updateEditItemQty(idx, 1)}>+</Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onclick={() => updateEditItemQty(idx, -1)}>-</Button
+                          >
+                          <NumberInput
+                            min="0"
+                            bind:value={item.accepted_qty}
+                            class="h-8 w-20 text-sm text-right"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onclick={() => updateEditItemQty(idx, 1)}>+</Button
+                          >
                         </div>
                       </td>
-                      <td class="px-4 py-3 text-right text-text-primary">{formatCurrency(item.price)}</td>
-                      <td class="px-4 py-3 text-right text-text-primary">{formatCurrency(item.accepted_qty * item.price)}</td>
+                      <td class="px-4 py-3 text-right text-text-primary"
+                        >{formatCurrency(item.price)}</td
+                      >
+                      <td class="px-4 py-3 text-right text-text-primary"
+                        >{formatCurrency(item.accepted_qty * item.price)}</td
+                      >
                       <td class="px-4 py-3 text-text-secondary">
-                        {item.store_share_type === 'percentage'
+                        {item.store_share_type === "percentage"
                           ? `${item.store_share_value}%`
                           : formatCurrency(item.store_share_value)}
                       </td>
                       <td class="px-4 py-3">
-                        <Input type="text" bind:value={item.notes} class="h-8 text-sm" placeholder="-" />
+                        <Input
+                          type="text"
+                          bind:value={item.notes}
+                          class="h-8 text-sm"
+                          placeholder="-"
+                        />
                       </td>
                     </tr>
                   {/each}
@@ -429,14 +606,33 @@
               </table>
             </div>
 
-            <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+            <label
+              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+            >
               <span>{labels.notes}</span>
-              <Input tag="textarea" bind:value={editNotes} rows={2} placeholder={labels.consignmentReceiptNotesPlaceholder} class="text-sm" />
+              <Input
+                tag="textarea"
+                bind:value={editNotes}
+                rows={2}
+                placeholder={labels.consignmentReceiptNotesPlaceholder}
+                class="text-sm"
+              />
             </label>
 
-            <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-              <span>{labels.consignmentEditReason} <span class="text-danger">*</span></span>
-              <Input type="text" bind:value={editReason} rows={2} placeholder={labels.consignmentEditReasonPlaceholder} class="text-sm" />
+            <label
+              class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+            >
+              <span
+                >{labels.consignmentEditReason}
+                <span class="text-danger">*</span></span
+              >
+              <Input
+                type="text"
+                bind:value={editReason}
+                rows={2}
+                placeholder={labels.consignmentEditReasonPlaceholder}
+                class="text-sm"
+              />
             </label>
           </div>
         {:else}
@@ -450,31 +646,51 @@
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead>
-                <tr class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50">
+                <tr
+                  class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50"
+                >
                   <th class="px-4 py-3">{labels.consignmentProduct}</th>
-                  <th class="px-4 py-3 text-right">{labels.consignmentAccepted}</th>
-                  <th class="px-4 py-3 text-right">{labels.consignmentPricePerUnit}</th>
-                  <th class="px-4 py-3 text-right">{labels.consignmentTotalValue}</th>
+                  <th class="px-4 py-3 text-right"
+                    >{labels.consignmentAccepted}</th
+                  >
+                  <th class="px-4 py-3 text-right"
+                    >{labels.consignmentPricePerUnit}</th
+                  >
+                  <th class="px-4 py-3 text-right"
+                    >{labels.consignmentTotalValue}</th
+                  >
                   <th class="px-4 py-3">{labels.consignmentStoreShare}</th>
                   <th class="px-4 py-3">{labels.notes}</th>
                 </tr>
               </thead>
               <tbody>
-                {#each detailReceipt.items || [] as item}
+                {#each detailReceipt.items || [] as item, i (i)}
                   <tr class="border-b border-border/40">
                     <td class="px-4 py-3">
-                      <div class="font-medium text-text-primary">{item.product_name || `Product #${item.product_id}`}</div>
-                      <div class="text-xs text-text-secondary">{item.product_sku || ''}</div>
+                      <div class="font-medium text-text-primary">
+                        {item.product_name || `Product #${item.product_id}`}
+                      </div>
+                      <div class="text-xs text-text-secondary">
+                        {item.product_sku || ""}
+                      </div>
                     </td>
-                    <td class="px-4 py-3 text-right text-text-primary">{item.accepted_qty}</td>
-                    <td class="px-4 py-3 text-right text-text-primary">{formatCurrency(item.price)}</td>
-                    <td class="px-4 py-3 text-right text-text-primary">{formatCurrency(item.accepted_qty * item.price)}</td>
+                    <td class="px-4 py-3 text-right text-text-primary"
+                      >{item.accepted_qty}</td
+                    >
+                    <td class="px-4 py-3 text-right text-text-primary"
+                      >{formatCurrency(item.price)}</td
+                    >
+                    <td class="px-4 py-3 text-right text-text-primary"
+                      >{formatCurrency(item.accepted_qty * item.price)}</td
+                    >
                     <td class="px-4 py-3 text-text-secondary">
-                      {item.store_share_type === 'percentage'
+                      {item.store_share_type === "percentage"
                         ? `${item.store_share_value}%`
                         : formatCurrency(item.store_share_value)}
                     </td>
-                    <td class="px-4 py-3 text-text-secondary">{item.notes || '-'}</td>
+                    <td class="px-4 py-3 text-text-secondary"
+                      >{item.notes || "-"}</td
+                    >
                   </tr>
                 {/each}
               </tbody>
@@ -483,22 +699,27 @@
         {/if}
       </div>
     {/if}
-  {/snippet}
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
       {#if editMode}
-        <Button variant="secondary" onclick={cancelEdit}>{labels.cancel}</Button>
+        <Button variant="secondary" onclick={cancelEdit}>{labels.cancel}</Button
+        >
         <Button onclick={saveEdit} disabled={savingEdit}>
           {savingEdit ? labels.saving : labels.save}
         </Button>
       {:else}
-        <Button variant="secondary" onclick={() => (showDetailModal = false)}>{labels.close}</Button>
+        <Button variant="secondary" onclick={() => (showDetailModal = false)}
+          >{labels.close}</Button
+        >
         {#if detailReceipt}
           {#if editWindowExpired}
-            <span class="text-xs text-text-secondary italic self-center">{labels.consignmentEditWindowExpired}</span>
+            <span class="text-xs text-text-secondary italic self-center"
+              >{labels.consignmentEditWindowExpired}</span
+            >
           {:else}
             <Button variant="secondary" onclick={enterEditMode}>
-              <Pencil class="w-4 h-4" /> {labels.consignmentEditReceipt}
+              <Pencil class="w-4 h-4" />
+              {labels.consignmentEditReceipt}
             </Button>
           {/if}
         {/if}

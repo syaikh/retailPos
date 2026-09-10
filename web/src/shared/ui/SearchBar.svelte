@@ -1,15 +1,15 @@
 <script lang="ts">
-  import { Input } from '$shared/ui';
-  import { Search, X, Loader2 } from 'lucide-svelte';
+  import { Input } from "$shared/ui";
+  import { Search, X, Loader2 } from "lucide-svelte";
 
   let {
     value = $bindable(),
-    placeholder = 'Search...',
+    placeholder = "Search...",
     oninput,
     onsubmit,
     loading = false,
-    class: className = '',
-    inputClass = '',
+    class: className = "",
+    inputClass = "",
     id,
   }: {
     value?: string;
@@ -25,27 +25,30 @@
   let inputEl: HTMLInputElement;
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       if (value) {
-        value = '';
+        value = "";
         oninput?.();
       }
       inputEl?.blur();
     }
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       onsubmit?.();
     }
   }
 
   function handleClear() {
-    value = '';
+    value = "";
     oninput?.();
     inputEl?.focus();
   }
 </script>
 
 <div class="relative {className}" role="search">
-  <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none shrink-0" />
+  <Search
+    size={16}
+    class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none shrink-0"
+  />
   <Input
     type="text"
     {placeholder}
@@ -53,13 +56,16 @@
     onkeydown={handleKeydown}
     oninput={() => oninput?.()}
     class="pl-10 pr-10 w-full {inputClass}"
-    elementRef={(el) => inputEl = el as HTMLInputElement}
+    elementRef={(el) => (inputEl = el as HTMLInputElement)}
     {id}
     autocomplete="off"
     spellcheck="false"
   />
   {#if loading}
-    <Loader2 size={14} class="absolute right-3 top-1/2 -translate-y-1/2 text-primary-light animate-spin" />
+    <Loader2
+      size={14}
+      class="absolute right-3 top-1/2 -translate-y-1/2 text-primary-light animate-spin"
+    />
   {:else if value}
     <button
       onclick={handleClear}

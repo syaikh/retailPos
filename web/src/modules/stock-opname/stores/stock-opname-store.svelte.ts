@@ -22,8 +22,8 @@ import {
   listAdjustments,
   getAdjustment,
   exportStockOpname,
-} from '../services/stock-opname-service';
-import { useWebSocket } from '$shared/api/websocket';
+} from "../services/stock-opname-service";
+import { useWebSocket } from "$shared/api/websocket";
 import type {
   StockOpnameSession,
   StockOpnameAssignment,
@@ -37,7 +37,7 @@ import type {
   SaveCountPayload,
   PostAdjustmentPayload,
   Adjustment,
-} from '../types';
+} from "../types";
 
 let sessions = $state<StockOpnameSession[]>([]);
 let total = $state(0);
@@ -54,8 +54,8 @@ let adjustmentsTotal = $state(0);
 let adjustmentsLoading = $state(false);
 let currentAdjustment = $state<Adjustment | null>(null);
 
-let statusFilter = $state('');
-let searchFilter = $state('');
+let statusFilter = $state("");
+let searchFilter = $state("");
 let page = $state(0);
 let pageSize = $state(20);
 
@@ -64,27 +64,69 @@ let wsSubscribed = false;
 
 export function useStockOpnameStore() {
   return {
-    get sessions() { return sessions; },
-    get total() { return total; },
-    get loading() { return loading; },
-    get current() { return current; },
-    get currentAssignments() { return currentAssignments; },
-    get assignableUsers() { return assignableUsers; },
-    get assignableLoading() { return assignableLoading; },
-    get currentSummary() { return currentSummary; },
-    get adjustments() { return adjustments; },
-    get adjustmentsTotal() { return adjustmentsTotal; },
-    get adjustmentsLoading() { return adjustmentsLoading; },
-    get currentAdjustment() { return currentAdjustment; },
-    get statusFilter() { return statusFilter; },
-    set statusFilter(v: string) { statusFilter = v; },
-    get searchFilter() { return searchFilter; },
-    set searchFilter(v: string) { searchFilter = v; },
-    get page() { return page; },
-    set page(v: number) { page = v; },
-    get pageSize() { return pageSize; },
-    set pageSize(v: number) { pageSize = v; },
-    get offset() { return page * pageSize; },
+    get sessions() {
+      return sessions;
+    },
+    get total() {
+      return total;
+    },
+    get loading() {
+      return loading;
+    },
+    get current() {
+      return current;
+    },
+    get currentAssignments() {
+      return currentAssignments;
+    },
+    get assignableUsers() {
+      return assignableUsers;
+    },
+    get assignableLoading() {
+      return assignableLoading;
+    },
+    get currentSummary() {
+      return currentSummary;
+    },
+    get adjustments() {
+      return adjustments;
+    },
+    get adjustmentsTotal() {
+      return adjustmentsTotal;
+    },
+    get adjustmentsLoading() {
+      return adjustmentsLoading;
+    },
+    get currentAdjustment() {
+      return currentAdjustment;
+    },
+    get statusFilter() {
+      return statusFilter;
+    },
+    set statusFilter(v: string) {
+      statusFilter = v;
+    },
+    get searchFilter() {
+      return searchFilter;
+    },
+    set searchFilter(v: string) {
+      searchFilter = v;
+    },
+    get page() {
+      return page;
+    },
+    set page(v: number) {
+      page = v;
+    },
+    get pageSize() {
+      return pageSize;
+    },
+    set pageSize(v: number) {
+      pageSize = v;
+    },
+    get offset() {
+      return page * pageSize;
+    },
 
     get currentFilters(): StockOpnameFilters {
       return {
@@ -115,7 +157,9 @@ export function useStockOpnameStore() {
       }
     },
 
-    async createSession(payload: CreateStockOpnamePayload): Promise<StockOpnameSession> {
+    async createSession(
+      payload: CreateStockOpnamePayload,
+    ): Promise<StockOpnameSession> {
       const session = await createStockOpname(payload);
       return session;
     },
@@ -167,10 +211,10 @@ export function useStockOpnameStore() {
 
     async saveCount(itemId: number, payload: SaveCountPayload) {
       await saveCount(itemId, payload);
-      const item = current?.items?.find(i => i.id === itemId);
+      const item = current?.items?.find((i) => i.id === itemId);
       if (item) {
         item.physical_qty = payload.physical_qty;
-        item.status = 'counted';
+        item.status = "counted";
       }
       const summary = await getSessionSummary(current!.id);
       currentSummary = summary;
@@ -213,7 +257,10 @@ export function useStockOpnameStore() {
       await this.loadSession(id);
     },
 
-    async post(id: number, payload: PostAdjustmentPayload): Promise<Adjustment> {
+    async post(
+      id: number,
+      payload: PostAdjustmentPayload,
+    ): Promise<Adjustment> {
       const adjustment = await postAdjustment(id, payload);
       await this.loadSession(id);
       return adjustment;
@@ -224,7 +271,12 @@ export function useStockOpnameStore() {
       await this.loadSession(id);
     },
 
-    async loadAdjustments(filters: { status?: string; search?: string; limit: number; offset: number }) {
+    async loadAdjustments(filters: {
+      status?: string;
+      search?: string;
+      limit: number;
+      offset: number;
+    }) {
       abortController?.abort();
       const controller = new AbortController();
       abortController = controller;
@@ -252,11 +304,11 @@ export function useStockOpnameStore() {
       return exportStockOpname(id);
     },
 
-    subscribeToWS(onStatus?: (data: any) => void): () => void {
+    subscribeToWS(onStatus?: (data: { session_id: number }) => void): () => void {
       if (wsSubscribed) return () => {};
       wsSubscribed = true;
       const ws = useWebSocket();
-      const reload = (data: any) => {
+      const reload = (data: { session_id: number }) => {
         this.loadSessions(this.currentFilters);
         const cur = current;
         if (cur && cur.id === data.session_id) {
@@ -265,18 +317,18 @@ export function useStockOpnameStore() {
         onStatus?.(data);
       };
       const unsubs = [
-        ws.on('so_created', reload),
-        ws.on('so_opened', reload),
-        ws.on('so_submitted', reload),
-        ws.on('so_approved', reload),
-        ws.on('so_posted', reload),
-        ws.on('so_closed', reload),
-        ws.on('so_rejected', reload),
-        ws.on('so_needs_recount', reload),
-        ws.on('so_cancelled', reload),
+        ws.on("so_created", reload),
+        ws.on("so_opened", reload),
+        ws.on("so_submitted", reload),
+        ws.on("so_approved", reload),
+        ws.on("so_posted", reload),
+        ws.on("so_closed", reload),
+        ws.on("so_rejected", reload),
+        ws.on("so_needs_recount", reload),
+        ws.on("so_cancelled", reload),
       ];
       return () => {
-        unsubs.forEach(fn => fn());
+        unsubs.forEach((fn) => fn());
         wsSubscribed = false;
       };
     },

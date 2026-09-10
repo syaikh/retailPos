@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { Badge, Pagination, Skeleton, SortableHeader } from '$shared/ui';
-  import { Banknote, Copy, Check } from 'lucide-svelte';
-  import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
-  import { labels, t } from '$shared/i18n';
+  import { Badge, Pagination, Skeleton, SortableHeader } from "$shared/ui";
+  import { Banknote, Copy, Check } from "lucide-svelte";
+  import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime";
+  import { labels, t } from "$shared/i18n";
+  import type { Sale } from "../types";
 
   let copiedInvoice = $state<string | null>(null);
 
@@ -10,7 +11,9 @@
     try {
       await navigator.clipboard.writeText(invoice);
       copiedInvoice = invoice;
-      setTimeout(() => { copiedInvoice = null; }, 1500);
+      setTimeout(() => {
+        copiedInvoice = null;
+      }, 1500);
     } catch {
       // Clipboard unavailable (non-secure context) — leave feedback unset.
     }
@@ -22,37 +25,40 @@
     total = 0,
     limit = 20,
     offset = 0,
-    sortBy = $bindable('created_at'),
-    sortDir = $bindable('desc'),
+    sortBy = $bindable("created_at"),
+    sortDir = $bindable("desc"),
     ontogglesort = () => {},
     onpagechange = () => {},
     onrowclick = () => {},
   }: {
-    salesData?: any[];
+    salesData?: Sale[];
     loading?: boolean;
     total?: number;
     limit?: number;
     offset?: number;
     sortBy?: string;
-    sortDir?: 'asc' | 'desc';
+    sortDir?: "asc" | "desc";
     ontogglesort?: (col: string) => void;
     onpagechange?: (offset: number, limit: number) => void;
-    onrowclick?: (sale: any) => void;
+    onrowclick?: (sale: Sale) => void;
   } = $props();
 
-  function getPaymentMethodVariant(method = '') {
-    if (!method) return 'muted';
+  function getPaymentMethodVariant(method = "") {
+    if (!method) return "muted";
     const m = method.toLowerCase();
-    if (m === 'cash') return 'success';
-    if (m === 'qris' || m === 'e_wallet') return 'default';
-    if (m === 'card') return 'primary';
-    if (m === 'transfer') return 'muted';
-    return 'muted';
+    if (m === "cash") return "success";
+    if (m === "qris" || m === "e_wallet") return "default";
+    if (m === "card") return "primary";
+    if (m === "transfer") return "muted";
+    return "muted";
   }
 
   function splitPaymentMethods(methods: string): string[] {
     if (!methods) return [];
-    return methods.split(',').map(m => m.trim()).filter(Boolean);
+    return methods
+      .split(",")
+      .map((m) => m.trim())
+      .filter(Boolean);
   }
 
   const formatDateTime = (date: Date) => {
@@ -68,12 +74,12 @@
     onpagechange(newOffset, newLimit);
   }
 
-  function handleRowClick(sale: any) {
+  function handleRowClick(sale: Sale) {
     onrowclick(sale);
   }
 
-  function handleRowKeydown(e: KeyboardEvent, sale: any) {
-    if (e.key === 'Enter' || e.key === ' ') {
+  function handleRowKeydown(e: KeyboardEvent, sale: Sale) {
+    if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       handleRowClick(sale);
     }
@@ -84,23 +90,34 @@
   {#if loading}
     <div aria-busy="true" aria-label={labels.loadingTransactions}>
       <div class="divide-y divide-border">
-      {#each { length: 5 } as _}
-        <div class="flex items-center gap-4 px-4 py-3.5">
-          <Skeleton width="w-32" height="h-4" />
-          <Skeleton width="w-24" height="h-4" />
-          <Skeleton width="w-20" height="h-6" rounded="rounded-full" class="ml-auto" />
-          <Skeleton width="w-28" height="h-4" />
-        </div>
-      {/each}
+        {#each { length: 5 } as _, i (i)}
+          <div class="flex items-center gap-4 px-4 py-3.5">
+            <Skeleton width="w-32" height="h-4" />
+            <Skeleton width="w-24" height="h-4" />
+            <Skeleton
+              width="w-20"
+              height="h-6"
+              rounded="rounded-full"
+              class="ml-auto"
+            />
+            <Skeleton width="w-28" height="h-4" />
+          </div>
+        {/each}
       </div>
     </div>
   {:else if salesData.length === 0}
     <div class="px-4 py-12 text-center" role="status">
-      <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
+      <div
+        class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center"
+      >
         <Banknote size={32} class="text-text-muted" />
       </div>
-      <p class="text-text-primary font-semibold mt-4">{labels.noTransactionsFound}</p>
-      <p class="text-text-muted text-sm mt-1">{labels.tryAdjustingSearchOrDateRange}</p>
+      <p class="text-text-primary font-semibold mt-4">
+        {labels.noTransactionsFound}
+      </p>
+      <p class="text-text-muted text-sm mt-1">
+        {labels.tryAdjustingSearchOrDateRange}
+      </p>
     </div>
   {:else}
     <div class="overflow-x-auto">
@@ -108,18 +125,45 @@
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold">
-              <SortableHeader label={labels.invoiceLabel} column="invoice_number" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+              <SortableHeader
+                label={labels.invoiceLabel}
+                column="invoice_number"
+                sortColumn={sortBy}
+                sortDirection={sortDir}
+                onsort={handleSort}
+              />
             </th>
             <th class="text-left p-4 font-semibold">
-              <SortableHeader label={labels.dateLabel} column="created_at" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+              <SortableHeader
+                label={labels.dateLabel}
+                column="created_at"
+                sortColumn={sortBy}
+                sortDirection={sortDir}
+                onsort={handleSort}
+              />
             </th>
-            <th class="text-left p-4 font-semibold w-[30%]">{labels.customerLabel}</th>
+            <th class="text-left p-4 font-semibold w-[30%]"
+              >{labels.customerLabel}</th
+            >
             <th class="text-right p-4 font-semibold">{labels.itemsLabel}</th>
             <th class="text-left p-4 font-semibold">
-              <SortableHeader label={labels.paymentLabel} column="payment_method" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+              <SortableHeader
+                label={labels.paymentLabel}
+                column="payment_method"
+                sortColumn={sortBy}
+                sortDirection={sortDir}
+                onsort={handleSort}
+              />
             </th>
             <th class="text-right p-4 font-semibold">
-              <SortableHeader label={labels.totalRp} column="total_amount" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
+              <SortableHeader
+                label={labels.totalRp}
+                column="total_amount"
+                sortColumn={sortBy}
+                sortDirection={sortDir}
+                onsort={handleSort}
+                align="right"
+              />
             </th>
           </tr>
         </thead>
@@ -142,12 +186,18 @@
                     class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0"
                     title={labels.copyInvoiceNumber}
                     aria-label={labels.copyInvoiceNumber}
-                    onclick={(e) => { e.stopPropagation(); copyInvoice(sale.invoice_number); }}
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      copyInvoice(sale.invoice_number);
+                    }}
                   >
                     {#if copiedInvoice === sale.invoice_number}
                       <Check size={13} class="text-primary" />
                     {:else}
-                      <Copy size={13} class="text-text-muted hover:text-primary" />
+                      <Copy
+                        size={13}
+                        class="text-text-muted hover:text-primary"
+                      />
                     {/if}
                   </button>
                 </span>
@@ -162,24 +212,32 @@
                 {sale.items?.length || 0}
               </td>
               <td class="p-4">
-                {#if sale.payment_method && sale.payment_method.includes(',')}
+                {#if sale.payment_method && sale.payment_method.includes(",")}
                   {@const methods = splitPaymentMethods(sale.payment_method)}
                   <div class="flex flex-wrap gap-1">
-                    <Badge variant={getPaymentMethodVariant(methods[0])} class="text-xs px-2.5 py-0.5">
+                    <Badge
+                      variant={getPaymentMethodVariant(methods[0])}
+                      class="text-xs px-2.5 py-0.5"
+                    >
                       {methods[0]}
                     </Badge>
                     <Badge variant="muted" class="text-xs px-2.5 py-0.5">
-                      {t('moreWithCount', { count: methods.length - 1 })}
+                      {t("moreWithCount", { count: methods.length - 1 })}
                     </Badge>
                   </div>
                 {:else}
-                  <Badge variant={getPaymentMethodVariant(sale.payment_method)} class="text-xs px-2.5 py-0.5">
-                    {sale.payment_method || '—'}
+                  <Badge
+                    variant={getPaymentMethodVariant(sale.payment_method)}
+                    class="text-xs px-2.5 py-0.5"
+                  >
+                    {sale.payment_method || "—"}
                   </Badge>
                 {/if}
               </td>
-              <td class="p-4 text-right text-sm font-semibold text-text-primary">
-                {(sale.total_amount || 0).toLocaleString('id-ID')}
+              <td
+                class="p-4 text-right text-sm font-semibold text-text-primary"
+              >
+                {(sale.total_amount || 0).toLocaleString("id-ID")}
               </td>
             </tr>
           {/each}
@@ -188,12 +246,7 @@
     </div>
 
     <div class="p-4 bg-surface-subtle/30 border-t border-border/50">
-      <Pagination
-        {total}
-        {limit}
-        {offset}
-        onPageChange={handlePageChange}
-      />
+      <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
     </div>
   {/if}
 </div>

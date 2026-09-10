@@ -1,4 +1,4 @@
-import { restoreSession, useAuthStore } from '$modules/auth';
+import { restoreSession, useAuthStore } from "$modules/auth";
 
 export async function initAuth(): Promise<void> {
   const store = useAuthStore();
