@@ -15,7 +15,9 @@ describe("FindTransaction.svelte source-structure guards", () => {
   const src = getSource();
 
   it("calls the cross-cashier lookup service", () => {
-    expect(src).toContain('import { getSalesLookup } from "../services/sales-service"');
+    expect(src).toContain(
+      'import { getSalesLookup } from "../services/sales-service"',
+    );
     expect(src).toContain("getSalesLookup(");
   });
 
@@ -62,9 +64,7 @@ describe("FindTransaction.svelte source-structure guards", () => {
   it("sets hasSearched only after a successful lookup (and clears it on empty query)", () => {
     expect(src).toContain("function runSearch");
     expect(src).toContain("hasSearched = true");
-    expect(src).toContain(
-      "if (!searchQuery.trim()) {",
-    );
+    expect(src).toContain("if (!searchQuery.trim()) {");
     expect(src).toContain("hasSearched = false");
     expect(src).toContain("return;");
   });

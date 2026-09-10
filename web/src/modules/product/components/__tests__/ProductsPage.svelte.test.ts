@@ -28,7 +28,9 @@ describe("ProductsPage.svelte source-structure guards", () => {
   });
 
   it("imports toast store", () => {
-    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
+    expect(src).toContain(
+      'import { toast } from "$shared/stores/toast.svelte"',
+    );
   });
 
   it("imports i18n labels", () => {
@@ -106,9 +108,7 @@ describe("ProductsPage.svelte source-structure guards", () => {
 
   it("imports getProductById for deep-link fallback", () => {
     expect(src).toContain("getProductById");
-    expect(src).toContain(
-      'from "$modules/product/services/product-service"',
-    );
+    expect(src).toContain('from "$modules/product/services/product-service"');
   });
 
   it("falls back to getProductById when deep-linked product is not on the loaded page", () => {

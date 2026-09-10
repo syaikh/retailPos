@@ -48,12 +48,8 @@ describe("CustomersPage.svelte source-structure guards", () => {
     expect(src).toContain(
       'import CustomerToolbar from "./CustomerToolbar.svelte"',
     );
-    expect(src).toContain(
-      'import CustomerTable from "./CustomerTable.svelte"',
-    );
-    expect(src).toContain(
-      'import BulkActionBar from "./BulkActionBar.svelte"',
-    );
+    expect(src).toContain('import CustomerTable from "./CustomerTable.svelte"');
+    expect(src).toContain('import BulkActionBar from "./BulkActionBar.svelte"');
   });
 
   it("uses $state for customers, loading, pagination", () => {

@@ -101,7 +101,7 @@ describe("PricingRulesTable.svelte source-structure guards", () => {
   });
 
   it("uses native checkbox for three-state select all", () => {
-    expect(src).toContain("type=\"checkbox\"");
+    expect(src).toContain('type="checkbox"');
     expect(src).toContain("bind:indeterminate={someSelected}");
     expect(src).toContain("onchange={toggleSelectAll}");
   });

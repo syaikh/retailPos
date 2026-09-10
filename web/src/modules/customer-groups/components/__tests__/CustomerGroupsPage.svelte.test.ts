@@ -34,9 +34,7 @@ describe("CustomerGroupsPage.svelte source-structure guards", () => {
   });
 
   it("has handleBulkDeactivate function", () => {
-    expect(src).toContain(
-      "async function handleBulkDeactivate(ids: number[])",
-    );
+    expect(src).toContain("async function handleBulkDeactivate(ids: number[])");
   });
 
   it("has handleBulkDelete function", () => {

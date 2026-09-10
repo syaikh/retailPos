@@ -30,7 +30,9 @@ describe("PeriodSelector.svelte source-structure guards", () => {
   });
 
   it("imports CalendarDate from @internationalized/date", () => {
-    expect(src).toContain('import { CalendarDate } from "@internationalized/date"');
+    expect(src).toContain(
+      'import { CalendarDate } from "@internationalized/date"',
+    );
   });
 
   it("imports lucide icons", () => {

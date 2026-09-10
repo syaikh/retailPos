@@ -20,7 +20,9 @@ describe("PricingRulesToolbar.svelte source-structure guards", () => {
   });
 
   it("imports Calculator, ChevronDown, Plus icons (no Columns3)", () => {
-    expect(src).toContain('import { Plus, ChevronDown, Calculator } from "lucide-svelte"');
+    expect(src).toContain(
+      'import { Plus, ChevronDown, Calculator } from "lucide-svelte"',
+    );
     expect(src).not.toContain("Columns3");
   });
 
@@ -110,11 +112,15 @@ describe("PricingRulesToolbar.svelte source-structure guards", () => {
   });
 
   it("has aria-label on type filter dropdown trigger", () => {
-    expect(src).toContain('aria-label={labels.filterTipe.replace("{typeLabel}", typeLabel)}');
+    expect(src).toContain(
+      'aria-label={labels.filterTipe.replace("{typeLabel}", typeLabel)}',
+    );
   });
 
   it("has aria-label on method filter dropdown trigger", () => {
-    expect(src).toContain('aria-label={labels.filterMetode.replace("{methodLabel}", methodLabel)}');
+    expect(src).toContain(
+      'aria-label={labels.filterMetode.replace("{methodLabel}", methodLabel)}',
+    );
   });
 
   it('SearchBar has id="pricing-search"', () => {

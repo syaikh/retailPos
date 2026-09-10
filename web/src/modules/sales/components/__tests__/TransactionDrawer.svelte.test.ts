@@ -27,15 +27,21 @@ describe("TransactionDrawer.svelte source-structure guards", () => {
   });
 
   it("imports formatDateTimeInJakarta", () => {
-    expect(src).toContain('import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime"');
+    expect(src).toContain(
+      'import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime"',
+    );
   });
 
   it("imports printReceipt service", () => {
-    expect(src).toContain('import { printReceiptWithToast } from "$shared/services/print-service"');
+    expect(src).toContain(
+      'import { printReceiptWithToast } from "$shared/services/print-service"',
+    );
   });
 
   it("imports downloadInvoice", () => {
-    expect(src).toContain('import { downloadInvoice } from "$modules/sales/lib/invoicePdf"');
+    expect(src).toContain(
+      'import { downloadInvoice } from "$modules/sales/lib/invoicePdf"',
+    );
   });
 
   it("imports apiClient for sale detail fetch", () => {
@@ -43,7 +49,9 @@ describe("TransactionDrawer.svelte source-structure guards", () => {
   });
 
   it("imports toast", () => {
-    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
+    expect(src).toContain(
+      'import { toast } from "$shared/stores/toast.svelte"',
+    );
   });
 
   it("imports i18n labels", () => {

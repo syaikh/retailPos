@@ -15,11 +15,15 @@ describe("Toast.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports toast store from shared/stores", () => {
-    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
+    expect(src).toContain(
+      'import { toast } from "$shared/stores/toast.svelte"',
+    );
   });
 
   it("imports lucide icons for variants", () => {
-    expect(src).toContain('import { CheckCircle, XCircle, AlertTriangle, Info, X } from "lucide-svelte"');
+    expect(src).toContain(
+      'import { CheckCircle, XCircle, AlertTriangle, Info, X } from "lucide-svelte"',
+    );
   });
 
   it("defines icons map for success, error, warning, info", () => {
@@ -30,9 +34,15 @@ describe("Toast.svelte source-structure guards", () => {
   });
 
   it("defines styles map for each variant", () => {
-    expect(src).toContain('"border-success/30 bg-success-subtle text-success-light"');
-    expect(src).toContain('"border-danger/30 bg-danger-subtle text-danger-light"');
-    expect(src).toContain('"border-warning/30 bg-warning-subtle text-warning-light"');
+    expect(src).toContain(
+      '"border-success/30 bg-success-subtle text-success-light"',
+    );
+    expect(src).toContain(
+      '"border-danger/30 bg-danger-subtle text-danger-light"',
+    );
+    expect(src).toContain(
+      '"border-warning/30 bg-warning-subtle text-warning-light"',
+    );
     expect(src).toContain('"border-info/30 bg-info-subtle text-info-light"');
   });
 

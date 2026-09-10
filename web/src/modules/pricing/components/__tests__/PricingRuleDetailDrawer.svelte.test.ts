@@ -124,7 +124,9 @@ describe("PricingRuleDetailDrawer.svelte source-structure guards", () => {
 
   it("has typeLabel function", () => {
     expect(src).toContain("function typeLabel(t: string): string");
-    expect(src).toContain('return t === "special_price" ? labels.hargaSpesial : labels.promosi');
+    expect(src).toContain(
+      'return t === "special_price" ? labels.hargaSpesial : labels.promosi',
+    );
   });
 
   it("has targetLabel function using targetNames map", () => {
@@ -276,9 +278,7 @@ describe("PricingRuleDetailDrawer.svelte source-structure guards", () => {
   });
 
   it("resolves customer group name from customerGroups array", () => {
-    expect(src).toContain(
-      "(cg) => cg.id === rule.customer_group_id",
-    );
+    expect(src).toContain("(cg) => cg.id === rule.customer_group_id");
   });
 
   it("resolves store name from stores array", () => {

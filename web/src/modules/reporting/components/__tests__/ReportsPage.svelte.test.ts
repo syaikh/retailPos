@@ -19,11 +19,17 @@ describe("ReportsPage.svelte source-structure guards", () => {
   });
 
   it("imports extracted child components", () => {
-    expect(src).toContain('import PeriodSelector from "./PeriodSelector.svelte"');
+    expect(src).toContain(
+      'import PeriodSelector from "./PeriodSelector.svelte"',
+    );
     expect(src).toContain('import KPICards from "./KPICards.svelte"');
     expect(src).toContain('import ChartArea from "./ChartArea.svelte"');
-    expect(src).toContain('import BestWorstBadges from "./BestWorstBadges.svelte"');
-    expect(src).toContain('import RevenueDataTable from "./RevenueDataTable.svelte"');
+    expect(src).toContain(
+      'import BestWorstBadges from "./BestWorstBadges.svelte"',
+    );
+    expect(src).toContain(
+      'import RevenueDataTable from "./RevenueDataTable.svelte"',
+    );
   });
 
   it("uses child components in template", () => {

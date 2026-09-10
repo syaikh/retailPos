@@ -25,7 +25,9 @@ describe("CartPanel.svelte source-structure guards", () => {
   });
 
   it("imports PrintModeToggle for per-register print mode", () => {
-    expect(src).toContain('import PrintModeToggle from "$app/components/PrintModeToggle.svelte"');
+    expect(src).toContain(
+      'import PrintModeToggle from "$app/components/PrintModeToggle.svelte"',
+    );
   });
 
   it("renders the PrintModeToggle in the cart footer", () => {

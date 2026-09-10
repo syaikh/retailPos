@@ -15,11 +15,15 @@ describe("PosProductTable.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Badge, Button, Pagination, Skeleton from shared/ui", () => {
-    expect(src).toContain('import { Badge, Button, Pagination, Skeleton } from "$shared/ui"');
+    expect(src).toContain(
+      'import { Badge, Button, Pagination, Skeleton } from "$shared/ui"',
+    );
   });
 
   it("imports Plus, Copy, Package from lucide-svelte", () => {
-    expect(src).toContain('import { Plus, Copy, Package } from "lucide-svelte"');
+    expect(src).toContain(
+      'import { Plus, Copy, Package } from "lucide-svelte"',
+    );
   });
 
   it("imports i18n labels", () => {

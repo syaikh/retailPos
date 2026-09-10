@@ -19,15 +19,21 @@ describe("ProductDetailDrawer.svelte source-structure guards", () => {
   });
 
   it("imports lucide icons (Pencil, Trash2, Copy, Percent)", () => {
-    expect(src).toContain('import { Pencil, Trash2, Copy, Percent } from "lucide-svelte"');
+    expect(src).toContain(
+      'import { Pencil, Trash2, Copy, Percent } from "lucide-svelte"',
+    );
   });
 
   it("imports formatDateTimeInJakarta", () => {
-    expect(src).toContain('import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime"');
+    expect(src).toContain(
+      'import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime"',
+    );
   });
 
   it("imports toast store", () => {
-    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
+    expect(src).toContain(
+      'import { toast } from "$shared/stores/toast.svelte"',
+    );
   });
 
   it("imports i18n labels", () => {

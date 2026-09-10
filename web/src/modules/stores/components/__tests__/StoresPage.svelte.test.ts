@@ -15,7 +15,9 @@ describe("StoresPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Jakarta time utility", () => {
-    expect(src).toContain('import { formatDateInJakarta } from "$shared/utils/jakartaTime"');
+    expect(src).toContain(
+      'import { formatDateInJakarta } from "$shared/utils/jakartaTime"',
+    );
   });
 
   it("imports store service functions", () => {
@@ -44,13 +46,21 @@ describe("StoresPage.svelte source-structure guards", () => {
 
   it("has RBAC derived from the shared composable", () => {
     expect(src).toContain("const rbac = useRBAC()");
-    expect(src).toContain("const canCreate = $derived(rbac.can(Permissions.store.create))");
-    expect(src).toContain("const canEdit = $derived(rbac.can(Permissions.store.update))");
-    expect(src).toContain("const canDelete = $derived(rbac.can(Permissions.store.delete))");
+    expect(src).toContain(
+      "const canCreate = $derived(rbac.can(Permissions.store.create))",
+    );
+    expect(src).toContain(
+      "const canEdit = $derived(rbac.can(Permissions.store.update))",
+    );
+    expect(src).toContain(
+      "const canDelete = $derived(rbac.can(Permissions.store.delete))",
+    );
   });
 
   it("has sort state and handleSort function", () => {
-    expect(src).toContain('const { sortState, handleSort } = useSortable("name", "asc")');
+    expect(src).toContain(
+      'const { sortState, handleSort } = useSortable("name", "asc")',
+    );
     expect(src).toContain("sortState.sortBy");
     expect(src).toContain("sortState.sortDir");
   });

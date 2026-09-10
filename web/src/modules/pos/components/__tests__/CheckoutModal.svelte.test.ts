@@ -25,7 +25,9 @@ describe("CheckoutModal.svelte source-structure guards", () => {
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain('import { labels, t, paymentMethodLabel } from "$shared/i18n"');
+    expect(src).toContain(
+      'import { labels, t, paymentMethodLabel } from "$shared/i18n"',
+    );
   });
 
   it("has denominations array", () => {
@@ -166,7 +168,7 @@ describe("CheckoutModal.svelte source-structure guards", () => {
     expect(src).toContain(
       "{:else if remainingBalance < 0 && overTenderOnCash}",
     );
-    expect(src).toContain('{labels.changeDue}');
-    expect(src).toContain("changeDue.toLocaleString(\"id-ID\")");
+    expect(src).toContain("{labels.changeDue}");
+    expect(src).toContain('changeDue.toLocaleString("id-ID")');
   });
 });

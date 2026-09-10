@@ -29,7 +29,9 @@ describe("TransactionFilters.svelte source-structure guards", () => {
   });
 
   it("imports SearchBar and Input", () => {
-    expect(src).toContain('import { Button, Input, SearchBar, Dropdown } from "$shared/ui"');
+    expect(src).toContain(
+      'import { Button, Input, SearchBar, Dropdown } from "$shared/ui"',
+    );
   });
 
   it("imports lucide icons", () => {
@@ -43,7 +45,9 @@ describe("TransactionFilters.svelte source-structure guards", () => {
   });
 
   it("imports toast", () => {
-    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
+    expect(src).toContain(
+      'import { toast } from "$shared/stores/toast.svelte"',
+    );
   });
 
   it("imports i18n labels", () => {

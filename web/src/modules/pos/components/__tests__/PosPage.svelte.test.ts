@@ -23,11 +23,15 @@ describe("PosPage.svelte source-structure guards", () => {
   });
 
   it("imports toast store", () => {
-    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
+    expect(src).toContain(
+      'import { toast } from "$shared/stores/toast.svelte"',
+    );
   });
 
   it("imports printReceipt toast helper from shared service", () => {
-    expect(src).toContain('import { printReceiptWithToast } from "$shared/services/print-service"');
+    expect(src).toContain(
+      'import { printReceiptWithToast } from "$shared/services/print-service"',
+    );
   });
 
   it("delegates silent print + failure toast to printReceiptWithToast (no fallback to preview)", () => {
@@ -45,17 +49,21 @@ describe("PosPage.svelte source-structure guards", () => {
   });
 
   it("imports ShoppingCart from lucide-svelte for paymentOptions", () => {
-    expect(src).toContain(
-      'import { ShoppingCart } from "lucide-svelte"',
-    );
+    expect(src).toContain('import { ShoppingCart } from "lucide-svelte"');
   });
 
   it("imports extracted child components", () => {
-    expect(src).toContain('import ProductSearchPanel from "./ProductSearchPanel.svelte"');
-    expect(src).toContain('import PosProductTable from "./PosProductTable.svelte"');
+    expect(src).toContain(
+      'import ProductSearchPanel from "./ProductSearchPanel.svelte"',
+    );
+    expect(src).toContain(
+      'import PosProductTable from "./PosProductTable.svelte"',
+    );
     expect(src).toContain('import CartPanel from "./CartPanel.svelte"');
     expect(src).toContain('import CheckoutModal from "./CheckoutModal.svelte"');
-    expect(src).toContain('import CustomerSelectModal from "./CustomerSelectModal.svelte"');
+    expect(src).toContain(
+      'import CustomerSelectModal from "./CustomerSelectModal.svelte"',
+    );
   });
 
   it("uses $state for cart, products, search state", () => {
@@ -140,13 +148,17 @@ describe("PosPage.svelte source-structure guards", () => {
     expect(src).toContain(
       'tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT"',
     );
-    expect(src).toContain('const isInteractive = tag === "BUTTON" || tag === "A"');
+    expect(src).toContain(
+      'const isInteractive = tag === "BUTTON" || tag === "A"',
+    );
     expect(src).toContain("!isEditable &&");
     expect(src).toContain("!isInteractive");
   });
 
   it("keeps arrow navigation active from the search input", () => {
-    expect(src).toContain('const isSearchInput = target?.id === "pos-search-input"');
+    expect(src).toContain(
+      'const isSearchInput = target?.id === "pos-search-input"',
+    );
     expect(src).toContain("if (isEditable && !isSearchInput) return;");
   });
 

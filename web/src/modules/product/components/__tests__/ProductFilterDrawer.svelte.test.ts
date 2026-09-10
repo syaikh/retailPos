@@ -16,7 +16,9 @@ describe("ProductFilterDrawer.svelte source-structure guards", () => {
 
   it("imports SearchBar from shared/ui and Brand type", () => {
     expect(src).toContain('import { SearchBar } from "$shared/ui"');
-    expect(src).toContain('import type { Brand } from "$modules/product/types"');
+    expect(src).toContain(
+      'import type { Brand } from "$modules/product/types"',
+    );
   });
 
   it("uses $bindable for open, selectedCategories, selectedBrandIDs", () => {
@@ -38,12 +40,16 @@ describe("ProductFilterDrawer.svelte source-structure guards", () => {
   it("filters categories excluding All and matching search case-insensitively", () => {
     expect(src).toContain("categories.filter(");
     expect(src).toContain('cat !== "All" &&');
-    expect(src).toContain("cat.toLowerCase().includes(searchQuery.toLowerCase())");
+    expect(src).toContain(
+      "cat.toLowerCase().includes(searchQuery.toLowerCase())",
+    );
   });
 
   it("filters brands by name matching search case-insensitively", () => {
     expect(src).toContain("brands.filter(");
-    expect(src).toContain("b.name.toLowerCase().includes(searchQuery.toLowerCase())");
+    expect(src).toContain(
+      "b.name.toLowerCase().includes(searchQuery.toLowerCase())",
+    );
   });
 
   it("toggles category and brand selections in temp state", () => {

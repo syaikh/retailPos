@@ -15,9 +15,15 @@ describe("TransactionsPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports extracted child components", () => {
-    expect(src).toContain('import TransactionFilters from "./TransactionFilters.svelte"');
-    expect(src).toContain('import TransactionTable from "./TransactionTable.svelte"');
-    expect(src).toContain('import TransactionDrawer from "./TransactionDrawer.svelte"');
+    expect(src).toContain(
+      'import TransactionFilters from "./TransactionFilters.svelte"',
+    );
+    expect(src).toContain(
+      'import TransactionTable from "./TransactionTable.svelte"',
+    );
+    expect(src).toContain(
+      'import TransactionDrawer from "./TransactionDrawer.svelte"',
+    );
   });
 
   it("renders child components in template", () => {
@@ -33,12 +39,18 @@ describe("TransactionsPage.svelte source-structure guards", () => {
   });
 
   it("imports useSalesStore from store", () => {
-    expect(src).toContain('import { useSalesStore } from "../stores/sales-store.svelte"');
+    expect(src).toContain(
+      'import { useSalesStore } from "../stores/sales-store.svelte"',
+    );
   });
 
   it("imports FindTransaction and Permissions for the lookup tab", () => {
-    expect(src).toContain('import FindTransaction from "./FindTransaction.svelte"');
-    expect(src).toContain('import { Permissions } from "$shared/constants/permissions"');
+    expect(src).toContain(
+      'import FindTransaction from "./FindTransaction.svelte"',
+    );
+    expect(src).toContain(
+      'import { Permissions } from "$shared/constants/permissions"',
+    );
   });
 
   it("defaults the active tab to My Transactions", () => {
@@ -66,7 +78,9 @@ describe("TransactionsPage.svelte source-structure guards", () => {
 
   it("imports auth store and RBAC", () => {
     expect(src).toContain('import { useAuthStore } from "$modules/auth"');
-    expect(src).toContain('import { useRBAC } from "$shared/composables/useRBAC.svelte"');
+    expect(src).toContain(
+      'import { useRBAC } from "$shared/composables/useRBAC.svelte"',
+    );
   });
 
   it("sets cashierId filter for cashier role", () => {
@@ -74,7 +88,9 @@ describe("TransactionsPage.svelte source-structure guards", () => {
   });
 
   it("imports createQueryManager", () => {
-    expect(src).toContain('import { createQueryManager } from "../lib/query-manager"');
+    expect(src).toContain(
+      'import { createQueryManager } from "../lib/query-manager"',
+    );
   });
 
   it("initializes store with default dates", () => {
@@ -121,8 +137,12 @@ describe("TransactionsPage.svelte source-structure guards", () => {
 
   it("imports shift store, router, toast and labels for shift guard", () => {
     expect(src).toContain('import { useShiftStore } from "$modules/shifts"');
-    expect(src).toContain('import { goto, subscribe as subscribeRoute } from "$app/router"');
-    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
+    expect(src).toContain(
+      'import { goto, subscribe as subscribeRoute } from "$app/router"',
+    );
+    expect(src).toContain(
+      'import { toast } from "$shared/stores/toast.svelte"',
+    );
     expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
@@ -138,7 +158,9 @@ describe("TransactionsPage.svelte source-structure guards", () => {
 
   it("imports RefreshCw, useWebSocket, Button for refresh + banner", () => {
     expect(src).toContain('import { RefreshCw } from "lucide-svelte"');
-    expect(src).toContain('import { useWebSocket } from "$shared/api/websocket"');
+    expect(src).toContain(
+      'import { useWebSocket } from "$shared/api/websocket"',
+    );
     expect(src).toContain('import { Button } from "$shared/ui"');
   });
 
