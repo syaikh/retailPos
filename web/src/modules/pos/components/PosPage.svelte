@@ -69,7 +69,6 @@
 
   let heldCarts = $state<CartSession[]>([]);
   let showParkedModal = $state(false);
-  let _holdingSale = $state(false);
 
   let activeCartId = $state<number | null>(null);
   let cartSession = $state<CartSession | null>(null);
@@ -430,7 +429,6 @@
       toast.error(labels.toastCartIsEmpty);
       return;
     }
-      _holdingSale = true;
     try {
       await holdCart(activeCartId);
       toast.success(labels.toastSaleHeld);
@@ -441,7 +439,7 @@
     } catch (_err: unknown) {
       toast.error(labels.toastFailedToHoldSale);
     } finally {
-      _holdingSale = false;
+
     }
   }
 

@@ -66,7 +66,7 @@ async function doRefresh(): Promise<string | null> {
       const newAccessToken = response.data.access_token;
       setAccessToken(newAccessToken);
       return newAccessToken;
-  } catch (err) {
+    } catch (err) {
       // Notify all queued callers of the failure
       const queue = refreshQueue.splice(0);
       queue.forEach((cb) => cb.reject(err));
