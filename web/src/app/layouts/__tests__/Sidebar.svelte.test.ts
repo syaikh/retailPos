@@ -15,23 +15,23 @@ describe("Sidebar.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports router helpers from $app/router", () => {
-    expect(src).toContain("import { goto, getPath } from '$app/router'");
+    expect(src).toContain('import { goto } from "$app/router"');
   });
 
   it("imports auth module functions", () => {
     expect(src).toContain(
-      "import { logout, useAuthStore, updatePreferences } from '$modules/auth'",
+      'import { logout, useAuthStore, updatePreferences } from "$modules/auth"',
     );
   });
 
   it("imports shift store and Tooltip", () => {
-    expect(src).toContain("import { useShiftStore } from '$modules/shifts'");
-    expect(src).toContain("import { Tooltip } from '$shared/ui'");
+    expect(src).toContain('import { useShiftStore } from "$modules/shifts"');
+    expect(src).toContain('import { Tooltip } from "$shared/ui"');
   });
 
   it("imports settingsStore for dynamic branding", () => {
     expect(src).toContain(
-      "import { settingsStore } from '$shared/stores/settings.svelte'",
+      'import { settingsStore } from "$shared/stores/settings.svelte"',
     );
   });
 
@@ -45,7 +45,7 @@ describe("Sidebar.svelte source-structure guards", () => {
   });
 
   it("uses $bindable for currentPath prop", () => {
-    expect(src).toContain("currentPath = $bindable('/')");
+    expect(src).toContain('currentPath = $bindable("/")');
   });
 
   it("has collapsed and expanded state variables", () => {
@@ -99,7 +99,9 @@ describe("Sidebar.svelte source-structure guards", () => {
 
   it("gates cashier POS & Transactions behind an active shift", () => {
     expect(src).toContain("cashierNavItemsResolved");
-    expect(src).toContain("shiftStore.activeShift ? cashierNavItems");
-    expect(src).toContain("cashierNavItems.filter(i => i.href === '/shifts')");
+    expect(src).toContain("shiftStore.activeShift");
+    expect(src).toContain(
+      'cashierNavItems.filter((i) => i.href === "/shifts")',
+    );
   });
 });

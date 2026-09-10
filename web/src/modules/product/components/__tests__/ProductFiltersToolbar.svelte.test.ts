@@ -15,13 +15,14 @@ describe("ProductFiltersToolbar.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Button, SearchBar, BulkActionDropdown, Dropdown from shared/ui", () => {
-    expect(src).toContain(
-      "import { Button, SearchBar, BulkActionDropdown, Dropdown, FilterChipBar } from '$shared/ui'",
-    );
+    expect(src).toContain('} from "$shared/ui"');
+    expect(src).toContain("FilterChipBar");
+    expect(src).toContain("BulkActionDropdown");
+    expect(src).toContain("Dropdown");
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("uses $bindable for searchQuery, selectedCategories, filterStatus, lowStockOnly", () => {
@@ -52,10 +53,12 @@ describe("ProductFiltersToolbar.svelte source-structure guards", () => {
   });
 
   it("includes brand chips and clears them via chip removal", () => {
+    expect(src).toContain('type: "brand"');
     expect(src).toContain(
-      "chips.push({ type: 'brand', label: t('brandsCount', { count: selectedBrandIDs.length }) })",
+      't("brandsCount", { count: selectedBrandIDs.length })',
     );
-    expect(src).toContain("if (type === 'brand') { selectedBrandIDs = []; }");
+    expect(src).toContain('if (type === "brand") {');
+    expect(src).toContain("selectedBrandIDs = [];");
   });
 
   it("derives hasActiveFilters from categories and brands", () => {

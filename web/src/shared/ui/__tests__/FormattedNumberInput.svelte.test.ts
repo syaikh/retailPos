@@ -19,7 +19,7 @@ describe("FormattedNumberInput.svelte source-structure guards", () => {
   });
 
   it("formats value with id-ID locale", () => {
-    expect(src).toContain("toLocaleString('id-ID')");
+    expect(src).toContain('toLocaleString("id-ID")');
   });
 
   it("strips non-numeric characters on input", () => {

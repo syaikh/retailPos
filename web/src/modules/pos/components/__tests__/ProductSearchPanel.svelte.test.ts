@@ -15,11 +15,11 @@ describe("ProductSearchPanel.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports SearchBar from shared/ui", () => {
-    expect(src).toContain("import { SearchBar } from '$shared/ui'");
+    expect(src).toContain('import { SearchBar } from "$shared/ui"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("uses $bindable for searchQuery", () => {
@@ -27,12 +27,12 @@ describe("ProductSearchPanel.svelte source-structure guards", () => {
   });
 
   it("renders F2 kbd shortcut", () => {
-    expect(src).toContain("F2</kbd>");
+    expect(src).toContain(">F2</kbd");
   });
 
   it("renders arrow and Enter navigation hints", () => {
     expect(src).toContain("↑↓");
-    expect(src).toContain("Enter</kbd>");
+    expect(src).toContain(">Enter</kbd");
     expect(src).toContain("posSelectProductHint");
     expect(src).toContain("posAddToCartHint");
   });

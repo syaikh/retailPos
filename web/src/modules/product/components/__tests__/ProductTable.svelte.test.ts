@@ -14,20 +14,20 @@ function getSource(): string {
 describe("ProductTable.svelte source-structure guards", () => {
   const src = getSource();
 
-  it("imports Badge, Button, Skeleton from shared/ui", () => {
+  it("imports Badge, Skeleton, SortableHeader from shared/ui", () => {
     expect(src).toContain(
-      "import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui'",
+      'import { Badge, Skeleton, SortableHeader } from "$shared/ui"',
     );
   });
 
   it("imports ProductActionsDropdown", () => {
     expect(src).toContain(
-      "import ProductActionsDropdown from '$modules/product/components/ProductActionsDropdown.svelte'",
+      'import ProductActionsDropdown from "$modules/product/components/ProductActionsDropdown.svelte"',
     );
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("uses $bindable for selectedIds, sortBy, sortDir, showCopySuccess", () => {

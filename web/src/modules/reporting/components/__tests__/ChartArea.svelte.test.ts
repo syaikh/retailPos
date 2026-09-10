@@ -19,7 +19,7 @@ describe("ChartArea.svelte source-structure guards", () => {
   });
 
   it("imports chart action from $shared/actions/chart", () => {
-    expect(src).toContain("import { chart } from '$shared/actions/chart'");
+    expect(src).toContain('import { chart } from "$shared/actions/chart"');
   });
 
   it("has loading shimmer state", () => {

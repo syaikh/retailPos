@@ -16,12 +16,12 @@ describe("PrintModeToggle.svelte source-structure guards", () => {
 
   it("imports printConfig store", () => {
     expect(src).toContain(
-      "import { printConfig } from '$shared/stores/printConfig.svelte'",
+      'import { printConfig } from "$shared/stores/printConfig.svelte"',
     );
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("renders preview and silent segmented controls", () => {
@@ -35,11 +35,11 @@ describe("PrintModeToggle.svelte source-structure guards", () => {
   });
 
   it('binds preview mode to setMode("preview")', () => {
-    expect(src).toContain("printConfig.setMode('preview')");
+    expect(src).toContain('printConfig.setMode("preview")');
   });
 
   it('binds silent mode to setMode("silent")', () => {
-    expect(src).toContain("printConfig.setMode('silent')");
+    expect(src).toContain('printConfig.setMode("silent")');
   });
 
   it("has an editor toggle (gear) for agent settings", () => {

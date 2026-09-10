@@ -15,7 +15,7 @@ describe("PurchaseOrderDetail.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports getReceipts for GR lookup", () => {
-    expect(src).toContain("getReceipts } from '../services/po-service'");
+    expect(src).toContain('getReceipts } from "../services/po-service"');
   });
 
   it("imports GoodsReceipt type", () => {
@@ -37,20 +37,20 @@ describe("PurchaseOrderDetail.svelte source-structure guards", () => {
   });
 
   it("renders edit button for draft POs", () => {
-    expect(src).toContain("canEdit && po.status === 'draft'");
+    expect(src).toContain('canEdit && po.status === "draft"');
     expect(src).toContain("Pencil");
     expect(src).toContain("labels.edit");
   });
 
   it("renders confirm button for draft POs", () => {
-    expect(src).toContain("canConfirm && po.status === 'draft'");
+    expect(src).toContain('canConfirm && po.status === "draft"');
     expect(src).toContain("Check");
     expect(src).toContain("labels.confirm");
   });
 
   it("renders receive button for confirmed or partial-received POs", () => {
     expect(src).toContain(
-      "canReceive && (po.status === 'confirmed' || po.status === 'partial_received')",
+      'canReceive && (po.status === "confirmed" || po.status === "partial_received")',
     );
     expect(src).toContain("Package");
     expect(src).toContain("labels.receiveGoods");
@@ -58,7 +58,7 @@ describe("PurchaseOrderDetail.svelte source-structure guards", () => {
 
   it("renders cancel button for draft or confirmed POs", () => {
     expect(src).toContain(
-      "canCancel && (po.status === 'draft' || po.status === 'confirmed')",
+      'canCancel && (po.status === "draft" || po.status === "confirmed")',
     );
     expect(src).toContain("XCircle");
     expect(src).toContain("labels.cancelPo");

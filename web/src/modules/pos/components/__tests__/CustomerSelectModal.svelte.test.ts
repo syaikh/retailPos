@@ -15,19 +15,19 @@ describe("CustomerSelectModal.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports fly from svelte/transition", () => {
-    expect(src).toContain("import { fly } from 'svelte/transition'");
+    expect(src).toContain('import { fly } from "svelte/transition"');
   });
 
-  it("imports Button, Input from shared/ui", () => {
-    expect(src).toContain("import { Button, Input } from '$shared/ui'");
+  it("imports Input from shared/ui", () => {
+    expect(src).toContain('import { Input } from "$shared/ui"');
   });
 
   it("imports X from lucide-svelte", () => {
-    expect(src).toContain("import { X } from 'lucide-svelte'");
+    expect(src).toContain('import { X } from "lucide-svelte"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("uses $bindable for showCustomerModal and customerSearch", () => {

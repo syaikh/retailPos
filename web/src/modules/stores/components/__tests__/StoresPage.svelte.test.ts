@@ -15,25 +15,23 @@ describe("StoresPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Jakarta time utility", () => {
-    expect(src).toContain(
-      "import { formatDateInJakarta } from '$shared/utils/jakartaTime'",
-    );
+    expect(src).toContain('import { formatDateInJakarta } from "$shared/utils/jakartaTime"');
   });
 
   it("imports store service functions", () => {
     expect(src).toContain(
-      "import { getStores, createStore, updateStore, deleteStore } from '../services/stores-service'",
+      'import {\n    getStores,\n    createStore,\n    updateStore,\n    deleteStore,\n  } from "../services/stores-service"',
     );
   });
 
   it("imports shared UI components", () => {
     expect(src).toContain(
-      "import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, SearchBar, ToggleSwitch, ConfirmDeleteModal, Pagination, SortableHeader } from '$shared/ui'",
+      'import {\n    Button,\n    Input,\n    Modal,\n    Skeleton,\n    BulkActionDropdown,\n    ImportWizard,\n    SearchBar,\n    ToggleSwitch,\n    ConfirmDeleteModal,\n    Pagination,\n    SortableHeader,\n  } from "$shared/ui"',
     );
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("uses $state for stores, loading, pagination", () => {
@@ -46,21 +44,13 @@ describe("StoresPage.svelte source-structure guards", () => {
 
   it("has RBAC derived from the shared composable", () => {
     expect(src).toContain("const rbac = useRBAC()");
-    expect(src).toContain(
-      "let canCreate = $derived(rbac.can(Permissions.store.create))",
-    );
-    expect(src).toContain(
-      "let canEdit = $derived(rbac.can(Permissions.store.update))",
-    );
-    expect(src).toContain(
-      "let canDelete = $derived(rbac.can(Permissions.store.delete))",
-    );
+    expect(src).toContain("const canCreate = $derived(rbac.can(Permissions.store.create))");
+    expect(src).toContain("const canEdit = $derived(rbac.can(Permissions.store.update))");
+    expect(src).toContain("const canDelete = $derived(rbac.can(Permissions.store.delete))");
   });
 
   it("has sort state and handleSort function", () => {
-    expect(src).toContain(
-      "const { sortState, handleSort } = useSortable('name', 'asc')",
-    );
+    expect(src).toContain('const { sortState, handleSort } = useSortable("name", "asc")');
     expect(src).toContain("sortState.sortBy");
     expect(src).toContain("sortState.sortDir");
   });

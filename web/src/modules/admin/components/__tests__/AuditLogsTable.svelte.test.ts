@@ -16,12 +16,12 @@ describe("AuditLogsTable.svelte source-structure guards", () => {
 
   it("imports shared UI components", () => {
     expect(src).toContain(
-      "import { Button, Pagination, Skeleton, ActionBadge } from '$shared/ui'",
+      'import { Button, Pagination, Skeleton, ActionBadge } from "$shared/ui"',
     );
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("uses $props", () => {
@@ -72,8 +72,8 @@ describe("AuditLogsTable.svelte source-structure guards", () => {
   });
 
   it("imports Jakarta time utils", () => {
-    expect(src).toContain(
-      "import { formatDateInJakarta, formatTimeInJakarta } from '$shared/utils/jakartaTime'",
-    );
+    expect(src).toContain("formatDateInJakarta");
+    expect(src).toContain("formatTimeInJakarta");
+    expect(src).toContain('from "$shared/utils/jakartaTime"');
   });
 });

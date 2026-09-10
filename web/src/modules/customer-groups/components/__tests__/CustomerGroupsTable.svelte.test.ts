@@ -16,8 +16,9 @@ describe("CustomerGroupsTable.svelte source-structure guards", () => {
 
   it("imports Badge, Button, Skeleton, SortableHeader, Tooltip, Dropdown from shared/ui", () => {
     expect(src).toContain(
-      "import { Badge, Button, Skeleton, SortableHeader, Tooltip, Dropdown } from '$shared/ui'",
+      "Badge,\n    Button,\n    Skeleton,\n    SortableHeader,\n    Tooltip,\n    Dropdown,",
     );
+    expect(src).toContain('from "$shared/ui"');
   });
 
   it("imports MoreVertical, Users, Pencil, Trash2, Copy icons", () => {
@@ -29,7 +30,7 @@ describe("CustomerGroupsTable.svelte source-structure guards", () => {
   });
 
   it("imports CustomerGroup type", () => {
-    expect(src).toContain("import type { CustomerGroup } from '../types'");
+    expect(src).toContain('import type { CustomerGroup } from "../types"');
   });
 
   it("has bulk action callback props", () => {
@@ -43,19 +44,21 @@ describe("CustomerGroupsTable.svelte source-structure guards", () => {
   });
 
   it("has allSelected derived", () => {
+    expect(src).toContain("const allSelected = $derived(");
     expect(src).toContain(
-      "let allSelected = $derived(groups.length > 0 && groups.every(g => selectedIds.has(g.id)))",
+      "groups.length > 0 && groups.every((g) => selectedIds.has(g.id))",
     );
   });
 
   it("has someSelected derived", () => {
+    expect(src).toContain("let someSelected = $derived(");
     expect(src).toContain(
-      "let someSelected = $derived(groups.some(g => selectedIds.has(g.id)) && !allSelected)",
+      "groups.some((g) => selectedIds.has(g.id)) && !allSelected",
     );
   });
 
   it("has selectedCount derived", () => {
-    expect(src).toContain("let selectedCount = $derived(selectedIds.size)");
+    expect(src).toContain("const selectedCount = $derived(selectedIds.size)");
   });
 
   it("has toggleSelect and toggleSelectAll functions", () => {
@@ -100,7 +103,8 @@ describe("CustomerGroupsTable.svelte source-structure guards", () => {
   });
 
   it("uses relative time in Tooltip", () => {
-    expect(src).toContain("<Tooltip content={formatDateTime");
+    expect(src).toContain("<Tooltip");
+    expect(src).toContain("content={formatDateTime");
   });
 
   it("has truncated name under secondary text", () => {

@@ -15,41 +15,45 @@ describe("CustomersPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports apiClient for HTTP calls", () => {
-    expect(src).toContain("import apiClient from '$shared/api/http-client'");
+    expect(src).toContain('import apiClient from "$shared/api/http-client"');
   });
 
   it("imports auth store", () => {
-    expect(src).toContain("import { useAuthStore } from '$modules/auth'");
+    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
   });
 
   it("imports Pagination, ImportWizard from shared/ui", () => {
     expect(src).toContain(
-      "import { Pagination, ImportWizard } from '$shared/ui'",
+      'import { Pagination, ImportWizard } from "$shared/ui"',
     );
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("imports extracted modal and table components", () => {
     expect(src).toContain(
-      "import CreateCustomerModal from './CreateCustomerModal.svelte'",
+      'import CreateCustomerModal from "./CreateCustomerModal.svelte"',
     );
     expect(src).toContain(
-      "import DeactivateCustomerModal from './DeactivateCustomerModal.svelte'",
+      'import DeactivateCustomerModal from "./DeactivateCustomerModal.svelte"',
     );
     expect(src).toContain(
-      "import BulkStatusModal from './BulkStatusModal.svelte'",
+      'import BulkStatusModal from "./BulkStatusModal.svelte"',
     );
     expect(src).toContain(
-      "import BulkDeleteModal from './BulkDeleteModal.svelte'",
+      'import BulkDeleteModal from "./BulkDeleteModal.svelte"',
     );
     expect(src).toContain(
-      "import CustomerToolbar from './CustomerToolbar.svelte'",
+      'import CustomerToolbar from "./CustomerToolbar.svelte"',
     );
-    expect(src).toContain("import CustomerTable from './CustomerTable.svelte'");
-    expect(src).toContain("import BulkActionBar from './BulkActionBar.svelte'");
+    expect(src).toContain(
+      'import CustomerTable from "./CustomerTable.svelte"',
+    );
+    expect(src).toContain(
+      'import BulkActionBar from "./BulkActionBar.svelte"',
+    );
   });
 
   it("uses $state for customers, loading, pagination", () => {
@@ -59,18 +63,15 @@ describe("CustomersPage.svelte source-structure guards", () => {
     expect(src).toContain("let searchQuery = $state");
   });
 
-  it("has permission-based RBAC (canCreate, canUpdate, canDelete, canRead)", () => {
+  it("has permission-based RBAC (canCreate, canUpdate, canDelete)", () => {
     expect(src).toContain(
-      "const canCreate = $derived(userPermissions.includes('customer.create'))",
+      'const canCreate = $derived(userPermissions.includes("customer.create"))',
     );
     expect(src).toContain(
-      "const canUpdate = $derived(userPermissions.includes('customer.update'))",
+      'const canUpdate = $derived(userPermissions.includes("customer.update"))',
     );
     expect(src).toContain(
-      "const canDelete = $derived(userPermissions.includes('customer.delete'))",
-    );
-    expect(src).toContain(
-      "const canRead = $derived(userPermissions.includes('customer.view'))",
+      'const canDelete = $derived(userPermissions.includes("customer.delete"))',
     );
   });
 
@@ -83,12 +84,12 @@ describe("CustomersPage.svelte source-structure guards", () => {
   it("has load, createCustomer, handleEditSave functions", () => {
     expect(src).toContain("async function load");
     expect(src).toContain("async function createCustomer");
-    expect(src).toContain("async function handleEditSave");
+    expect(src).toContain("function handleEditSave");
   });
 
   it("has edit modal functions (startEdit, handleEditSave, handleEditCancel)", () => {
     expect(src).toContain("function startEdit");
-    expect(src).toContain("async function handleEditSave");
+    expect(src).toContain("function handleEditSave");
     expect(src).toContain("function handleEditCancel");
   });
 

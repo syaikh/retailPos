@@ -15,21 +15,24 @@ describe("AuditLogsPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports apiClient for HTTP calls", () => {
-    expect(src).toContain("import apiClient from '$shared/api/http-client'");
+    expect(src).toContain('import apiClient from "$shared/api/http-client"');
   });
 
-  it("imports auth store", () => {
-    expect(src).toContain("import { useAuthStore } from '$modules/auth'");
-  });
-
-  it("imports Jakarta time utilities (remaining)", () => {
+  it("imports RBAC composable", () => {
     expect(src).toContain(
-      "import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime'",
+      'import { useRBAC } from "$shared/composables/useRBAC.svelte"',
     );
   });
 
+  it("imports Jakarta time utilities (remaining)", () => {
+    expect(src).toContain("getTodayInJakarta");
+    expect(src).toContain("getDateNDaysAgoInJakarta");
+    expect(src).toContain("JAKARTA_OFFSET_MS");
+    expect(src).toContain('from "$shared/utils/jakartaTime"');
+  });
+
   it("uses $state for items, pagination, filters, and request tracking", () => {
-    expect(src).toContain("let items = $state<any[]>");
+    expect(src).toContain("let items = $state<AuditLog[]>");
     expect(src).toContain("let total = $state(0)");
     expect(src).toContain("let searchQuery = $state");
     expect(src).toContain("let currentRequestId = $state(0)");
@@ -39,7 +42,7 @@ describe("AuditLogsPage.svelte source-structure guards", () => {
 
   it("has RBAC — only audit.view permission can view", () => {
     expect(src).toContain(
-      "let canView = $derived(rbac.can(Permissions.audit.view))",
+      "const canView = $derived(rbac.can(Permissions.audit.view))",
     );
   });
 
@@ -58,13 +61,13 @@ describe("AuditLogsPage.svelte source-structure guards", () => {
 
   it("imports the three extracted child components", () => {
     expect(src).toContain(
-      "import AuditLogsFilterToolbar from './AuditLogsFilterToolbar.svelte'",
+      'import AuditLogsFilterToolbar from "./AuditLogsFilterToolbar.svelte"',
     );
     expect(src).toContain(
-      "import AuditLogsTable from './AuditLogsTable.svelte'",
+      'import AuditLogsTable from "./AuditLogsTable.svelte"',
     );
     expect(src).toContain(
-      "import AuditLogDetailsDrawer from './AuditLogDetailsDrawer.svelte'",
+      'import AuditLogDetailsDrawer from "./AuditLogDetailsDrawer.svelte"',
     );
   });
 
@@ -99,7 +102,7 @@ describe("AuditLogsPage.svelte source-structure guards", () => {
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("uses i18n labels for permission denied and error messages", () => {

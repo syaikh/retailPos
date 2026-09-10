@@ -15,41 +15,40 @@ describe("ProductsPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports apiClient and RBAC composable", () => {
-    expect(src).toContain("import apiClient from '$shared/api/http-client'");
+    expect(src).toContain('import apiClient from "$shared/api/http-client"');
     expect(src).toContain(
-      "import { useRBAC } from '$shared/composables/useRBAC.svelte'",
+      'import { useRBAC } from "$shared/composables/useRBAC.svelte"',
     );
   });
 
   it("imports WebSocket utility", () => {
     expect(src).toContain(
-      "import { useWebSocket } from '$shared/api/websocket'",
+      'import { useWebSocket } from "$shared/api/websocket"',
     );
   });
 
   it("imports toast store", () => {
-    expect(src).toContain(
-      "import { toast } from '$shared/stores/toast.svelte'",
-    );
+    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("imports child components (ProductFilterDrawer, ProductFormModal, etc.)", () => {
     expect(src).toContain(
-      "import ProductFilterDrawer from '$modules/product/components/ProductFilterDrawer.svelte'",
+      'import ProductFilterDrawer from "$modules/product/components/ProductFilterDrawer.svelte"',
     );
-    expect(src).toContain("import ProductActionsDropdown");
     expect(src).toContain("import ProductFormModal");
     expect(src).toContain("import StockAdjustModal");
+    expect(src).toContain("import ProductFiltersToolbar");
   });
 
   it("imports shared UI components", () => {
-    expect(src).toContain(
-      "import { Button, Modal, Pagination, ImportWizard, ConfirmDeleteModal } from '$shared/ui'",
-    );
+    expect(src).toContain("ConfirmDeleteModal");
+    expect(src).toContain("Pagination");
+    expect(src).toContain("ImportWizard");
+    expect(src).toContain('} from "$shared/ui"');
   });
 
   it("uses $state for products, loading, pagination state", () => {
@@ -75,16 +74,16 @@ describe("ProductsPage.svelte source-structure guards", () => {
 
   it("has RBAC permission-based guards for inventory and stock", () => {
     expect(src).toContain(
-      "let canCreate = $derived(rbac.can(Permissions.product.create))",
+      "const canCreate = $derived(rbac.can(Permissions.product.create))",
     );
     expect(src).toContain(
-      "let canEdit = $derived(rbac.can(Permissions.product.update))",
+      "const canEdit = $derived(rbac.can(Permissions.product.update))",
     );
     expect(src).toContain(
-      "let canDelete = $derived(rbac.can(Permissions.product.delete))",
+      "const canDelete = $derived(rbac.can(Permissions.product.delete))",
     );
     expect(src).toContain(
-      "let canAdjustStock = $derived(rbac.can(Permissions.inventory.adjust))",
+      "const canAdjustStock = $derived(rbac.can(Permissions.inventory.adjust))",
     );
   });
 
@@ -98,16 +97,18 @@ describe("ProductsPage.svelte source-structure guards", () => {
 
   it("has handleWindowKeydown for Escape and close-all-dropdowns", () => {
     expect(src).toContain("function handleWindowKeydown");
-    expect(src).toContain("e.key === 'Escape'");
+    expect(src).toContain('e.key === "Escape"');
     expect(src).toContain(
-      "dispatchEvent(new CustomEvent('close-all-dropdowns')",
+      'dispatchEvent(new CustomEvent("close-all-dropdowns")',
     );
     expect(src).toContain("<svelte:window onkeydown={handleWindowKeydown} />");
   });
 
   it("imports getProductById for deep-link fallback", () => {
     expect(src).toContain("getProductById");
-    expect(src).toContain("from '$modules/product/services/product-service'");
+    expect(src).toContain(
+      'from "$modules/product/services/product-service"',
+    );
   });
 
   it("falls back to getProductById when deep-linked product is not on the loaded page", () => {
@@ -119,7 +120,7 @@ describe("ProductsPage.svelte source-structure guards", () => {
 
   it("opens detail drawer only after product resolution succeeds", () => {
     const resolveIdx = src.indexOf(
-      "let product = products.find(p => p.id === pid) || null;",
+      "let product = products.find((p) => p.id === pid) || null;",
     );
     const drawerIdx = src.indexOf("showDetailDrawer = true;", resolveIdx);
     expect(resolveIdx).toBeGreaterThan(-1);
@@ -127,8 +128,8 @@ describe("ProductsPage.svelte source-structure guards", () => {
   });
 
   it("applies low_stock=true URL param to lowStockOnly filter before first fetch", () => {
-    expect(src).toContain("urlParams.get('low_stock') === 'true'");
-    const paramIdx = src.indexOf("urlParams.get('low_stock') === 'true'");
+    expect(src).toContain('urlParams.get("low_stock") === "true"');
+    const paramIdx = src.indexOf('urlParams.get("low_stock") === "true"');
     const fetchIdx = src.indexOf("await fetchProducts(0, limit);", paramIdx);
     expect(fetchIdx).toBeGreaterThan(paramIdx);
   });

@@ -19,7 +19,7 @@ describe("DataTable.svelte source-structure guards", () => {
   });
 
   it("imports fly from svelte/transition", () => {
-    expect(src).toContain("import { fly } from 'svelte/transition'");
+    expect(src).toContain('import { fly } from "svelte/transition"');
   });
 
   it("imports TrendingUp and TrendingDown from lucide-svelte", () => {

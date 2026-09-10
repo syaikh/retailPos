@@ -15,13 +15,16 @@ describe("AuditLogsFilterToolbar.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Button, Input, SearchBar, Dropdown from shared/ui", () => {
-    expect(src).toContain(
-      "import { Button, Input, SearchBar, Dropdown, FilterChipBar } from '$shared/ui'",
-    );
+    expect(src).toContain("Button");
+    expect(src).toContain("Input");
+    expect(src).toContain("SearchBar");
+    expect(src).toContain("Dropdown");
+    expect(src).toContain("FilterChipBar");
+    expect(src).toContain('from "$shared/ui"');
   });
 
-  it("imports i18n labels and t", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  it("imports i18n labels", () => {
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("uses $bindable for filter props", () => {
@@ -63,12 +66,12 @@ describe("AuditLogsFilterToolbar.svelte source-structure guards", () => {
   });
 
   it("imports getAuthToken for export auth", () => {
-    expect(src).toContain("import { getAuthToken } from '$modules/auth'");
+    expect(src).toContain('import { getAuthToken } from "$modules/auth"');
   });
 
   it("imports toast for export notifications", () => {
     expect(src).toContain(
-      "import { toast } from '$shared/stores/toast.svelte'",
+      'import { toast } from "$shared/stores/toast.svelte"',
     );
   });
 });

@@ -15,19 +15,15 @@ describe("PosProductTable.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Badge, Button, Pagination, Skeleton from shared/ui", () => {
-    expect(src).toContain(
-      "import { Badge, Button, Pagination, Skeleton } from '$shared/ui'",
-    );
+    expect(src).toContain('import { Badge, Button, Pagination, Skeleton } from "$shared/ui"');
   });
 
   it("imports Plus, Copy, Package from lucide-svelte", () => {
-    expect(src).toContain(
-      "import { Plus, Copy, Package } from 'lucide-svelte'",
-    );
+    expect(src).toContain('import { Plus, Copy, Package } from "lucide-svelte"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("uses $bindable for showCopySuccess", () => {
@@ -77,8 +73,8 @@ describe("PosProductTable.svelte source-structure guards", () => {
   });
 
   it("highlights selected product row", () => {
-    expect(src).toContain("idx === selectedIndex ? 'bg-primary/10");
-    expect(src).toContain("onclick={() => selectedIndex = idx}");
+    expect(src).toContain("? 'bg-primary/10");
+    expect(src).toContain("onclick={() => (selectedIndex = idx)}");
     expect(src).toContain("ondblclick");
   });
 });

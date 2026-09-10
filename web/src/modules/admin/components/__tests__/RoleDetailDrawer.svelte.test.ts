@@ -16,23 +16,28 @@ describe("RoleDetailDrawer.svelte source-structure guards", () => {
 
   it("imports Badge, Button and Drawer from shared/ui", () => {
     expect(src).toContain(
-      "import { Badge, Button, Drawer, SearchBar } from '$shared/ui'",
+      'import { Badge, Button, Drawer, SearchBar } from "$shared/ui"',
     );
   });
 
   it("imports lucide icons", () => {
-    expect(src).toContain(
-      "import { ChevronRight, Copy, Pencil, Search, Shield, Trash2, Users } from 'lucide-svelte'",
-    );
+    expect(src).toContain("ChevronRight");
+    expect(src).toContain("Copy");
+    expect(src).toContain("Pencil");
+    expect(src).toContain("Search");
+    expect(src).toContain("Shield");
+    expect(src).toContain("Trash2");
+    expect(src).toContain("Users");
+    expect(src).toContain('from "lucide-svelte"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("imports shared permission grouping util", () => {
     expect(src).toContain(
-      "import { groupPermissions } from '$shared/utils/permissionGroups'",
+      'import { groupPermissions } from "$shared/utils/permissionGroups"',
     );
   });
 
@@ -77,7 +82,7 @@ describe("RoleDetailDrawer.svelte source-structure guards", () => {
     expect(src).toContain("collapsedKeys = $state(new Set())");
     expect(src).toContain("toggleGroup(group.key)");
     expect(src).toContain("aria-expanded={!collapsed}");
-    expect(src).toContain("groupPermissions(rolePerms).map(g => g.key)");
+    expect(src).toContain("groupPermissions(rolePerms).map((g) => g.key)");
   });
 
   it("provides expand/collapse all control", () => {

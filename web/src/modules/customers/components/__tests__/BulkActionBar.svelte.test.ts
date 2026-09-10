@@ -15,11 +15,11 @@ describe("BulkActionBar.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Button from shared/ui", () => {
-    expect(src).toContain("import { Button } from '$shared/ui'");
+    expect(src).toContain('import { Button } from "$shared/ui"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("uses $props", () => {
@@ -33,7 +33,7 @@ describe("BulkActionBar.svelte source-structure guards", () => {
   });
 
   it("renders selected count", () => {
-    expect(src).toContain("t('selectedCountLabel', { count: selectedCount })");
+    expect(src).toContain('t("selectedCountLabel", { count: selectedCount })');
   });
 
   it("conditionally shows Change Status and Delete buttons", () => {

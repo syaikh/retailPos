@@ -16,18 +16,16 @@ describe("CheckoutModal.svelte source-structure guards", () => {
 
   it("imports icons from lucide-svelte", () => {
     expect(src).toContain(
-      "import { X, Check, User, ChevronRight, Plus, Trash2 } from 'lucide-svelte'",
+      'import { X, Check, User, ChevronRight, Trash2 } from "lucide-svelte"',
     );
   });
 
   it("imports CurrencyInput from shared/ui", () => {
-    expect(src).toContain("import { Button, CurrencyInput } from '$shared/ui'");
+    expect(src).toContain('import { Button, CurrencyInput } from "$shared/ui"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain(
-      "import { labels, t, paymentMethodLabel } from '$shared/i18n'",
-    );
+    expect(src).toContain('import { labels, t, paymentMethodLabel } from "$shared/i18n"');
   });
 
   it("has denominations array", () => {
@@ -59,7 +57,9 @@ describe("CheckoutModal.svelte source-structure guards", () => {
   });
 
   it("has onfinalize callback that accepts PaymentAllocation array", () => {
-    expect(src).toContain("onfinalize = (payments: PaymentAllocation[]) => {}");
+    expect(src).toContain(
+      "onfinalize = (_payments: PaymentAllocation[]) => {}",
+    );
   });
 
   it("renders dialog with aria-modal", () => {
@@ -99,8 +99,8 @@ describe("CheckoutModal.svelte source-structure guards", () => {
   });
 
   it("handles F7 key for exact cash amount", () => {
-    expect(src).toContain("e.key === 'F7'");
-    expect(src).toContain("a.methodCode === 'CASH'");
+    expect(src).toContain('e.key === "F7"');
+    expect(src).toContain('a.methodCode === "CASH"');
   });
 
   it("has handleFinalize that maps allocations to PaymentAllocation[]", () => {
@@ -126,7 +126,8 @@ describe("CheckoutModal.svelte source-structure guards", () => {
   });
 
   it("auto-assigns reference number for methods requiring reference", () => {
-    expect(src).toContain("opt?.requiresReference ? generateRefNumber");
+    expect(src).toContain("referenceNumber: opt?.requiresReference");
+    expect(src).toContain("? generateRefNumber(methodCode)");
   });
 
   it("displays reference number input for non-cash methods", () => {
@@ -135,9 +136,9 @@ describe("CheckoutModal.svelte source-structure guards", () => {
   });
 
   it("pre-selects CASH allocation on open", () => {
-    expect(src).toContain(
-      "allocations = [{ id: 'a1', methodCode: 'CASH', amount: totalAmount, referenceNumber: '' }]",
-    );
+    expect(src).toContain("allocations = [");
+    expect(src).toContain('id: "a1"');
+    expect(src).toContain('methodCode: "CASH"');
     expect(src).toContain("nextId = 2");
   });
 
@@ -165,8 +166,7 @@ describe("CheckoutModal.svelte source-structure guards", () => {
     expect(src).toContain(
       "{:else if remainingBalance < 0 && overTenderOnCash}",
     );
-    expect(src).toContain(
-      "{labels.changeDue} {changeDue.toLocaleString('id-ID')}",
-    );
+    expect(src).toContain('{labels.changeDue}');
+    expect(src).toContain("changeDue.toLocaleString(\"id-ID\")");
   });
 });

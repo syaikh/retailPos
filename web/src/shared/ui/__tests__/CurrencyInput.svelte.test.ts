@@ -25,7 +25,7 @@ describe("CurrencyInput.svelte source-structure guards", () => {
   });
 
   it("formats value with id-ID locale on input", () => {
-    expect(src).toContain("toLocaleString('id-ID')");
+    expect(src).toContain('toLocaleString("id-ID")');
   });
 
   it("displays Rp prefix", () => {

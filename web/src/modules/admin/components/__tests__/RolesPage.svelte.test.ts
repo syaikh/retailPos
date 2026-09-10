@@ -15,22 +15,32 @@ describe("RolesPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports apiFetch for HTTP calls", () => {
-    expect(src).toContain("import { apiFetch } from '$shared/api/http-client'");
+    expect(src).toContain('import { apiFetch } from "$shared/api/http-client"');
   });
 
-  it("imports auth store", () => {
-    expect(src).toContain("import { useAuthStore } from '$modules/auth'");
+  it("imports RBAC composable", () => {
+    expect(src).toContain(
+      'import { useRBAC } from "$shared/composables/useRBAC.svelte"',
+    );
   });
 
   it("imports shared UI components", () => {
-    expect(src).toContain(
-      "import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton, ConfirmDeleteModal, SortableHeader } from '$shared/ui'",
-    );
+    expect(src).toContain("Badge");
+    expect(src).toContain("Button");
+    expect(src).toContain("Dropdown");
+    expect(src).toContain("Input");
+    expect(src).toContain("Modal");
+    expect(src).toContain("Pagination");
+    expect(src).toContain("SearchBar");
+    expect(src).toContain("Skeleton");
+    expect(src).toContain("ConfirmDeleteModal");
+    expect(src).toContain("SortableHeader");
+    expect(src).toContain('from "$shared/ui"');
   });
 
   it("imports RoleDetailDrawer component", () => {
     expect(src).toContain(
-      "import RoleDetailDrawer from './RoleDetailDrawer.svelte'",
+      'import RoleDetailDrawer from "./RoleDetailDrawer.svelte"',
     );
   });
 
@@ -75,7 +85,7 @@ describe("RolesPage.svelte source-structure guards", () => {
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("uses i18n labels for page text and actions", () => {

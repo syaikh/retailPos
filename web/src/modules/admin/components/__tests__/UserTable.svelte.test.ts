@@ -16,18 +16,18 @@ describe("UserTable.svelte source-structure guards", () => {
 
   it("imports Badge, Button, Skeleton from shared/ui", () => {
     expect(src).toContain(
-      "import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui'",
+      'import { Badge, Button, Skeleton, SortableHeader } from "$shared/ui"',
     );
   });
 
   it("imports jakartaTime formatters", () => {
-    expect(src).toContain(
-      "import { formatDateInJakarta, formatTimeInJakarta } from '$shared/utils/jakartaTime'",
-    );
+    expect(src).toContain("formatDateInJakarta");
+    expect(src).toContain("formatTimeInJakarta");
+    expect(src).toContain('from "$shared/utils/jakartaTime"');
   });
 
   it("imports i18n labels and t", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("uses $bindable for sortBy and sortDir", () => {

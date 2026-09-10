@@ -24,34 +24,30 @@ describe("TransactionFilters.svelte source-structure guards", () => {
 
   it("imports Jakarta time utilities", () => {
     expect(src).toContain(
-      "import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatJakartaDateStr } from '$shared/utils/jakartaTime'",
+      'import {\n    getTodayInJakarta,\n    getDateNDaysAgoInJakarta,\n    formatJakartaDateStr,\n  } from "$shared/utils/jakartaTime"',
     );
   });
 
   it("imports SearchBar and Input", () => {
-    expect(src).toContain(
-      "import { Button, Input, SearchBar, Dropdown } from '$shared/ui'",
-    );
+    expect(src).toContain('import { Button, Input, SearchBar, Dropdown } from "$shared/ui"');
   });
 
   it("imports lucide icons", () => {
     expect(src).toContain(
-      "import { CalendarDays, ChevronDown, Download, FileSpreadsheet, X } from 'lucide-svelte'",
+      'import {\n    CalendarDays,\n    ChevronDown,\n    Download,\n    FileSpreadsheet,\n    X,\n  } from "lucide-svelte"',
     );
   });
 
   it("imports getAuthToken", () => {
-    expect(src).toContain("import { getAuthToken } from '$modules/auth'");
+    expect(src).toContain('import { getAuthToken } from "$modules/auth"');
   });
 
   it("imports toast", () => {
-    expect(src).toContain(
-      "import { toast } from '$shared/stores/toast.svelte'",
-    );
+    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("defines SLIDER_MAX_BOUND", () => {
@@ -70,15 +66,15 @@ describe("TransactionFilters.svelte source-structure guards", () => {
 
   it("has dateRangeLabel derived", () => {
     expect(src).toContain("const dateRangeLabel = $derived");
-    expect(src).toContain("t('customDateRange'");
+    expect(src).toContain('t("customDateRange"');
   });
 
   it("has amountError derived with localized messages", () => {
     expect(src).toContain("const amountError = $derived");
     expect(src).toContain("labels.errorMinCannotBeNegative");
-    expect(src).toContain("t('errorMinExceedsMax'");
+    expect(src).toContain('t("errorMinExceedsMax"');
     expect(src).toContain("labels.errorMaxCannotBeNegative");
-    expect(src).toContain("t('errorMaxExceedsMax'");
+    expect(src).toContain('t("errorMaxExceedsMax"');
     expect(src).toContain("labels.errorMinCannotExceedMax");
   });
 

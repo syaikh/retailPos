@@ -15,23 +15,29 @@ describe("AuditLogDetailsDrawer.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports lucide icons", () => {
-    expect(src).toContain(
-      "import { Plus, Minus, ArrowRight, Clock, Globe, Monitor } from 'lucide-svelte'",
-    );
+    expect(src).toContain("Plus");
+    expect(src).toContain("Minus");
+    expect(src).toContain("ArrowRight");
+    expect(src).toContain("Clock");
+    expect(src).toContain("Globe");
+    expect(src).toContain("Monitor");
+    expect(src).toContain('from "lucide-svelte"');
   });
 
   it("imports ActionBadge from shared/ui", () => {
-    expect(src).toContain("import { ActionBadge, Drawer } from '$shared/ui'");
+    expect(src).toContain('import { ActionBadge, Drawer } from "$shared/ui"');
   });
 
   it("imports Jakarta time utilities", () => {
-    expect(src).toContain(
-      "import { formatDateInJakarta, formatTimeInJakarta, formatDateTimeInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime'",
-    );
+    expect(src).toContain("formatDateInJakarta");
+    expect(src).toContain("formatTimeInJakarta");
+    expect(src).toContain("formatDateTimeInJakarta");
+    expect(src).toContain("JAKARTA_OFFSET_MS");
+    expect(src).toContain('from "$shared/utils/jakartaTime"');
   });
 
   it("imports i18n labels and t", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("uses $props and $bindable", () => {

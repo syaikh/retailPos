@@ -15,10 +15,8 @@ describe("ProductFilterDrawer.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports SearchBar from shared/ui and Brand type", () => {
-    expect(src).toContain("import { SearchBar } from '$shared/ui'");
-    expect(src).toContain(
-      "import type { Brand } from '$modules/product/types'",
-    );
+    expect(src).toContain('import { SearchBar } from "$shared/ui"');
+    expect(src).toContain('import type { Brand } from "$modules/product/types"');
   });
 
   it("uses $bindable for open, selectedCategories, selectedBrandIDs", () => {
@@ -34,19 +32,18 @@ describe("ProductFilterDrawer.svelte source-structure guards", () => {
   });
 
   it("resets search query when opening or switching tabs", () => {
-    expect(src).toContain("searchQuery = ''");
+    expect(src).toContain('searchQuery = ""');
   });
 
   it("filters categories excluding All and matching search case-insensitively", () => {
-    expect(src).toContain(
-      "categories.filter(cat => cat !== 'All' && cat.toLowerCase().includes(searchQuery.toLowerCase()))",
-    );
+    expect(src).toContain("categories.filter(");
+    expect(src).toContain('cat !== "All" &&');
+    expect(src).toContain("cat.toLowerCase().includes(searchQuery.toLowerCase())");
   });
 
   it("filters brands by name matching search case-insensitively", () => {
-    expect(src).toContain(
-      "brands.filter(b => b.name.toLowerCase().includes(searchQuery.toLowerCase()))",
-    );
+    expect(src).toContain("brands.filter(");
+    expect(src).toContain("b.name.toLowerCase().includes(searchQuery.toLowerCase())");
   });
 
   it("toggles category and brand selections in temp state", () => {
@@ -55,11 +52,13 @@ describe("ProductFilterDrawer.svelte source-structure guards", () => {
   });
 
   it("applyFilters writes temp state back with All fallback for empty categories", () => {
+    expect(src).toContain("selectedCategories =");
     expect(src).toContain(
-      "selectedCategories = tempSelectedCategories.length > 0 ? [...tempSelectedCategories] : ['All']",
+      'tempSelectedCategories.length > 0 ? [...tempSelectedCategories] : ["All"];',
     );
+    expect(src).toContain("selectedBrandIDs =");
     expect(src).toContain(
-      "selectedBrandIDs = tempSelectedBrandIDs.length > 0 ? [...tempSelectedBrandIDs] : []",
+      "tempSelectedBrandIDs.length > 0 ? [...tempSelectedBrandIDs] : [];",
     );
     expect(src).toContain("onApply?.()");
     expect(src).toContain("open = false");
@@ -74,7 +73,7 @@ describe("ProductFilterDrawer.svelte source-structure guards", () => {
 
   it("closes drawer on Escape keydown via window listener", () => {
     expect(src).toContain("<svelte:window onkeydown={handleKeydown} />");
-    expect(src).toContain("e.key === 'Escape'");
+    expect(src).toContain('e.key === "Escape"');
   });
 
   it("renders dialog with modal semantics and accessible label", () => {

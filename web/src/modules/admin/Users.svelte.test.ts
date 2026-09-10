@@ -16,9 +16,13 @@ describe("UsersPage.svelte source-structure guards", () => {
 
   // ── Imports ──────────────────────────────────────────────────────────────────
   it("imports service functions from $modules/admin", () => {
-    expect(src).toContain(
-      "import { getUsers, getRolesList, createUser, updateUser, deleteUser, getSubordinates } from '$modules/admin'",
-    );
+    expect(src).toContain("getUsers");
+    expect(src).toContain("getRolesList");
+    expect(src).toContain("createUser");
+    expect(src).toContain("updateUser");
+    expect(src).toContain("deleteUser");
+    expect(src).toContain("getSubordinates");
+    expect(src).toContain('from "$modules/admin"');
   });
 
   it("does not import apiFetch from $lib/api/client", () => {
@@ -27,7 +31,7 @@ describe("UsersPage.svelte source-structure guards", () => {
   });
 
   it("imports auth store for RBAC", () => {
-    expect(src).toContain("import { useAuthStore } from '$modules/auth'");
+    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
   });
 
   // ── RBAC guards ──────────────────────────────────────────────────────────────
@@ -37,19 +41,19 @@ describe("UsersPage.svelte source-structure guards", () => {
 
   it("defines canCreate/canEdit/canDelete via permission registry", () => {
     expect(src).toContain(
-      "let canCreate = $derived(rbac.can(Permissions.user.create))",
+      "const canCreate = $derived(rbac.can(Permissions.user.create))",
     );
     expect(src).toContain(
-      "let canEdit = $derived(rbac.can(Permissions.user.update))",
+      "const canEdit = $derived(rbac.can(Permissions.user.update))",
     );
     expect(src).toContain(
-      "let canDelete = $derived(rbac.can(Permissions.user.delete))",
+      "const canDelete = $derived(rbac.can(Permissions.user.delete))",
     );
   });
 
   it("defines canView via permission registry", () => {
     expect(src).toContain(
-      "let canView = $derived(rbac.can(Permissions.user.view))",
+      "const canView = $derived(rbac.can(Permissions.user.view))",
     );
   });
 
@@ -69,7 +73,7 @@ describe("UsersPage.svelte source-structure guards", () => {
 
   // ── Self-deletion guard ───────────────────────────────────────────────────────
   it("tracks currentUserID from auth store", () => {
-    expect(src).toContain("let currentUserID = $derived");
+    expect(src).toContain("const currentUserID = $derived");
     expect(src).toContain("authStore.user?.id");
   });
 

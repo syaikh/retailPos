@@ -16,13 +16,13 @@ describe("ReceiptPrintOverlay.svelte source-structure guards", () => {
 
   it("imports printReceipt store", () => {
     expect(src).toContain(
-      "import { printReceipt } from '$shared/stores/printReceipt.svelte'",
+      'import { printReceipt } from "$shared/stores/printReceipt.svelte"',
     );
   });
 
   it("imports settingsStore for dynamic receipt branding", () => {
     expect(src).toContain(
-      "import { settingsStore } from '$shared/stores/settings.svelte'",
+      'import { settingsStore } from "$shared/stores/settings.svelte"',
     );
   });
 
@@ -31,9 +31,8 @@ describe("ReceiptPrintOverlay.svelte source-structure guards", () => {
   });
 
   it("imports formatDateTimeInJakarta utility", () => {
-    expect(src).toContain(
-      "import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime'",
-    );
+    expect(src).toContain("formatDateTimeInJakarta");
+    expect(src).toContain('from "$shared/utils/jakartaTime"');
   });
 
   it("renders conditional on printReceipt store", () => {
@@ -45,8 +44,9 @@ describe("ReceiptPrintOverlay.svelte source-structure guards", () => {
   });
 
   it("displays created_at with Jakarta time formatting", () => {
+    expect(src).toContain("formatDateTimeInJakarta(");
     expect(src).toContain(
-      "formatDateTimeInJakarta($printReceipt.created_at || new Date().toISOString())",
+      "$printReceipt.created_at || new Date().toISOString()",
     );
   });
 
@@ -56,7 +56,7 @@ describe("ReceiptPrintOverlay.svelte source-structure guards", () => {
   });
 
   it("renders items list with quantity and price", () => {
-    expect(src).toContain("{#each $printReceipt.items as item}");
+    expect(src).toContain("{#each $printReceipt.items as item");
     expect(src).toContain("item.unit_price * item.quantity");
   });
 
@@ -80,7 +80,7 @@ describe("ReceiptPrintOverlay.svelte source-structure guards", () => {
   it("displays payment section with method breakdown", () => {
     expect(src).toContain("{labels.payment}");
     expect(src).toContain("{#if $printReceipt.payments");
-    expect(src).toContain("{#each $printReceipt.payments as p}");
+    expect(src).toContain("{#each $printReceipt.payments as p");
     expect(src).toContain("p.amount.toLocaleString");
   });
 

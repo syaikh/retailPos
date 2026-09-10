@@ -12,28 +12,28 @@ function getSource(component: string): string {
 }
 
 describe("Consignment components error-handling pattern", () => {
-  it("ArrangementsPage uses nested error?.response?.data?.error pattern", () => {
+  it("ArrangementsPage uses instanceof Error error-handling pattern", () => {
     const src = getSource("ArrangementsPage.svelte");
-    expect(src).toContain("e?.response?.data?.error");
+    expect(src).toContain("e instanceof Error");
   });
 
-  it("PendingReturnPage uses nested error?.response?.data?.error pattern", () => {
+  it("PendingReturnPage uses instanceof Error error-handling pattern", () => {
     const src = getSource("PendingReturnPage.svelte");
-    expect(src).toContain("e?.response?.data?.error");
+    expect(src).toContain("e instanceof Error");
   });
 
-  it("ReceiptEntry uses nested error?.response?.data?.error pattern", () => {
+  it("ReceiptEntry uses instanceof Error error-handling pattern", () => {
     const src = getSource("ReceiptEntry.svelte");
-    expect(src).toContain("e?.response?.data?.error");
+    expect(src).toContain("e instanceof Error");
   });
 
-  it("ReturnPage uses nested error?.response?.data?.error pattern", () => {
+  it("ReturnPage uses instanceof Error error-handling pattern", () => {
     const src = getSource("ReturnPage.svelte");
-    expect(src).toContain("e?.response?.data?.error");
+    expect(src).toContain("e instanceof Error");
   });
 
-  it("TermsEditor uses nested error?.response?.data?.error pattern", () => {
+  it("TermsEditor uses instanceof Error error-handling pattern", () => {
     const src = getSource("TermsEditor.svelte");
-    expect(src).toContain("e?.response?.data?.error");
+    expect(src).toContain("e instanceof Error");
   });
 });

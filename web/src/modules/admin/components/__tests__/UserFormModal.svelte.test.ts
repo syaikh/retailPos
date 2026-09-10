@@ -20,12 +20,12 @@ describe("UserFormModal.svelte source-structure guards", () => {
 
   it("imports Button, Input, Modal from shared/ui", () => {
     expect(src).toContain(
-      "import { Button, Input, Modal, ToggleSwitch } from '$shared/ui'",
+      'import { Button, Input, Modal, ToggleSwitch } from "$shared/ui"',
     );
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("renders Modal with dynamic title", () => {

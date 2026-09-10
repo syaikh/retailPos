@@ -15,22 +15,20 @@ describe("CategoriesPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports auth store", () => {
-    expect(src).toContain("import { useAuthStore } from '$modules/auth'");
+    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
   });
 
   it("imports Jakarta time utility", () => {
-    expect(src).toContain(
-      "import { formatDateInJakarta } from '$shared/utils/jakartaTime'",
-    );
+    expect(src).toContain('import { formatDateInJakarta } from "$shared/utils/jakartaTime"');
   });
 
   it("imports apiFetch", () => {
-    expect(src).toContain("import { apiFetch } from '$shared/api/http-client'");
+    expect(src).toContain('import { apiFetch } from "$shared/api/http-client"');
   });
 
   it("imports shared UI components", () => {
     expect(src).toContain(
-      "import { Button, Input, Modal, Pagination, SearchBar, Skeleton, BulkActionDropdown, ImportWizard, ToggleSwitch, ConfirmDeleteModal, SortableHeader } from '$shared/ui'",
+      'import {\n    Button,\n    Input,\n    Modal,\n    Pagination,\n    SearchBar,\n    Skeleton,\n    BulkActionDropdown,\n    ImportWizard,\n    ToggleSwitch,\n    ConfirmDeleteModal,\n    SortableHeader,\n  } from "$shared/ui"',
     );
   });
 
@@ -43,22 +41,14 @@ describe("CategoriesPage.svelte source-structure guards", () => {
 
   it("has RBAC derived from the shared composable", () => {
     expect(src).toContain("const rbac = useRBAC()");
-    expect(src).toContain(
-      "let canCreate = $derived(rbac.can(Permissions.category.create))",
-    );
-    expect(src).toContain(
-      "let canEdit = $derived(rbac.can(Permissions.category.update))",
-    );
-    expect(src).toContain(
-      "let canDelete = $derived(rbac.can(Permissions.category.delete))",
-    );
-    expect(src).toContain("let canView = $derived(authStore.user != null)");
+    expect(src).toContain("const canCreate = $derived(rbac.can(Permissions.category.create))");
+    expect(src).toContain("const canEdit = $derived(rbac.can(Permissions.category.update))");
+    expect(src).toContain("const canDelete = $derived(rbac.can(Permissions.category.delete))");
+    expect(src).toContain("const _canView = $derived(authStore.user != null)");
   });
 
   it("has sort state and handleSort function", () => {
-    expect(src).toContain(
-      "const { sortState, handleSort } = useSortable('name', 'asc')",
-    );
+    expect(src).toContain('const { sortState, handleSort } = useSortable("name", "asc")');
     expect(src).toContain("sortState.sortBy");
     expect(src).toContain("sortState.sortDir");
   });

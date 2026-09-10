@@ -21,14 +21,16 @@ describe("PeriodSelector.svelte source-structure guards", () => {
 
   it("imports calendar components", () => {
     expect(src).toContain(
-      "import { SelectableCalendar, MonthlyCalendar, YearCalendar }",
+      `import {
+    SelectableCalendar,
+    MonthlyCalendar,
+    YearCalendar,
+  } from "$modules/reporting/components/calendar"`,
     );
   });
 
   it("imports CalendarDate from @internationalized/date", () => {
-    expect(src).toContain(
-      "import { CalendarDate } from '@internationalized/date'",
-    );
+    expect(src).toContain('import { CalendarDate } from "@internationalized/date"');
   });
 
   it("imports lucide icons", () => {
@@ -40,11 +42,11 @@ describe("PeriodSelector.svelte source-structure guards", () => {
   });
 
   it("imports fly from svelte/transition", () => {
-    expect(src).toContain("import { fly } from 'svelte/transition'");
+    expect(src).toContain('import { fly } from "svelte/transition"');
   });
 
   it("imports Button, Dropdown from $shared/ui", () => {
-    expect(src).toContain("import { Button, Dropdown } from '$shared/ui'");
+    expect(src).toContain('import { Button, Dropdown } from "$shared/ui"');
   });
 
   it("has getPeriodDescription function", () => {
@@ -84,6 +86,6 @@ describe("PeriodSelector.svelte source-structure guards", () => {
   });
 
   it("has yesterdayDate derived", () => {
-    expect(src).toContain("let yesterdayDate = $derived");
+    expect(src).toContain("const yesterdayDate = $derived");
   });
 });

@@ -15,9 +15,7 @@ describe("FindTransaction.svelte source-structure guards", () => {
   const src = getSource();
 
   it("calls the cross-cashier lookup service", () => {
-    expect(src).toContain(
-      "import { getSalesLookup } from '../services/sales-service'",
-    );
+    expect(src).toContain('import { getSalesLookup } from "../services/sales-service"');
     expect(src).toContain("getSalesLookup(");
   });
 
@@ -43,7 +41,7 @@ describe("FindTransaction.svelte source-structure guards", () => {
   });
 
   it("makes invoice lookup date-independent (widened window)", () => {
-    expect(src).toContain("'2000-01-01'");
+    expect(src).toContain('"2000-01-01"');
     expect(src).toContain("getTodayInJakarta");
     expect(src).not.toContain("getDateNDaysAgoInJakarta");
   });
@@ -65,8 +63,10 @@ describe("FindTransaction.svelte source-structure guards", () => {
     expect(src).toContain("function runSearch");
     expect(src).toContain("hasSearched = true");
     expect(src).toContain(
-      "if (!searchQuery.trim()) { hasSearched = false; return; }",
+      "if (!searchQuery.trim()) {",
     );
+    expect(src).toContain("hasSearched = false");
+    expect(src).toContain("return;");
   });
 
   it("resets hasSearched whenever the query text changes", () => {

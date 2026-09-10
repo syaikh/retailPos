@@ -23,25 +23,19 @@ describe("TransactionTable.svelte source-structure guards", () => {
   });
 
   it("imports Badge, Pagination, Skeleton", () => {
-    expect(src).toContain(
-      "import { Badge, Pagination, Skeleton, SortableHeader } from '$shared/ui'",
-    );
+    expect(src).toContain('import { Badge, Pagination, Skeleton, SortableHeader } from "$shared/ui"');
   });
 
   it("imports Banknote icon", () => {
-    expect(src).toContain(
-      "import { Banknote, Copy, Check } from 'lucide-svelte'",
-    );
+    expect(src).toContain('import { Banknote, Copy, Check } from "lucide-svelte"');
   });
 
   it("imports formatDateTimeInJakarta", () => {
-    expect(src).toContain(
-      "import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime'",
-    );
+    expect(src).toContain('import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("has getPaymentMethodVariant function", () => {
@@ -82,7 +76,7 @@ describe("TransactionTable.svelte source-structure guards", () => {
 
   it("shows items as a plain number and localizes more count", () => {
     expect(src).toContain("sale.items?.length");
-    expect(src).toContain("t('moreWithCount'");
+    expect(src).toContain('t("moreWithCount"');
   });
 
   it("shows localized loading aria-label", () => {

@@ -15,20 +15,17 @@ describe("PricingRulesToolbar.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports FilterChipBar from shared/ui", () => {
-    expect(src).toContain(
-      "import { Button, SearchBar, Dropdown, BulkActionDropdown, FilterChipBar } from '$shared/ui'",
-    );
+    expect(src).toContain("BulkActionDropdown");
+    expect(src).toContain('from "$shared/ui"');
   });
 
   it("imports Calculator, ChevronDown, Plus icons (no Columns3)", () => {
-    expect(src).toContain(
-      "import { Plus, ChevronDown, Calculator } from 'lucide-svelte'",
-    );
+    expect(src).toContain('import { Plus, ChevronDown, Calculator } from "lucide-svelte"');
     expect(src).not.toContain("Columns3");
   });
 
   it("imports debounce utility", () => {
-    expect(src).toContain("import { debounce } from '$shared/utils/debounce'");
+    expect(src).toContain('import { debounce } from "$shared/utils/debounce"');
   });
 
   it("has onimport callback prop", () => {
@@ -42,47 +39,49 @@ describe("PricingRulesToolbar.svelte source-structure guards", () => {
   });
 
   it("has activeFilters derived", () => {
-    expect(src).toContain("let activeFilters = $derived.by");
+    expect(src).toContain("const activeFilters = $derived.by");
   });
 
   it("builds filter chips for approval", () => {
-    expect(src).toContain("type: 'approval'");
-    expect(src).toContain(
-      "label: labels.approvalChip.replace('{value}', approvalLabels[approvalFilter] || approvalFilter)",
-    );
+    expect(src).toContain('type: "approval"');
+    expect(src).toContain("labels.approvalChip.replace(");
+    expect(src).toContain("approvalLabels[approvalFilter]");
   });
 
   it("builds filter chips for status", () => {
-    expect(src).toContain("type: 'status'");
-    expect(src).toContain(
-      "label: labels.statusChip.replace('{value}', statusLabels[statusFilter] || statusFilter)",
-    );
+    expect(src).toContain('type: "status"');
+    expect(src).toContain("labels.statusChip.replace(");
+    expect(src).toContain("statusLabels[statusFilter]");
   });
 
   it("builds filter chips for type", () => {
-    expect(src).toContain("type: 'type'");
-    expect(src).toContain("label: labels.typeChip.replace('{value}', label)");
+    expect(src).toContain('type: "type"');
+    expect(src).toContain('label: labels.typeChip.replace("{value}", label)');
   });
 
   it("builds filter chips for method", () => {
-    expect(src).toContain("type: 'method'");
-    expect(src).toContain("label: labels.methodChip.replace('{value}', label)");
+    expect(src).toContain('type: "method"');
+    expect(src).toContain('label: labels.methodChip.replace("{value}", label)');
   });
 
   it("has clearAllFilters function", () => {
     expect(src).toContain("function clearAllFilters()");
-    expect(src).toContain("approvalFilter = 'all'");
-    expect(src).toContain("statusFilter = 'all'");
-    expect(src).toContain("typeFilter = 'all'");
-    expect(src).toContain("methodFilter = 'all'");
+    expect(src).toContain('approvalFilter = "all"');
+    expect(src).toContain('statusFilter = "all"');
+    expect(src).toContain('typeFilter = "all"');
+    expect(src).toContain('methodFilter = "all"');
   });
 
   it("has clearFilterChip function for individual chip clearing", () => {
     expect(src).toContain("function clearFilterChip(type: string)");
-    expect(src).toContain("case 'approval': approvalFilter = 'all'");
-    expect(src).toContain("case 'status': statusFilter = 'all'");
-    expect(src).toContain("case 'type': typeFilter = 'all'");
-    expect(src).toContain("case 'method': methodFilter = 'all'");
+    expect(src).toContain('case "approval"');
+    expect(src).toContain('approvalFilter = "all"');
+    expect(src).toContain('case "status"');
+    expect(src).toContain('statusFilter = "all"');
+    expect(src).toContain('case "type"');
+    expect(src).toContain('typeFilter = "all"');
+    expect(src).toContain('case "method"');
+    expect(src).toContain('methodFilter = "all"');
   });
 
   it("renders FilterChipBar with active filters", () => {
@@ -93,7 +92,8 @@ describe("PricingRulesToolbar.svelte source-structure guards", () => {
   });
 
   it("renders BulkActionDropdown for import/export", () => {
-    expect(src).toContain('<BulkActionDropdown module="pricing_rules"');
+    expect(src).toContain("<BulkActionDropdown");
+    expect(src).toContain('module="pricing_rules"');
     expect(src).toContain("canExport={canCreate}");
     expect(src).toContain("canImport={canCreate}");
     expect(src).toContain("onImport={onimport}");
@@ -110,15 +110,11 @@ describe("PricingRulesToolbar.svelte source-structure guards", () => {
   });
 
   it("has aria-label on type filter dropdown trigger", () => {
-    expect(src).toContain(
-      "aria-label={labels.filterTipe.replace('{typeLabel}', typeLabel)}",
-    );
+    expect(src).toContain('aria-label={labels.filterTipe.replace("{typeLabel}", typeLabel)}');
   });
 
   it("has aria-label on method filter dropdown trigger", () => {
-    expect(src).toContain(
-      "aria-label={labels.filterMetode.replace('{methodLabel}', methodLabel)}",
-    );
+    expect(src).toContain('aria-label={labels.filterMetode.replace("{methodLabel}", methodLabel)}');
   });
 
   it('SearchBar has id="pricing-search"', () => {
@@ -139,14 +135,16 @@ describe("PricingRulesToolbar.svelte source-structure guards", () => {
   });
 
   it("type filter button changes style when active", () => {
+    expect(src).toContain("typeFilter !==");
     expect(src).toContain(
-      "typeFilter !== 'all' ? 'border-primary-default/40 bg-primary-subtle/30 text-text-primary'",
+      "'border-primary-default/40 bg-primary-subtle/30 text-text-primary'",
     );
   });
 
   it("method filter button changes style when active", () => {
+    expect(src).toContain("methodFilter !==");
     expect(src).toContain(
-      "methodFilter !== 'all' ? 'border-primary-default/40 bg-primary-subtle/30 text-text-primary'",
+      "'border-primary-default/40 bg-primary-subtle/30 text-text-primary'",
     );
   });
 

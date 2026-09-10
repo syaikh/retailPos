@@ -16,18 +16,16 @@ describe("CartPanel.svelte source-structure guards", () => {
 
   it("imports cart-related lucide-svelte icons", () => {
     expect(src).toContain(
-      "import { ShoppingCart, X, Minus, Plus, Wallet, Printer, Hand, RotateCcw } from 'lucide-svelte'",
+      'import {\n    ShoppingCart,\n    X,\n    Minus,\n    Plus,\n    Wallet,\n    Printer,\n    Hand,\n    RotateCcw,\n  } from "lucide-svelte"',
     );
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("imports PrintModeToggle for per-register print mode", () => {
-    expect(src).toContain(
-      "import PrintModeToggle from '$app/components/PrintModeToggle.svelte'",
-    );
+    expect(src).toContain('import PrintModeToggle from "$app/components/PrintModeToggle.svelte"');
   });
 
   it("renders the PrintModeToggle in the cart footer", () => {
@@ -35,8 +33,8 @@ describe("CartPanel.svelte source-structure guards", () => {
   });
 
   it("uses svelte transitions", () => {
-    expect(src).toContain("import { slide } from 'svelte/transition'");
-    expect(src).toContain("import { flip } from 'svelte/animate'");
+    expect(src).toContain('import { slide } from "svelte/transition"');
+    expect(src).toContain('import { flip } from "svelte/animate"');
   });
 
   it("has cart and totalAmount as props", () => {
@@ -73,14 +71,13 @@ describe("CartPanel.svelte source-structure guards", () => {
   });
 
   it("selects quantity input text on focus for quick editing", () => {
-    expect(src).toContain(
-      "onfocus={(e: FocusEvent) => (e.target as HTMLInputElement).select()}",
-    );
+    expect(src).toContain("onfocus={(e: FocusEvent) =>");
+    expect(src).toContain("(e.target as HTMLInputElement).select()");
   });
 
   it("renders checkout button with Wallet icon", () => {
     expect(src).toContain("<Wallet size={16} />");
-    expect(src).toContain("t('payWithAmount'");
+    expect(src).toContain('t("payWithAmount"');
   });
 
   it("renders print and recall buttons", () => {

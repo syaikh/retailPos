@@ -15,7 +15,7 @@ describe("StatCard.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Badge and Skeleton from shared/ui", () => {
-    expect(src).toContain("import { Badge, Skeleton } from '$shared/ui'");
+    expect(src).toContain('import { Badge, Skeleton } from "$shared/ui"');
   });
 
   it("uses $props for prop destructuring", () => {

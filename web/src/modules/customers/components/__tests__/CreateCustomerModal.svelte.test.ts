@@ -19,11 +19,11 @@ describe("CreateCustomerModal.svelte source-structure guards", () => {
   });
 
   it("imports Button, Input, Modal from shared/ui", () => {
-    expect(src).toContain("import { Button, Input, Modal } from '$shared/ui'");
+    expect(src).toContain('import { Button, Input, Modal } from "$shared/ui"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it('renders Modal with "Add Customer" title', () => {

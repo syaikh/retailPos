@@ -16,21 +16,22 @@ describe("NotificationBell.svelte source-structure guards", () => {
 
   it("imports routePermissions and RBAC composable", () => {
     expect(src).toContain(
-      "import { routePermissions } from '$app/config/permissions'",
+      'import { routePermissions } from "$app/config/permissions"',
     );
     expect(src).toContain(
-      "import { useRBAC } from '$shared/composables/useRBAC.svelte'",
+      'import { useRBAC } from "$shared/composables/useRBAC.svelte"',
     );
   });
 
   it("imports notification store and helpers", () => {
-    expect(src).toContain("from '$shared/stores/notifications.svelte'");
+    expect(src).toContain('from "$shared/stores/notifications.svelte"');
     expect(src).toContain("notifications.markAsRead");
   });
 
   it("permission-gates navigation in handleNotificationClick", () => {
-    expect(src).toContain("const targetPath = n.navigateTo.split('?')[0]");
-    expect(src).toContain("const requiredPerms = routePermissions[targetPath]");
+    expect(src).toContain('const targetPath = n.navigateTo.split("?")[0]');
+    expect(src).toContain("const requiredPerms =");
+    expect(src).toContain("routePermissions[targetPath]");
     expect(src).toContain(
       "if (requiredPerms && !rbac.canAny(requiredPerms)) return;",
     );
@@ -58,7 +59,7 @@ describe("NotificationBell.svelte source-structure guards", () => {
   });
 
   it("low_stock alert navigates with low_stock filter param", () => {
-    expect(src).toContain("navigateTo: '/inventory/products?low_stock=true'");
+    expect(src).toContain('navigateTo: "/inventory/products?low_stock=true"');
   });
 
   it("stock opname notifications gated by stock_opname.view permission at receive time", () => {

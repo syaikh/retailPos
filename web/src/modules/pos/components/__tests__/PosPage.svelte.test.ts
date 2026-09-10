@@ -15,23 +15,19 @@ describe("PosPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports apiClient from shared/api", () => {
-    expect(src).toContain("import apiClient from '$shared/api/http-client'");
+    expect(src).toContain('import apiClient from "$shared/api/http-client"');
   });
 
   it("imports goto from $app/router", () => {
-    expect(src).toContain("import { goto } from '$app/router'");
+    expect(src).toContain('import { goto } from "$app/router"');
   });
 
   it("imports toast store", () => {
-    expect(src).toContain(
-      "import { toast } from '$shared/stores/toast.svelte'",
-    );
+    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
   });
 
   it("imports printReceipt toast helper from shared service", () => {
-    expect(src).toContain(
-      "import { printReceiptWithToast } from '$shared/services/print-service'",
-    );
+    expect(src).toContain('import { printReceiptWithToast } from "$shared/services/print-service"');
   });
 
   it("delegates silent print + failure toast to printReceiptWithToast (no fallback to preview)", () => {
@@ -40,32 +36,26 @@ describe("PosPage.svelte source-structure guards", () => {
   });
 
   it("imports auth store and shift store", () => {
-    expect(src).toContain("import { useAuthStore } from '$modules/auth'");
-    expect(src).toContain("import { useShiftStore } from '$modules/shifts'");
+    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
+    expect(src).toContain('import { useShiftStore } from "$modules/shifts"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("imports ShoppingCart from lucide-svelte for paymentOptions", () => {
     expect(src).toContain(
-      "import { ShoppingCart, Hand, RotateCcw } from 'lucide-svelte'",
+      'import { ShoppingCart } from "lucide-svelte"',
     );
   });
 
   it("imports extracted child components", () => {
-    expect(src).toContain(
-      "import ProductSearchPanel from './ProductSearchPanel.svelte'",
-    );
-    expect(src).toContain(
-      "import PosProductTable from './PosProductTable.svelte'",
-    );
-    expect(src).toContain("import CartPanel from './CartPanel.svelte'");
-    expect(src).toContain("import CheckoutModal from './CheckoutModal.svelte'");
-    expect(src).toContain(
-      "import CustomerSelectModal from './CustomerSelectModal.svelte'",
-    );
+    expect(src).toContain('import ProductSearchPanel from "./ProductSearchPanel.svelte"');
+    expect(src).toContain('import PosProductTable from "./PosProductTable.svelte"');
+    expect(src).toContain('import CartPanel from "./CartPanel.svelte"');
+    expect(src).toContain('import CheckoutModal from "./CheckoutModal.svelte"');
+    expect(src).toContain('import CustomerSelectModal from "./CustomerSelectModal.svelte"');
   });
 
   it("uses $state for cart, products, search state", () => {
@@ -100,7 +90,10 @@ describe("PosPage.svelte source-structure guards", () => {
   it("uses server cart checkout via checkoutCart", () => {
     expect(src).toContain("checkoutCart(activeCartId, payments");
     expect(src).toContain("import {");
-    expect(src).toContain("holdCart, resumeCart, cancelCart, checkoutCart");
+    expect(src).toContain("holdCart,");
+    expect(src).toContain("resumeCart,");
+    expect(src).toContain("cancelCart,");
+    expect(src).toContain("checkoutCart,");
   });
 
   it("loads active shift from shiftStore on mount", () => {
@@ -109,7 +102,7 @@ describe("PosPage.svelte source-structure guards", () => {
 
   it("checks shiftStore.activeShift instead of direct API call for cashier redirect", () => {
     expect(src).toContain("shiftStore.activeShift");
-    expect(src).toContain("goto('/shifts')");
+    expect(src).toContain('goto("/shifts")');
   });
 
   it("has processCheckout and finalizeSale functions", () => {
@@ -135,26 +128,25 @@ describe("PosPage.svelte source-structure guards", () => {
   });
 
   it("handles arrow key navigation in product list", () => {
-    expect(src).toContain("event.key === 'ArrowDown'");
-    expect(src).toContain("event.key === 'ArrowUp'");
-    expect(src).toContain("event.key === 'Enter' && selectedProductIndex >= 0");
+    expect(src).toContain('event.key === "ArrowDown"');
+    expect(src).toContain('event.key === "ArrowUp"');
+    expect(src).toContain('event.key === "Enter" &&');
+    expect(src).toContain("selectedProductIndex >= 0 &&");
   });
 
   it("guards keyboard nav from inputs, textareas, selects, buttons, and links", () => {
-    expect(src).toContain("const tag = target?.tagName ?? ''");
+    expect(src).toContain('const tag = target?.tagName ?? ""');
+    expect(src).toContain("const isEditable =");
     expect(src).toContain(
-      "const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'",
+      'tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT"',
     );
-    expect(src).toContain(
-      "const isInteractive = tag === 'BUTTON' || tag === 'A'",
-    );
-    expect(src).toContain("!isEditable && !isInteractive");
+    expect(src).toContain('const isInteractive = tag === "BUTTON" || tag === "A"');
+    expect(src).toContain("!isEditable &&");
+    expect(src).toContain("!isInteractive");
   });
 
   it("keeps arrow navigation active from the search input", () => {
-    expect(src).toContain(
-      "const isSearchInput = target?.id === 'pos-search-input'",
-    );
+    expect(src).toContain('const isSearchInput = target?.id === "pos-search-input"');
     expect(src).toContain("if (isEditable && !isSearchInput) return;");
   });
 
@@ -187,8 +179,8 @@ describe("PosPage.svelte source-structure guards", () => {
   });
 
   it("handles nested error objects from API responses", () => {
-    expect(src).toContain("err.response?.data?.error");
-    expect(src).toContain("errData?.message");
+    expect(src).toContain("err instanceof Error");
+    expect(src).toContain("err.message");
   });
 
   it("re-throws error in processCheckout for upstream handling", () => {

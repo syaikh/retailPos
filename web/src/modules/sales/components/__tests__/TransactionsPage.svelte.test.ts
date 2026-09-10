@@ -15,15 +15,9 @@ describe("TransactionsPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports extracted child components", () => {
-    expect(src).toContain(
-      "import TransactionFilters from './TransactionFilters.svelte'",
-    );
-    expect(src).toContain(
-      "import TransactionTable from './TransactionTable.svelte'",
-    );
-    expect(src).toContain(
-      "import TransactionDrawer from './TransactionDrawer.svelte'",
-    );
+    expect(src).toContain('import TransactionFilters from "./TransactionFilters.svelte"');
+    expect(src).toContain('import TransactionTable from "./TransactionTable.svelte"');
+    expect(src).toContain('import TransactionDrawer from "./TransactionDrawer.svelte"');
   });
 
   it("renders child components in template", () => {
@@ -34,27 +28,21 @@ describe("TransactionsPage.svelte source-structure guards", () => {
 
   it("imports Jakarta time utilities", () => {
     expect(src).toContain(
-      "import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime'",
+      'import {\n    getTodayInJakarta,\n    getDateNDaysAgoInJakarta,\n    JAKARTA_OFFSET_MS,\n  } from "$shared/utils/jakartaTime"',
     );
   });
 
   it("imports useSalesStore from store", () => {
-    expect(src).toContain(
-      "import { useSalesStore } from '../stores/sales-store.svelte'",
-    );
+    expect(src).toContain('import { useSalesStore } from "../stores/sales-store.svelte"');
   });
 
   it("imports FindTransaction and Permissions for the lookup tab", () => {
-    expect(src).toContain(
-      "import FindTransaction from './FindTransaction.svelte'",
-    );
-    expect(src).toContain(
-      "import { Permissions } from '$shared/constants/permissions'",
-    );
+    expect(src).toContain('import FindTransaction from "./FindTransaction.svelte"');
+    expect(src).toContain('import { Permissions } from "$shared/constants/permissions"');
   });
 
   it("defaults the active tab to My Transactions", () => {
-    expect(src).toContain("let activeTab = $state<'mine' | 'lookup'>('mine')");
+    expect(src).toContain('let activeTab = $state<"mine" | "lookup">("mine")');
   });
 
   it("only offers the Find Transaction tab to sale.lookup holders", () => {
@@ -72,15 +60,13 @@ describe("TransactionsPage.svelte source-structure guards", () => {
   });
 
   it("renders the Find Transaction panel when the lookup tab is active", () => {
-    expect(src).toContain("activeTab === 'lookup'");
+    expect(src).toContain('{#if activeTab === "mine"}');
     expect(src).toContain("<FindTransaction />");
   });
 
   it("imports auth store and RBAC", () => {
-    expect(src).toContain("import { useAuthStore } from '$modules/auth'");
-    expect(src).toContain(
-      "import { useRBAC } from '$shared/composables/useRBAC.svelte'",
-    );
+    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
+    expect(src).toContain('import { useRBAC } from "$shared/composables/useRBAC.svelte"');
   });
 
   it("sets cashierId filter for cashier role", () => {
@@ -88,15 +74,13 @@ describe("TransactionsPage.svelte source-structure guards", () => {
   });
 
   it("imports createQueryManager", () => {
-    expect(src).toContain(
-      "import { createQueryManager } from '../lib/query-manager'",
-    );
+    expect(src).toContain('import { createQueryManager } from "../lib/query-manager"');
   });
 
   it("initializes store with default dates", () => {
     expect(src).toContain("store.startDate = ");
     expect(src).toContain("store.endDate = ");
-    expect(src).toContain("store.dateRange = 'last30d'");
+    expect(src).toContain('store.dateRange = "last30d"');
   });
 
   it("has toggleSort and handlePageChange", () => {
@@ -136,14 +120,10 @@ describe("TransactionsPage.svelte source-structure guards", () => {
   });
 
   it("imports shift store, router, toast and labels for shift guard", () => {
-    expect(src).toContain("import { useShiftStore } from '$modules/shifts'");
-    expect(src).toContain(
-      "import { goto, subscribe as subscribeRoute } from '$app/router'",
-    );
-    expect(src).toContain(
-      "import { toast } from '$shared/stores/toast.svelte'",
-    );
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { useShiftStore } from "$modules/shifts"');
+    expect(src).toContain('import { goto, subscribe as subscribeRoute } from "$app/router"');
+    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("loads active shift from shiftStore on mount", () => {
@@ -152,16 +132,14 @@ describe("TransactionsPage.svelte source-structure guards", () => {
 
   it("redirects cashier without an active shift to /shifts", () => {
     expect(src).toContain("shiftStore.activeShift");
-    expect(src).toContain("goto('/shifts')");
+    expect(src).toContain('goto("/shifts")');
     expect(src).toContain("toastMustOpenShiftFirst");
   });
 
   it("imports RefreshCw, useWebSocket, Button for refresh + banner", () => {
-    expect(src).toContain("import { RefreshCw } from 'lucide-svelte'");
-    expect(src).toContain(
-      "import { useWebSocket } from '$shared/api/websocket'",
-    );
-    expect(src).toContain("import { Button } from '$shared/ui'");
+    expect(src).toContain('import { RefreshCw } from "lucide-svelte"');
+    expect(src).toContain('import { useWebSocket } from "$shared/api/websocket"');
+    expect(src).toContain('import { Button } from "$shared/ui"');
   });
 
   it("has refresh + viewNew and resets to page 0", () => {
@@ -179,7 +157,7 @@ describe("TransactionsPage.svelte source-structure guards", () => {
   });
 
   it("subscribes to sale_created only for the all-sales (manager) view", () => {
-    expect(src).toContain("ws.on('sale_created'");
+    expect(src).toContain('ws.on("sale_created"');
     expect(src).toContain("if (!canAccessAll) return;");
   });
 
@@ -215,16 +193,16 @@ describe("TransactionsPage.svelte source-structure guards", () => {
   it("routes an own/history deep-linked sale to the My Transactions tab", () => {
     // Both the in-list and owner-scoped detail paths select the cashier's own
     // context before opening the drawer.
-    expect(src).toContain("drawerMode = 'history'");
-    expect(src).toContain("activeTab = 'mine'");
+    expect(src).toContain('drawerMode = "history"');
+    expect(src).toContain('activeTab = "mine"');
   });
 
   it("routes a cross-cashier deep-linked sale to the Find Transaction tab (lookup holders only)", () => {
     // A foreign sale resolves to lookup mode; switch to that tab only when the
     // caller actually holds sale.lookup (otherwise the drawer just won't open,
     // matching prior behaviour for roles without the permission).
-    expect(src).toContain("drawerMode = 'lookup'");
-    expect(src).toContain("if (canLookup) activeTab = 'lookup'");
+    expect(src).toContain('drawerMode = "lookup"');
+    expect(src).toContain('if (canLookup) activeTab = "lookup"');
   });
 
   it("mounts the detail drawer regardless of the active tab (deep-link support)", () => {

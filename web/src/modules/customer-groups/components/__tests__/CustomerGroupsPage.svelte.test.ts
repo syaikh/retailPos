@@ -21,7 +21,7 @@ describe("CustomerGroupsPage.svelte source-structure guards", () => {
 
   it("imports ImportWizard from shared/ui", () => {
     expect(src).toContain(
-      "import ImportWizard from '$shared/ui/ImportWizard.svelte'",
+      'import ImportWizard from "$shared/ui/ImportWizard.svelte"',
     );
   });
 
@@ -34,7 +34,9 @@ describe("CustomerGroupsPage.svelte source-structure guards", () => {
   });
 
   it("has handleBulkDeactivate function", () => {
-    expect(src).toContain("async function handleBulkDeactivate(ids: number[])");
+    expect(src).toContain(
+      "async function handleBulkDeactivate(ids: number[])",
+    );
   });
 
   it("has handleBulkDelete function", () => {
@@ -42,12 +44,12 @@ describe("CustomerGroupsPage.svelte source-structure guards", () => {
   });
 
   it("has hasCustomersFilter state", () => {
-    expect(src).toContain("let hasCustomersFilter = $state('all')");
+    expect(src).toContain('let hasCustomersFilter = $state("all")');
   });
 
   it("passes has_customers filter to getCustomerGroups", () => {
     expect(src).toContain(
-      "filters.has_customers = hasCustomersFilter === 'yes'",
+      'filters.has_customers = hasCustomersFilter === "yes"',
     );
   });
 

@@ -15,7 +15,8 @@ describe("PurchaseOrdersTable.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Copy icon for PO number copy button", () => {
-    expect(src).toContain("Copy } from 'lucide-svelte'");
+    expect(src).toContain("Copy,");
+    expect(src).toContain('from "lucide-svelte"');
   });
 
   it("has handleCopyPO function using clipboard API", () => {
@@ -23,15 +24,14 @@ describe("PurchaseOrdersTable.svelte source-structure guards", () => {
   });
 
   it("shows checkmark briefly after copy", () => {
-    expect(src).toContain("copiedPOs = new Set([...copiedPOs, poId])");
+    expect(src).toContain("copiedPOs = new SvelteSet([...copiedPOs, poId])");
     expect(src).toContain("setTimeout");
     expect(src).toContain("next.delete(poId)");
   });
 
   it("stops click propagation on copy button", () => {
-    expect(src).toContain(
-      "e.stopPropagation(); handleCopyPO(po.id, po.po_number)",
-    );
+    expect(src).toContain("e.stopPropagation();");
+    expect(src).toContain("handleCopyPO(po.id, po.po_number)");
   });
 
   it("has aria-label on copy button", () => {
@@ -48,14 +48,13 @@ describe("PurchaseOrdersTable.svelte source-structure guards", () => {
   });
 
   it("defaults to updated_at descending sort", () => {
-    expect(src).toContain("sortBy = 'updated_at'");
-    expect(src).toContain("sortDir = 'desc'");
+    expect(src).toContain('sortBy = "updated_at"');
+    expect(src).toContain('sortDir = "desc"');
   });
 
   it("renders Updated column sortable by updated_at", () => {
-    expect(src).toContain(
-      '<SortableHeader label={labels.updatedAtLabel} column="updated_at"',
-    );
+    expect(src).toContain("labels.updatedAtLabel");
+    expect(src).toContain('column="updated_at"');
   });
 
   it("renders updated_at cell value", () => {

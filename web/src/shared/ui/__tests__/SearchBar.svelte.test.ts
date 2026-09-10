@@ -15,7 +15,7 @@ describe("SearchBar.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Input from shared/ui", () => {
-    expect(src).toContain("import { Input } from '$shared/ui'");
+    expect(src).toContain('import { Input } from "$shared/ui"');
   });
 
   it("uses $bindable for value prop", () => {

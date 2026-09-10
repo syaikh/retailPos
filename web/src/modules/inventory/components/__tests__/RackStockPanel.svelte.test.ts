@@ -15,14 +15,15 @@ describe("RackStockPanel.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports rack stock service functions", () => {
-    expect(src).toContain(
-      "getLocationStock, setLocationStock, transferLocationStock } from '../services/inventory-service'",
-    );
+    expect(src).toContain("getLocationStock");
+    expect(src).toContain("setLocationStock");
+    expect(src).toContain("transferLocationStock");
+    expect(src).toContain('from "../services/inventory-service"');
   });
 
   it("imports storage locations service", () => {
     expect(src).toContain(
-      "getStorageLocations } from '$modules/storage-location/services/storage-location-service'",
+      'getStorageLocations } from "$modules/storage-location/services/storage-location-service"',
     );
   });
 
@@ -34,7 +35,7 @@ describe("RackStockPanel.svelte source-structure guards", () => {
   });
 
   it("imports labels from $shared/i18n", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("has loading and empty states", () => {
@@ -72,8 +73,9 @@ describe("RackStockPanel.svelte source-structure guards", () => {
   it("loads rack rows independently of location metadata (read-only safe)", () => {
     expect(src).toContain("rows = await getLocationStock(productId);");
     expect(src).toContain("if (canAdjust) {");
-    expect(src).toContain(
-      "getStorageLocations({ is_active: true, limit: 500, offset: 0 })",
-    );
+    expect(src).toContain("getStorageLocations({");
+    expect(src).toContain("is_active: true");
+    expect(src).toContain("limit: 500");
+    expect(src).toContain("offset: 0");
   });
 });

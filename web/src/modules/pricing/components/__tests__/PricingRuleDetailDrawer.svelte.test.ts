@@ -15,7 +15,7 @@ describe("PricingRuleDetailDrawer.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Drawer, Button, Badge from shared/ui", () => {
-    expect(src).toContain("import { Drawer, Button, Badge } from '$shared/ui'");
+    expect(src).toContain('import { Drawer, Button, Badge } from "$shared/ui"');
   });
 
   it("imports lucide-svelte icons", () => {
@@ -30,7 +30,7 @@ describe("PricingRuleDetailDrawer.svelte source-structure guards", () => {
   });
 
   it("imports PricingRule type", () => {
-    expect(src).toContain("import type { PricingRule } from '../types'");
+    expect(src).toContain('import type { PricingRule } from "../types"');
   });
 
   it("has open bindable prop", () => {
@@ -76,11 +76,11 @@ describe("PricingRuleDetailDrawer.svelte source-structure guards", () => {
       "function timeAgo(dateStr: string | undefined): string",
     );
     expect(src).toContain("return labels.justNow");
-    expect(src).toContain("t('minutesAgo', { n: minutes })");
+    expect(src).toContain('t("minutesAgo", { n: minutes })');
   });
 
   it("timeAgo returns dash for undefined", () => {
-    expect(src).toContain("if (!dateStr) return '-'");
+    expect(src).toContain('if (!dateStr) return "-"');
   });
 
   it("has formatDateTime function", () => {
@@ -92,23 +92,19 @@ describe("PricingRuleDetailDrawer.svelte source-structure guards", () => {
 
   it("has formatPrice function", () => {
     expect(src).toContain("function formatPrice(v: number): string");
-    expect(src).toContain("toLocaleString('id-ID')");
+    expect(src).toContain('toLocaleString("id-ID")');
   });
 
   it("has valueLabel function with all pricing methods", () => {
     expect(src).toContain("function valueLabel(r: PricingRule): string");
-    expect(src).toContain(
-      "case 'fixed_price': return `Rp ${formatPrice(r.pricing_value)}`",
-    );
-    expect(src).toContain(
-      "case 'discount_percent': return `${r.pricing_value}%`",
-    );
-    expect(src).toContain(
-      "case 'discount_amount': return `-Rp ${formatPrice(r.pricing_value)}`",
-    );
-    expect(src).toContain(
-      "case 'markup_percent': return `+${r.pricing_value}%`",
-    );
+    expect(src).toContain('case "fixed_price":');
+    expect(src).toContain("`Rp ${formatPrice(r.pricing_value)}`");
+    expect(src).toContain('case "discount_percent":');
+    expect(src).toContain("`${r.pricing_value}%`");
+    expect(src).toContain('case "discount_amount":');
+    expect(src).toContain("`-Rp ${formatPrice(r.pricing_value)}`");
+    expect(src).toContain('case "markup_percent":');
+    expect(src).toContain("`+${r.pricing_value}%`");
   });
 
   it("has valueSubLabel function for stat card subtitle", () => {
@@ -128,9 +124,7 @@ describe("PricingRuleDetailDrawer.svelte source-structure guards", () => {
 
   it("has typeLabel function", () => {
     expect(src).toContain("function typeLabel(t: string): string");
-    expect(src).toContain(
-      "t === 'special_price' ? labels.hargaSpesial : labels.promosi",
-    );
+    expect(src).toContain('return t === "special_price" ? labels.hargaSpesial : labels.promosi');
   });
 
   it("has targetLabel function using targetNames map", () => {
@@ -148,11 +142,14 @@ describe("PricingRuleDetailDrawer.svelte source-structure guards", () => {
   });
 
   it("has approvalVariant function with all status mappings", () => {
-    expect(src).toContain("function approvalVariant(status: string)");
-    expect(src).toContain("case 'approved': return 'success'");
-    expect(src).toContain("case 'pending': return 'warning'");
-    expect(src).toContain("case 'rejected': return 'danger'");
-    expect(src).toContain("default: return 'muted'");
+    expect(src).toContain("function approvalVariant(");
+    expect(src).toContain('case "approved"');
+    expect(src).toContain('"success"');
+    expect(src).toContain('case "pending"');
+    expect(src).toContain('"warning"');
+    expect(src).toContain('case "rejected"');
+    expect(src).toContain('"danger"');
+    expect(src).toContain('"muted"');
   });
 
   it("has approvalLabel function with Indonesian labels", () => {
@@ -182,12 +179,12 @@ describe("PricingRuleDetailDrawer.svelte source-structure guards", () => {
 
   it("has activeDays and inactiveDays derived", () => {
     expect(src).toContain("const activeDays = $derived");
-    expect(src).toContain("const inactiveDays = $derived");
+    expect(src).toContain("const _inactiveDays = $derived");
   });
 
   it("has ALL_DAYS constant", () => {
     expect(src).toContain(
-      "const ALL_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const",
+      'const ALL_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const',
     );
   });
 
@@ -280,12 +277,12 @@ describe("PricingRuleDetailDrawer.svelte source-structure guards", () => {
 
   it("resolves customer group name from customerGroups array", () => {
     expect(src).toContain(
-      "customerGroups.find(cg => cg.id === rule.customer_group_id)",
+      "(cg) => cg.id === rule.customer_group_id",
     );
   });
 
   it("resolves store name from stores array", () => {
-    expect(src).toContain("stores.find(s => s.id === rule.store_id)");
+    expect(src).toContain("stores.find((s) => s.id === rule.store_id)");
   });
 
   it("has fallback text when no customer group or store", () => {

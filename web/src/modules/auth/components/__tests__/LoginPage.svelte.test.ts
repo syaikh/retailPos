@@ -15,16 +15,16 @@ describe("LoginPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Button and Input from shared/ui", () => {
-    expect(src).toContain("import { Button, Input } from '$shared/ui'");
+    expect(src).toContain('import { Button, Input } from "$shared/ui"');
   });
 
   it("imports labels from shared/i18n", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("imports settingsStore for dynamic branding", () => {
     expect(src).toContain(
-      "import { settingsStore } from '$shared/stores/settings.svelte'",
+      'import { settingsStore } from "$shared/stores/settings.svelte"',
     );
   });
 
@@ -38,8 +38,8 @@ describe("LoginPage.svelte source-structure guards", () => {
   });
 
   it("imports login and useAuthStore from auth module", () => {
-    expect(src).toContain("import { login } from '$modules/auth'");
-    expect(src).toContain("import { useAuthStore } from '$modules/auth'");
+    expect(src).toContain('import { login } from "$modules/auth"');
+    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
   });
 
   it("uses $state for form fields", () => {
@@ -57,10 +57,10 @@ describe("LoginPage.svelte source-structure guards", () => {
   });
 
   it("has password visibility toggle", () => {
-    expect(src).toContain("showPassword ? 'text' : 'password'");
-    expect(src).toContain(
-      "aria-label={showPassword ? labels.hidePassword : labels.showPassword}",
-    );
+    expect(src).toContain('showPassword ? "text" : "password"');
+    expect(src).toContain("aria-label={showPassword");
+    expect(src).toContain("labels.hidePassword");
+    expect(src).toContain("labels.showPassword");
   });
 
   it('renders error message with role="alert"', () => {

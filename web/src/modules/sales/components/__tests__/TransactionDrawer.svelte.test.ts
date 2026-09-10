@@ -18,44 +18,36 @@ describe("TransactionDrawer.svelte source-structure guards", () => {
     expect(src).toContain("= $props()");
   });
 
-  it("imports Badge, Button, and Drawer", () => {
-    expect(src).toContain("import { Badge, Button, Drawer } from '$shared/ui'");
+  it("imports Button and Drawer from shared/ui", () => {
+    expect(src).toContain('import { Button, Drawer } from "$shared/ui"');
   });
 
   it("imports Printer, Download icons", () => {
-    expect(src).toContain("import { Printer, Download } from 'lucide-svelte'");
+    expect(src).toContain('import { Printer, Download } from "lucide-svelte"');
   });
 
   it("imports formatDateTimeInJakarta", () => {
-    expect(src).toContain(
-      "import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime'",
-    );
+    expect(src).toContain('import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime"');
   });
 
   it("imports printReceipt service", () => {
-    expect(src).toContain(
-      "import { printReceiptWithToast } from '$shared/services/print-service'",
-    );
+    expect(src).toContain('import { printReceiptWithToast } from "$shared/services/print-service"');
   });
 
   it("imports downloadInvoice", () => {
-    expect(src).toContain(
-      "import { downloadInvoice } from '$modules/sales/lib/invoicePdf'",
-    );
+    expect(src).toContain('import { downloadInvoice } from "$modules/sales/lib/invoicePdf"');
   });
 
   it("imports apiClient for sale detail fetch", () => {
-    expect(src).toContain("import apiClient from '$shared/api/http-client'");
+    expect(src).toContain('import apiClient from "$shared/api/http-client"');
   });
 
   it("imports toast", () => {
-    expect(src).toContain(
-      "import { toast } from '$shared/stores/toast.svelte'",
-    );
+    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("has detailLoading state for full sale fetch", () => {
@@ -67,8 +59,9 @@ describe("TransactionDrawer.svelte source-structure guards", () => {
   });
 
   it("fetches full sale detail on open", () => {
-    expect(src).toContain("apiClient.get");
-    expect(src).toContain("selectedTransaction.id");
+    expect(src).toContain("apiClient");
+    expect(src).toContain(".get(url)");
+    expect(src).toContain("selectedTransaction?.id");
   });
 
   it("has statusVariant function", () => {
@@ -119,7 +112,7 @@ describe("TransactionDrawer.svelte source-structure guards", () => {
   it("hides the customer field in cross-cashier lookup (redacted) mode", () => {
     // In lookup (foreign-sale) mode the drawer renders a redacted summary, so
     // the customer row must be wrapped and only shown outside lookup mode.
-    expect(src).toContain("{#if mode !== 'lookup'}");
+    expect(src).toContain('{#if mode !== "lookup"}');
     expect(src).toContain("{labels.customer}");
   });
 

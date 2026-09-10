@@ -16,12 +16,12 @@ describe("CustomerTable.svelte source-structure guards", () => {
 
   it("imports Badge, Button, Skeleton from shared/ui", () => {
     expect(src).toContain(
-      "import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui'",
+      'import { Badge, Button, Skeleton, SortableHeader } from "$shared/ui"',
     );
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("uses $bindable for selectedIds, sortBy, sortDir", () => {

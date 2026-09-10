@@ -15,21 +15,15 @@ describe("ReportsPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports apiFetch for HTTP calls", () => {
-    expect(src).toContain("import { apiFetch } from '$shared/api/http-client'");
+    expect(src).toContain('import { apiFetch } from "$shared/api/http-client"');
   });
 
   it("imports extracted child components", () => {
-    expect(src).toContain(
-      "import PeriodSelector from './PeriodSelector.svelte'",
-    );
-    expect(src).toContain("import KPICards from './KPICards.svelte'");
-    expect(src).toContain("import ChartArea from './ChartArea.svelte'");
-    expect(src).toContain(
-      "import BestWorstBadges from './BestWorstBadges.svelte'",
-    );
-    expect(src).toContain(
-      "import RevenueDataTable from './RevenueDataTable.svelte'",
-    );
+    expect(src).toContain('import PeriodSelector from "./PeriodSelector.svelte"');
+    expect(src).toContain('import KPICards from "./KPICards.svelte"');
+    expect(src).toContain('import ChartArea from "./ChartArea.svelte"');
+    expect(src).toContain('import BestWorstBadges from "./BestWorstBadges.svelte"');
+    expect(src).toContain('import RevenueDataTable from "./RevenueDataTable.svelte"');
   });
 
   it("uses child components in template", () => {
@@ -72,17 +66,17 @@ describe("ReportsPage.svelte source-structure guards", () => {
   });
 
   it("has chartConfig derived", () => {
-    expect(src).toContain("let chartConfig = $derived");
+    expect(src).toContain("const chartConfig = $derived");
   });
 
   it("has best/worst period derivations", () => {
-    expect(src).toContain("let bestPeriod = $derived");
-    expect(src).toContain("let worstPeriod = $derived");
+    expect(src).toContain("const bestPeriod = $derived");
+    expect(src).toContain("const worstPeriod = $derived");
   });
 
   it("has tableRows and sortedRows derivations", () => {
-    expect(src).toContain("let tableRows = $derived");
-    expect(src).toContain("let sortedRows = $derived");
+    expect(src).toContain("const tableRows = $derived");
+    expect(src).toContain("const sortedRows = $derived");
   });
 
   it("has chart tooltip UTC date pattern", () => {
@@ -125,14 +119,14 @@ describe("ReportsPage.svelte source-structure guards", () => {
   });
 
   it("shows 00:00 - 23:00 range for yesterday period", () => {
-    const yesterdayBlock = src.indexOf("activePeriodType === 'yesterday'");
-    const rangeBlock = src.indexOf("'00:00 - 23:00'", yesterdayBlock);
+    const yesterdayBlock = src.indexOf('activePeriodType === "yesterday"');
+    const rangeBlock = src.indexOf('"00:00 - 23:00"', yesterdayBlock);
     expect(rangeBlock).toBeGreaterThan(yesterdayBlock);
   });
 
   it("shows 00:00 - 23:00 range for daily period", () => {
-    const dailyBlock = src.indexOf("activePeriodType === 'daily'");
-    const rangeBlock = src.indexOf("'00:00 - 23:00'", dailyBlock);
+    const dailyBlock = src.indexOf('activePeriodType === "daily"');
+    const rangeBlock = src.indexOf('"00:00 - 23:00"', dailyBlock);
     expect(rangeBlock).toBeGreaterThan(dailyBlock);
   });
 
@@ -151,7 +145,7 @@ describe("ReportsPage.svelte source-structure guards", () => {
   });
 
   it("uses shiftDate in comparisonDateRange derived", () => {
-    const rangeIdx = src.indexOf("let comparisonDateRange = $derived.by");
+    const rangeIdx = src.indexOf("const comparisonDateRange = $derived.by");
     expect(rangeIdx).toBeGreaterThan(-1);
     const rangeBlock = src.substring(rangeIdx, rangeIdx + 1400);
     expect(rangeBlock).toContain("shiftDate(metaStart");
@@ -159,7 +153,7 @@ describe("ReportsPage.svelte source-structure guards", () => {
   });
 
   it("uses current_start/current_end in comparisonDateRange", () => {
-    const rangeIdx = src.indexOf("let comparisonDateRange = $derived.by");
+    const rangeIdx = src.indexOf("const comparisonDateRange = $derived.by");
     expect(rangeIdx).toBeGreaterThan(-1);
     const rangeBlock = src.substring(rangeIdx, rangeIdx + 1400);
     expect(rangeBlock).toContain("current_start");
@@ -167,8 +161,8 @@ describe("ReportsPage.svelte source-structure guards", () => {
   });
 
   it("returns 1 Jan - 31 Dec format for yearly comparisonDateRange", () => {
-    const rangeIdx = src.indexOf("let comparisonDateRange = $derived.by");
-    const yearlyIdx = src.indexOf("'yearly'", rangeIdx);
+    const rangeIdx = src.indexOf("const comparisonDateRange = $derived.by");
+    const yearlyIdx = src.indexOf('"yearly"', rangeIdx);
     expect(yearlyIdx).toBeGreaterThan(rangeIdx);
     const yearBlock = src.substring(yearlyIdx, yearlyIdx + 300);
     expect(yearBlock).toContain("labels.monthJan");

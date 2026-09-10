@@ -15,29 +15,23 @@ describe("ProductDetailDrawer.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Badge, Button, and Drawer from shared UI", () => {
-    expect(src).toContain("import { Badge, Button, Drawer } from '$shared/ui'");
+    expect(src).toContain('import { Badge, Button, Drawer } from "$shared/ui"');
   });
 
   it("imports lucide icons (Pencil, Trash2, Copy, Percent)", () => {
-    expect(src).toContain(
-      "import { Pencil, Trash2, Copy, Percent } from 'lucide-svelte'",
-    );
+    expect(src).toContain('import { Pencil, Trash2, Copy, Percent } from "lucide-svelte"');
   });
 
   it("imports formatDateTimeInJakarta", () => {
-    expect(src).toContain(
-      "import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime'",
-    );
+    expect(src).toContain('import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime"');
   });
 
   it("imports toast store", () => {
-    expect(src).toContain(
-      "import { toast } from '$shared/stores/toast.svelte'",
-    );
+    expect(src).toContain('import { toast } from "$shared/stores/toast.svelte"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("uses $props() for component props", () => {
@@ -73,16 +67,16 @@ describe("ProductDetailDrawer.svelte source-structure guards", () => {
   });
 
   it("has margin and marginPct derived", () => {
-    expect(src).toContain("let margin = $derived");
-    expect(src).toContain("let marginPct = $derived");
+    expect(src).toContain("const margin = $derived");
+    expect(src).toContain("const marginPct = $derived");
   });
 
   it("uses stock_stk, margVal, margPctVal, margIsLoss, uomLabel derived", () => {
-    expect(src).toContain("let stock_stk");
-    expect(src).toContain("let margVal");
-    expect(src).toContain("let margPctVal");
-    expect(src).toContain("let margIsLoss");
-    expect(src).toContain("let uomLabel");
+    expect(src).toContain("const stock_stk");
+    expect(src).toContain("const margVal");
+    expect(src).toContain("const margPctVal");
+    expect(src).toContain("const margIsLoss");
+    expect(src).toContain("const uomLabel");
   });
 
   it("renders detail drawer with showDetailDrawer condition", () => {

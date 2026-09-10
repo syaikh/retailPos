@@ -15,7 +15,7 @@ describe("Modal.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports Button from shared/ui", () => {
-    expect(src).toContain("import { Button } from '$shared/ui'");
+    expect(src).toContain('import { Button } from "$shared/ui"');
   });
 
   it("uses $bindable for open prop", () => {

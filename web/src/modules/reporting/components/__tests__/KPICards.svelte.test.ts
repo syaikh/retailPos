@@ -19,7 +19,7 @@ describe("KPICards.svelte source-structure guards", () => {
   });
 
   it("imports Skeleton from $shared/ui", () => {
-    expect(src).toContain("import { Skeleton } from '$shared/ui'");
+    expect(src).toContain('import { Skeleton } from "$shared/ui"');
   });
 
   it("imports TrendingUp and TrendingDown from lucide-svelte", () => {
@@ -38,7 +38,7 @@ describe("KPICards.svelte source-structure guards", () => {
   });
 
   it("imports labels from $shared/i18n", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("has Total Revenue card", () => {
@@ -62,8 +62,8 @@ describe("KPICards.svelte source-structure guards", () => {
   });
 
   it("displays surge label for previousHasAnyData with zero previous revenue", () => {
-    expect(src).toContain("'surge'");
-    expect(src).toContain("'+100%'");
+    expect(src).toContain('"surge"');
+    expect(src).toContain('"+100%"');
   });
 
   it("displays previousHasAnyData in default kpiData", () => {

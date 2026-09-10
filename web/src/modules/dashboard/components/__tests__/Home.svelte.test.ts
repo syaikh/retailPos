@@ -15,23 +15,23 @@ describe("Home.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports onMount from svelte", () => {
-    expect(src).toContain("import { onMount } from 'svelte'");
+    expect(src).toContain('import { onMount } from "svelte"');
   });
 
   it("imports goto from $app/router", () => {
-    expect(src).toContain("import { goto } from '$app/router'");
+    expect(src).toContain('import { goto } from "$app/router"');
   });
 
   it("imports apiFetch from shared/api", () => {
-    expect(src).toContain("import { apiFetch } from '$shared/api/http-client'");
+    expect(src).toContain('import { apiFetch } from "$shared/api/http-client"');
   });
 
   it("imports StatCard from shared/ui", () => {
-    expect(src).toContain("import { StatCard } from '$shared/ui'");
+    expect(src).toContain('import { StatCard } from "$shared/ui"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("uses $state for dashboard data", () => {

@@ -16,12 +16,12 @@ describe("UserToolbar.svelte source-structure guards", () => {
 
   it("imports Button, SearchBar, Dropdown from shared/ui", () => {
     expect(src).toContain(
-      "import { Button, SearchBar, Dropdown, FilterChipBar } from '$shared/ui'",
+      'import { Button, SearchBar, Dropdown, FilterChipBar } from "$shared/ui"',
     );
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("uses $bindable for searchQuery, filterRole, filterStatus", () => {

@@ -16,11 +16,13 @@ describe("SettlementPage.svelte source-structure guards", () => {
 
   it("imports FormattedNumberInput instead of NumberInput for payout amount", () => {
     expect(src).toContain("FormattedNumberInput");
-    expect(src).not.toMatch(/import.*\bNumberInput\b.*from.*'\$shared\/ui'/);
+    expect(src).not.toMatch(
+      /import.*\bNumberInput\b.*from.*["'].*\$shared\/ui["']/,
+    );
   });
 
-  it("extracts nested error message from API response (e?.response?.data?.error)", () => {
-    expect(src).toContain("e?.response?.data?.error");
+  it("extracts error message from API response (e instanceof Error)", () => {
+    expect(src).toContain("e instanceof Error");
   });
 
   it("does not use the old flat error pattern for create settlement", () => {
@@ -32,7 +34,7 @@ describe("SettlementPage.svelte source-structure guards", () => {
       const context = lines
         .slice(Math.max(0, createSettlementLine - 5), createSettlementLine + 1)
         .join("\n");
-      expect(context).toContain("response?.data?.error");
+      expect(context).toContain("e instanceof Error");
     }
   });
 
@@ -45,7 +47,7 @@ describe("SettlementPage.svelte source-structure guards", () => {
       const context = lines
         .slice(Math.max(0, payoutLine - 5), payoutLine + 1)
         .join("\n");
-      expect(context).toContain("response?.data?.error");
+      expect(context).toContain("e instanceof Error");
     }
   });
 

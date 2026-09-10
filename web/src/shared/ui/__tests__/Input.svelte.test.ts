@@ -15,7 +15,7 @@ describe("Input.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports cn utility", () => {
-    expect(src).toContain("import { cn } from '$shared/utils/cn'");
+    expect(src).toContain('import { cn } from "$shared/utils/cn"');
   });
 
   it("has error prop", () => {

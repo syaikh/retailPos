@@ -15,31 +15,27 @@ describe("StockOpnamesPage.svelte location-scope source guards", () => {
   const src = getSource();
 
   it("imports getStorageLocations for the location scope options", () => {
-    expect(src).toContain(
-      "getStorageLocations } from '$modules/storage-location/services/storage-location-service'",
-    );
+    expect(src).toContain('import { getStorageLocations } from "$modules/storage-location/services/storage-location-service"');
   });
 
   it("loads active storage locations as location scope options", () => {
     expect(src).toContain(
-      "getStorageLocations({ is_active: true, limit: 500, offset: 0 })",
+      "getStorageLocations({\n          is_active: true,\n          limit: 500,\n          offset: 0,\n        })",
     );
-    expect(src).toContain("type === 'location'");
+    expect(src).toContain('type === "location"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it("warns when location scope is combined with other scopes", () => {
-    expect(src).toContain(
-      "createRows.some((r) => r.scope_type === 'location')",
-    );
+    expect(src).toContain('r.scope_type === "location"');
     expect(src).toContain("labels.storageLocationScopeOnly");
   });
 
   it("imports onMount from svelte", () => {
-    expect(src).toContain("import { onMount } from 'svelte';");
+    expect(src).toContain('import { onMount } from "svelte"');
   });
 
   it("performs the first load in onMount, not the auto-reload effect", () => {

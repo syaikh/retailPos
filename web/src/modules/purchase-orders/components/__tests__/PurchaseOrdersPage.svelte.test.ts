@@ -45,8 +45,10 @@ describe("PurchaseOrdersPage.svelte source-structure guards", () => {
   });
 
   it("renders Pagination wired to store paging state", () => {
-    expect(src).toContain(
-      "<Pagination total={store.total} limit={store.pageSize} offset={store.offset} onPageChange={handlePageChange}",
-    );
+    expect(src).toContain(`<Pagination
+          total={store.total}
+          limit={store.pageSize}
+          offset={store.offset}
+          onPageChange={handlePageChange}`);
   });
 });

@@ -16,8 +16,9 @@ describe("CustomerGroupsToolbar.svelte source-structure guards", () => {
 
   it("imports Button, SearchBar, BulkActionDropdown, FilterChipBar from shared/ui", () => {
     expect(src).toContain(
-      "import { Button, SearchBar, BulkActionDropdown, FilterChipBar } from '$shared/ui'",
+      "Button,\n    SearchBar,\n    BulkActionDropdown,\n    FilterChipBar,",
     );
+    expect(src).toContain('from "$shared/ui"');
   });
 
   it("imports Users and UsersRound icons for has_customers filter", () => {
@@ -30,19 +31,19 @@ describe("CustomerGroupsToolbar.svelte source-structure guards", () => {
   });
 
   it("has activeFilters derived with has_customers chip", () => {
-    expect(src).toContain("type: 'has_customers'");
+    expect(src).toContain('type: "has_customers"');
     expect(src).toContain("labels.filterChipHasCustomers");
     expect(src).toContain("labels.filterChipNoCustomers");
   });
 
   it("has clearFilterChip handler for has_customers", () => {
     expect(src).toContain(
-      "else if (type === 'has_customers') hasCustomersFilter = 'all'",
+      'else if (type === "has_customers") hasCustomersFilter = "all"',
     );
   });
 
   it("has clearAllFilters that resets hasCustomersFilter", () => {
-    expect(src).toContain("hasCustomersFilter = 'all'");
+    expect(src).toContain('hasCustomersFilter = "all"');
   });
 
   it("has segmented status filter group with aria-label", () => {

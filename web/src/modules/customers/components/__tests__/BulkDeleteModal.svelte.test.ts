@@ -19,11 +19,11 @@ describe("BulkDeleteModal.svelte source-structure guards", () => {
   });
 
   it("imports Button, Modal from shared/ui", () => {
-    expect(src).toContain("import { Button, Modal } from '$shared/ui'");
+    expect(src).toContain('import { Button, Modal } from "$shared/ui"');
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+    expect(src).toContain('import { labels, t } from "$shared/i18n"');
   });
 
   it('renders Modal with "Delete Customers" title', () => {
@@ -31,6 +31,6 @@ describe("BulkDeleteModal.svelte source-structure guards", () => {
   });
 
   it("shows delete count", () => {
-    expect(src).toContain("t('deleteCountConfirm', { count })");
+    expect(src).toContain('t("deleteCountConfirm", { count })');
   });
 });

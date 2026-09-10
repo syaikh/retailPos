@@ -28,13 +28,13 @@ describe("UsersPage.svelte source-structure guards", () => {
 
   it("has permission-based RBAC (canCreate, canEdit, canDelete)", () => {
     expect(src).toContain(
-      "let canCreate = $derived(rbac.can(Permissions.user.create))",
+      "const canCreate = $derived(rbac.can(Permissions.user.create))",
     );
     expect(src).toContain(
-      "let canEdit = $derived(rbac.can(Permissions.user.update))",
+      "const canEdit = $derived(rbac.can(Permissions.user.update))",
     );
     expect(src).toContain(
-      "let canDelete = $derived(rbac.can(Permissions.user.delete))",
+      "const canDelete = $derived(rbac.can(Permissions.user.delete))",
     );
   });
 
@@ -49,12 +49,12 @@ describe("UsersPage.svelte source-structure guards", () => {
   });
 
   it("imports extracted modal and table components", () => {
-    expect(src).toContain("import UserFormModal from './UserFormModal.svelte'");
+    expect(src).toContain('import UserFormModal from "./UserFormModal.svelte"');
     expect(src).toContain(
-      "import UserDeleteModal from './UserDeleteModal.svelte'",
+      'import UserDeleteModal from "./UserDeleteModal.svelte"',
     );
-    expect(src).toContain("import UserToolbar from './UserToolbar.svelte'");
-    expect(src).toContain("import UserTable from './UserTable.svelte'");
+    expect(src).toContain('import UserToolbar from "./UserToolbar.svelte"');
+    expect(src).toContain('import UserTable from "./UserTable.svelte"');
   });
 
   it("renders Pagination component", () => {
@@ -62,7 +62,7 @@ describe("UsersPage.svelte source-structure guards", () => {
   });
 
   it("imports i18n labels", () => {
-    expect(src).toContain("import { labels } from '$shared/i18n'");
+    expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
   it("uses i18n labels for messages and permission denied", () => {
