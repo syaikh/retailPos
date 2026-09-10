@@ -688,10 +688,9 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 				} else {
 					_ = f.SetCellValue("Data", fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), 0)
 				}
-				_ = f.SetCellStyle("Data", fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), dataColStyles[col])
-				col++
-			}
+			_ = f.SetCellStyle("Data", fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), fmt.Sprintf("%s%d", string(rune('A'+col)), i+2), dataColStyles[col])
 		}
+	}
 
 		totalRow := len(sortedRows) + 2
 		totalCol := 0

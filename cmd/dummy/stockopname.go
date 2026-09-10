@@ -327,8 +327,8 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 				p := len(args)
 				args = append(args, sessionID, is.productID, is.qty,
 					0.0, is.physical, 0.0, 0.0, is.itemStatus, is.name, is.sku, is.barcode, is.uom, createdAt, createdAt)
-				sb.WriteString(fmt.Sprintf("($%d::int,$%d::int,$%d::numeric,$%d::numeric,$%d::numeric,$%d::numeric,$%d::numeric,$%d::varchar,$%d::varchar,$%d::varchar,$%d::varchar,$%d::varchar,$%d::timestamptz,$%d::timestamptz)",
-					p+1, p+2, p+3, p+4, p+5, p+6, p+7, p+8, p+9, p+10, p+11, p+12, p+13, p+14))
+				fmt.Fprintf(&sb, "($%d::int,$%d::int,$%d::numeric,$%d::numeric,$%d::numeric,$%d::numeric,$%d::numeric,$%d::varchar,$%d::varchar,$%d::varchar,$%d::varchar,$%d::varchar,$%d::timestamptz,$%d::timestamptz)",
+					p+1, p+2, p+3, p+4, p+5, p+6, p+7, p+8, p+9, p+10, p+11, p+12, p+13, p+14)
 			}
 			sb.WriteString(` RETURNING id, product_id`)
 
@@ -400,7 +400,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 				}
 				p := len(args)
 				args = append(args, cs.itemID, cs.physical, cs.countedBy, cs.countedAt, cs.remarks)
-				sb.WriteString(fmt.Sprintf("($%d, 1, $%d, $%d, $%d, $%d)", p+1, p+2, p+3, p+4, p+5))
+				fmt.Fprintf(&sb, "($%d, 1, $%d, $%d, $%d, $%d)", p+1, p+2, p+3, p+4, p+5)
 			}
 			if _, err := tx.ExecContext(ctx, sb.String(), args...); err != nil {
 				_ = tx.Rollback()
@@ -472,7 +472,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 				}
 				p := len(args)
 				args = append(args, us.itemID, us.expected, us.diff)
-				sb.WriteString(fmt.Sprintf("($%d::int, $%d::numeric, $%d::numeric)", p+1, p+2, p+3))
+				fmt.Fprintf(&sb, "($%d::int, $%d::numeric, $%d::numeric)", p+1, p+2, p+3)
 			}
 			sb.WriteString(`) AS v(id, expected_qty, difference_qty)
 			WHERE stock_opname_items.id = v.id`)
@@ -519,7 +519,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 					}
 					p := len(args)
 					args = append(args, sd.productID, sd.newQty)
-					sb.WriteString(fmt.Sprintf("($%d, $%d, NOW())", p+1, p+2))
+					fmt.Fprintf(&sb, "($%d, $%d, NOW())", p+1, p+2)
 				}
 				sb.WriteString(` ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET
 					quantity = EXCLUDED.quantity, updated_at = NOW()`)
@@ -550,7 +550,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 					}
 					p := len(args)
 					args = append(args, sd.productID, sd.diff, sessionID, approverID, sd.notes, movementAt)
-					sb.WriteString(fmt.Sprintf("($%d, $%d, 'stock_opname', $%d, 'stock_opnames', $%d, $%d, $%d)", p+1, p+2, p+3, p+4, p+5, p+6))
+					fmt.Fprintf(&sb, "($%d, $%d, 'stock_opname', $%d, 'stock_opnames', $%d, $%d, $%d)", p+1, p+2, p+3, p+4, p+5, p+6)
 				}
 				if _, err := tx.ExecContext(ctx, sb.String(), args...); err != nil {
 					_ = tx.Rollback()
@@ -631,7 +631,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 					}
 					p := len(args)
 					args = append(args, adjustmentID, line.productID, line.expected, line.physical, line.diff, line.reason, postedAt)
-					sb.WriteString(fmt.Sprintf("($%d,$%d,NULL,NULL,$%d,$%d,$%d,$%d,0,0,$%d,$%d)", p+1, p+2, p+3, p+4, p+5, p+5, p+6, p+7))
+					fmt.Fprintf(&sb, "($%d,$%d,NULL,NULL,$%d,$%d,$%d,$%d,0,0,$%d,$%d)", p+1, p+2, p+3, p+4, p+5, p+5, p+6, p+7)
 				}
 				if _, err := tx.ExecContext(ctx, sb.String(), args...); err != nil {
 					_ = tx.Rollback()

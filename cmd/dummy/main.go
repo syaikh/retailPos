@@ -1785,7 +1785,7 @@ func runStockUpdater(ctx context.Context, db *sql.DB) chan<- stockUpdateMsg {
 				if i > 1 {
 					sb.WriteString(", ")
 				}
-				sb.WriteString(fmt.Sprintf("($%d, $%d, NOW())", i, i+1))
+				fmt.Fprintf(&sb, "($%d, $%d, NOW())", i, i+1)
 				args = append(args, productID, qty)
 				i += 2
 			}
