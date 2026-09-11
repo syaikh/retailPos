@@ -36,9 +36,9 @@ test.describe('Categories CRUD behaviour (API driver)', () => {
     expect((found3.body.data || []).map((c: any) => c.id)).not.toContain(id);
   });
 
-  test('admin can create a category (product.create) → 201', async ({ request }) => {
-    const api = await apiAs(request, 'admin');
-    const name = `E2E Category Admin ${Date.now()}`;
+  test('manager can create a category (category.create) → 201', async ({ request }) => {
+    const api = await apiAs(request, 'manager');
+    const name = `E2E Category Manager ${Date.now()}`;
     const res = await api.post('/api/categories', { name });
     expect(res.status).toBe(201);
     expect(res.body.data.name).toBe(name);

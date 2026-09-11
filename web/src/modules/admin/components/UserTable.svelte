@@ -38,10 +38,11 @@
 
   function roleVariant(
     r: { id: number; name: string } | string,
-  ): "primary" | "warning" | "muted" {
+  ): "primary" | "warning" | "muted" | "info" {
     const roleName = typeof r === "object" ? r.name : r;
     if (roleName === "superadmin") return "primary";
-    if (roleName === "admin") return "warning";
+    if (roleName === "manager") return "warning";
+    if (roleName === "finance") return "info";
     return "muted";
   }
 
@@ -51,14 +52,16 @@
       (user.role_id === 1
         ? "superadmin"
         : user.role_id === 2
-          ? "admin"
+          ? "manager"
           : user.role_id === 3
-            ? "cashier"
+            ? "supervisor"
             : user.role_id === 4
-              ? "manager"
+              ? "cashier"
               : user.role_id === 5
-                ? "staff"
-                : "unknown")
+                ? "inventory_staff"
+                : user.role_id === 6
+                  ? "finance"
+                  : "unknown")
     );
   }
 </script>

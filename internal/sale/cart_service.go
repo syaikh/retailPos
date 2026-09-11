@@ -38,6 +38,11 @@ func ensureCartOwned(cart *CartSession, cashierID int) error {
 
 // CreateOrGetOpenCart returns the open cart for the cashier, or creates one if none exists.
 func (s *service) CreateOrGetOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error) {
+	// Store-first enforcement: reject if store_id is nil.
+	if storeID == nil {
+		return nil, ErrStoreRequired
+	}
+
 	cart, err := s.repo.AtomicGetOrCreateOpenCart(ctx, cashierID, storeID, shiftID, customerID)
 	if err != nil {
 		return nil, err

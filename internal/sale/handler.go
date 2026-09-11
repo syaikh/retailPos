@@ -380,6 +380,10 @@ func (h *Handler) respondSaleCreateError(c *gin.Context, err error) {
 		shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager can only complete a recalled parked sale")
 		return
 	}
+	if errors.Is(err, ErrStoreRequired) {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "store not configured for this user")
+		return
+	}
 	if errors.Is(err, ErrInsufficientStock) {
 		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
 		return
@@ -409,6 +413,10 @@ func (h *Handler) respondSaleCreateError(c *gin.Context, err error) {
 func (h *Handler) respondCompleteParkedSaleError(c *gin.Context, err error) {
 	if errors.Is(err, ErrPermissionDenied) {
 		shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, "manager can only complete a recalled parked sale")
+		return
+	}
+	if errors.Is(err, ErrStoreRequired) {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "store not configured for this user")
 		return
 	}
 	if errors.Is(err, ErrSaleNotFound) {
@@ -1318,7 +1326,7 @@ func (h *Handler) CompleteParkedSale(c *gin.Context) {
 	}
 
 	caller := callerFromContext(c)
-	if h.auditSvc != nil && caller.IsManager() {
+	if h.auditSvc != nil && caller.IsSupervisor() {
 		if err := h.svc.InTx(ctx, func(tx pgx.Tx) error {
 			if err := h.svc.CreateSaleWithParkedSaleTx(ctx, tx, sale, items, &id, payments, caller); err != nil {
 				return err

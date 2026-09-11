@@ -3,6 +3,7 @@ package sale
 import (
 	"errors"
 
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 )
 
@@ -136,23 +137,28 @@ type Caller struct {
 	StoreID *int
 }
 
-// IsElevated reports whether the caller bypasses cashier/manager scoping
-// (superadmin and admin).
+// IsElevated reports whether the caller bypasses cashier/supervisor scoping
+// (superadmin and manager/store-manager).
 func (c Caller) IsElevated() bool {
-	return c.Role == "superadmin" || c.Role == "admin"
+	return c.Role == permissions.RoleSuperadmin || c.Role == permissions.RoleManager
 }
 
-// IsManager reports whether the caller is a manager (recall-only rules).
+// IsSupervisor reports whether the caller is a supervisor (recall-only rules).
+func (c Caller) IsSupervisor() bool {
+	return c.Role == permissions.RoleSupervisor
+}
+
+// IsManager reports whether the caller is a store manager (legacy alias).
 func (c Caller) IsManager() bool {
-	return c.Role == "manager"
+	return c.Role == permissions.RoleManager
 }
 
 // ownerScope returns the cashier owner filter to apply at the repository level.
-// A nil scope means no cashier restriction (manager/elevated). All other roles
-// (cashier, staff, unknown) are treated as owner-scoped so they can never touch
-// another cashier's parked sale.
+// A nil scope means no cashier restriction (supervisor/elevated). All other roles
+// (cashier, inventory_staff, unknown) are treated as owner-scoped so they can never
+// touch another cashier's parked sale.
 func (c Caller) ownerScope() *int {
-	if c.IsElevated() || c.IsManager() {
+	if c.IsElevated() || c.IsSupervisor() {
 		return nil
 	}
 	uid := c.UserID

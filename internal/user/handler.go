@@ -183,6 +183,17 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		return
 	}
 
+	// Validate store_id for operational roles.
+	role, err := h.svc.GetRoleByID(c.Request.Context(), req.RoleID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role"})
+		return
+	}
+	if permissions.OperationalRoles[role.Name] && req.StoreID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "store_id is required for this role"})
+		return
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), 14)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
@@ -319,6 +330,27 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	}
 	if req.StoreID != nil {
 		existing.StoreID = req.StoreID
+	}
+
+	// Prevent removing store_id from operational roles.
+	{
+		// Determine the effective role (may be changing in this update).
+		effectiveRoleID := existing.RoleID
+		if req.RoleID != nil {
+			effectiveRoleID = *req.RoleID
+		}
+		role, err := h.svc.GetRoleByID(c.Request.Context(), effectiveRoleID)
+		if err == nil && permissions.OperationalRoles[role.Name] {
+			// Determine the effective store_id (may be changing in this update).
+			effectiveStoreID := existing.StoreID
+			if req.StoreID != nil {
+				effectiveStoreID = req.StoreID
+			}
+			if effectiveStoreID == nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "store_id is required for this role"})
+				return
+			}
+		}
 	}
 	if req.ReportsToID != nil {
 		existing.ReportsToID = req.ReportsToID

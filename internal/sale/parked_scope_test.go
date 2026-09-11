@@ -222,37 +222,37 @@ func TestSaleService_ParkedSaleManagerRules(t *testing.T) {
 	parkedA := createParkedSale(ctx, t, newTestRepo(t), cashierA, "INV-SVC-A-001", "parked", prodID, 1, 10000)
 	parkedB := createParkedSale(ctx, t, newTestRepo(t), cashierA, "INV-SVC-B-001", "parked", prodID, 1, 10000)
 
-	manager := Caller{Role: "manager", UserID: managerID}
+	supervisor := Caller{Role: "supervisor", UserID: managerID}
 	superadmin := Caller{Role: "superadmin"}
-	admin := Caller{Role: "admin"}
+	storeManager := Caller{Role: "manager"}
 	cashierBCaller := Caller{UserID: cashierB}
 
-	t.Run("manager cannot cancel a parked sale", func(t *testing.T) {
-		err := svc.CancelParkedSale(ctx, parkedA.ID, manager)
+	t.Run("supervisor cannot cancel a parked sale", func(t *testing.T) {
+		err := svc.CancelParkedSale(ctx, parkedA.ID, supervisor)
 		require.ErrorIs(t, err, ErrPermissionDenied)
 	})
 
-	t.Run("manager completion without parked_sale_id is denied", func(t *testing.T) {
+	t.Run("supervisor completion without parked_sale_id is denied", func(t *testing.T) {
 		sale, items, payments := parkedCompleteSale("INV-SVC-DENIED", managerID, prodID)
-		err := svc.CreateSaleWithParkedSale(ctx, sale, items, nil, payments, manager)
+		err := svc.CreateSaleWithParkedSale(ctx, sale, items, nil, payments, supervisor)
 		require.ErrorIs(t, err, ErrPermissionDenied)
 	})
 
-	t.Run("manager can recall another cashier's sale", func(t *testing.T) {
-		recalled, err := svc.RecallSale(ctx, parkedB.ID, manager)
+	t.Run("supervisor can recall another cashier's sale", func(t *testing.T) {
+		recalled, err := svc.RecallSale(ctx, parkedB.ID, supervisor)
 		require.NoError(t, err)
 		assert.Equal(t, "recalled", recalled.Status)
 	})
 
-	t.Run("manager can complete a recalled sale", func(t *testing.T) {
+	t.Run("supervisor can complete a recalled sale", func(t *testing.T) {
 		sale, items, payments := parkedCompleteSale("INV-SVC-MGR-DONE", managerID, prodID)
-		err := svc.CreateSaleWithParkedSale(ctx, sale, items, &parkedB.ID, payments, manager)
+		err := svc.CreateSaleWithParkedSale(ctx, sale, items, &parkedB.ID, payments, supervisor)
 		require.NoError(t, err)
 	})
 
 	t.Run("cashier cannot consume another cashier's recalled sale", func(t *testing.T) {
 		parkedC := createParkedSale(ctx, t, newTestRepo(t), cashierA, "INV-SVC-C-001", "parked", prodID, 1, 10000)
-		recalledC, err := svc.RecallSale(ctx, parkedC.ID, manager)
+		recalledC, err := svc.RecallSale(ctx, parkedC.ID, supervisor)
 		require.NoError(t, err)
 
 		sale, items, payments := parkedCompleteSale("INV-SVC-STOLEN", cashierB, prodID)
@@ -274,7 +274,7 @@ func TestSaleService_ParkedSaleManagerRules(t *testing.T) {
 		parkedE := createParkedSale(ctx, t, newTestRepo(t), cashierA, "INV-SVC-E-001", "parked", prodID, 1, 10000)
 		parkedF := createParkedSale(ctx, t, newTestRepo(t), cashierA, "INV-SVC-F-001", "parked", prodID, 1, 10000)
 		require.NoError(t, svc.CancelParkedSale(ctx, parkedE.ID, superadmin))
-		require.NoError(t, svc.CancelParkedSale(ctx, parkedF.ID, admin))
+		require.NoError(t, svc.CancelParkedSale(ctx, parkedF.ID, storeManager))
 	})
 }
 
@@ -324,8 +324,8 @@ func TestParkedScope_HandlerOwnershipIDOR(t *testing.T) {
 		assert.Empty(t, list.Data, "cashier must not see another cashier's parked sales")
 	})
 
-	t.Run("manager recall succeeds and is audited, cancel forbidden", func(t *testing.T) {
-		r, auditSvc := setupParkedScopeRouter(t, "manager", managerID)
+	t.Run("supervisor recall succeeds and is audited, cancel forbidden", func(t *testing.T) {
+		r, auditSvc := setupParkedScopeRouter(t, "supervisor", managerID)
 		var logs []*audit.Log
 		auditSvc.createAuditLogFn = func(c context.Context, l *audit.Log) error {
 			logs = append(logs, l)
@@ -349,7 +349,7 @@ func TestParkedScope_HandlerOwnershipIDOR(t *testing.T) {
 				recallAudit = l
 			}
 		}
-		require.NotNil(t, recallAudit, "manager recall must write recall_sale audit log")
+		require.NotNil(t, recallAudit, "supervisor recall must write recall_sale audit log")
 
 		req = httptest.NewRequest("DELETE", fmt.Sprintf("/sales/parked/%d", parkedA.ID), nil)
 		rec = httptest.NewRecorder()

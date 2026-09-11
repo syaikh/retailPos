@@ -42,7 +42,7 @@ test.describe('Admin Panel - User Management', () => {
     await page.fill('#usr-username', inputUsername);
     await page.fill('#usr-email', `${inputUsername.toLowerCase()}@example.com`);
     await page.fill('#usr-password', 'password123');
-    await selectRole(page, 'admin');
+    await selectRole(page, 'manager');
 
     await page.getByRole('button', { name: 'Create User' }).click();
 
@@ -107,7 +107,7 @@ test.describe('Admin Panel - User Management', () => {
     await page.fill('#usr-username', username);
     await page.fill('#usr-email', `${username}@example.com`);
     await page.fill('#usr-password', 'password123');
-    await selectRole(page, 'admin');
+    await selectRole(page, 'manager');
     await page.getByRole('button', { name: 'Create User' }).click();
     await expect(page.getByRole('dialog', { name: 'Add User' })).toBeHidden({ timeout: 15000 });
 
@@ -131,7 +131,7 @@ test.describe('Admin Panel - User Management', () => {
     await page.fill('#usr-username', username);
     await page.fill('#usr-email', `${username}@example.com`);
     await page.fill('#usr-password', 'password123');
-    await selectRole(page, 'admin');
+    await selectRole(page, 'manager');
     await page.getByRole('button', { name: 'Create User' }).click();
     await expect(page.getByRole('dialog', { name: 'Add User' })).toBeHidden({ timeout: 15000 });
 
@@ -160,7 +160,7 @@ test.describe('Admin Panel - User Management', () => {
     await page.fill('#usr-username', username);
     await page.fill('#usr-email', `${username}@example.com`);
     await page.fill('#usr-password', 'password123');
-    await selectRole(page, 'admin');
+    await selectRole(page, 'manager');
     await page.getByRole('button', { name: 'Create User' }).click();
     await expect(page.getByRole('dialog', { name: 'Add User' })).toBeHidden({ timeout: 15000 });
 

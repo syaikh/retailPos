@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -422,7 +423,7 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 		userID:  claims.ID,
 		role:    claims.Role,
 		storeID: storeID,
-		isAdmin: claims.Role == "superadmin" || claims.Role == "admin",
+		isAdmin: claims.Role == permissions.RoleSuperadmin || claims.Role == permissions.RoleManager,
 		ctx:     ctx,
 		cancel:  cancel,
 	}

@@ -20,6 +20,7 @@ var ErrSaleNotFound = errors.New("sale not found")
 var ErrParkedSaleNotRecalled = errors.New("parked sale not in recalled state")
 var ErrPermissionDenied = errors.New("permission denied")
 var ErrCheckoutProductNotFound = errors.New("checkout product not found")
+var ErrStoreRequired = errors.New("store not configured for this user")
 
 // productNotFound is a marker interface satisfied by pricing subsystem errors
 // when a product cannot be resolved. It lets sale detect not-found errors
@@ -434,7 +435,7 @@ func (s *service) RecallSale(ctx context.Context, saleID int, caller Caller) (*S
 
 // CancelParkedSaleTx voids a parked/recalled sale within an existing transaction.
 func (s *service) CancelParkedSaleTx(ctx context.Context, tx pgx.Tx, saleID int, caller Caller) error {
-	if caller.IsManager() {
+	if caller.IsSupervisor() {
 		return ErrPermissionDenied
 	}
 	return s.repo.CancelParkedSaleTx(ctx, tx, saleID, caller.ownerScope(), caller.storeScope())
@@ -467,7 +468,7 @@ func (s *service) GetParkedSaleByID(ctx context.Context, saleID int, caller Call
 // commit or publish events.
 func (s *service) CreateSaleWithParkedSaleTx(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest, caller Caller) error {
 	if parkedSaleID == nil {
-		if caller.IsManager() {
+		if caller.IsSupervisor() {
 			return ErrPermissionDenied
 		}
 		return s.CreateSaleTx(ctx, tx, sale, items, payments)

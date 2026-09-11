@@ -29,13 +29,13 @@ test.describe('Pricing Rules CRUD (API driver)', () => {
   });
 
   test('POST creates a promotion rule → 201', async ({ request }) => {
-    const api = await apiAs(request, 'admin');
+    const api = await apiAs(request, 'manager');
     const res = await api.post('/api/pricing-rules', {
       product_id: productId,
       pricing_type: 'promotion',
       pricing_method: 'fixed_price',
       pricing_value: 10000,
-      name: 'E2E Promotion Rule',
+      name: `E2E Promotion Rule ${Date.now()}`,
       minimum_quantity: 1,
       priority: 0,
       is_active: true,

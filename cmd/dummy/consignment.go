@@ -36,7 +36,7 @@ func injectConsignment(ctx context.Context, db *sql.DB, startDate, endDate time.
 	}
 	storeID := storeIDs[0]
 
-	userIDs := getUserIDsByRoles(ctx, db, "admin", "manager")
+	userIDs := getUserIDsByRoles(ctx, db, "manager", "supervisor")
 	if len(userIDs) == 0 {
 		userIDs = getIDs(ctx, db, "users")
 	}

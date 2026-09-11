@@ -19,10 +19,12 @@
       email: "",
       password: "",
       role_id: 0,
+      store_id: null as number | null,
       is_active: true,
       reports_to: null,
     }),
     roles = [],
+    stores = [],
     saving = $bindable(false),
     usernameHasInvalidChars = false,
     canAssignManager = true,
@@ -35,10 +37,12 @@
       email: string;
       password: string;
       role_id: number;
+      store_id: number | null;
       is_active: boolean;
       reports_to: number | null;
     };
     roles?: Role[];
+    stores?: { id: number; name: string }[];
     saving?: boolean;
     usernameHasInvalidChars?: boolean;
     canAssignManager?: boolean;
@@ -53,6 +57,18 @@
 
   const selectedRoleName = $derived(
     roles.find((r) => r.id === form.role_id)?.name || labels.role,
+  );
+
+  const isOperationalRole = $derived(
+    (() => {
+      const roleName = roles.find((r) => r.id === form.role_id)?.name;
+      return (
+        roleName === "cashier" ||
+        roleName === "supervisor" ||
+        roleName === "finance" ||
+        roleName === "inventory_staff"
+      );
+    })(),
   );
 
   const selectedReportsToName = $derived(
@@ -223,6 +239,42 @@
         <div class="flex items-end pb-2">
           <ToggleSwitch bind:checked={form.is_active} label={labels.active} />
         </div>
+      </div>
+
+      <div>
+        <label
+          class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-text-muted"
+          >
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          {labels.store}
+          {#if isOperationalRole}
+            <span class="text-red-500">*</span>
+          {/if}
+        </label>
+        <select
+          class="w-full px-3 h-10 rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
+          bind:value={form.store_id}
+          required={isOperationalRole}
+        >
+          <option value={null}>{labels.none}</option>
+          {#each stores as store (store.id)}
+            <option value={store.id}>{store.name}</option>
+          {/each}
+        </select>
       </div>
 
       <div>

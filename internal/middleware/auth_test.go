@@ -403,10 +403,16 @@ func TestAdminOnly(t *testing.T) {
 			wantCode: http.StatusOK,
 		},
 		{
-			name:     "admin passes",
-			role:     "admin",
+			name:     "manager passes",
+			role:     "manager",
 			setRole:  true,
 			wantCode: http.StatusOK,
+		},
+		{
+			name:     "supervisor returns 403",
+			role:     "supervisor",
+			setRole:  true,
+			wantCode: http.StatusForbidden,
 		},
 		{
 			name:     "cashier returns 403",
@@ -436,6 +442,110 @@ func TestAdminOnly(t *testing.T) {
 			assert.Equal(t, tt.wantCode, w.Code)
 		})
 	}
+}
+
+func TestRequireStoreID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name     string
+		role     string
+		storeID  interface{}
+		setStore bool
+		wantCode int
+	}{
+		{
+			name:     "superadmin bypasses",
+			role:     "superadmin",
+			storeID:  nil,
+			setStore: false,
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "manager bypasses",
+			role:     "manager",
+			storeID:  nil,
+			setStore: false,
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "cashier with store passes",
+			role:     "cashier",
+			storeID:  intPtr(1),
+			setStore: true,
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "cashier without store returns 403",
+			role:     "cashier",
+			storeID:  nil,
+			setStore: false,
+			wantCode: http.StatusForbidden,
+		},
+		{
+			name:     "supervisor with store passes",
+			role:     "supervisor",
+			storeID:  intPtr(1),
+			setStore: true,
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "supervisor without store returns 403",
+			role:     "supervisor",
+			storeID:  nil,
+			setStore: false,
+			wantCode: http.StatusForbidden,
+		},
+		{
+			name:     "finance with store passes",
+			role:     "finance",
+			storeID:  intPtr(1),
+			setStore: true,
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "finance without store returns 403",
+			role:     "finance",
+			storeID:  nil,
+			setStore: false,
+			wantCode: http.StatusForbidden,
+		},
+		{
+			name:     "inventory_staff with store passes",
+			role:     "inventory_staff",
+			storeID:  intPtr(1),
+			setStore: true,
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "inventory_staff without store returns 403",
+			role:     "inventory_staff",
+			storeID:  nil,
+			setStore: false,
+			wantCode: http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			c.Set("role", tt.role)
+			if tt.setStore {
+				c.Set("storeID", tt.storeID)
+			}
+
+			middleware := RequireStoreID()
+			middleware(c)
+
+			assert.Equal(t, tt.wantCode, w.Code)
+		})
+	}
+}
+
+func intPtr(i int) *int {
+	return &i
 }
 
 func generateTestToken(secret string, claims jwt.RegisteredClaims) string {

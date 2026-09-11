@@ -17,7 +17,7 @@ test.describe('RBAC behaviour (API driver)', () => {
   test.afterAll(() => tracker.cleanup());
 
   test('every role is issued a non-empty permission set', async ({ request }) => {
-    for (const role of ['superadmin', 'admin', 'manager', 'cashier'] as const) {
+    for (const role of ['superadmin', 'manager', 'supervisor', 'cashier'] as const) {
       const api = await apiAs(request, role);
       expect(api.permissions().length, `${role} should have permissions`).toBeGreaterThan(0);
     }
@@ -33,17 +33,17 @@ test.describe('RBAC behaviour (API driver)', () => {
     tracker.trackStore(s.body?.data?.id ?? s.body?.id);
   });
 
-  test('admin can create stores (store.create)', async ({ request }) => {
-    const api = await apiAs(request, 'admin');
+  test('manager can create stores (store.create)', async ({ request }) => {
+    const api = await apiAs(request, 'manager');
     const r = await api.post('/api/stores', { name: `E2E Store ${Date.now()}` });
     expect(r.status).toBe(201);
     tracker.trackStore(r.body?.data?.id ?? r.body?.id);
   });
 
-  test('manager is rejected from store creation (no store.create) but can create brands (has product.create)', async ({ request }) => {
-    const api = await apiAs(request, 'manager');
+  test('supervisor is rejected from store creation (no store.create) but can create brands (has product.create)', async ({ request }) => {
+    const api = await apiAs(request, 'supervisor');
     expect((await api.post('/api/stores', { name: 'x' })).status).toBe(403);
-    const brandRes = await api.post('/api/brands', { name: `E2E Manager Brand ${Date.now()}` });
+    const brandRes = await api.post('/api/brands', { name: `E2E Supervisor Brand ${Date.now()}` });
     expect(brandRes.status).toBe(201);
     tracker.trackBrand(brandRes.body?.data?.id ?? brandRes.body?.id);
   });

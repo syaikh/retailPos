@@ -23,11 +23,11 @@ import (
 // Overlap is enforced per scope at creation, and the newest session is left in
 // a "counting" state so the module has an in-progress case to demo.
 func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time.Time, numSessions int) error {
-	// Pick counters (cashier/staff) and approvers/managers.
-	counterUserIDs := getUserIDsByRoles(ctx, db, "cashier", "staff")
-	managerUserIDs := getUserIDsByRoles(ctx, db, "superadmin", "admin", "manager")
+	// Pick counters (cashier/inventory_staff) and approvers/managers.
+	counterUserIDs := getUserIDsByRoles(ctx, db, "cashier", "inventory_staff")
+	managerUserIDs := getUserIDsByRoles(ctx, db, "superadmin", "manager", "supervisor")
 	if len(counterUserIDs) == 0 {
-		counterUserIDs = getUserIDsByRoles(ctx, db, "superadmin", "admin", "manager", "cashier", "staff")
+		counterUserIDs = getUserIDsByRoles(ctx, db, "superadmin", "manager", "supervisor", "cashier", "inventory_staff")
 	}
 	if len(managerUserIDs) == 0 {
 		managerUserIDs = append(managerUserIDs, counterUserIDs...)

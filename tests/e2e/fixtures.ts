@@ -129,16 +129,16 @@ export const TEST_USERS = {
     role: 'superadmin',
     id: 1
   },
-  admin: {
+  manager: {
     username: 'admin',
     password: 'admin123',
-    role: 'admin',
+    role: 'manager',
     id: 2
   },
-  manager: {
+  supervisor: {
     username: 'manager',
     password: 'admin123',
-    role: 'manager',
+    role: 'supervisor',
     id: 3
   },
   cashier: {

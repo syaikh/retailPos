@@ -2828,15 +2828,15 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 	poID := 1
 	for i := 0; i < len(userIDs) && i < 2; i++ {
 		t := ref.Add(-time.Duration(rand.Intn(72)) * time.Hour)
-		addRow(userIDs[i], "admin", "inventory_adjustment", "inventory", &pid,
+		addRow(userIDs[i], "manager", "inventory_adjustment", "inventory", &pid,
 			"Adjusted stock for product #1 by 10: restock", t)
-		addRow(userIDs[i], "admin", "inventory_transfer", "inventory", &pid,
+		addRow(userIDs[i], "manager", "inventory_transfer", "inventory", &pid,
 			"Transferred stock for product #1 from location 1 to 2 (qty 5)", t)
-		addRow(userIDs[i], "admin", "purchase_order_confirmed", "purchase_order", &poID,
+		addRow(userIDs[i], "manager", "purchase_order_confirmed", "purchase_order", &poID,
 			"Confirmed purchase order #1", t)
-		addRow(userIDs[i], "admin", "purchase_order_cancelled", "purchase_order", &poID,
+		addRow(userIDs[i], "manager", "purchase_order_cancelled", "purchase_order", &poID,
 			"Cancelled purchase order #1", t)
-		addRow(userIDs[i], "admin", "token_refresh", "auth", &userIDs[i],
+		addRow(userIDs[i], "manager", "token_refresh", "auth", &userIDs[i],
 			fmt.Sprintf("User %d refreshed access token", userIDs[i]), t)
 		addRow(userIDs[i], "superadmin", "config_updated", "app_settings", nil,
 			"Updated application settings", t)

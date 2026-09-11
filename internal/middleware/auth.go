@@ -127,9 +127,36 @@ func AdminOnly() gin.HandlerFunc {
 		}
 
 		roleStr, ok := role.(string)
-		if !ok || roleStr != "superadmin" && roleStr != "admin" {
+		if !ok || roleStr != permissions.RoleSuperadmin && roleStr != permissions.RoleManager {
 			c.AbortWithStatusJSON(http.StatusForbidden, shared.NewError(shared.ErrForbidden, "admin access required"))
 			return
+		}
+
+		c.Next()
+	}
+}
+
+// RequireStoreID rejects requests from operational roles (cashier, supervisor,
+// finance, inventory_staff) when the JWT carries no store_id. Superadmin and
+// manager bypass this check because they can operate across stores.
+func RequireStoreID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := c.Get("role")
+		roleStr, _ := role.(string)
+
+		// Superadmin and manager bypass — they can operate across stores.
+		if roleStr == permissions.RoleSuperadmin || roleStr == permissions.RoleManager {
+			c.Next()
+			return
+		}
+
+		// Operational roles must have a store_id.
+		if permissions.OperationalRoles[roleStr] {
+			storeID, _ := c.Get("storeID")
+			if storeID == nil {
+				c.AbortWithStatusJSON(http.StatusForbidden, shared.NewError(shared.ErrForbidden, "store not configured for this user"))
+				return
+			}
 		}
 
 		c.Next()

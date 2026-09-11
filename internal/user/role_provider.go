@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 )
 
@@ -27,9 +28,11 @@ func (AssignableUsersProvider) AssignableUsers(ctx context.Context, db shared.DB
 		FROM users u
 		JOIN roles r ON r.id = u.role_id
 		WHERE u.deleted_at IS NULL AND u.is_active = true
-		  AND r.name IN ('cashier', 'staff', 'manager', 'admin')
+		  AND r.name IN ($2, $3, $4, $5)
 		  AND ($1 = '' OR u.username ILIKE '%' || $1 || '%' OR u.email ILIKE '%' || $1 || '%')
-		ORDER BY u.username ASC`, search)
+		ORDER BY u.username ASC`, search,
+		permissions.RoleCashier, permissions.RoleInventoryStaff,
+		permissions.RoleSupervisor, permissions.RoleManager)
 	if err != nil {
 		return nil, err
 	}
