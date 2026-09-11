@@ -47,9 +47,11 @@ async function injectAndStabilise(page: any, token: string, refreshToken: string
   // set on the FRONTEND_BASE origin through the Vite proxy; without it the
   // SPA's auto-refresh (/api/refresh has no cookie) fails and the app logs out
   // as soon as the 15-minute access token expires mid-test.
-  await page.context().addCookies([
-    { name: 'refresh_token', value: refreshToken, url: FRONTEND_BASE },
-  ]);
+  if (refreshToken) {
+    await page.context().addCookies([
+      { name: 'refresh_token', value: refreshToken, url: FRONTEND_BASE },
+    ]);
+  }
   await page.reload({ waitUntil: 'load' });
 
   // The SPA validates via POST /api/validate (restoreSession). The auth store
@@ -271,9 +273,21 @@ async function getAuthTokens(
       }
       expect(res.ok(), `login failed for ${username}: ${res.status()}`).toBeTruthy();
     }
+    // The login response body only carries access_token; the refresh token is
+    // delivered exclusively via the http-only Set-Cookie header, so read it
+    // from there so UI sessions can re-establish the cookie (see injectAndStabilise).
+    let refreshToken = '';
+    for (const h of res.headersArray()) {
+      if (h.name.toLowerCase() !== 'set-cookie') continue;
+      const m = h.value.match(/refresh_token=([^;]+)/);
+      if (m) {
+        refreshToken = m[1];
+        break;
+      }
+    }
     const entry: CachedToken = {
       token: body.access_token,
-      refreshToken: body.refresh_token,
+      refreshToken: refreshToken || (cached?.refreshToken ?? ''),
       expiresAt: Date.now() + TOKEN_TTL_MS,
     };
     const s = readTokenStore();
