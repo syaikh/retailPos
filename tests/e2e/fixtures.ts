@@ -257,8 +257,9 @@ async function getAuthTokens(
 
   const promise = (async () => {
     let body: any;
+    let res: any;
     for (let attempt = 0; attempt < 6; attempt++) {
-      const res = await request.post(`${API_BASE}/api/login`, {
+      res = await request.post(`${API_BASE}/api/login`, {
         data: { username, password },
       });
       if (res.ok()) {
