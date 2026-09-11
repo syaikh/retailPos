@@ -1,7 +1,8 @@
 # Role Permission Audit
 
 > **Date:** 2026-09-11
-> **Status:** Analysis complete — finance role + role restructuring recommended
+> **Status:** Implemented — migration 044 applied, backend guards, frontend, E2E tests
+> **Applied:** 2026-09-11
 > **Related:** [Store-First and Finance Role](./store-first-and-finance-role.md)
 
 ## Executive Summary
@@ -309,10 +310,8 @@ Finance records payment (consignment.pay)
 
 ---
 
-## Recommendation
+## Implementation
 
-Implement the role restructuring as part of the store-first enforcement migration.
-This ensures:
-1. Clean role names that match business reality
-2. Proper separation of duties (finance vs operations)
-3. Store-first enforcement for all operational roles
+The role restructuring was implemented as part of migration 044. All items above
+have been applied to the dev database. Go role constants, middleware, frontend
+role labels, seeder files, and E2E tests all reflect the new naming.

@@ -145,6 +145,7 @@ func main() {
 	protected := router.Group("/api")
 	protected.Use(authMiddleware)
 	protected.Use(middleware.CSRFMiddleware())
+	protected.Use(middleware.RequireStoreID())
 	noopAuth := func(c *gin.Context) { c.Next() }
 	{
 		deps.ProductH.RegisterRoutes(protected, noopAuth, permMiddleware)

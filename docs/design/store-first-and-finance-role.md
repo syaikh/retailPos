@@ -1,7 +1,21 @@
 # Store-First Enforcement + Finance Role + Role Restructuring
 
-> **Status:** Planned
+> **Status:** Implemented (migration 044 applied, backend guards, frontend, E2E tests)
+> **Applied:** 2026-09-11
 > **Related:** [Role Permission Audit](./role-permission-audit.md)
+
+## What Was Implemented
+
+- **Migration 044** applied to dev DB: role renames, finance role (id=209), permission assignments, store_id backfill
+- **Go role constants** updated in `internal/permissions/permissions.go`
+- **`AdminOnly()`** and **`RequireStoreID()`** middleware added and wired into `protected` route group
+- **`Caller.IsSupervisor()`** added; `IsManager()` updated for store-boss role
+- **User creation/update** validates store_id for operational roles
+- **Cart handler** maps `ErrStoreRequired` → 400
+- **Seeder files** updated with new role names
+- **Frontend** UserFormModal (store_id), UserTable (role labels), i18n (role names)
+- **Go unit tests** and **E2E tests** updated for new role names
+- **Badge variant** fixed (`"info"` → `"success"` for finance role)
 
 ## Problem
 
