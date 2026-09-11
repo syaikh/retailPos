@@ -38,10 +38,10 @@
   };
 </script>
 
-  <button
-    type={rest.type ?? "button"}
-    {...rest}
-    class={cn(base, variants[variant], sizes[size], rest.class)}
-  >
+<button
+  type={rest.type ?? "button"}
+  {...rest}
+  class={cn(base, variants[variant], sizes[size], rest.class)}
+>
   {@render children()}
 </button>
