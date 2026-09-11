@@ -220,6 +220,14 @@ func injectConsignment(ctx context.Context, db *sql.DB, startDate, endDate time.
 					return fmt.Errorf("upsert consignment stock product %d: %w", pid, err)
 				}
 
+				// Mark product as consignment-owned (BR-03/BR-18 exclusive ownership).
+				if _, err := tx.ExecContext(ctx, `
+					UPDATE products SET ownership_type = 'consignment', updated_at = now()
+					WHERE id = $1 AND ownership_type != 'consignment'`,
+					pid); err != nil {
+					return fmt.Errorf("set ownership_type for product %d: %w", pid, err)
+				}
+
 				// Sellable product_stock (Model A) + movement.
 				if err := seedProductStockDelta(ctx, tx, pid, accepted, createdBy, "consignment_receipt", recID, "consignment_receipts", "consignment receipt "+recNum, receivedAt); err != nil {
 					return err

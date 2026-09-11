@@ -462,6 +462,19 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	}
 	fmt.Println("   ✅ Cashier users ensured")
 
+	// 3g. Ensure manager and admin users have store_id assigned (consignment
+	// settlement requires store_id from JWT; users created by 000_squash.sql
+	// have store_id NULL).
+	if _, err := db.ExecContext(ctx, `
+		UPDATE users SET store_id = (
+			SELECT id FROM stores WHERE deleted_at IS NULL ORDER BY id LIMIT 1
+		)
+		WHERE store_id IS NULL
+		AND role_id IN (SELECT id FROM roles WHERE name IN ('manager', 'admin', 'cashier'))`); err != nil {
+		return fmt.Errorf("failed to assign store_id to users: %w", err)
+	}
+	fmt.Println("   ✅ Store IDs assigned to users")
+
 	// Reopen the connection pool to discard any connections with leaked
 	// session_replication_role='replica' from truncateAllData. Go's database/sql
 	// doesn't expose a pool-wide reset, so closing and reopening is the only
@@ -2670,15 +2683,19 @@ func ensureCashierUsers(ctx context.Context, db *sql.DB, minCashiers, maxCashier
 		 WHERE r.name = 'manager' AND u.is_active = true AND u.deleted_at IS NULL LIMIT 1`,
 	).Scan(&managerID)
 
+	// Resolve a valid store_id for cashiers (use the first active store).
+	var storeID sql.NullInt64
+	_ = db.QueryRowContext(ctx, `SELECT id FROM stores WHERE deleted_at IS NULL ORDER BY id LIMIT 1`).Scan(&storeID)
+
 	for i := 0; i < needed; i++ {
 		idx := current + i + 1
 		username := fmt.Sprintf("cashier_dummy_%03d", idx)
 		email := fmt.Sprintf("cashier.dummy.%03d@retail-pos.local", idx)
 		if _, err := db.ExecContext(ctx,
-			`INSERT INTO users (username, email, password_hash, role_id, reports_to, is_active, created_at)
-			 VALUES ($1, $2, $3, $4, $5, true, NOW())
+			`INSERT INTO users (username, email, password_hash, role_id, store_id, reports_to, is_active, created_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, true, NOW())
 			 ON CONFLICT (username) DO NOTHING`,
-			username, email, pwHash, roleID, managerID,
+			username, email, pwHash, roleID, storeID, managerID,
 		); err != nil {
 			return fmt.Errorf("failed to create cashier user %s: %w", username, err)
 		}
