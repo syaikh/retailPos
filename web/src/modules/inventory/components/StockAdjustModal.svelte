@@ -35,7 +35,12 @@
 </script>
 
 <Modal bind:open title={labels.adjustStock} size="sm">
-  <form onsubmit={handleSubmit} id="stock-adjust-form" class="space-y-4">
+  <form
+    onsubmit={handleSubmit}
+    id="stock-adjust-form"
+    novalidate
+    class="space-y-4"
+  >
     {#if stockAdjustProduct}
       <div>
         <p class="text-sm text-text-muted mb-2">
