@@ -77,6 +77,10 @@ Analytical queries are served from materialized views pre-aggregated in Jakarta 
 ## Git Commit Policy
 Never auto-commit. User will request commits explicitly.
 
+## Linting Conventions
+
+New/edited code must pass all linters on the next CI run. Load the `lint-code` skill for backend (golangci-lint, go vet, gofmt -s) and frontend (ESLint, Prettier, svelte-check) rules, depguard import boundaries, and the verified Svelte 5 `$effect` bare-read fix patterns. Do not run full suites locally — run targeted per-package/file checks only when the user asks.
+
 ## CI/CD (GitHub Actions)
 
 **All validation — formatting, linting, type-checking, testing, building, and security scanning — runs in GitHub CI.** Do not run full suites locally. The CI workflow (`.github/workflows/ci.yml`) triggers on pushes to `main` and on pull requests.

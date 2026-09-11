@@ -859,7 +859,7 @@ func TestMockHandler_UpdateUser_WithReportsTo(t *testing.T) {
 	t.Run("update reports_to success", func(t *testing.T) {
 		svc := &mockUserService{
 			getByIDFn: func(ctx context.Context, id int) (*User, error) {
-				return &User{ID: 2, Username: "staff", RoleID: 3}, nil
+				return &User{ID: 2, Username: "inventory_staff", RoleID: 3}, nil
 			},
 			updateUserFn: func(ctx context.Context, user *User) error {
 				assert.NotNil(t, user.ReportsToID)

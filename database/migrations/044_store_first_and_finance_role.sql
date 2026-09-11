@@ -18,18 +18,19 @@ WHERE NOT EXISTS (SELECT 1 FROM stores);
 
 -- ============================================================
 -- 2. Rename roles to match retail job titles (ORDER MATTERS!)
+--    Idempotent: only renames if old name still exists.
 -- ============================================================
 -- Step 1: manager → supervisor (must come first to avoid conflict)
 UPDATE roles SET name = 'supervisor', description = 'Supervisor — pengawasan operasional harian'
-WHERE name = 'manager';
+WHERE name = 'manager' AND NOT EXISTS (SELECT 1 FROM roles WHERE name = 'supervisor');
 
 -- Step 2: admin → manager (now safe since "manager" is free)
 UPDATE roles SET name = 'manager', description = 'Manajer Toko — pengelolaan toko secara penuh'
-WHERE name = 'admin';
+WHERE name = 'admin' AND NOT EXISTS (SELECT 1 FROM roles WHERE name = 'manager');
 
 -- Step 3: staff → inventory_staff
 UPDATE roles SET name = 'inventory_staff', description = 'Staf Inventaris — pengelolaan stok dan opname'
-WHERE name = 'staff';
+WHERE name = 'staff' AND NOT EXISTS (SELECT 1 FROM roles WHERE name = 'inventory_staff');
 
 -- ============================================================
 -- 3. Create finance role

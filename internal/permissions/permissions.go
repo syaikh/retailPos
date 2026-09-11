@@ -132,9 +132,9 @@ const (
 // Role names — single source of truth for role string constants.
 const (
 	RoleSuperadmin     = "superadmin"
-	RoleManager        = "manager"       // was "admin" — store manager, the boss
-	RoleSupervisor     = "supervisor"    // was "manager" — shift supervisor
-	RoleFinance        = "finance"       // new — payment processing
+	RoleManager        = "manager"    // was "admin" — store manager, the boss
+	RoleSupervisor     = "supervisor" // was "manager" — shift supervisor
+	RoleFinance        = "finance"    // new — payment processing
 	RoleCashier        = "cashier"
 	RoleInventoryStaff = "inventory_staff" // was "staff" — stock management
 )
