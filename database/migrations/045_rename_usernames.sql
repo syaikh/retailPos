@@ -3,16 +3,27 @@
 --   admin      → manager       (store boss, role_id=2)
 --   manager    → supervisor    (shift lead, role_id=3)
 --   staff      → inventory_staff (stock ops, role_id=5)
+-- Idempotent: skips if target username already exists.
 
 BEGIN;
 
 -- Step 1: staff → inventory_staff (must come first — no FK dependency on other usernames)
-UPDATE users SET username = 'inventory_staff' WHERE username = 'staff';
+UPDATE users SET username = 'inventory_staff'
+WHERE username = 'staff'
+  AND NOT EXISTS (SELECT 1 FROM users WHERE username = 'inventory_staff');
 
 -- Step 2: manager → supervisor (must come before admin → manager to avoid conflict)
-UPDATE users SET username = 'supervisor' WHERE username = 'manager';
+UPDATE users SET username = 'supervisor'
+WHERE username = 'manager'
+  AND NOT EXISTS (SELECT 1 FROM users WHERE username = 'supervisor');
 
 -- Step 3: admin → manager (now safe since "manager" username is free)
-UPDATE users SET username = 'manager' WHERE username = 'admin';
+UPDATE users SET username = 'manager'
+WHERE username = 'admin'
+  AND NOT EXISTS (SELECT 1 FROM users WHERE username = 'manager');
+
+-- Migration registration
+INSERT INTO schema_migrations (filename) VALUES ('045_rename_usernames.sql')
+ON CONFLICT (filename) DO NOTHING;
 
 COMMIT;
