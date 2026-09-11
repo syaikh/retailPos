@@ -42,6 +42,14 @@ async function injectAndStabilise(page: any, token: string, refreshToken: string
     sessionStorage.setItem('access_token', t);
     sessionStorage.setItem('refresh_token', rt);
   }, { t: token, rt: refreshToken });
+  // Token injection bypasses the login response, so the http-only
+  // refresh_token cookie is never established. During a real UI login it is
+  // set on the FRONTEND_BASE origin through the Vite proxy; without it the
+  // SPA's auto-refresh (/api/refresh has no cookie) fails and the app logs out
+  // as soon as the 15-minute access token expires mid-test.
+  await page.context().addCookies([
+    { name: 'refresh_token', value: refreshToken, url: FRONTEND_BASE },
+  ]);
   await page.reload({ waitUntil: 'load' });
 
   // The SPA validates via POST /api/validate (restoreSession). The auth store
