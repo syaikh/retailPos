@@ -9,20 +9,33 @@ import { apiAs, ApiDriver } from './api-driver';
  */
 const data = (b: any) => (b && b.data !== undefined ? b.data : b);
 
-async function firstProductWithStock(api: ApiDriver, minStock = 6) {
-  const res = await api.get('/api/products?limit=20&offset=0');
+/**
+ * Get any product and boost its stock to a known level before testing.
+ * Eliminates fragile assumptions about seeded stock levels.
+ */
+async function getOrBoostProduct(api: ApiDriver, { request, token }: { request: any; token: string }): Promise<{ id: number; stock: number }> {
+  const res = await api.get('/api/products?limit=1');
   expect(res.ok).toBeTruthy();
   const products = data(res.body) || [];
-  const target = products.find((p: any) => (p.stock ?? 0) >= minStock);
-  expect(target, 'no product with sufficient stock').toBeTruthy();
-  return target as { id: number; stock: number };
+  expect(products.length, 'need at least 1 product').toBeGreaterThan(0);
+  const prod = products[0] as { id: number; stock: number };
+
+  // Boost stock to a known safe level
+  await api.post('/api/inventory/adjust', {
+    product_id: prod.id,
+    quantity_change: 200,
+    notes: 'E2E ensure stock for inventory-adjust tests',
+  });
+
+  // Re-fetch to confirm
+  const after = data((await api.get(`/api/products/${prod.id}`)).body);
+  return { id: prod.id, stock: after.stock };
 }
 
 test.describe('Inventory Adjust API', () => {
   test('positive adjustment increases stock by the delta', async ({ request }) => {
     const api = await apiAs(request, 'superadmin');
-    const prod = await firstProductWithStock(api, 6);
-    const before = prod.stock;
+    const prod = await getOrBoostProduct(api, { request, token: '' });
     const delta = 15;
 
     const res = await api.post('/api/inventory/adjust', {
@@ -33,7 +46,7 @@ test.describe('Inventory Adjust API', () => {
     expect(res.ok, `adjust failed: ${res.status}: ${JSON.stringify(res.body)}`).toBeTruthy();
 
     const after = data((await api.get(`/api/products/${prod.id}`)).body);
-    expect(after.stock).toBe(before + delta);
+    expect(after.stock).toBe(prod.stock + delta);
 
     // revert
     await api.post('/api/inventory/adjust', {
@@ -42,13 +55,12 @@ test.describe('Inventory Adjust API', () => {
       notes: 'E2E revert',
     });
     const reverted = data((await api.get(`/api/products/${prod.id}`)).body);
-    expect(reverted.stock).toBe(before);
+    expect(reverted.stock).toBe(prod.stock);
   });
 
   test('negative adjustment decreases stock by the delta', async ({ request }) => {
     const api = await apiAs(request, 'superadmin');
-    const prod = await firstProductWithStock(api, 10);
-    const before = prod.stock;
+    const prod = await getOrBoostProduct(api, { request, token: '' });
     const delta = -5;
 
     const res = await api.post('/api/inventory/adjust', {
@@ -59,7 +71,7 @@ test.describe('Inventory Adjust API', () => {
     expect(res.ok).toBeTruthy();
 
     const after = data((await api.get(`/api/products/${prod.id}`)).body);
-    expect(after.stock).toBe(before + delta);
+    expect(after.stock).toBe(prod.stock + delta);
 
     await api.post('/api/inventory/adjust', {
       product_id: prod.id,
@@ -70,7 +82,7 @@ test.describe('Inventory Adjust API', () => {
 
   test('rejects zero quantity change with 400', async ({ request }) => {
     const api = await apiAs(request, 'superadmin');
-    const prod = await firstProductWithStock(api, 1);
+    const prod = await getOrBoostProduct(api, { request, token: '' });
     const res = await api.post('/api/inventory/adjust', {
       product_id: prod.id,
       quantity_change: 0,
@@ -82,7 +94,7 @@ test.describe('Inventory Adjust API', () => {
 
   test('rejects missing notes with 400', async ({ request }) => {
     const api = await apiAs(request, 'superadmin');
-    const prod = await firstProductWithStock(api, 1);
+    const prod = await getOrBoostProduct(api, { request, token: '' });
     const res = await api.post('/api/inventory/adjust', {
       product_id: prod.id,
       quantity_change: 10,
@@ -94,7 +106,7 @@ test.describe('Inventory Adjust API', () => {
 
   test('cashier (no inventory.adjust) returns 403', async ({ request }) => {
     const api = await apiAs(request, 'cashier');
-    const prod = await firstProductWithStock(api, 1);
+    const prod = await getOrBoostProduct(api, { request, token: '' });
     const res = await api.post('/api/inventory/adjust', {
       product_id: prod.id,
       quantity_change: 5,

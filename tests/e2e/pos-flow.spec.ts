@@ -5,6 +5,15 @@ function getFirstAddButton(page: any) {
   return page.locator('button:not([disabled])').filter({ hasText: 'Add' }).first();
 }
 
+async function addProductAndWaitForCart(page: any) {
+  const addButton = getFirstAddButton(page);
+  await expect(addButton).toBeVisible({ timeout: 10000 });
+  await expect(addButton).toBeEnabled({ timeout: 5000 });
+  await addButton.click();
+  // Wait for the cart item API response before asserting cart state
+  await page.waitForResponse(res => res.url().includes('/api/pos/cart/items') && res.status() === 200, { timeout: 10000 });
+}
+
 test.describe('POS UI Flow', () => {
   test.beforeEach(async ({ page }) => {
     await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
@@ -36,10 +45,7 @@ test.describe('POS UI Flow', () => {
 
   test('should add product to cart', async ({ page }) => {
     await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
-    const addButton = getFirstAddButton(page);
-    await expect(addButton).toBeVisible({ timeout: 10000 });
-    await expect(addButton).toBeEnabled({ timeout: 5000 });
-    await addButton.click();
+    await addProductAndWaitForCart(page);
     await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
     // Quantity is reflected in cart (input value or total) — assert cart is populated
     await expect(page.locator('button[aria-label="Increase quantity"]').first()).toBeVisible({ timeout: 5000 });
@@ -47,10 +53,7 @@ test.describe('POS UI Flow', () => {
 
   test('should increase item quantity in cart', async ({ page }) => {
     await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
-    const addButton = getFirstAddButton(page);
-    await expect(addButton).toBeVisible({ timeout: 10000 });
-    await expect(addButton).toBeEnabled({ timeout: 5000 });
-    await addButton.click();
+    await addProductAndWaitForCart(page);
     await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
 
     const increaseBtn = page.locator('button[aria-label="Increase quantity"]').first();
@@ -63,10 +66,7 @@ test.describe('POS UI Flow', () => {
 
   test('should decrease item quantity in cart', async ({ page }) => {
     await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
-    const addButton = getFirstAddButton(page);
-    await expect(addButton).toBeVisible({ timeout: 10000 });
-    await expect(addButton).toBeEnabled({ timeout: 5000 });
-    await addButton.click();
+    await addProductAndWaitForCart(page);
     await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
 
     const increaseBtn = page.locator('button[aria-label="Increase quantity"]').first();
@@ -82,10 +82,7 @@ test.describe('POS UI Flow', () => {
 
   test('should remove item from cart', async ({ page }) => {
     await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
-    const addButton = getFirstAddButton(page);
-    await expect(addButton).toBeVisible({ timeout: 10000 });
-    await expect(addButton).toBeEnabled({ timeout: 5000 });
-    await addButton.click();
+    await addProductAndWaitForCart(page);
     await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
 
     const removeBtn = page.locator('button[aria-label="Remove item"]').first();
@@ -96,10 +93,7 @@ test.describe('POS UI Flow', () => {
 
   test('should open checkout modal with F4 key', async ({ page }) => {
     await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
-    const addButton = getFirstAddButton(page);
-    await expect(addButton).toBeVisible({ timeout: 10000 });
-    await expect(addButton).toBeEnabled({ timeout: 5000 });
-    await addButton.click();
+    await addProductAndWaitForCart(page);
     await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
 
     await page.keyboard.press('F4');
@@ -111,9 +105,7 @@ test.describe('POS UI Flow', () => {
 
   test('should open customer selection modal', async ({ page }) => {
     await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
-    const addButton = getFirstAddButton(page);
-    await expect(addButton).toBeVisible({ timeout: 10000 });
-    await addButton.click();
+    await addProductAndWaitForCart(page);
     await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
 
     await page.keyboard.press('F4');
@@ -128,10 +120,7 @@ test.describe('POS UI Flow', () => {
 
   test('should clear cart with ALT+DEL and confirm', async ({ page }) => {
     await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
-    const addButton = getFirstAddButton(page);
-    await expect(addButton).toBeVisible({ timeout: 10000 });
-    await expect(addButton).toBeEnabled({ timeout: 5000 });
-    await addButton.click();
+    await addProductAndWaitForCart(page);
     await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
 
     await page.locator('button[aria-label="Clear Cart"]').click();

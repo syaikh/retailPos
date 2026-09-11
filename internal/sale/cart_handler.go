@@ -85,6 +85,8 @@ func (h *Handler) cartError(c *gin.Context, err error) {
 		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
 	case errors.Is(err, ErrInsufficientStock):
 		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
+	case errors.Is(err, ErrStoreRequired):
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "store not configured for this user")
 	case errors.Is(err, ErrPaymentOverTenderNonCash) || errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
 		errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
 		errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||

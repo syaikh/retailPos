@@ -21,7 +21,8 @@ test.describe('Hold & Recall UI Flow', () => {
     await addButton.waitFor({ state: 'visible', timeout: 10000 });
     await expect(addButton).toBeEnabled({ timeout: 5000 });
     await addButton.click();
-    await page.waitForTimeout(500);
+    // Wait for the cart item API response before asserting
+    await page.waitForResponse(res => res.url().includes('/api/pos/cart/items') && res.status() === 200, { timeout: 10000 });
     await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
 
     await page.keyboard.press('F6');

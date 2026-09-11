@@ -38,11 +38,11 @@
 
   function roleVariant(
     r: { id: number; name: string } | string,
-  ): "primary" | "warning" | "muted" | "info" {
+  ): "primary" | "warning" | "muted" | "success" {
     const roleName = typeof r === "object" ? r.name : r;
     if (roleName === "superadmin") return "primary";
     if (roleName === "manager") return "warning";
-    if (roleName === "finance") return "info";
+    if (roleName === "finance") return "success";
     return "muted";
   }
 
