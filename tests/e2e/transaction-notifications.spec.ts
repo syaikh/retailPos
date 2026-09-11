@@ -224,7 +224,7 @@ test.describe('Transaction deep-link & refresh (superadmin/manager)', () => {
   });
 
   test('My Transactions shows an Updated WIB timestamp and refreshes without error', async ({ page }) => {
-    const ts = page.getByText(/Updated \d{1,2}:\d{2} WIB/).first();
+    const ts = page.getByText(/Updated\s+\d{1,2}:\d{2}\s+WIB/).first();
     await expect(ts).toBeVisible({ timeout: 5000 });
 
     await page.getByRole('button', { name: 'Refresh' }).click();
