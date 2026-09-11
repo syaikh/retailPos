@@ -47,7 +47,7 @@ func NewHandler(svc Service, resolver PriceResolver, auditSvc audit.Creator) *Ha
 
 func isAdmin(c *gin.Context) bool {
 	role := shared.GetRole(c)
-	return role == permissions.RoleSuperadmin || role == permissions.RoleManager
+	return role == permissions.RoleSuperadmin
 }
 
 // SetProductSearcher sets the optional product search provider.

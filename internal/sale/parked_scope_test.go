@@ -369,7 +369,7 @@ func TestParkedScope_HandlerOwnershipIDOR(t *testing.T) {
 }
 
 // TestParkedScope_HandlerCompletion covers the dedicated complete route: a
-// manager completing a recalled sale gets 201 + audit, another cashier gets 404.
+// supervisor completing a recalled sale gets 201 + audit, another cashier gets 404.
 func TestParkedScope_HandlerCompletion(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
@@ -378,16 +378,16 @@ func TestParkedScope_HandlerCompletion(t *testing.T) {
 
 	cashierA := insertTestCashierNamed(ctx, t, "parked_complete_cashier_a")
 	cashierB := insertTestCashierNamed(ctx, t, "parked_complete_cashier_b")
-	managerID := insertTestCashierNamed(ctx, t, "parked_complete_manager")
+	supervisorID := insertTestCashierNamed(ctx, t, "parked_complete_supervisor")
 	prodID := insertTestProduct(ctx, t, "COMPLETE-PROD-001", "Complete Product", 10000, 50)
 
 	body := fmt.Sprintf(`{"items":[{"product_id":%d,"quantity":1}],"payments":[{"payment_method_code":"CASH","amount":10000}]}`, prodID)
 
-	t.Run("manager completion is created and audited", func(t *testing.T) {
+	t.Run("supervisor completion is created and audited", func(t *testing.T) {
 		parked := createParkedSale(ctx, t, newTestRepo(t), cashierA, "INV-HTTP-COMP-001", "parked", prodID, 1, 10000)
 		parked = mustRecallParked(t, repo, parked)
 
-		r, auditSvc := setupParkedScopeRouter(t, "manager", managerID)
+		r, auditSvc := setupParkedScopeRouter(t, "supervisor", supervisorID)
 		var logs []*audit.Log
 		auditSvc.createAuditLogFn = func(c context.Context, l *audit.Log) error {
 			logs = append(logs, l)
@@ -404,7 +404,7 @@ func TestParkedScope_HandlerCompletion(t *testing.T) {
 		}
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 		assert.Equal(t, "completed", resp.Data.Status)
-		assert.Equal(t, managerID, resp.Data.CashierID)
+		assert.Equal(t, supervisorID, resp.Data.CashierID)
 
 		found := false
 		for _, l := range logs {
@@ -412,7 +412,7 @@ func TestParkedScope_HandlerCompletion(t *testing.T) {
 				found = true
 			}
 		}
-		assert.True(t, found, "manager completion must write complete_parked_sale audit log")
+		assert.True(t, found, "supervisor completion must write complete_parked_sale audit log")
 	})
 
 	t.Run("other cashier cannot complete a recalled sale", func(t *testing.T) {
