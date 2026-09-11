@@ -442,14 +442,14 @@ func TestService_AssignCounterRoleValidation(t *testing.T) {
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 9203}, managerID, nil)
 	require.NoError(t, err)
 
-	// counter role only for staff/cashier
+	// counter role only for inventory_staff/cashier
 	require.NoError(t, svc.AssignCounter(ctx, session.ID, counterID, AssignmentRoleCounter, nil))
 
 	// manager cannot be assigned as counter
 	err = svc.AssignCounter(ctx, session.ID, managerID, AssignmentRoleCounter, nil)
 	require.ErrorIs(t, err, ErrInvalidAssigneeRole)
 
-	// staff cannot be assigned as supervisor
+	// inventory_staff cannot be assigned as supervisor
 	err = svc.AssignCounter(ctx, session.ID, staffID, AssignmentRoleSupervisor, nil)
 	require.ErrorIs(t, err, ErrInvalidAssigneeRole)
 
@@ -487,7 +487,7 @@ func TestService_ReassignCounterRoleValidation(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, assignments, 1)
 
-	// staff cannot be promoted to supervisor
+	// inventory_staff cannot be promoted to supervisor
 	err = svc.ReassignCounter(ctx, session.ID, assignments[0].ID, AssignmentRoleSupervisor, nil)
 	require.ErrorIs(t, err, ErrInvalidAssigneeRole)
 

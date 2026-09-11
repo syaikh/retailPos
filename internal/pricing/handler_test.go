@@ -1116,7 +1116,7 @@ func TestHandler_CheckConflicts_StoreScoped(t *testing.T) {
 		r := gin.New()
 		r.Use(func(c *gin.Context) {
 			c.Set("userID", 1)
-			c.Set("username", "admin")
+			c.Set("username", "manager")
 			c.Set("roleID", 1)
 			c.Set("role", "superadmin")
 			c.Set("permissions", []string{"pricing.view"})

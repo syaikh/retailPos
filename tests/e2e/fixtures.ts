@@ -130,13 +130,13 @@ export const TEST_USERS = {
     id: 1
   },
   manager: {
-    username: 'admin',
+    username: 'manager',
     password: 'admin123',
     role: 'manager',
     id: 2
   },
   supervisor: {
-    username: 'manager',
+    username: 'supervisor',
     password: 'admin123',
     role: 'supervisor',
     id: 3

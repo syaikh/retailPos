@@ -78,7 +78,7 @@ test.describe('Shifts Page', () => {
 
   test('admin sees CASHIER column and all shifts', async ({ page }) => {
     await logoutUI(page);
-    await loginUI(page, TEST_USERS.admin.username, TEST_USERS.admin.password);
+    await loginUI(page, TEST_USERS.manager.username, TEST_USERS.manager.password);
 
     await page.goto(`${FRONTEND_BASE}/shifts`);
     await expect(page).toHaveURL(/\/shifts/);

@@ -340,7 +340,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 			effectiveRoleID = *req.RoleID
 		}
 		role, err := h.svc.GetRoleByID(c.Request.Context(), effectiveRoleID)
-		if err == nil && permissions.OperationalRoles[role.Name] {
+		if err == nil && role != nil && permissions.OperationalRoles[role.Name] {
 			// Determine the effective store_id (may be changing in this update).
 			effectiveStoreID := existing.StoreID
 			if req.StoreID != nil {

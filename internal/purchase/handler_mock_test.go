@@ -125,7 +125,7 @@ func setupHandlerMock(t *testing.T, svc Service) *gin.Engine {
 	auth := func(c *gin.Context) {
 		c.Set("userID", 1)
 		c.Set("username", "testuser")
-		c.Set("role", "admin")
+		c.Set("role", "manager")
 		c.Set("storeID", intPtr(1))
 		c.Next()
 	}

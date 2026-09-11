@@ -148,7 +148,7 @@ test.describe('Pricing Rules UI - Superadmin', () => {
 
 test.describe('Pricing Rules UI - Staff', () => {
   test('staff is denied access to /pricing-rules page', async ({ page }) => {
-    await loginUI(page, 'staff', 'admin123');
+    await loginUI(page, 'inventory_staff', 'admin123');
     await page.goto(`${FRONTEND_BASE}/pricing-rules`);
     await page.waitForTimeout(2000);
     const redirectedAway = !page.url().includes('/pricing-rules');

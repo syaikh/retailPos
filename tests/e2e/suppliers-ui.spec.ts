@@ -157,7 +157,7 @@ test.describe('Suppliers UI - Superadmin', () => {
 
 test.describe('Suppliers UI - Staff', () => {
   test('staff is denied access to /suppliers page', async ({ page }) => {
-    await loginUI(page, 'staff', 'admin123');
+    await loginUI(page, 'inventory_staff', 'admin123');
     await page.goto(`${FRONTEND_BASE}/suppliers`);
     await page.waitForTimeout(2000);
     const redirectedAway = !page.url().includes('/suppliers');

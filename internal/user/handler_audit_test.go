@@ -40,7 +40,7 @@ func setupMockUserRouterWithAudit(svc Service) *gin.Engine {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
+		c.Set("username", "manager")
 		c.Set("role", "superadmin")
 		c.Next()
 	})
@@ -57,7 +57,7 @@ func setupMockAuthRouterWithAudit(svc AuthLoginService) *gin.Engine {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
+		c.Set("username", "manager")
 		c.Set("role", "superadmin")
 		c.Next()
 	})
@@ -108,7 +108,7 @@ func TestAuditHandler_UpdateUser_GetUserError(t *testing.T) {
 func TestAuditHandler_UpdateRole(t *testing.T) {
 	svc := &mockUserService{
 		getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
-			return &Role{ID: 1, Name: "admin", Description: "Admin role"}, nil
+			return &Role{ID: 1, Name: "manager", Description: "Admin role"}, nil
 		},
 		updateRoleFn: func(ctx context.Context, role *Role) error {
 			return nil
@@ -451,7 +451,7 @@ func TestAuditHandler_UpdateRole_BindError(t *testing.T) {
 func TestAuditHandler_UpdateRole_ServiceError(t *testing.T) {
 	svc := &mockUserService{
 		getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
-			return &Role{ID: 1, Name: "admin"}, nil
+			return &Role{ID: 1, Name: "manager"}, nil
 		},
 		updateRoleFn: func(ctx context.Context, role *Role) error {
 			return errors.New("db error")
@@ -496,7 +496,7 @@ func TestAuditHandler_UpdateRolePermissions_WritesAudit(t *testing.T) {
 			return nil
 		},
 		getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
-			return &Role{ID: 1, Name: "admin"}, nil
+			return &Role{ID: 1, Name: "manager"}, nil
 		},
 	}
 	auditSvc := &mockAuditCreator{
@@ -509,7 +509,7 @@ func TestAuditHandler_UpdateRolePermissions_WritesAudit(t *testing.T) {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
+		c.Set("username", "manager")
 		c.Set("role", "superadmin")
 		c.Next()
 	})
@@ -530,7 +530,7 @@ func TestAuditHandler_UpdateRolePermissions_WritesAudit(t *testing.T) {
 	assert.Equal(t, "role", captured.EntityType)
 	require.NotNil(t, captured.EntityID)
 	assert.Equal(t, 1, *captured.EntityID)
-	assert.Contains(t, captured.Description, "Updated permissions for role admin")
+	assert.Contains(t, captured.Description, "Updated permissions for role manager")
 	assert.Contains(t, captured.Description, "added")
 	assert.Contains(t, captured.Description, "removed")
 	assert.Contains(t, captured.Description, "role.update") // added code
@@ -611,7 +611,7 @@ func TestAuditHandler_UpdateUser_Deactivated_WritesAudit(t *testing.T) {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
+		c.Set("username", "manager")
 		c.Set("role", "superadmin")
 		c.Next()
 	})
@@ -654,7 +654,7 @@ func TestAuditHandler_UpdateUser_Activated_WritesAudit(t *testing.T) {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
+		c.Set("username", "manager")
 		c.Set("role", "superadmin")
 		c.Next()
 	})
@@ -697,7 +697,7 @@ func TestAuditHandler_UpdateUser_RoleChanged_WritesAudit(t *testing.T) {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
+		c.Set("username", "manager")
 		c.Set("role", "superadmin")
 		c.Next()
 	})

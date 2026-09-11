@@ -75,7 +75,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 	ctx := context.Background()
 
 	al := &Log{
-		Role:       "admin",
+		Role:       "manager",
 		Action:     "handler_list_test",
 		EntityType: "order",
 		IPAddress:  "10.0.0.1",
@@ -138,7 +138,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, repo.CreateAuditLog(ctx, &Log{
 			UserID:     intPtr(999),
-			Role:       "admin",
+			Role:       "manager",
 			Action:     "handler_user_filter",
 			EntityType: "user",
 		}))
@@ -163,7 +163,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 	t.Run("filters by entity_id", func(t *testing.T) {
 		eid := 42
 		require.NoError(t, repo.CreateAuditLog(ctx, &Log{
-			Role:       "admin",
+			Role:       "manager",
 			Action:     "handler_eid_filter",
 			EntityType: "order",
 			EntityID:   &eid,
@@ -255,7 +255,7 @@ func TestHandler_GetAuditLog(t *testing.T) {
 	ctx := context.Background()
 
 	al := &Log{
-		Role:       "admin",
+		Role:       "manager",
 		Action:     "handler_getbyid_test",
 		EntityType: "product",
 		IPAddress:  "10.0.0.3",
@@ -302,7 +302,7 @@ func TestHandler_ListEntityTypes(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, repo.CreateAuditLog(ctx, &Log{
-		Role:       "admin",
+		Role:       "manager",
 		Action:     "entity_type_test",
 		EntityType: "widget",
 	}))
@@ -329,7 +329,7 @@ func TestHandler_ListAuditLogs_CreatedAtJakartaTimezone(t *testing.T) {
 	ctx := context.Background()
 
 	al := &Log{
-		Role:       "admin",
+		Role:       "manager",
 		Action:     "handler_tz_test_" + time.Now().Format("0102150405"),
 		EntityType: "product",
 	}
@@ -361,7 +361,7 @@ func TestHandler_ExportCSV_CreatedAtJakartaTimezone(t *testing.T) {
 	ctx := context.Background()
 
 	al := &Log{
-		Role:       "admin",
+		Role:       "manager",
 		Action:     "export_tz_test_" + time.Now().Format("0102150405"),
 		EntityType: "product",
 		IPAddress:  "10.0.0.99",
@@ -392,7 +392,7 @@ func TestHandler_ExportAuditLogs_EmitsExportedEvent(t *testing.T) {
 
 	repo := NewRepository(dbPool)
 	require.NoError(t, repo.CreateAuditLog(ctx, &Log{
-		Role:       "admin",
+		Role:       "manager",
 		Action:     "export_event_seed_" + time.Now().Format("0102150405"),
 		EntityType: "product",
 		IPAddress:  "10.0.0.99",

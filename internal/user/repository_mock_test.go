@@ -30,12 +30,12 @@ func TestRepository_GetByUsername_CacheHit(t *testing.T) {
 	repo := NewRepository(mock)
 	repo.SetCache(c)
 
-	c.Set("user:username:admin", User{ID: 1, Username: "admin"})
+	c.Set("user:username:manager", User{ID: 1, Username: "manager"})
 	c.Wait()
 
-	u, err := repo.GetByUsername(context.Background(), "admin")
+	u, err := repo.GetByUsername(context.Background(), "manager")
 	require.NoError(t, err)
-	assert.Equal(t, "admin", u.Username)
+	assert.Equal(t, "manager", u.Username)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -50,21 +50,21 @@ func TestRepository_GetByUsername_CacheSet(t *testing.T) {
 
 	now := time.Now()
 	rows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "language", "theme", "created_at", "updated_at", "last_login"}).
-		AddRow(1, "admin", "admin@test.com", "hash", 1, nil, nil, true, "id", "light", now, now, nil)
-	mock.ExpectQuery("SELECT (.+) FROM users WHERE username").WithArgs("admin").WillReturnRows(rows)
+		AddRow(1, "manager", "manager@test.com", "hash", 1, nil, nil, true, "id", "light", now, now, nil)
+	mock.ExpectQuery("SELECT (.+) FROM users WHERE username").WithArgs("manager").WillReturnRows(rows)
 
 	roleRows := pgxmock.NewRows([]string{"id", "name", "description", "is_system", "created_at"}).
-		AddRow(1, "admin", "Admin", true, now)
+		AddRow(1, "manager", "Admin", true, now)
 	mock.ExpectQuery("SELECT (.+) FROM roles WHERE id").WithArgs(1).WillReturnRows(roleRows)
 
-	u, err := repo.GetByUsername(context.Background(), "admin")
+	u, err := repo.GetByUsername(context.Background(), "manager")
 	require.NoError(t, err)
-	assert.Equal(t, "admin", u.Username)
+	assert.Equal(t, "manager", u.Username)
 
 	c.Wait()
-	v, ok := c.Get("user:username:admin")
+	v, ok := c.Get("user:username:manager")
 	assert.True(t, ok)
-	assert.Equal(t, "admin", v.(User).Username)
+	assert.Equal(t, "manager", v.(User).Username)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -87,10 +87,10 @@ func TestRepository_GetByUsername_DBError(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	mock.ExpectQuery("SELECT (.+) FROM users WHERE username").WithArgs("admin").WillReturnError(fmt.Errorf("db lost"))
+	mock.ExpectQuery("SELECT (.+) FROM users WHERE username").WithArgs("manager").WillReturnError(fmt.Errorf("db lost"))
 
 	repo := NewRepository(mock)
-	_, err = repo.GetByUsername(context.Background(), "admin")
+	_, err = repo.GetByUsername(context.Background(), "manager")
 	assert.Error(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -130,12 +130,12 @@ func TestRepository_GetRoleByID_CacheHit(t *testing.T) {
 	repo := NewRepository(mock)
 	repo.SetCache(c)
 
-	c.Set("role:1", Role{ID: 1, Name: "admin"})
+	c.Set("role:1", Role{ID: 1, Name: "manager"})
 	c.Wait()
 
 	role, err := repo.GetRoleByID(context.Background(), 1)
 	require.NoError(t, err)
-	assert.Equal(t, "admin", role.Name)
+	assert.Equal(t, "manager", role.Name)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -150,17 +150,17 @@ func TestRepository_GetRoleByID_CacheSet(t *testing.T) {
 
 	now := time.Now()
 	rows := pgxmock.NewRows([]string{"id", "name", "description", "is_system", "created_at"}).
-		AddRow(1, "admin", "Admin role", true, now)
+		AddRow(1, "manager", "Admin role", true, now)
 	mock.ExpectQuery("SELECT (.+) FROM roles WHERE id").WithArgs(1).WillReturnRows(rows)
 
 	role, err := repo.GetRoleByID(context.Background(), 1)
 	require.NoError(t, err)
-	assert.Equal(t, "admin", role.Name)
+	assert.Equal(t, "manager", role.Name)
 
 	c.Wait()
 	v, ok := c.Get("role:1")
 	assert.True(t, ok)
-	assert.Equal(t, "admin", v.(Role).Name)
+	assert.Equal(t, "manager", v.(Role).Name)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -327,20 +327,20 @@ func TestRepository_GetUserByID_CacheHit(t *testing.T) {
 	repo := NewRepository(mock)
 	repo.SetCache(c)
 
-	c.Set("user:1", User{ID: 1, Username: "admin"})
+	c.Set("user:1", User{ID: 1, Username: "manager"})
 
 	now := time.Now()
 	userRows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "language", "theme", "created_at", "updated_at", "last_login"}).
-		AddRow(1, "admin", "admin@test.com", "hash", 1, nil, nil, true, "id", "light", now, now, nil)
+		AddRow(1, "manager", "manager@test.com", "hash", 1, nil, nil, true, "id", "light", now, now, nil)
 	mock.ExpectQuery("SELECT (.+) FROM users WHERE id").WithArgs(1).WillReturnRows(userRows)
 
 	roleRows := pgxmock.NewRows([]string{"id", "name", "description", "is_system", "created_at"}).
-		AddRow(1, "admin", "Admin", true, now)
+		AddRow(1, "manager", "Admin", true, now)
 	mock.ExpectQuery("SELECT (.+) FROM roles WHERE id").WithArgs(1).WillReturnRows(roleRows)
 
 	u, err := repo.GetByID(context.Background(), 1)
 	require.NoError(t, err)
-	assert.Equal(t, "admin", u.Username)
+	assert.Equal(t, "manager", u.Username)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -385,8 +385,8 @@ func TestRepository_GetAllUsers_NoFilters(t *testing.T) {
 		"is_active", "language", "theme",
 		"created_at", "updated_at", "last_login",
 		"role_id_2", "role_name", "role_description", "role_is_system", "role_created_at",
-	}).AddRow(1, "admin", "admin@test.com", "hash", 1, nil, nil, "", true, "id", "light", now, now, nil,
-		1, "admin", "Admin", true, now)
+	}).AddRow(1, "manager", "manager@test.com", "hash", 1, nil, nil, "", true, "id", "light", now, now, nil,
+		1, "manager", "Admin", true, now)
 	mock.ExpectQuery("SELECT u.id, u.username").WithArgs(10, 0).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
@@ -394,7 +394,7 @@ func TestRepository_GetAllUsers_NoFilters(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	assert.Len(t, users, 1)
-	assert.Equal(t, "admin", users[0].Username)
+	assert.Equal(t, "manager", users[0].Username)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -454,11 +454,11 @@ func TestRepository_UpdateUser_WithPassword(t *testing.T) {
 	defer mock.Close()
 
 	mock.ExpectBegin()
-	mock.ExpectExec("UPDATE users SET username = .+password_hash").WithArgs("admin", "admin@test.com", "newhash", 1, pgxmock.AnyArg(), pgxmock.AnyArg(), true, 1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("UPDATE users SET username = .+password_hash").WithArgs("manager", "manager@test.com", "newhash", 1, pgxmock.AnyArg(), pgxmock.AnyArg(), true, 1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectCommit()
 
 	repo := NewRepository(mock)
-	u := &User{ID: 1, Username: "admin", Email: "admin@test.com", Password: "newhash", RoleID: 1, IsActive: true}
+	u := &User{ID: 1, Username: "manager", Email: "manager@test.com", Password: "newhash", RoleID: 1, IsActive: true}
 	err = repo.UpdateUser(context.Background(), u)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -470,11 +470,11 @@ func TestRepository_UpdateUser_WithoutPassword(t *testing.T) {
 	defer mock.Close()
 
 	mock.ExpectBegin()
-	mock.ExpectExec("UPDATE users SET username = .+\\$6").WithArgs("admin", "admin@test.com", 1, pgxmock.AnyArg(), pgxmock.AnyArg(), true, 1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("UPDATE users SET username = .+\\$6").WithArgs("manager", "manager@test.com", 1, pgxmock.AnyArg(), pgxmock.AnyArg(), true, 1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectCommit()
 
 	repo := NewRepository(mock)
-	u := &User{ID: 1, Username: "admin", Email: "admin@test.com", RoleID: 1, IsActive: true}
+	u := &User{ID: 1, Username: "manager", Email: "manager@test.com", RoleID: 1, IsActive: true}
 	err = repo.UpdateUser(context.Background(), u)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -564,14 +564,14 @@ func TestRepository_GetAllRoles_Success(t *testing.T) {
 
 	now := time.Now()
 	rows := pgxmock.NewRows([]string{"id", "name", "description", "is_system", "created_at", "permissions"}).
-		AddRow(1, "admin", "Admin", true, now, []string{"*"})
+		AddRow(1, "manager", "Admin", true, now, []string{"*"})
 	mock.ExpectQuery("SELECT r.id, r.name").WillReturnRows(rows)
 
 	repo := NewRepository(mock)
 	roles, err := repo.GetAllRoles(context.Background())
 	require.NoError(t, err)
 	assert.Len(t, roles, 1)
-	assert.Equal(t, "admin", roles[0].Name)
+	assert.Equal(t, "manager", roles[0].Name)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

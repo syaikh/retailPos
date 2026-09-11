@@ -164,8 +164,8 @@ func TestMockHandler_GetProductByID_WithStoreID(t *testing.T) {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
-		c.Set("role", "admin")
+		c.Set("username", "manager")
+		c.Set("role", "manager")
 		// Set storeID as *int (like the real middleware does)
 		sid := 7
 		c.Set("storeID", &sid)
@@ -219,8 +219,8 @@ func TestMockHandler_UpdateProduct_WithStoreID(t *testing.T) {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
-		c.Set("role", "admin")
+		c.Set("username", "manager")
+		c.Set("role", "manager")
 		sid := 7
 		c.Set("storeID", &sid)
 		c.Next()
@@ -250,8 +250,8 @@ func TestMockHandler_DeleteProduct_WithStoreID(t *testing.T) {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
-		c.Set("role", "admin")
+		c.Set("username", "manager")
+		c.Set("role", "manager")
 		sid := 7
 		c.Set("storeID", &sid)
 		c.Next()

@@ -61,9 +61,9 @@ func TestGetUserRole(t *testing.T) {
 	}{
 		{
 			name:   "role set",
-			role:   "admin",
+			role:   "manager",
 			setKey: true,
-			want:   "admin",
+			want:   "manager",
 		},
 		{
 			name:   "role not set",
@@ -252,22 +252,22 @@ func TestRoleMiddleware(t *testing.T) {
 	}{
 		{
 			name:         "matching role passes",
-			role:         "admin",
+			role:         "manager",
 			setRole:      true,
-			requiredRole: "admin",
+			requiredRole: "manager",
 			wantCode:     http.StatusOK,
 		},
 		{
 			name:         "non-matching role returns 403",
 			role:         "cashier",
 			setRole:      true,
-			requiredRole: "admin",
+			requiredRole: "manager",
 			wantCode:     http.StatusForbidden,
 		},
 		{
 			name:         "no role returns 401",
 			setRole:      false,
-			requiredRole: "admin",
+			requiredRole: "manager",
 			wantCode:     http.StatusUnauthorized,
 		},
 	}
@@ -542,10 +542,6 @@ func TestRequireStoreID(t *testing.T) {
 			assert.Equal(t, tt.wantCode, w.Code)
 		})
 	}
-}
-
-func intPtr(i int) *int {
-	return &i
 }
 
 func generateTestToken(secret string, claims jwt.RegisteredClaims) string {

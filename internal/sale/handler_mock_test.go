@@ -1797,14 +1797,14 @@ func TestSaleHandler_RecallParkedSale_AuditFailure(t *testing.T) {
 }
 
 // setupSaleHandlerManager builds a handler authenticated as userID 1 with the
-// manager role, so the fail-closed (audited) completion branch that is gated on
-// caller.IsManager() is exercised.
+// supervisor role, so the fail-closed (audited) completion branch that is gated
+// on caller.IsSupervisor() is exercised.
 func setupSaleHandlerManager(svc Service, auditSvc audit.TxCreator) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("role", "manager")
+		c.Set("role", "supervisor")
 		c.Set("storeID", nil)
 		c.Next()
 	})

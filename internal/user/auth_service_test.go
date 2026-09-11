@@ -66,7 +66,7 @@ func TestAuthService_GenerateAndParseToken(t *testing.T) {
 	svc := newTestAuthService(t)
 	storeID := 42
 	reportsTo := 10
-	user := &User{ID: 1, Username: "testuser", RoleID: 2, Role: Role{Name: "admin"}, StoreID: &storeID, ReportsToID: &reportsTo}
+	user := &User{ID: 1, Username: "testuser", RoleID: 2, Role: Role{Name: "manager"}, StoreID: &storeID, ReportsToID: &reportsTo}
 	perms := []string{"product.view", "sale.create"}
 
 	token, err := svc.generateToken(user, perms, 15*time.Minute)
@@ -78,7 +78,7 @@ func TestAuthService_GenerateAndParseToken(t *testing.T) {
 	assert.Equal(t, 1, claims.ID)
 	assert.Equal(t, "testuser", claims.Username)
 	assert.Equal(t, 2, claims.RoleID)
-	assert.Equal(t, "admin", claims.Role)
+	assert.Equal(t, "manager", claims.Role)
 	assert.Equal(t, perms, claims.Permissions)
 	assert.NotNil(t, claims.StoreID)
 	assert.Equal(t, 42, *claims.StoreID)
@@ -191,8 +191,8 @@ func TestValidateSession(t *testing.T) {
 
 	storeID := 7
 	c.Set("userID", 42)
-	c.Set("username", "admin")
-	c.Set("role", "admin")
+	c.Set("username", "manager")
+	c.Set("role", "manager")
 	c.Set("permissions", []string{"sale.create", "product.view"})
 	c.Set("storeID", &storeID)
 
@@ -207,8 +207,8 @@ func TestValidateSession(t *testing.T) {
 
 	user := body["user"].(map[string]interface{})
 	assert.Equal(t, float64(42), user["id"])
-	assert.Equal(t, "admin", user["username"])
-	assert.Equal(t, "admin", user["role"])
+	assert.Equal(t, "manager", user["username"])
+	assert.Equal(t, "manager", user["role"])
 
 	sid := user["store_id"].(float64)
 	assert.Equal(t, float64(7), sid)
@@ -502,7 +502,7 @@ func TestAuthService_RefreshToken_TokenNotFound(t *testing.T) {
 	svc := newAuthServiceWithDB(t)
 	ctx := context.Background()
 
-	user := &User{ID: 999, Username: "ghost", RoleID: 1, Role: Role{Name: "admin"}}
+	user := &User{ID: 999, Username: "ghost", RoleID: 1, Role: Role{Name: "manager"}}
 	token, err := svc.generateRefreshToken(user)
 	require.NoError(t, err)
 

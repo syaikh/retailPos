@@ -48,7 +48,7 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 	t.Run("Create audit log with all fields", func(t *testing.T) {
 		al := &Log{
 			UserID:     &userID,
-			Role:       "admin",
+			Role:       "manager",
 			Action:     "test_action_create_full",
 			EntityType: "product",
 			EntityID:   intPtr(123),
@@ -188,7 +188,7 @@ func TestAuditRepository_StoreAttribution(t *testing.T) {
 		al := &Log{
 			UserID:     &userID,
 			StoreID:    &storeIDPtr,
-			Role:       "admin",
+			Role:       "manager",
 			Action:     "test_action_store_attr",
 			EntityType: "product",
 			EntityID:   intPtr(321),
@@ -210,7 +210,7 @@ func TestAuditRepository_StoreAttribution(t *testing.T) {
 		al := &Log{
 			UserID:     &userID,
 			StoreID:    &storeIDPtr,
-			Role:       "admin",
+			Role:       "manager",
 			Action:     "test_action_store_attr_byid",
 			EntityType: "product",
 		}
@@ -249,7 +249,7 @@ func TestAuditRepository_AppendOnly(t *testing.T) {
 
 	al := &Log{
 		UserID:     &userID,
-		Role:       "admin",
+		Role:       "manager",
 		Action:     "test_action_immutable",
 		EntityType: "product",
 	}
@@ -287,7 +287,7 @@ func TestAuditRepository_GetAuditLogs_CreatedAtJakartaTimezone(t *testing.T) {
 	ctx := context.Background()
 
 	al := &Log{
-		Role:       "admin",
+		Role:       "manager",
 		Action:     "timezone_format_test_" + time.Now().Format("0102150405"),
 		EntityType: "product",
 	}
@@ -315,7 +315,7 @@ func TestAuditRepository_GetAuditLogByID_CreatedAtJakartaTimezone(t *testing.T) 
 	ctx := context.Background()
 
 	al := &Log{
-		Role:       "admin",
+		Role:       "manager",
 		Action:     "timezone_byid_test_" + time.Now().Format("0102150405"),
 		EntityType: "product",
 	}
@@ -353,7 +353,7 @@ func TestAuditRepository_CreateAuditLog_DanglingUserFallback(t *testing.T) {
 
 	al := &Log{
 		UserID:     &danglingID,
-		Role:       "admin",
+		Role:       "manager",
 		Action:     "test_action_dangling_user",
 		EntityType: "product",
 	}
@@ -363,7 +363,7 @@ func TestAuditRepository_CreateAuditLog_DanglingUserFallback(t *testing.T) {
 	got, err := repo.GetAuditLogByID(ctx, al.ID)
 	require.NoError(t, err)
 	assert.Nil(t, got.UserID, "dangling user reference must be stored as NULL")
-	assert.Equal(t, "admin", got.Role, "the stored role column must be preserved on fallback")
+	assert.Equal(t, "manager", got.Role, "the stored role column must be preserved on fallback")
 
 	after := metrics.AuditWriteFailures.Value()
 	assert.Equal(t, before, after, "a successful FK-fallback write must not increment the failure metric")
@@ -394,7 +394,7 @@ func TestAuditRepository_CorrelationID(t *testing.T) {
 	ctx := shared.SetRequestID(context.Background(), "req-trace-123")
 
 	t.Run("correlation id is taken from request context when not set", func(t *testing.T) {
-		al := &Log{Role: "admin", Action: "corr_from_ctx", EntityType: "system"}
+		al := &Log{Role: "manager", Action: "corr_from_ctx", EntityType: "system"}
 		require.NoError(t, repo.CreateAuditLog(ctx, al))
 		require.Greater(t, al.ID, 0)
 
@@ -404,7 +404,7 @@ func TestAuditRepository_CorrelationID(t *testing.T) {
 	})
 
 	t.Run("explicit correlation id overrides context", func(t *testing.T) {
-		al := &Log{Role: "admin", Action: "corr_explicit", EntityType: "system", CorrelationID: "explicit-xyz"}
+		al := &Log{Role: "manager", Action: "corr_explicit", EntityType: "system", CorrelationID: "explicit-xyz"}
 		require.NoError(t, repo.CreateAuditLog(ctx, al))
 
 		got, err := repo.GetAuditLogByID(ctx, al.ID)
@@ -413,7 +413,7 @@ func TestAuditRepository_CorrelationID(t *testing.T) {
 	})
 
 	t.Run("list items carry correlation id", func(t *testing.T) {
-		al := &Log{Role: "admin", Action: "corr_list", EntityType: "system", CorrelationID: "list-trace"}
+		al := &Log{Role: "manager", Action: "corr_list", EntityType: "system", CorrelationID: "list-trace"}
 		require.NoError(t, repo.CreateAuditLog(ctx, al))
 
 		logs, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, "", "corr_list", "system", nil, nil, nil)
@@ -430,7 +430,7 @@ func TestAuditRepository_PurgeOlderThan(t *testing.T) {
 	_, err := dbPool.Exec(ctx, `INSERT INTO audit_logs (role, action, entity_type, created_at) VALUES ('system', 'purge_stale', 'system', '2000-01-01 00:00:00+00')`)
 	require.NoError(t, err)
 
-	recent := &Log{Role: "admin", Action: "purge_recent", EntityType: "system"}
+	recent := &Log{Role: "manager", Action: "purge_recent", EntityType: "system"}
 	require.NoError(t, repo.CreateAuditLog(ctx, recent))
 
 	affected, err := repo.PurgeOlderThan(ctx, time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC))

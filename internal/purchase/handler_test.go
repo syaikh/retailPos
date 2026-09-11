@@ -32,7 +32,7 @@ func setupHandlerTest(t *testing.T) (*gin.Engine, *Handler, int) {
 	auth := func(c *gin.Context) {
 		c.Set("userID", 1)
 		c.Set("username", "testuser")
-		c.Set("role", "admin")
+		c.Set("role", "manager")
 		c.Set("storeID", intPtr(1))
 		c.Next()
 	}
@@ -471,7 +471,7 @@ func TestHandler_CreateGoodsReceipt_StoreFromBody(t *testing.T) {
 	auth := func(c *gin.Context) {
 		c.Set("userID", 1)
 		c.Set("username", "testuser")
-		c.Set("role", "admin")
+		c.Set("role", "manager")
 		c.Next()
 	}
 	perm := func(code permissions.Code) gin.HandlerFunc {

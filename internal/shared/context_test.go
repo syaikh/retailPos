@@ -34,9 +34,9 @@ func TestGetUserID_WrongType(t *testing.T) {
 
 func TestGetUsername_Present(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Set("username", "admin")
-	if got := GetUsername(c); got != "admin" {
-		t.Errorf("expected admin, got %s", got)
+	c.Set("username", "manager")
+	if got := GetUsername(c); got != "manager" {
+		t.Errorf("expected manager, got %s", got)
 	}
 }
 

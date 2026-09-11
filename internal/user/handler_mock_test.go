@@ -158,7 +158,7 @@ func setupMockUserRouter(svc Service) *gin.Engine {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
+		c.Set("username", "manager")
 		c.Set("role", "superadmin")
 		c.Next()
 	})
@@ -173,7 +173,7 @@ func TestMockHandler_ListUsers(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockUserService{
 			getAllUsersFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool) ([]User, int, error) {
-				return []User{{ID: 1, Username: "admin"}}, 1, nil
+				return []User{{ID: 1, Username: "manager"}}, 1, nil
 			},
 		}
 		r := setupMockUserRouter(svc)
@@ -397,7 +397,7 @@ func TestMockHandler_UpdateUser(t *testing.T) {
 	t.Run("self role modify forbidden", func(t *testing.T) {
 		svc := &mockUserService{
 			getByIDFn: func(ctx context.Context, id int) (*User, error) {
-				return &User{ID: 1, Username: "admin", RoleID: 1}, nil
+				return &User{ID: 1, Username: "manager", RoleID: 1}, nil
 			},
 		}
 		r := setupMockUserRouter(svc)
@@ -407,6 +407,62 @@ func TestMockHandler_UpdateUser(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("nil role from GetRoleByID does not panic", func(t *testing.T) {
+		svc := &mockUserService{
+			getByIDFn: func(ctx context.Context, id int) (*User, error) {
+				return &User{ID: 2, Username: "old", RoleID: 99}, nil
+			},
+			updateUserFn: func(ctx context.Context, user *User) error { return nil },
+			// getRoleByIDFn intentionally left nil: default returns (nil, nil)
+		}
+		r := setupMockUserRouter(svc)
+		body := `{"email":"updated@test.com"}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/admin/users/2", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("store_id required for operational role", func(t *testing.T) {
+		svc := &mockUserService{
+			getByIDFn: func(ctx context.Context, id int) (*User, error) {
+				return &User{ID: 2, Username: "old", RoleID: 3, StoreID: nil}, nil
+			},
+			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+				return &Role{ID: 3, Name: "cashier"}, nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		body := `{"store_id":null}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/admin/users/2", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "store_id is required for this role")
+	})
+
+	t.Run("operational role with store_id succeeds", func(t *testing.T) {
+		storeID := 5
+		svc := &mockUserService{
+			getByIDFn: func(ctx context.Context, id int) (*User, error) {
+				return &User{ID: 2, Username: "old", RoleID: 3, StoreID: &storeID}, nil
+			},
+			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+				return &Role{ID: 3, Name: "cashier"}, nil
+			},
+			updateUserFn: func(ctx context.Context, user *User) error { return nil },
+		}
+		r := setupMockUserRouter(svc)
+		body := `{"store_id":5}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/admin/users/2", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }
 
@@ -443,7 +499,7 @@ func TestMockHandler_ListRoles(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockUserService{
 			getAllRolesFn: func(ctx context.Context) ([]Role, error) {
-				return []Role{{ID: 1, Name: "admin"}}, nil
+				return []Role{{ID: 1, Name: "manager"}}, nil
 			},
 		}
 		r := setupMockUserRouter(svc)
@@ -541,7 +597,7 @@ func TestMockHandler_UpdateRolePermissions(t *testing.T) {
 				return nil
 			},
 			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
-				return &Role{ID: 1, Name: "admin"}, nil
+				return &Role{ID: 1, Name: "manager"}, nil
 			},
 		}
 		r := setupMockUserRouter(svc)
@@ -769,7 +825,7 @@ func TestMockHandler_UpdateUser_WithReportsTo(t *testing.T) {
 	t.Run("self reference reports_to rejected", func(t *testing.T) {
 		svc := &mockUserService{
 			getByIDFn: func(ctx context.Context, id int) (*User, error) {
-				return &User{ID: 1, Username: "admin", RoleID: 1}, nil
+				return &User{ID: 1, Username: "manager", RoleID: 1}, nil
 			},
 		}
 		r := setupMockUserRouter(svc)

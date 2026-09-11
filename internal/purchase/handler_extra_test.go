@@ -40,7 +40,7 @@ func setupHandlerOpt(t *testing.T, opts handlerOpts) *gin.Engine {
 		if opts.withUser {
 			c.Set("userID", 1)
 			c.Set("username", "testuser")
-			c.Set("role", "admin")
+			c.Set("role", "manager")
 		}
 		if opts.withStore {
 			c.Set("storeID", intPtr(1))

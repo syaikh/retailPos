@@ -14,7 +14,7 @@ func TestAuditService_CreateAuditLog(t *testing.T) {
 	ctx := context.Background()
 
 	al := &Log{
-		Role:       "admin",
+		Role:       "manager",
 		Action:     "test_action_service_create",
 		EntityType: "product",
 	}

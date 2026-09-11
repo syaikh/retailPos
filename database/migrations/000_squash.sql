@@ -1249,10 +1249,10 @@ BEGIN;
 -- Roles
 INSERT INTO roles (name, description, is_system) VALUES
     ('superadmin', 'Super Administrator', True),
-    ('admin', 'Administrator', True),
-    ('manager', 'Manager / Kepala Toko', True),
+    ('manager', 'Manajer Toko — pengelolaan toko secara penuh', True),
+    ('supervisor', 'Supervisor — pengawasan operasional harian', True),
     ('cashier', 'Kasir', True),
-    ('staff', 'Staff Gudang', True)
+    ('inventory_staff', 'Staf Inventaris — pengelolaan stok dan opname', True)
 ON CONFLICT (name) DO NOTHING;
 
 -- Payment methods
@@ -1435,9 +1435,9 @@ SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'superadmin'
     )
 ON CONFLICT DO NOTHING;
 
--- Admin
+-- Manager (store boss — was "admin")
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'admin'
+SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'manager'
     AND p.code IN (
         'category.create',
         'category.delete',
@@ -1511,9 +1511,9 @@ SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'admin'
     )
 ON CONFLICT DO NOTHING;
 
--- Manager
+-- Supervisor (shift lead — was "manager")
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'manager'
+SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'supervisor'
     AND p.code IN (
         'category.create',
         'category.view',
@@ -1574,9 +1574,9 @@ SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'cashier'
     )
 ON CONFLICT DO NOTHING;
 
--- Staff
+-- Inventory Staff (was "staff")
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'staff'
+SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'inventory_staff'
     AND p.code IN (
         'product.view',
         'stock_opname.count',
@@ -1593,13 +1593,13 @@ FROM roles r WHERE r.name = 'superadmin'
 ON CONFLICT (username) DO NOTHING;
 
 INSERT INTO users (username, email, password_hash, role_id, is_active)
-SELECT 'admin', 'admin@retailpos.local', crypt('admin123', gen_salt('bf', 14)), r.id, true
-FROM roles r WHERE r.name = 'admin'
+SELECT 'manager', 'manager@retailpos.local', crypt('admin123', gen_salt('bf', 14)), r.id, true
+FROM roles r WHERE r.name = 'manager'
 ON CONFLICT (username) DO NOTHING;
 
 INSERT INTO users (username, email, password_hash, role_id, is_active)
-SELECT 'manager', 'manager@retailpos.local', crypt('admin123', gen_salt('bf', 14)), r.id, true
-FROM roles r WHERE r.name = 'manager'
+SELECT 'supervisor', 'supervisor@retailpos.local', crypt('admin123', gen_salt('bf', 14)), r.id, true
+FROM roles r WHERE r.name = 'supervisor'
 ON CONFLICT (username) DO NOTHING;
 
 INSERT INTO users (username, email, password_hash, role_id, is_active)
@@ -1608,9 +1608,9 @@ FROM roles r WHERE r.name = 'cashier'
 ON CONFLICT (username) DO NOTHING;
 
 INSERT INTO users (username, email, password_hash, role_id, reports_to, is_active)
-SELECT 'staff', 'staff@retailpos.local', crypt('admin123', gen_salt('bf', 14)), r.id,
-       (SELECT id FROM users WHERE username = 'manager'), true
-FROM roles r WHERE r.name = 'staff'
+SELECT 'inventory_staff', 'inventory_staff@retailpos.local', crypt('admin123', gen_salt('bf', 14)), r.id,
+       (SELECT id FROM users WHERE username = 'supervisor'), true
+FROM roles r WHERE r.name = 'inventory_staff'
 ON CONFLICT (username) DO NOTHING;
 
 COMMIT;

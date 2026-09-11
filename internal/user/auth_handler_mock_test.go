@@ -64,7 +64,7 @@ func setupMockAuthRouter(svc AuthLoginService) *gin.Engine {
 	r.POST("/auth/validate", func(c *gin.Context) {
 		c.Set("userID", 1)
 		c.Set("username", "testuser")
-		c.Set("role", "admin")
+		c.Set("role", "manager")
 		c.Set("permissions", []string{"user.view"})
 		c.Set("storeID", (*int)(nil))
 		h.ValidateSession(c)
@@ -72,7 +72,7 @@ func setupMockAuthRouter(svc AuthLoginService) *gin.Engine {
 	r.POST("/auth/logout", func(c *gin.Context) {
 		c.Set("userID", 1)
 		c.Set("username", "testuser")
-		c.Set("role", "admin")
+		c.Set("role", "manager")
 		h.Logout(c)
 	})
 	return r
@@ -81,20 +81,20 @@ func setupMockAuthRouter(svc AuthLoginService) *gin.Engine {
 func TestAuthHandler_Login_Success(t *testing.T) {
 	svc := &mockAuthLoginService{
 		loginFn: func(ctx context.Context, username, password string) (*LoginResponse, error) {
-			assert.Equal(t, "admin", username)
+			assert.Equal(t, "manager", username)
 			assert.Equal(t, "password123", password)
 			return &LoginResponse{
 				AccessToken:  "access-token-abc",
 				RefreshToken: "refresh-token-xyz",
 				User: User{
 					ID:       1,
-					Username: "admin",
+					Username: "manager",
 				},
 			}, nil
 		},
 	}
 	r := setupMockAuthRouter(svc)
-	body := `{"username":"admin","password":"password123"}`
+	body := `{"username":"manager","password":"password123"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -123,7 +123,7 @@ func TestAuthHandler_Login_ServiceError(t *testing.T) {
 		},
 	}
 	r := setupMockAuthRouter(svc)
-	body := `{"username":"admin","password":"wrong"}`
+	body := `{"username":"manager","password":"wrong"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -140,7 +140,7 @@ func TestAuthHandler_Login_PasswordEmpty(t *testing.T) {
 	}
 	r := setupMockAuthRouter(svc)
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(`{"username":"admin","password":""}`))
+	req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(`{"username":"manager","password":""}`))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -150,7 +150,7 @@ func TestAuthHandler_RefreshToken_Success(t *testing.T) {
 	svc := &mockAuthLoginService{
 		refreshTokenFn: func(ctx context.Context, oldRefreshToken string) (string, string, *User, error) {
 			assert.Equal(t, "old-refresh-token", oldRefreshToken)
-			return "new-access-token", "new-refresh-token", &User{ID: 1, Username: "admin"}, nil
+			return "new-access-token", "new-refresh-token", &User{ID: 1, Username: "manager"}, nil
 		},
 	}
 	r := setupMockAuthRouter(svc)
@@ -170,7 +170,7 @@ func TestAuthHandler_RefreshToken_FromCookie(t *testing.T) {
 	svc := &mockAuthLoginService{
 		refreshTokenFn: func(ctx context.Context, oldRefreshToken string) (string, string, *User, error) {
 			assert.Equal(t, "cookie-token", oldRefreshToken)
-			return "new-access", "new-refresh", &User{ID: 1, Username: "admin"}, nil
+			return "new-access", "new-refresh", &User{ID: 1, Username: "manager"}, nil
 		},
 	}
 	r := setupMockAuthRouter(svc)
@@ -219,7 +219,7 @@ func TestAuthHandler_ValidateSession_Success(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, float64(1), user["id"])
 	assert.Equal(t, "testuser", user["username"])
-	assert.Equal(t, "admin", user["role"])
+	assert.Equal(t, "manager", user["role"])
 }
 
 func TestAuthHandler_ValidateSession_Permissions(t *testing.T) {

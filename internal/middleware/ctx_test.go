@@ -46,9 +46,9 @@ func TestUserIDFromContext_NegativeOrZero(t *testing.T) {
 }
 
 func TestUsernameFromContext_Present(t *testing.T) {
-	ctx := context.WithValue(context.Background(), CtxKeyUsername, "admin")
-	if got := UsernameFromContext(ctx); got != "admin" {
-		t.Errorf("expected admin, got %s", got)
+	ctx := context.WithValue(context.Background(), CtxKeyUsername, "manager")
+	if got := UsernameFromContext(ctx); got != "manager" {
+		t.Errorf("expected manager, got %s", got)
 	}
 }
 

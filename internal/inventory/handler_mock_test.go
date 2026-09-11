@@ -99,8 +99,8 @@ func setupMockInventoryRouter(svc Service) *gin.Engine {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
-		c.Set("role", "admin")
+		c.Set("username", "manager")
+		c.Set("role", "manager")
 		c.Next()
 	})
 	h := NewHandler(svc, nil)
@@ -115,8 +115,8 @@ func setupMockInventoryStoreRouter(svc Service, storeID *int) *gin.Engine {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "staff")
-		c.Set("role", "staff")
+		c.Set("username", "inventory_staff")
+		c.Set("role", "inventory_staff")
 		c.Set("storeID", storeID)
 		c.Next()
 	})

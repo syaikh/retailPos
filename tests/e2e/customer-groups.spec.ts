@@ -118,7 +118,7 @@ test.describe('Customer Groups API - CRUD', () => {
 
 test.describe('Customer Groups API - RBAC', () => {
   test('admin can list groups', async ({ request }) => {
-    const t = await getToken(request, TEST_USERS.admin.username, TEST_USERS.admin.password);
+    const t = await getToken(request, TEST_USERS.manager.username, TEST_USERS.manager.password);
     const res = await request.get(`${API_BASE}/api/customer-groups`, { headers: authHeader(t) });
     expect(res.ok()).toBeTruthy();
   });
@@ -337,7 +337,7 @@ test.describe('Customer Groups UI - Superadmin', () => {
 
 test.describe('Customer Groups UI - Staff', () => {
   test('staff is denied access to /customer-groups page', async ({ page }) => {
-    await loginUI(page, 'staff', 'admin123');
+    await loginUI(page, 'inventory_staff', 'admin123');
     await page.goto(`${FRONTEND_BASE}/customer-groups`);
     await page.waitForTimeout(2000);
     const redirectedAway = !page.url().includes('/customer-groups');

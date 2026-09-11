@@ -498,8 +498,8 @@ func (s *Service) ListAssignableUsers(ctx context.Context, search string) ([]Ass
 // to hold it. Counters are drawn from floor staff; supervisors must be
 // manager-level or above.
 var allowedAssigneeRoles = map[string]map[string]bool{
-	AssignmentRoleCounter:    {"cashier": true, "staff": true},
-	AssignmentRoleSupervisor: {"manager": true, "admin": true},
+	AssignmentRoleCounter:    {"cashier": true, "inventory_staff": true},
+	AssignmentRoleSupervisor: {"manager": true, "supervisor": true},
 }
 
 // validateAssigneeRole ensures the user holding an assignment is compatible

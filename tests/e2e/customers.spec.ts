@@ -85,7 +85,7 @@ test.describe('Customers API - RBAC', () => {
   });
 
   test('admin can list customers', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.admin.username, TEST_USERS.admin.password);
+    const token = await getToken(request, TEST_USERS.manager.username, TEST_USERS.manager.password);
     const res = await request.get(`${API_BASE}/api/customers?limit=200`, { headers: authHeader(token) });
     expect(res.ok()).toBeTruthy();
   });
@@ -109,7 +109,7 @@ test.describe('Customers API - RBAC', () => {
   });
 
   test('admin can create customer', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.admin.username, TEST_USERS.admin.password);
+    const token = await getToken(request, TEST_USERS.manager.username, TEST_USERS.manager.password);
     const data = await createCustomerAPI(request, token, { name: 'Admin Create Test', phone: uniquePhone(), email: uniqueEmail() });
     expect(data.name).toBe('Admin Create Test');
   });
@@ -142,7 +142,7 @@ test.describe('Customers API - RBAC', () => {
   });
 
   test('admin can update customer', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.admin.username, TEST_USERS.admin.password);
+    const token = await getToken(request, TEST_USERS.manager.username, TEST_USERS.manager.password);
     const created = await createCustomerAPI(request, token, { name: 'Admin Update Me', phone: uniquePhone(), email: uniqueEmail() });
     const res = await request.put(`${API_BASE}/api/customers/${created.id}`, {
       headers: authHeader(token),
@@ -187,7 +187,7 @@ test.describe('Customers API - RBAC', () => {
   });
 
   test('admin can deactivate customer', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.admin.username, TEST_USERS.admin.password);
+    const token = await getToken(request, TEST_USERS.manager.username, TEST_USERS.manager.password);
     const created = await createCustomerAPI(request, token, { name: 'Admin Deactivate Me', phone: uniquePhone(), email: uniqueEmail() });
     const delRes = await request.delete(`${API_BASE}/api/customers/${created.id}`, { headers: authHeader(token) });
     expect(delRes.ok()).toBeTruthy();
@@ -655,7 +655,7 @@ test.describe('Customers UI - Superadmin', () => {
 
 test.describe('Customers UI - Admin', () => {
   test.beforeEach(async ({ page }) => {
-    await loginUI(page, TEST_USERS.admin.username, TEST_USERS.admin.password);
+    await loginUI(page, TEST_USERS.manager.username, TEST_USERS.manager.password);
     await navigateToCustomers(page);
   });
 
@@ -800,13 +800,13 @@ test.describe('Customers UI - Cashier', () => {
 
 test.describe('Customers UI - Staff', () => {
   test('staff API cannot list customers', async ({ request }) => {
-    const staffToken = await getToken(request, 'staff', 'admin123');
+    const staffToken = await getToken(request, 'inventory_staff', 'admin123');
     const res = await request.get(`${API_BASE}/api/customers`, { headers: authHeader(staffToken) });
     expect(res.status()).toBe(403);
   });
 
   test('staff API cannot create customer', async ({ request }) => {
-    const staffToken = await getToken(request, 'staff', 'admin123');
+    const staffToken = await getToken(request, 'inventory_staff', 'admin123');
     const res = await request.post(`${API_BASE}/api/customers`, {
       headers: authHeader(staffToken),
       data: { name: 'Staff Should Fail', phone: uniquePhone(), email: uniqueEmail() },
@@ -815,7 +815,7 @@ test.describe('Customers UI - Staff', () => {
   });
 
   test('staff is denied access to /customers page', async ({ page }) => {
-    await loginUI(page, 'staff', 'admin123');
+    await loginUI(page, 'inventory_staff', 'admin123');
     await page.goto(`${FRONTEND_BASE}/customers`);
     await page.waitForTimeout(2000);
 
@@ -829,7 +829,7 @@ test.describe('Customers UI - Staff', () => {
   });
 
   test('staff sidebar does not have Customers link', async ({ page }) => {
-    await loginUI(page, 'staff', 'admin123');
+    await loginUI(page, 'inventory_staff', 'admin123');
     await page.waitForTimeout(1500);
 
     const customersLink = page.locator('button').filter({ hasText: /^Customers$/ });

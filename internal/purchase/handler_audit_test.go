@@ -45,8 +45,8 @@ func TestAuditHandler_ConfirmPO_WritesAudit(t *testing.T) {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
-		c.Set("role", "admin")
+		c.Set("username", "manager")
+		c.Set("role", "manager")
 		c.Set("storeID", intPtr(1))
 		c.Next()
 	})
@@ -76,8 +76,8 @@ func TestAuditHandler_CancelPO_WritesAudit(t *testing.T) {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
-		c.Set("role", "admin")
+		c.Set("username", "manager")
+		c.Set("role", "manager")
 		c.Set("storeID", intPtr(1))
 		c.Next()
 	})
@@ -109,8 +109,8 @@ func TestAuditHandler_ConfirmPO_AuditFailureRollsBack(t *testing.T) {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
-		c.Set("role", "admin")
+		c.Set("username", "manager")
+		c.Set("role", "manager")
 		c.Set("storeID", intPtr(1))
 		c.Next()
 	})
@@ -134,8 +134,8 @@ func TestAuditHandler_CancelPO_AuditFailureRollsBack(t *testing.T) {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("userID", 1)
-		c.Set("username", "admin")
-		c.Set("role", "admin")
+		c.Set("username", "manager")
+		c.Set("role", "manager")
 		c.Set("storeID", intPtr(1))
 		c.Next()
 	})

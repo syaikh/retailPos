@@ -132,7 +132,7 @@ test.describe('Auth API - Validate Session', () => {
   });
 
   test('validate for different roles', async ({ request }) => {
-    const users = [TEST_USERS.admin, TEST_USERS.manager, TEST_USERS.cashier];
+    const users = [TEST_USERS.manager, TEST_USERS.supervisor, TEST_USERS.cashier];
     for (let i = 0; i < users.length; i++) {
       const user = users[i];
       if (i > 0) await new Promise(r => setTimeout(r, 13000));

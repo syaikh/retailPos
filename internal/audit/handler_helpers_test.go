@@ -45,18 +45,18 @@ func TestGenerateAuditDescription(t *testing.T) {
 			log: &Log{
 				Action:     "LOGIN",
 				EntityType: "auth",
-				Username:   "admin",
+				Username:   "manager",
 			},
-			want: "Logged in admin",
+			want: "Logged in manager",
 		},
 		{
 			name: "logout with username",
 			log: &Log{
 				Action:     "LOGOUT",
 				EntityType: "auth",
-				Username:   "admin",
+				Username:   "manager",
 			},
-			want: "Logged out admin",
+			want: "Logged out manager",
 		},
 		{
 			name: "create with entity id no identifier",

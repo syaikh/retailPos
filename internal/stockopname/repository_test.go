@@ -491,7 +491,7 @@ func TestRepository_ListAssignableUsers(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, users, 1)
 	assert.Equal(t, "so_manager_9303", users[0].Username)
-	assert.Equal(t, "manager", users[0].RoleName)
+	assert.Equal(t, "supervisor", users[0].RoleName)
 }
 
 func TestRepository_GetUserRoleName(t *testing.T) {
@@ -502,7 +502,7 @@ func TestRepository_GetUserRoleName(t *testing.T) {
 
 	role, err := repo.GetUserRoleName(ctx, 9306)
 	require.NoError(t, err)
-	assert.Equal(t, "staff", role)
+	assert.Equal(t, "inventory_staff", role)
 
 	_, err = repo.GetUserRoleName(ctx, 999999)
 	require.ErrorIs(t, err, ErrAssigneeNotFound)
