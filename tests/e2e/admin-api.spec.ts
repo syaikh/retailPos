@@ -19,6 +19,7 @@ test.describe('Admin API - Delete User', () => {
         username: `deleteme_${suffix}`,
         password: 'test123',
         role_id: 4,
+        store_id: 1,
         is_active: true,
       },
     });

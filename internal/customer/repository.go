@@ -254,7 +254,7 @@ func (r *Repository) GetAllCustomersForExport(ctx context.Context, storeID *int)
 		WHERE c.is_walk_in = false`
 	args := []interface{}{}
 	if storeID != nil {
-		query += " AND store_id = $1"
+		query += " AND (store_id IS NULL OR store_id = $1)"
 		args = append(args, *storeID)
 	}
 	query += " ORDER BY c.name"
@@ -310,7 +310,7 @@ func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []ImportRo
 	lookupQuery := "SELECT id, phone FROM customers WHERE phone = ANY($1) AND is_walk_in = false"
 	lookupArgs := []interface{}{phones}
 	if storeID != nil {
-		lookupQuery += " AND store_id = $2"
+		lookupQuery += " AND (store_id IS NULL OR store_id = $2)"
 		lookupArgs = append(lookupArgs, *storeID)
 	}
 	rows, err := r.db.Query(ctx, lookupQuery, lookupArgs...)

@@ -25,7 +25,7 @@ func rawAllTimeStats(ctx context.Context, t *testing.T, storeID *int) rawStats {
 	query := `SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM sales WHERE status = 'completed'`
 	args := []interface{}{}
 	if storeID != nil {
-		query += ` AND store_id = $1`
+		query += ` AND (store_id IS NULL OR store_id = $1)`
 		args = append(args, *storeID)
 	}
 	var s rawStats

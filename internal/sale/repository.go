@@ -246,7 +246,7 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 		WHERE s.id = $1`
 	args := []interface{}{id}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND s.store_id = $%d", len(args)+1)
+		query += fmt.Sprintf(" AND (s.store_id IS NULL OR s.store_id = $%d)", len(args)+1)
 		args = append(args, *storeID)
 	}
 
@@ -314,7 +314,7 @@ func (r *Repository) buildSaleFilter(productIDs, customerIDs []int, search, star
 		}
 	}
 	if storeID != nil {
-		qb.AddClause(" AND s.store_id = $%d", *storeID)
+		qb.AddClause(" AND (s.store_id IS NULL OR s.store_id = $%d)", *storeID)
 	}
 	if paymentMethods != "" {
 		qb.AddClause(`
@@ -781,7 +781,7 @@ func (r *Repository) GetParkedSales(ctx context.Context, ownerID, storeID *int) 
 	}
 	if storeID != nil {
 		args = append(args, *storeID)
-		query += fmt.Sprintf(` AND s.store_id = $%d`, len(args))
+		query += fmt.Sprintf(` AND (s.store_id IS NULL OR s.store_id = $%d)`, len(args))
 	}
 	query += ` ORDER BY s.created_at DESC`
 
@@ -891,7 +891,7 @@ func (r *Repository) GetParkedSaleByID(ctx context.Context, id int, ownerID, sto
 	}
 	if storeID != nil {
 		args = append(args, *storeID)
-		query += fmt.Sprintf(` AND s.store_id = $%d`, len(args))
+		query += fmt.Sprintf(` AND (s.store_id IS NULL OR s.store_id = $%d)`, len(args))
 	}
 	err := r.db.QueryRow(ctx, query, args...).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &storeIDVal, &sale.Subtotal, &sale.Discount, &sale.Tax,
 		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &customerIDVal, &holdNoteVal, &createdAt, &updatedAt)
@@ -966,7 +966,7 @@ func (r *Repository) RecallSaleTx(ctx context.Context, tx pgx.Tx, saleID int, ow
 	}
 	if storeID != nil {
 		args = append(args, *storeID)
-		query += fmt.Sprintf(` AND store_id = $%d`, len(args))
+		query += fmt.Sprintf(` AND (store_id IS NULL OR store_id = $%d)`, len(args))
 	}
 	query += `
 		RETURNING id, invoice_number, cashier_id, store_id, subtotal, discount, tax, total_amount, payment_method, status, created_at, updated_at
@@ -1033,7 +1033,7 @@ func (r *Repository) CancelParkedSaleTx(ctx context.Context, tx pgx.Tx, saleID i
 	}
 	if storeID != nil {
 		args = append(args, *storeID)
-		query += fmt.Sprintf(` AND store_id = $%d`, len(args))
+		query += fmt.Sprintf(` AND (store_id IS NULL OR store_id = $%d)`, len(args))
 	}
 	tag, err := tx.Exec(ctx, query, args...)
 	if err != nil {
@@ -1057,7 +1057,7 @@ func (r *Repository) ConsumeParkedSale(ctx context.Context, tx pgx.Tx, parkedSal
 	}
 	if storeID != nil {
 		args = append(args, *storeID)
-		query += fmt.Sprintf(` AND store_id = $%d`, len(args))
+		query += fmt.Sprintf(` AND (store_id IS NULL OR store_id = $%d)`, len(args))
 	}
 	tag, err := tx.Exec(ctx, query, args...)
 	if err != nil {

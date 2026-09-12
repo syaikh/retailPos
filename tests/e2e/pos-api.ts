@@ -37,6 +37,7 @@ export async function createCashier(request: any, admin: AuthCtx | ApiDriver, su
     email: `${username}@e2e.test`,
     password: 'admin123',
     role_id: 4,
+    store_id: 1,
     is_active: true,
   });
   if (!res.ok) {

@@ -236,6 +236,9 @@ func TestMockHandler_CreateUser(t *testing.T) {
 				user.ID = 100
 				return nil
 			},
+			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+				return &Role{ID: 1, Name: "superadmin"}, nil
+			},
 		}
 		r := setupMockUserRouter(svc)
 		body := `{"username":"newuser","email":"new@test.com","password":"password123","role_id":1}`
@@ -309,6 +312,9 @@ func TestMockHandler_CreateUser(t *testing.T) {
 			},
 			createUserFn: func(ctx context.Context, user *User) error {
 				return errors.New("db error")
+			},
+			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+				return &Role{ID: 1, Name: "superadmin"}, nil
 			},
 		}
 		r := setupMockUserRouter(svc)
@@ -809,6 +815,9 @@ func TestMockHandler_CreateUser_WithReportsTo(t *testing.T) {
 				assert.Equal(t, 1, *user.ReportsToID)
 				user.ID = 100
 				return nil
+			},
+			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+				return &Role{ID: 3, Name: "supervisor"}, nil
 			},
 		}
 		r := setupMockUserRouter(svc)

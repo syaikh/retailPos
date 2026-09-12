@@ -312,6 +312,9 @@ func TestAuditHandler_CreateUser_IsActiveFalse(t *testing.T) {
 			user.ID = 10
 			return nil
 		},
+		getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+			return &Role{ID: 1, Name: "superadmin"}, nil
+		},
 	}
 	r := setupMockUserRouterWithAudit(svc)
 	body := `{"username":"inactive","email":"in@test.com","password":"password123","role_id":1,"is_active":false}`

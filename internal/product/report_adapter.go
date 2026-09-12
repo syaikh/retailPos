@@ -16,7 +16,7 @@ func (ReportAdapter) GetActiveProductCount(ctx context.Context, db shared.DBPool
 	query := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL`
 	args := []interface{}{}
 	if storeID != nil {
-		query += ` AND store_id = $1`
+		query += ` AND (store_id IS NULL OR store_id = $1)`
 		args = append(args, *storeID)
 	}
 	err = db.QueryRow(ctx, query, args...).Scan(&count)

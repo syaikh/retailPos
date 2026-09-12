@@ -269,7 +269,7 @@ test.describe('Transactions Page', () => {
   test('cashier only sees own transactions via cashier_id filter', async ({ page, request }) => {
     const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
 
-    const res = await page.request.get(`${API_BASE}/api/sales?limit=5&offset=0&sort_by=created_at&sort_dir=desc&cashier_id=4`, {
+    const res = await request.get(`${API_BASE}/api/sales?limit=5&offset=0&sort_by=created_at&sort_dir=desc&cashier_id=4`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.ok()).toBeTruthy();

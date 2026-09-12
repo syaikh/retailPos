@@ -137,7 +137,7 @@ func (r *Repository) GetPeriodComparison(
 			SELECT sale_hour, total_revenue, transaction_count
 			FROM mv_hourly_sales
 			WHERE ((sale_hour >= $1 AND sale_hour < $2) OR (sale_hour >= $3 AND sale_hour < $4))
-				AND ($5::int IS NULL OR store_id = $5)
+				AND ($5::int IS NULL OR store_id IS NULL OR store_id = $5)
 		),
 		base_metrics AS (
 			SELECT
@@ -170,7 +170,7 @@ func (r *Repository) GetPeriodComparison(
 			SELECT EXISTS(
 				SELECT 1 FROM mv_hourly_sales
 				WHERE sale_hour >= $3 AND sale_hour < $3 + interval '24 hours'
-					AND ($5::int IS NULL OR store_id = $5)
+					AND ($5::int IS NULL OR store_id IS NULL OR store_id = $5)
 			) as has_any
 		)
 		SELECT
@@ -252,8 +252,8 @@ func (r *Repository) GetDualChartData(
 	storeFilter := ""
 	args := []interface{}{cs, ce, ps, pe}
 	if storeID != nil {
-		storeFilter = " AND store_id = $5"
-		args = append(args, storeID)
+		storeFilter = " AND (store_id IS NULL OR store_id = $5)"
+		args = append(args, *storeID)
 	}
 
 	query := `
@@ -381,7 +381,7 @@ func (r *Repository) GetAvailableYears(ctx context.Context, storeID *int) ([]int
 	argIdx := 1
 
 	if storeID != nil {
-		query += fmt.Sprintf(" WHERE store_id = $%d", argIdx)
+		query += fmt.Sprintf(" WHERE (store_id IS NULL OR store_id = $%d)", argIdx)
 		args = append(args, *storeID)
 	}
 
@@ -430,7 +430,7 @@ func (r *Repository) GetHourlySales(ctx context.Context, date time.Time, storeID
 	args := []interface{}{date, end}
 	argIdx := 3
 	if storeID != nil {
-		query += fmt.Sprintf(" AND store_id = $%d", argIdx)
+		query += fmt.Sprintf(" AND (store_id IS NULL OR store_id = $%d)", argIdx)
 		args = append(args, *storeID)
 	}
 	query += " GROUP BY sale_hour ORDER BY sale_hour"
@@ -461,7 +461,7 @@ func (r *Repository) GetDailySales(ctx context.Context, start, end time.Time, st
 	storeFilter := ""
 	args := []interface{}{start, end}
 	if storeID != nil {
-		storeFilter = fmt.Sprintf(" AND store_id = $%d", len(args)+1)
+		storeFilter = fmt.Sprintf(" AND (store_id IS NULL OR store_id = $%d)", len(args)+1)
 		args = append(args, *storeID)
 	}
 

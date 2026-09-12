@@ -48,7 +48,7 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 		argIdx++
 	}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND v.store_id = $%d", argIdx)
+		query += fmt.Sprintf(" AND (v.store_id IS NULL OR v.store_id = $%d)", argIdx)
 		args = append(args, *storeID)
 		argIdx++
 	}
@@ -105,7 +105,7 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 		argIdx2++
 	}
 	if storeID != nil {
-		query2 += fmt.Sprintf(" AND v.store_id = $%d", argIdx2)
+		query2 += fmt.Sprintf(" AND (v.store_id IS NULL OR v.store_id = $%d)", argIdx2)
 		args2 = append(args2, *storeID)
 		argIdx2++
 	}
@@ -229,7 +229,7 @@ func (r *Repository) GetAllProductsForExport(ctx context.Context, storeID *int) 
 	args := []interface{}{}
 	if storeID != nil {
 		query = productSelectCols + `
-			WHERE v.store_id = $1
+			WHERE (v.store_id IS NULL OR v.store_id = $1)
 			ORDER BY v.name
 		`
 		args = append(args, *storeID)

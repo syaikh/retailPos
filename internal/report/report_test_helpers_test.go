@@ -22,7 +22,7 @@ func (a *testSaleStatsAdapter) GetCompletedSalesStats(ctx context.Context, db sh
 	query := `SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM sales WHERE status = 'completed' AND created_at >= $1 AND created_at < $2`
 	args := []interface{}{start, end}
 	if storeID != nil {
-		query += ` AND store_id = $3`
+		query += ` AND (store_id IS NULL OR store_id = $3)`
 		args = append(args, *storeID)
 	}
 	err = db.QueryRow(ctx, query, args...).Scan(&revenue, &orders)
@@ -33,7 +33,7 @@ func (a *testSaleStatsAdapter) GetAllCompletedSalesStats(ctx context.Context, db
 	query := `SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM sales WHERE status = 'completed'`
 	args := []interface{}{}
 	if storeID != nil {
-		query += ` AND store_id = $1`
+		query += ` AND (store_id IS NULL OR store_id = $1)`
 		args = append(args, *storeID)
 	}
 	err = db.QueryRow(ctx, query, args...).Scan(&revenue, &orders)
@@ -44,7 +44,7 @@ func (a *testSaleStatsAdapter) GetActiveCustomerCount(ctx context.Context, db sh
 	query := `SELECT COUNT(DISTINCT customer_id) FROM sales WHERE status = 'completed' AND customer_id IS NOT NULL`
 	args := []interface{}{}
 	if storeID != nil {
-		query += ` AND store_id = $1`
+		query += ` AND (store_id IS NULL OR store_id = $1)`
 		args = append(args, *storeID)
 	}
 	err = db.QueryRow(ctx, query, args...).Scan(&count)
@@ -55,7 +55,7 @@ func (a *testSaleStatsAdapter) GetWeeklySales(ctx context.Context, db shared.DBP
 	query := shared.WeeklySalesQueryTemplate
 	args := []interface{}{start, end}
 	if storeID != nil {
-		query += ` AND store_id = $3`
+		query += ` AND (store_id IS NULL OR store_id = $3)`
 		args = append(args, *storeID)
 	}
 	query += ` GROUP BY week_start, week_end ORDER BY week_start`
@@ -84,7 +84,7 @@ func (a *testSaleStatsAdapter) GetMonthlySales(ctx context.Context, db shared.DB
 	query := shared.MonthlySalesQueryTemplate
 	args := []interface{}{start, end}
 	if storeID != nil {
-		query += ` AND store_id = $3`
+		query += ` AND (store_id IS NULL OR store_id = $3)`
 		args = append(args, *storeID)
 	}
 	query += ` GROUP BY month, month_start ORDER BY month`
@@ -113,7 +113,7 @@ func (a *testSaleStatsAdapter) GetPricingBreakdown(ctx context.Context, db share
 	query := shared.PricingBreakdownQueryTemplate
 	args := []interface{}{start, end}
 	if storeID != nil {
-		query += ` AND s.store_id = $3`
+		query += ` AND (s.store_id IS NULL OR s.store_id = $3)`
 		args = append(args, *storeID)
 	}
 	query += ` GROUP BY COALESCE(NULLIF(si.pricing_type, 'default'), 'normal') ORDER BY revenue DESC`
@@ -143,7 +143,7 @@ func (a *testProductStatsAdapter) GetActiveProductCount(ctx context.Context, db 
 	query := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL`
 	args := []interface{}{}
 	if storeID != nil {
-		query += ` AND store_id = $1`
+		query += ` AND (store_id IS NULL OR store_id = $1)`
 		args = append(args, *storeID)
 	}
 	err = db.QueryRow(ctx, query, args...).Scan(&count)

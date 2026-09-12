@@ -214,7 +214,7 @@ func (r *Repository) GetProductsByIDs(ctx context.Context, ids []int, storeID *i
 
 	whereClause := fmt.Sprintf("v.id IN (%s)", strings.Join(placeholders, ","))
 	if storeID != nil {
-		whereClause += fmt.Sprintf(" AND v.store_id = $%d", len(ids)+1)
+		whereClause += fmt.Sprintf(" AND (v.store_id IS NULL OR v.store_id = $%d)", len(ids)+1)
 		args = append(args, *storeID)
 	}
 
@@ -250,7 +250,7 @@ func (r *Repository) GetProductByID(ctx context.Context, id int, storeID *int) (
 
 	args := []interface{}{id}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND v.store_id = $%d", len(args)+1)
+		query += fmt.Sprintf(" AND (v.store_id IS NULL OR v.store_id = $%d)", len(args)+1)
 		args = append(args, *storeID)
 	}
 
@@ -270,7 +270,7 @@ func (r *Repository) GetProductBySKU(ctx context.Context, sku string, storeID *i
 
 	args := []interface{}{sku}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND v.store_id = $%d", len(args)+1)
+		query += fmt.Sprintf(" AND (v.store_id IS NULL OR v.store_id = $%d)", len(args)+1)
 		args = append(args, *storeID)
 	}
 

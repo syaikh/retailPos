@@ -388,7 +388,7 @@ func (s *service) ParkSale(ctx context.Context, sale *Sale, items []Item, recall
 		}
 		if storeID := caller.storeScope(); storeID != nil {
 			args = append(args, *storeID)
-			query += fmt.Sprintf(` AND store_id = $%d`, len(args))
+			query += fmt.Sprintf(` AND (store_id IS NULL OR store_id = $%d)`, len(args))
 		}
 		_, err = tx.Exec(ctx, query, args...)
 		if err != nil {
@@ -479,7 +479,7 @@ func (s *service) CreateSaleWithParkedSaleTx(ctx context.Context, tx pgx.Tx, sal
 	lockQuery := `SELECT status FROM sales WHERE id = $1 AND status = 'recalled'`
 	if storeID := caller.storeScope(); storeID != nil {
 		args = append(args, *storeID)
-		lockQuery += fmt.Sprintf(` AND store_id = $%d`, len(args))
+		lockQuery += fmt.Sprintf(` AND (store_id IS NULL OR store_id = $%d)`, len(args))
 	}
 	lockQuery += ` FOR UPDATE`
 	err := tx.QueryRow(ctx, lockQuery, args...).Scan(&parkedStatus)

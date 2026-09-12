@@ -85,7 +85,7 @@ func (MetaLookup) ScopeProductIDs(ctx context.Context, db shared.DBPool, scopeTy
 	var args []interface{}
 	switch scopeType {
 	case "store":
-		query = `SELECT id FROM products WHERE store_id = $1 AND deleted_at IS NULL AND status = 'active'`
+		query = `SELECT id FROM products WHERE (store_id IS NULL OR store_id = $1) AND deleted_at IS NULL AND status = 'active'`
 	case "category":
 		query = `SELECT id FROM products WHERE category_id = $1 AND deleted_at IS NULL AND status = 'active'`
 	case "brand":

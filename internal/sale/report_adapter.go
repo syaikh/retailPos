@@ -31,7 +31,7 @@ func (ReportAdapter) GetCompletedSalesStats(ctx context.Context, db shared.DBPoo
 		  AND created_at < $2`
 	args := []interface{}{start, end}
 	if storeID != nil {
-		query += ` AND store_id = $3`
+		query += ` AND (store_id IS NULL OR store_id = $3)`
 		args = append(args, *storeID)
 	}
 	err = db.QueryRow(ctx, query, args...).Scan(&revenue, &orders)
@@ -47,7 +47,7 @@ func (ReportAdapter) GetAllCompletedSalesStats(ctx context.Context, db shared.DB
 	query := `SELECT COALESCE(SUM(total_revenue), 0), COALESCE(SUM(transaction_count), 0) FROM mv_dashboard_totals`
 	args := []interface{}{}
 	if storeID != nil {
-		query += ` WHERE store_id = $1`
+		query += ` WHERE (store_id IS NULL OR store_id = $1)`
 		args = append(args, *storeID)
 	}
 	err = db.QueryRow(ctx, query, args...).Scan(&revenue, &orders)
@@ -58,7 +58,7 @@ func (ReportAdapter) GetActiveCustomerCount(ctx context.Context, db shared.DBPoo
 	query := `SELECT COUNT(DISTINCT customer_id) FROM sales WHERE status = 'completed' AND customer_id IS NOT NULL`
 	args := []interface{}{}
 	if storeID != nil {
-		query += ` AND store_id = $1`
+		query += ` AND (store_id IS NULL OR store_id = $1)`
 		args = append(args, *storeID)
 	}
 	err = db.QueryRow(ctx, query, args...).Scan(&count)
@@ -69,7 +69,7 @@ func (ReportAdapter) GetWeeklySales(ctx context.Context, db shared.DBPool, start
 	query := shared.WeeklySalesQueryTemplate
 	args := []interface{}{start, end}
 	if storeID != nil {
-		query += ` AND store_id = $3`
+		query += ` AND (store_id IS NULL OR store_id = $3)`
 		args = append(args, *storeID)
 	}
 	query += ` GROUP BY week_start, week_end ORDER BY week_start`
@@ -98,7 +98,7 @@ func (ReportAdapter) GetMonthlySales(ctx context.Context, db shared.DBPool, star
 	query := shared.MonthlySalesQueryTemplate
 	args := []interface{}{start, end}
 	if storeID != nil {
-		query += ` AND store_id = $3`
+		query += ` AND (store_id IS NULL OR store_id = $3)`
 		args = append(args, *storeID)
 	}
 	query += ` GROUP BY month, month_start ORDER BY month`
@@ -127,7 +127,7 @@ func (ReportAdapter) GetPricingBreakdown(ctx context.Context, db shared.DBPool, 
 	query := shared.PricingBreakdownQueryTemplate
 	args := []interface{}{start, end}
 	if storeID != nil {
-		query += ` AND s.store_id = $3`
+		query += ` AND (s.store_id IS NULL OR s.store_id = $3)`
 		args = append(args, *storeID)
 	}
 	query += ` GROUP BY COALESCE(NULLIF(si.pricing_type, 'default'), 'normal') ORDER BY revenue DESC`
