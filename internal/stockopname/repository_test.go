@@ -145,6 +145,8 @@ func resetStockOpname(ctx context.Context, t *testing.T) {
 			stock_opname_items, stock_opnames CASCADE
 	`)
 	require.NoError(t, err)
+	_, err = dbPool.Exec(ctx, `TRUNCATE TABLE product_stock, products CASCADE`)
+	require.NoError(t, err)
 }
 
 func createTestSession(ctx context.Context, t *testing.T, repo *Repository, userID int) *Session {

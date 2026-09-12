@@ -269,23 +269,23 @@ func TestUserRepository_GetAllUsers(t *testing.T) {
 			require.NoError(t, repo.CreateUser(ctx, u))
 		}
 
-		// ASC -> role name alphabetical: admin(2), cashier(4), manager(3), superadmin(1)
+		// ASC -> role name alphabetical: cashier(4), manager(2), superadmin(1), supervisor(3)
 		users, total, err := repo.GetAllUsers(ctx, 10, 0, prefix, "role_id", "asc", 0, nil)
 		require.NoError(t, err)
 		require.Equal(t, 4, total)
-		assert.Equal(t, 2, users[0].RoleID)
-		assert.Equal(t, 4, users[1].RoleID)
-		assert.Equal(t, 3, users[2].RoleID)
-		assert.Equal(t, 1, users[3].RoleID)
+		assert.Equal(t, 4, users[0].RoleID)
+		assert.Equal(t, 2, users[1].RoleID)
+		assert.Equal(t, 1, users[2].RoleID)
+		assert.Equal(t, 3, users[3].RoleID)
 
-		// DESC -> role name reverse: superadmin(1), manager(3), cashier(4), admin(2)
+		// DESC -> role name reverse: supervisor(3), superadmin(1), manager(2), cashier(4)
 		users, total, err = repo.GetAllUsers(ctx, 10, 0, prefix, "role_id", "desc", 0, nil)
 		require.NoError(t, err)
 		require.Equal(t, 4, total)
-		assert.Equal(t, 1, users[0].RoleID)
-		assert.Equal(t, 3, users[1].RoleID)
-		assert.Equal(t, 4, users[2].RoleID)
-		assert.Equal(t, 2, users[3].RoleID)
+		assert.Equal(t, 3, users[0].RoleID)
+		assert.Equal(t, 1, users[1].RoleID)
+		assert.Equal(t, 2, users[2].RoleID)
+		assert.Equal(t, 4, users[3].RoleID)
 	})
 }
 

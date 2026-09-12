@@ -5,9 +5,14 @@ import { TEST_USERS, FRONTEND_BASE, loginUI, logoutUI } from './fixtures';
 async function navigateToInventory(page: Page) {
   const sidebar = page.locator('aside');
   const masterDataBtn = sidebar.locator('button', { hasText: 'Master Data' }).first();
-  await masterDataBtn.click();
-  await page.waitForTimeout(300);
   const productsBtn = sidebar.locator('button', { hasText: 'Products' }).first();
+
+  // If Products is already visible, Master Data is already expanded — skip the click
+  const productsVisible = await productsBtn.isVisible().catch(() => false);
+  if (!productsVisible) {
+    await masterDataBtn.click();
+    await expect(productsBtn).toBeVisible({ timeout: 5000 });
+  }
   await productsBtn.click();
   await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
 }

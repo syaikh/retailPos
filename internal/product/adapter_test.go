@@ -444,8 +444,9 @@ func TestProductAdapter_ExportData_StoreScoped(t *testing.T) {
 	mine := &Product{
 		SKU: "TEST-SKU-SCOPE-MINE", Name: "Mine", Price: 10000, Cost: 5000, Stock: 1, Status: "active", StoreID: &storeID,
 	}
+	otherStore := insertTestStore(ctx, t, "Other Scope Store")
 	other := &Product{
-		SKU: "TEST-SKU-SCOPE-OTHER", Name: "Other", Price: 10000, Cost: 5000, Stock: 1, Status: "active",
+		SKU: "TEST-SKU-SCOPE-OTHER", Name: "Other", Price: 10000, Cost: 5000, Stock: 1, Status: "active", StoreID: &otherStore,
 	}
 	require.NoError(t, repo.CreateProduct(ctx, mine))
 	require.NoError(t, repo.CreateProduct(ctx, other))

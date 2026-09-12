@@ -298,16 +298,13 @@ test.describe('Consignment Supplier - Full Flow', () => {
 
   test('creates a settlement and records the payout', async ({ page }) => {
     await page.goto('/consignment');
-    await page.waitForTimeout(1500);
 
     const row = page.locator('tbody tr').filter({ hasText: supplier.name }).first();
     await expect(row).toBeVisible({ timeout: 10000 });
     await row.locator('button').filter({ hasText: 'Open' }).click();
-    await page.waitForTimeout(800);
 
     // Settlement tab
     await page.locator('button').filter({ hasText: 'Settlement' }).first().click();
-    await page.waitForTimeout(1200);
 
     // Preview totals present
     await expect(page.locator('text=Total Sales').first()).toBeVisible({ timeout: 8000 });
@@ -346,11 +343,10 @@ test.describe('Consignment Supplier - Full Flow', () => {
     // Payment method SelectSearch: 'Cash (CASH)'
     const methodSelect = payoutModal.locator('label:has-text("Payment Method")').locator('[aria-haspopup="listbox"]');
     await methodSelect.click();
-    await page.waitForTimeout(300);
     const methodListbox = page.locator('[role="listbox"]');
     await expect(methodListbox).toBeVisible({ timeout: 3000 });
     await methodListbox.locator('[role="option"]').filter({ hasText: 'Cash (CASH)' }).first().click();
-    await page.waitForTimeout(300);
+    await expect(methodListbox).not.toBeVisible({ timeout: 3000 });
 
     // Amount is prefilled; submit
     const payoutResponsePromise = page.waitForResponse(

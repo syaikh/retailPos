@@ -180,7 +180,7 @@ func TestHandler_UpdateUser(t *testing.T) {
 	require.NoError(t, repo.CreateUser(ctx, u))
 
 	t.Run("success", func(t *testing.T) {
-		body := `{"username":"hdlupdateafter","email":"hdlupdate_new@test.com","role_id":3}`
+		body := `{"username":"hdlupdateafter","email":"hdlupdate_new@test.com","role_id":2}`
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("PUT", "/admin/users/"+strconv.Itoa(u.ID), strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -228,7 +228,7 @@ func TestHandler_CreateUser_WithReportsTo(t *testing.T) {
 	require.NoError(t, repo.CreateUser(ctx, mgr))
 
 	t.Run("create user with reports_to", func(t *testing.T) {
-		body := fmt.Sprintf(`{"username":"hdlstaff1","email":"hdlstaff1@test.com","password":"secret123","role_id":3,"reports_to":%d}`, mgr.ID)
+		body := fmt.Sprintf(`{"username":"hdlstaff1","email":"hdlstaff1@test.com","password":"secret123","role_id":2,"reports_to":%d}`, mgr.ID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/admin/users", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")

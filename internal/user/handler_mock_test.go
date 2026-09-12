@@ -817,7 +817,7 @@ func TestMockHandler_CreateUser_WithReportsTo(t *testing.T) {
 				return nil
 			},
 			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
-				return &Role{ID: 3, Name: "supervisor"}, nil
+				return &Role{ID: 3, Name: "cashier"}, nil
 			},
 		}
 		r := setupMockUserRouter(svc)
