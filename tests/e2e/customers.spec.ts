@@ -7,11 +7,10 @@ import { TEST_USERS, API_BASE, authHeader, waitForAPI, FRONTEND_BASE, getToken a
 
 async function createCustomerAPI(request: any, token: string, data: Record<string, any>) {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const suffix = `${Date.now()}${Math.floor(Math.random() * 1000000)}`;
     const payload = attempt === 0 ? data : {
       ...data,
-      phone: `08${suffix}`.slice(0, 13),
-      email: `e2e.${suffix}@test.com`,
+      phone: uniquePhone(),
+      email: `e2e.${Date.now()}${attempt}@test.com`,
     };
     const res = await request.post(`${API_BASE}/api/customers`, {
       headers: authHeader(token),
@@ -29,8 +28,9 @@ async function createCustomerAPI(request: any, token: string, data: Record<strin
   }
 }
 
+let _phoneSeq = 0;
 function uniquePhone() {
-  return `08${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(0, 13);
+  return `08${String(++_phoneSeq).padStart(11, '0')}`;
 }
 
 function uniqueEmail() {

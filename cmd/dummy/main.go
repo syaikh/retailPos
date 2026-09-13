@@ -664,10 +664,11 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		username, email, passwordHash string
 		reportsTo                     *int
 		isActive                      bool
+		storeID                       *int
 	}
 	var systemUsers []sysUser
 	rows, err := conn.QueryContext(ctx, `
-		SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.reports_to, u.is_active
+		SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.reports_to, u.is_active, u.store_id
 		FROM users u
 		JOIN roles r ON r.id = u.role_id
 		WHERE r.is_system = true
@@ -680,10 +681,15 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		for rows.Next() {
 			var u sysUser
 			var reportsTo sql.NullInt64
-			if err := rows.Scan(&u.id, &u.username, &u.email, &u.passwordHash, &u.roleID, &reportsTo, &u.isActive); err == nil {
+			var storeID sql.NullInt64
+			if err := rows.Scan(&u.id, &u.username, &u.email, &u.passwordHash, &u.roleID, &reportsTo, &u.isActive, &storeID); err == nil {
 				if reportsTo.Valid {
 					v := int(reportsTo.Int64)
 					u.reportsTo = &v
+				}
+				if storeID.Valid {
+					v := int(storeID.Int64)
+					u.storeID = &v
 				}
 				systemUsers = append(systemUsers, u)
 			}
@@ -754,9 +760,13 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		if u.reportsTo != nil {
 			reportsTo = *u.reportsTo
 		}
+		var storeIDVal interface{}
+		if u.storeID != nil {
+			storeIDVal = *u.storeID
+		}
 		_, err := conn.ExecContext(ctx,
-			`INSERT INTO users (id, username, email, password_hash, role_id, reports_to, is_active, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) ON CONFLICT (id) DO NOTHING`,
-			u.id, u.username, u.email, u.passwordHash, u.roleID, reportsTo, u.isActive,
+			`INSERT INTO users (id, username, email, password_hash, role_id, reports_to, is_active, store_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) ON CONFLICT (id) DO NOTHING`,
+			u.id, u.username, u.email, u.passwordHash, u.roleID, reportsTo, u.isActive, storeIDVal,
 		)
 		if err != nil {
 			log.Printf("Warning: failed to restore system user %d: %v", u.id, err)

@@ -1527,6 +1527,7 @@ SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'supervisor'
         'pricing.update',
         'pricing.view',
         'product.cost.view',
+        'product.create',
         'product.update',
         'product.view',
         'purchase_order.cancel',

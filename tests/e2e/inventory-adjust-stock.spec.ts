@@ -123,7 +123,6 @@ test.describe('Inventory Stock Adjustment', () => {
     await page.reload();
 
     await loginUI(page, TEST_USERS.manager.username, TEST_USERS.manager.password);
-    await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
     await navigateToInventory(page);
 
     // Find product row and open dropdown

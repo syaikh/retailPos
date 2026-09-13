@@ -91,8 +91,9 @@ function uniqueName(prefix: string) {
   return `${prefix} E2E ${Date.now()}`;
 }
 
+let _phoneSeq = 0;
 function uniquePhone() {
-  return `08${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(0, 13);
+  return `08${String(++_phoneSeq).padStart(11, '0')}`;
 }
 
 function uniqueCode() {

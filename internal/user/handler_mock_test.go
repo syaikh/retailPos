@@ -817,11 +817,11 @@ func TestMockHandler_CreateUser_WithReportsTo(t *testing.T) {
 				return nil
 			},
 			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
-				return &Role{ID: 3, Name: "cashier"}, nil
+				return &Role{ID: 2, Name: "manager"}, nil
 			},
 		}
 		r := setupMockUserRouter(svc)
-		body := `{"username":"staff1","email":"staff1@test.com","password":"password123","role_id":3,"reports_to":1}`
+		body := `{"username":"staff1","email":"staff1@test.com","password":"password123","role_id":2,"reports_to":1}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/admin/users", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")

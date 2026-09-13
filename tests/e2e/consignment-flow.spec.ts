@@ -298,6 +298,7 @@ test.describe('Consignment Supplier - Full Flow', () => {
 
   test('creates a settlement and records the payout', async ({ page }) => {
     await page.goto('/consignment');
+    await page.waitForTimeout(1500);
 
     const row = page.locator('tbody tr').filter({ hasText: supplier.name }).first();
     await expect(row).toBeVisible({ timeout: 10000 });
