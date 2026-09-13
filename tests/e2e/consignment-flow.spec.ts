@@ -303,6 +303,7 @@ test.describe('Consignment Supplier - Full Flow', () => {
     const row = page.locator('tbody tr').filter({ hasText: supplier.name }).first();
     await expect(row).toBeVisible({ timeout: 10000 });
     await row.locator('button').filter({ hasText: 'Open' }).click();
+    await page.waitForTimeout(800);
 
     // Settlement tab
     await page.locator('button').filter({ hasText: 'Settlement' }).first().click();

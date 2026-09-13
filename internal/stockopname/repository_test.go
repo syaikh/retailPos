@@ -145,6 +145,19 @@ func resetStockOpname(ctx context.Context, t *testing.T) {
 			stock_opname_items, stock_opnames CASCADE
 	`)
 	require.NoError(t, err)
+	// Clean up products with store_id IS NULL that leak into every
+	// store-scoped session via the "store_id IS NULL OR store_id = $1"
+	// query in MetaLookup.ScopeProductIDs.
+	_, err = dbPool.Exec(ctx, `
+		DELETE FROM product_stock WHERE product_id IN (
+			SELECT id FROM products WHERE store_id IS NULL
+		)
+	`)
+	require.NoError(t, err)
+	_, err = dbPool.Exec(ctx, `
+		DELETE FROM products WHERE store_id IS NULL
+	`)
+	require.NoError(t, err)
 }
 
 func createTestSession(ctx context.Context, t *testing.T, repo *Repository, userID int) *Session {
