@@ -301,7 +301,7 @@ func TestRepositoryMock_ListOpenShiftsOlderThan(t *testing.T) {
 
 // beginMockTx opens a transaction against the pgxmock pool. The repository's
 // tx-taking methods chain their queries through this tx.
-func beginMockTx(t *testing.T, mock pgxmock.PgxPoolIface, ctx context.Context) pgx.Tx {
+func beginMockTx(ctx context.Context, t *testing.T, mock pgxmock.PgxPoolIface) pgx.Tx {
 	t.Helper()
 	mock.ExpectBegin()
 	tx, err := mock.Begin(ctx)
@@ -315,7 +315,7 @@ func TestRepositoryMock_CreateCashMovement(t *testing.T) {
 
 	t.Run("invalid movement type returns before touching the database", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
-		tx := beginMockTx(t, mock, ctx)
+		tx := beginMockTx(ctx, t, mock)
 		_, err := repo.CreateCashMovement(ctx, tx, 1, 1, "deposit", 1000, nil)
 		assert.ErrorIs(t, err, ErrInvalidMovementType)
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -323,7 +323,7 @@ func TestRepositoryMock_CreateCashMovement(t *testing.T) {
 
 	t.Run("status query error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
-		tx := beginMockTx(t, mock, ctx)
+		tx := beginMockTx(ctx, t, mock)
 		mock.ExpectQuery("SELECT status FROM shifts").WithArgs(1).WillReturnError(boom)
 		_, err := repo.CreateCashMovement(ctx, tx, 1, 1, "paid_in", 1000, nil)
 		assert.ErrorContains(t, err, "failed to check shift status")
@@ -331,7 +331,7 @@ func TestRepositoryMock_CreateCashMovement(t *testing.T) {
 
 	t.Run("shift not found", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
-		tx := beginMockTx(t, mock, ctx)
+		tx := beginMockTx(ctx, t, mock)
 		mock.ExpectQuery("SELECT status FROM shifts").WithArgs(1).WillReturnError(pgx.ErrNoRows)
 		_, err := repo.CreateCashMovement(ctx, tx, 1, 1, "paid_in", 1000, nil)
 		assert.ErrorContains(t, err, "shift not found")
@@ -339,7 +339,7 @@ func TestRepositoryMock_CreateCashMovement(t *testing.T) {
 
 	t.Run("owner query error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
-		tx := beginMockTx(t, mock, ctx)
+		tx := beginMockTx(ctx, t, mock)
 		mock.ExpectQuery("SELECT status FROM shifts").WithArgs(1).WillReturnRows(
 			pgxmock.NewRows([]string{"status"}).AddRow("open"))
 		mock.ExpectQuery("SELECT user_id FROM shifts").WithArgs(1).WillReturnError(boom)
@@ -349,7 +349,7 @@ func TestRepositoryMock_CreateCashMovement(t *testing.T) {
 
 	t.Run("insert error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
-		tx := beginMockTx(t, mock, ctx)
+		tx := beginMockTx(ctx, t, mock)
 		mock.ExpectQuery("SELECT status FROM shifts").WithArgs(1).WillReturnRows(
 			pgxmock.NewRows([]string{"status"}).AddRow("open"))
 		mock.ExpectQuery("SELECT user_id FROM shifts").WithArgs(1).WillReturnRows(
@@ -430,7 +430,7 @@ func TestRepositoryMock_GetShiftReportData_CashMovementSummary(t *testing.T) {
 		report, err := repo.GetShiftReportData(ctx, 1)
 		require.NoError(t, err)
 		require.NotNil(t, report)
-		assert.Equal(t, 1, report.Shift.ID)
+		assert.Equal(t, 1, report.ID)
 		assert.Equal(t, CashMovementSummary{}, report.CashMovementSummary)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})

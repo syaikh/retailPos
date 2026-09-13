@@ -22,7 +22,9 @@ describe("CashBreakdown.svelte source-structure guards", () => {
   it("recomputes total from denomination counts", () => {
     expect(src).toContain("const counts: Record<number, number> = $state({});");
     expect(src).toContain("$effect(() => {");
-    expect(src).toContain("(sum, [denom, count]) => sum + Number(denom) * count");
+    expect(src).toContain(
+      "(sum, [denom, count]) => sum + Number(denom) * count",
+    );
   });
 
   it("keeps the bound total when no denominations have been entered", () => {

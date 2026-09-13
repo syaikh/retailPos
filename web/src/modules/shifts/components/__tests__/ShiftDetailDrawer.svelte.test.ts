@@ -33,14 +33,18 @@ describe("ShiftDetailDrawer.svelte source-structure guards", () => {
   });
 
   it("resets state on load and falls back to empty on failure", () => {
-    expect(src).toContain("async function loadCashMovements(shiftId: number) {");
+    expect(src).toContain(
+      "async function loadCashMovements(shiftId: number) {",
+    );
     expect(src).toContain("cashMovements = [];");
     expect(src).toContain("cashMovements = await listCashMovements(shiftId);");
     expect(src).toContain("} catch {");
   });
 
   it("maps movement types to localized labels", () => {
-    expect(src).toContain('function movementLabel(type: CashMovement["type"]) {');
+    expect(src).toContain(
+      'function movementLabel(type: CashMovement["type"]) {',
+    );
     expect(src).toContain('return type === "paid_in"');
     expect(src).toContain(': type === "paid_out"');
     expect(src).toContain(": labels.cashDrop;");
@@ -64,6 +68,7 @@ describe("ShiftDetailDrawer.svelte source-structure guards", () => {
     expect(src).toContain("{movementLabel(m.type)}");
     expect(src).toContain("{formatDateTime(m.created_at)}");
     expect(src).toContain("{#if m.description}");
-    expect(src).toContain("{isPositive(m.type) ? \"+\" : \"-\"}{formatMoney(m.amount)}");
+    expect(src).toContain('isPositive(m.type) ? "+" : "-"');
+    expect(src).toMatch(/formatMoney\(\s*m\.amount,?\s*\)/);
   });
 });

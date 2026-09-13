@@ -261,7 +261,9 @@
                     class="text-sm font-bold {isPositive(m.type)
                       ? 'text-success'
                       : 'text-danger'}"
-                    >{isPositive(m.type) ? "+" : "-"}{formatMoney(m.amount)}</span
+                    >{isPositive(m.type) ? "+" : "-"}{formatMoney(
+                      m.amount,
+                    )}</span
                   >
                 </div>
               {/each}

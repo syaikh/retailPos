@@ -1020,7 +1020,7 @@ func TestShiftRepository_GetShiftReportData_AggregatesCashMovements(t *testing.T
 	report, err := repo.GetShiftReportData(ctx, shift.ID)
 	require.NoError(t, err)
 	require.NotNil(t, report)
-	assert.Equal(t, shift.ID, report.Shift.ID)
+	assert.Equal(t, shift.ID, report.ID)
 	assert.Equal(t, 100000, report.CashMovementSummary.CashDrops)
 	assert.Equal(t, 10000, report.CashMovementSummary.PaidIns)
 	assert.Equal(t, 25000, report.CashMovementSummary.PaidOuts)
