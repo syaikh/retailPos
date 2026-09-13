@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -17,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 type ProductTemplate struct {
@@ -1505,7 +1506,7 @@ type productWorkerJob struct {
 	endProduct           int
 	categoryIDs          []int
 	categoryNames        map[int]string
-	loggedFirstErrNoRows bool // one-time flag: log first ErrNoRows with SKU details
+	loggedFirstErrNoRows bool // one-time flag: log first duplicate-sku skip with SKU details
 	loggedFirstSuccess   bool // one-time flag: log first successful insert
 }
 
@@ -1558,6 +1559,14 @@ func injectProducts(ctx context.Context, db *sql.DB, categoryIDs []int, count in
 		wg.Add(1)
 		go func(job productWorkerJob) {
 			defer wg.Done()
+			// Recover panics so a crashed worker surfaces as an error instead
+			// of being silently dropped (which would otherwise leave the
+			// collector waiting on a channel send that never happens).
+			defer func() {
+				if r := recover(); r != nil {
+					errorChan <- fmt.Errorf("worker %d panicked: %v", job.workerID, r)
+				}
+			}()
 
 			products, err := processProductWorkerJob(ctx, db, job, count, batchSize)
 			if err != nil {
@@ -1568,34 +1577,49 @@ func injectProducts(ctx context.Context, db *sql.DB, categoryIDs []int, count in
 		}(job)
 	}
 
-	// Wait for all workers to complete
+	// Wait for all workers, then close ONLY productChan. errorChan is
+	// deliberately left unclosed: reading from a closed channel always
+	// succeeds, so a select that picks the closed errorChan returns a nil
+	// error and makes the collector abort with an empty result -- the
+	// intermittent "✅ 0 products injected" seed failure.
 	go func() {
 		wg.Wait()
 		close(productChan)
-		close(errorChan)
 	}()
 
 	// Collect results
 	var allProducts []ProductInfo
-	completedWorkers := 0
-
-	for completedWorkers < numWorkers {
-		select {
-		case products := <-productChan:
-			allProducts = append(allProducts, products...)
-			completedWorkers++
-			if completedWorkers%500 == 0 {
-				fmt.Printf("     ...%d products injected\n", len(allProducts))
-			}
-		case err := <-errorChan:
-			return nil, err
+	for products := range productChan {
+		allProducts = append(allProducts, products...)
+		if len(allProducts)%500 == 0 {
+			fmt.Printf("     ...%d products injected\n", len(allProducts))
 		}
+	}
+
+	// Drain errorChan to surface any worker error. errorChan is buffered and
+	// every error is sent before the worker's wg.Done(), so by the time
+	// productChan is closed all error sends have completed.
+	var workerErr error
+	for undrained := true; undrained; {
+		select {
+		case err := <-errorChan:
+			if err != nil && workerErr == nil {
+				workerErr = err
+			}
+		default:
+			undrained = false
+		}
+	}
+	if workerErr != nil {
+		return nil, workerErr
 	}
 
 	// Resilience: if workers reported 0 products but the DB actually has rows
 	// (the ON CONFLICT … RETURNING id path can silently lose inserts when a
 	// leaked session_replication_role='replica' connection disables BEFORE
-	// INSERT triggers), re-query the DB to recover the product list.
+	// INSERT triggers), re-query the DB to recover the product list. The
+	// ON CONFLICT clause was removed in a subsequent fix, but this fallback
+	// is retained as a belt-and-suspenders safety net.
 	if len(allProducts) == 0 {
 		var dbCount int
 		if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM products WHERE status = 'active'").Scan(&dbCount); err != nil {
@@ -1608,6 +1632,16 @@ func injectProducts(ctx context.Context, db *sql.DB, categoryIDs []int, count in
 
 	fmt.Printf("   ✅ %d products injected concurrently\n", len(allProducts))
 	return allProducts, nil
+}
+
+// isUniqueViolation reports whether err is a PostgreSQL unique-constraint
+// violation (SQLSTATE 23505), e.g. a pre-existing product SKU during re-seed.
+func isUniqueViolation(err error) bool {
+	var pgErr *pq.Error
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
+	}
+	return false
 }
 
 // processProductWorkerJob handles a single worker's portion of product injection
@@ -1628,7 +1662,7 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	stmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO products (sku, name, barcode, price, cost, category_id, status, tax_class_id, brand_id, unit_of_measure_id, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, 'active', 1, $7, $8, $9)
-		 ON CONFLICT (sku) DO NOTHING RETURNING id`)
+		 RETURNING id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
@@ -1675,22 +1709,18 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		uomID := rand.Intn(8) + 1
 		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, catID, brandID, uomID, createdAt).Scan(&id)
 		if err != nil {
-			if err == sql.ErrNoRows {
-				// Log the first ErrNoRows per worker with details for debugging
+			// A pre-existing SKU (re-seed without truncation) is a routine
+			// skip. Note: ON CONFLICT DO NOTHING RETURNING id is deliberately
+			// avoided here -- combined with a session_replication_role='replica'
+			// connection it can silently drop rows, returning sql.ErrNoRows for
+			// every insert and losing products without any error. A plain
+			// INSERT surfaces real failures while duplicates surface as a
+			// unique-constraint violation handled below.
+			if isUniqueViolation(err) {
 				if !job.loggedFirstErrNoRows {
 					job.loggedFirstErrNoRows = true
-					fmt.Printf("   🔍 worker %d: first sql.ErrNoRows at product %d (sku=%s, cat=%s, brandID=%d, uomID=%d)\n",
-						job.workerID, i, sku, catName, brandID, uomID)
-					// Check if the SKU actually exists in DB to distinguish real conflict from false positive
-					var existsID int
-					checkErr := db.QueryRowContext(ctx, "SELECT id FROM products WHERE sku = $1", sku).Scan(&existsID)
-					if checkErr == nil {
-						fmt.Printf("   🔍 worker %d: SKU %s EXISTS in DB (id=%d) — truncation may not have worked\n",
-							job.workerID, sku, existsID)
-					} else {
-						fmt.Printf("   🔍 worker %d: SKU %s does NOT exist in DB — ON CONFLICT returned false positive\n",
-							job.workerID, sku)
-					}
+					fmt.Printf("   🔍 worker %d: first duplicate-sku skip at product %d (sku=%s)\n",
+						job.workerID, i, sku)
 				}
 				continue
 			}

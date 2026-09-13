@@ -72,6 +72,29 @@ The code comment at line 1553-1556 describes the known mechanism:
 - **Go tests:** `go test -p 1 -count=1 ./internal/consignment/... ./internal/archtest/... ./internal/inventory/...` — ALL PASS
 - **Manual test:** Pending (requires running seeder against dev DB)
 
+## Root Cause (confirmed 2026-09-13, E2E shard 4)
+
+The intermittent `✅ 0 products injected` failure is a **collector channel race in
+`injectProducts`**, not an `ON CONFLICT` / `session_replication_role` problem.
+
+The old collector read both `productChan` and `errorChan` in a `select`. When all
+workers finished, the closer goroutine closed **both** channels. Reading a closed
+channel always succeeds, so once `errorChan` was closed it became permanently
+"ready" with a nil error. On the next `select`, Go randomly picked either the
+buffered `productChan` (real data) or the closed `errorChan` (nil error) →
+`return nil, nil`, an empty result with no error. Because the channels were only
+read once per worker, roughly one select per run hit the closed `errorChan`,
+producing the 1-in-4 flaky "0 products injected" symptom.
+
+Evidence matching this root cause:
+- Workers demonstrably inserted rows (log shows `first product inserted` with
+  ids 1, 2, 4, 6) yet the run still reported `0 products injected`.
+- The `✅ N products injected concurrently` line never printed — the collector
+  aborted before reaching it (impossible under the old `completedWorkers`
+  loop).
+- The resilience `⚠️ Workers returned 0 products but DB has N` warning also
+  never printed — same reason.
+
 ## Files modified
 
 | File | Change |
@@ -108,3 +131,27 @@ if err != nil {
 This avoids the `ON CONFLICT DO NOTHING RETURNING id` edge case entirely,
 using a plain `INSERT ... RETURNING id` and catching the unique violation
 error directly.
+
+## Final fix applied (2026-09-13)
+
+### Channel-collection fix (root cause)
+- Collector now closes **only** `productChan` (after `wg.Wait`); `errorChan` is
+  left unclosed and drained via a non-blocking `select ... default` loop after
+  the product collection completes. A closed `errorChan` can no longer be read
+  as an accidental nil-error success.
+- Workers are wrapped with `recover()`; a panicking worker sends its error to
+  `errorChan` instead of dying silently (which would otherwise leave the
+  collector waiting on a channel send that never arrives).
+
+### INSERT fix (defense-in-depth, recommended by Step "Alternative approach")
+- Replaced `ON CONFLICT (sku) DO NOTHING RETURNING id` with a plain
+  `INSERT ... RETURNING id`.
+- Pre-existing SKUs now surface as a real unique-constraint violation
+  (SQLSTATE 23505 via `github.com/lib/pq`), handled by the new
+  `isUniqueViolation` helper and skipped (log once per worker).
+
+### Files changed
+| File | Change |
+|------|--------|
+| `cmd/dummy/main.go` | Collector race fix (single-channel close + error drain), panic recovery in workers, plain INSERT + `isUniqueViolation` duplicate skip, `pq` + `errors` imports |
+| `docs/design/fix-seed-data-bug.md` | This record |
