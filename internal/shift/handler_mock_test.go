@@ -86,7 +86,7 @@ func (m *mockShiftService) CreateCashMovementTx(ctx context.Context, tx pgx.Tx, 
 func (m *mockShiftService) ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error) {
 	return nil, nil
 }
-func (m *mockShiftService) ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error) {
+func (m *mockShiftService) ShiftCashMovementSummary(ctx context.Context, shiftID int) (CashMovementSummary, error) {
 	return CashMovementSummary{}, nil
 }
 

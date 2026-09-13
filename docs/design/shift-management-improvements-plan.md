@@ -4,7 +4,7 @@
 |-------|-------|
 | Status | **Completed** |
 | Date | 2026-09-04 |
-| Updated | 2026-09-05 |
+| Updated | 2026-09-13 |
 | Review | `docs/reviews/shift-management-review.md` |
 | Estimated Effort | 8-10 days |
 
@@ -199,11 +199,12 @@ var (
 
 Methods to add to `Repository`:
 - `CreateCashMovement(ctx, tx, shiftID, userID, movementType, amount, description) (*CashMovement, error)`
-  - Check shift is open and belongs to user
-  - INSERT into `cash_movements`
+  - Requires a real transaction (`tx pgx.Tx`) — no nil-`tx` fallback, so the `FOR UPDATE` shift lock in `CloseShiftTx` is always effective.
+  - Checks shift is open and belongs to user (locked read), INSERTs into `cash_movements`
 - `ListCashMovements(ctx, shiftID) ([]CashMovement, error)`
   - SELECT with username resolution via `UsernameProvider`
-- `ShiftCashMovementSummary(ctx, tx, shiftID) (CashMovementSummary, error)`
+- `ShiftCashMovementSummary(ctx, shiftID) (CashMovementSummary, error)`
+  - Pure aggregate read over the pool (no `tx` param, no lock needed)
   - Aggregate query:
     ```sql
     SELECT
@@ -223,48 +224,52 @@ Add to `Repo` interface:
 ```go
 CreateCashMovement(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
 ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error)
-ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error)
+ShiftCashMovementSummary(ctx context.Context, shiftID int) (CashMovementSummary, error)
 ```
 
 Add service methods:
-- `RecordCashMovement(ctx, shiftID, userID, movementType, amount, description) (*CashMovement, error)`
-  - Validates type is one of: `cash_drop`, `paid_in`, `paid_out`
+- `CreateCashMovement(ctx, shiftID, userID, movementType, amount, description) (*CashMovement, error)`
   - Validates amount > 0
-  - Delegates to repo within a transaction that also creates an audit log
-- `GetCashMovements(ctx, shiftID) ([]CashMovement, error)`
-- `GetCashMovementSummary(ctx, shiftID) (CashMovementSummary, error)`
+  - Wraps `CreateCashMovementTx` in `InTx(...)` so the movement records atomically with the shift lock
+  - Audit log created best-effort by the handler (`handler.go` — non-transactional)
+- `CreateCashMovementTx(ctx, tx, shiftID, userID, movementType, amount, description) (*CashMovement, error)`
+  - Same validation as above; calls `repo.CreateCashMovement(ctx, tx, ...)` within an existing transaction
+- `ListCashMovements(ctx, shiftID) ([]CashMovement, error)`
+- `ShiftCashMovementSummary(ctx, shiftID) (CashMovementSummary, error)`
 
-### Step 2.5 — Update shift close formula
+### Step 2.5 — Surface cash movements in report data
 
-> **Status:** ✅ Completed
+> **Status:** ✅ Completed (scope-adjusted)
 
-The close formula now includes cash movements via `ShiftCashMovementSummary`.
-
-**File:** `internal/shift/repository.go` — `CloseShiftTx()` (line 210-215)
-
-**What to change:**
-After computing `summary` (line 210), also compute cash movement summary:
-```go
-movementSummary, err := r.ShiftCashMovementSummary(ctx, tx, shiftID)
-if err != nil {
-    return nil, fmt.Errorf("failed to calculate cash movements: %w", err)
-}
-
-// Expected cash = opening + cash_sales - cash_drops + paid_ins - paid_outs
-expectedCash := shift.OpeningBalance + summary.TotalCashSales + movementSummary.NetEffect
-discrepancy := closingBalance - expectedCash
-```
-
-Update the `discrepancy` calculation and the `needs_review` check. Also add movement totals to the returned shift response.
+Cash movement totals are exposed through the shift report (`ReportData.CashMovementSummary`) rather than folded into the `CloseShiftTx` discrepancy formula.
 
 **File:** `internal/shift/domain.go`
 
-Add fields to `Shift` struct:
+Add `CashMovementSummary` to `ReportData`:
 ```go
-CashDropTotal  int `json:"cash_drop_total,omitempty"`
-PaidInTotal    int `json:"paid_in_total,omitempty"`
-PaidOutTotal   int `json:"paid_out_total,omitempty"`
+type ReportData struct {
+	Shift
+	DurationMinutes     int                         `json:"duration_minutes"`
+	PaymentBreakdown    []shared.PaymentMethodTotal `json:"payment_breakdown"`
+	CashMovementSummary CashMovementSummary         `json:"cash_movement_summary"`
+}
 ```
+
+**File:** `internal/shift/repository.go` — `GetShiftReportData()` (line 657)
+
+After building the report, attach the movement summary (best-effort read; a failure leaves the zero-value summary rather than failing the whole report):
+```go
+movementSummary, err := r.ShiftCashMovementSummary(ctx, shiftID)
+if err == nil {
+	report.CashMovementSummary = movementSummary
+}
+```
+
+> **Note:** The `CloseShiftTx` discrepancy formula (`repository.go:229`) intentionally does **not** include the cash-movement net effect:
+> ```go
+> discrepancy := closingBalance - shift.OpeningBalance - summary.TotalCashSales
+> ```
+> Movements affect the *reported* expected/actual reconciliation in the Z-report, but the existing `needs_review` heuristic continues to compare drawn cash against the float + cash-sales figure. Revisit if reconciliation accuracy across cash drops is ever surfaced as a requirement.
 
 ### Step 2.6 — Handler layer
 
@@ -274,12 +279,12 @@ PaidOutTotal   int `json:"paid_out_total,omitempty"`
 
 Add routes to `RegisterRoutes`:
 ```go
-r.POST("/shifts/:id/cash-movements", auth, perm(permissions.ShiftCashMovement), h.RecordCashMovement)
+r.POST("/shifts/:id/cash-movements", auth, perm(permissions.ShiftCashMovement), h.CreateCashMovement)
 r.GET("/shifts/:id/cash-movements", auth, perm(permissions.ShiftView), h.ListCashMovements)
 ```
 
 Add handlers:
-- `RecordCashMovement` — validates request body `{type, amount, description}`, calls service, creates audit log
+- `CreateCashMovement` — validates request body `{type, amount, description}`, calls service, creates audit log (best-effort)
 - `ListCashMovements` — returns movements list for a shift
 
 **File:** `internal/permissions/permissions.go`
@@ -735,7 +740,7 @@ onDestroy(() => {
 | 2 | `internal/shift/repository.go` | Cash movement CRUD, updated close formula |
 | 2 | `internal/shift/service.go` | Cash movement service methods, updated interface |
 | 2 | `internal/shift/handler.go` | Cash movement endpoints, route registration |
-| 2 | `internal/shift/domain.go` | CashMovement type, CashMovementSummary, Shift fields |
+| 2 | `internal/shift/domain.go` | CashMovement type, CashMovementSummary, ReportData.CashMovementSummary |
 | 2 | `internal/permissions/permissions.go` | Add `ShiftCashMovement` constant |
 | 2 | `web/src/modules/shifts/services/shift-service.ts` | Cash movement API functions |
 | 2 | `web/src/modules/shifts/types/index.ts` | CashMovement type |
@@ -748,7 +753,7 @@ onDestroy(() => {
 | 3 | `web/src/modules/admin/components/SettingsPage.svelte` | Shift settings section |
 | 3 | `web/src/shared/stores/settings.svelte.ts` | New setting keys |
 | 4 | `internal/shift/repository.go` | GetShiftReportData |
-| 4 | `internal/shift/domain.go` | ShiftReportData, PaymentMethodTotal |
+| 4 | `internal/shift/domain.go` | ShiftReportData (ReportData), PaymentMethodTotal |
 | 4 | `internal/shift/handler.go` | GetShiftReport endpoint |
 | 4 | `internal/sale/shift_summary.go` | PaymentMethodBreakdown |
 | 4 | `web/src/modules/shifts/services/shift-service.ts` | getShiftReport |

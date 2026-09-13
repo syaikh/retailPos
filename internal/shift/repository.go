@@ -654,6 +654,11 @@ func (r *Repository) GetShiftReportData(ctx context.Context, shiftID int) (*Repo
 		}
 	}
 
+	movementSummary, err := r.ShiftCashMovementSummary(ctx, shiftID)
+	if err == nil {
+		report.CashMovementSummary = movementSummary
+	}
+
 	return report, nil
 }
 

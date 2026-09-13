@@ -954,7 +954,7 @@
     <Button
       variant="danger"
       class="px-5"
-      disabled={isSubmitting || closingBalance <= 0}
+      disabled={isSubmitting || closingBalance < 0}
       onclick={handleCloseShift}
     >
       {#if isSubmitting}<Loader2 size={16} class="animate-spin mr-2" />{/if}

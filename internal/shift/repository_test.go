@@ -77,6 +77,20 @@ func createOpenShift(ctx context.Context, t *testing.T, repo *Repository, userID
 	return shift
 }
 
+// createCashMovementTx records a cash movement inside a transaction, committing
+// it on success. Mirrors the repository contract that movements require a real
+// transaction (see service.CreateCashMovement, which wraps this in InTx).
+func createCashMovementTx(ctx context.Context, t *testing.T, repo *Repository, shiftID, userID int, movementType string, amount int, description *string) *CashMovement {
+	t.Helper()
+	tx, err := dbPool.Begin(ctx)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(ctx) }()
+	m, err := repo.CreateCashMovement(ctx, tx, shiftID, userID, movementType, amount, description)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit(ctx))
+	return m
+}
+
 func TestShiftRepository_OpenShift(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := newTestRepo(t)
@@ -813,4 +827,202 @@ func TestShiftRepository_ListOpenShiftsOlderThan(t *testing.T) {
 		assert.Equal(t, storeID, *shifts[0].StoreID)
 		assert.NotEmpty(t, shifts[0].OpenedAt)
 	})
+}
+
+func TestShiftRepository_CreateCashMovement(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := newTestRepo(t)
+	ctx := context.Background()
+
+	t.Run("records movement on open shift owned by cashier", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+		desc := "deposit excess cash"
+
+		m := createCashMovementTx(ctx, t, repo, shift.ID, userID, "cash_drop", 50000, &desc)
+		assert.Equal(t, shift.ID, m.ShiftID)
+		assert.Equal(t, userID, m.UserID)
+		assert.Equal(t, "cash_drop", m.Type)
+		assert.Equal(t, 50000, m.Amount)
+		require.NotNil(t, m.Description)
+		assert.Equal(t, desc, *m.Description)
+		assert.NotEmpty(t, m.CreatedAt)
+		assert.Empty(t, m.Username, "bare movement is not joined with a username")
+
+		var count int
+		require.NoError(t, dbPool.QueryRow(ctx,
+			`SELECT COUNT(*) FROM cash_movements WHERE shift_id = $1`, shift.ID).Scan(&count))
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("records movement within an explicit transaction", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		tx, err := dbPool.Begin(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		desc := "tx movement"
+		m, err := repo.CreateCashMovement(ctx, tx, shift.ID, userID, "paid_out", 20000, &desc)
+		require.NoError(t, err)
+		assert.Equal(t, "paid_out", m.Type)
+		assert.Equal(t, 20000, m.Amount)
+		require.NoError(t, tx.Commit(ctx))
+
+		var count int
+		require.NoError(t, dbPool.QueryRow(ctx,
+			`SELECT COUNT(*) FROM cash_movements WHERE shift_id = $1`, shift.ID).Scan(&count))
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("rejects invalid movement type", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		tx, err := dbPool.Begin(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		_, err = repo.CreateCashMovement(ctx, tx, shift.ID, userID, "deposit", 50000, nil)
+		assert.ErrorIs(t, err, ErrInvalidMovementType)
+	})
+
+	t.Run("rejects movement on closed shift", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		_, err := repo.CloseShift(ctx, shift.ID, userID, 100000, nil)
+		require.NoError(t, err)
+
+		tx, err := dbPool.Begin(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		_, err = repo.CreateCashMovement(ctx, tx, shift.ID, userID, "paid_in", 1000, nil)
+		assert.ErrorIs(t, err, ErrShiftClosed)
+	})
+
+	t.Run("rejects movement by non-owner", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		otherID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		tx, err := dbPool.Begin(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		_, err = repo.CreateCashMovement(ctx, tx, shift.ID, otherID, "paid_in", 1000, nil)
+		assert.ErrorIs(t, err, ErrNotShiftOwner)
+	})
+
+	t.Run("rejects movement on missing shift", func(t *testing.T) {
+		tx, err := dbPool.Begin(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		_, err = repo.CreateCashMovement(ctx, tx, 999999, 1, "paid_in", 1000, nil)
+		assert.ErrorContains(t, err, "shift not found")
+	})
+}
+
+func TestShiftRepository_ShiftCashMovementSummary(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := newTestRepo(t)
+	ctx := context.Background()
+
+	t.Run("summarizes recorded movements", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		record := func(mtype string, amount int) {
+			t.Helper()
+			createCashMovementTx(ctx, t, repo, shift.ID, userID, mtype, amount, nil)
+		}
+		record("cash_drop", 100000)
+		record("paid_in", 50000)
+		record("paid_out", 20000)
+		record("cash_drop", 30000)
+
+		sum, err := repo.ShiftCashMovementSummary(ctx, shift.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 130000, sum.CashDrops)
+		assert.Equal(t, 50000, sum.PaidIns)
+		assert.Equal(t, 20000, sum.PaidOuts)
+		assert.Equal(t, -100000, sum.NetEffect) // -130000 + 50000 - 20000
+	})
+
+	t.Run("returns zero summary for shift without movements", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		sum, err := repo.ShiftCashMovementSummary(ctx, shift.ID)
+		require.NoError(t, err)
+		assert.Equal(t, CashMovementSummary{}, sum)
+	})
+
+	t.Run("summarizes movements recorded within an explicit transaction", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		createCashMovementTx(ctx, t, repo, shift.ID, userID, "paid_out", 25000, nil)
+
+		sum, err := repo.ShiftCashMovementSummary(ctx, shift.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 25000, sum.PaidOuts)
+		assert.Equal(t, -25000, sum.NetEffect)
+	})
+}
+
+func TestShiftRepository_ListCashMovements(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := newTestRepo(t)
+	ctx := context.Background()
+
+	t.Run("lists movements with usernames in ascending order", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		createCashMovementTx(ctx, t, repo, shift.ID, userID, "cash_drop", 50000, nil)
+		createCashMovementTx(ctx, t, repo, shift.ID, userID, "paid_in", 10000, nil)
+
+		movements, err := repo.ListCashMovements(ctx, shift.ID)
+		require.NoError(t, err)
+		require.Len(t, movements, 2)
+		assert.Equal(t, "cash_drop", movements[0].Type)
+		assert.Equal(t, "paid_in", movements[1].Type)
+		assert.NotEmpty(t, movements[0].Username)
+		assert.Equal(t, movements[0].Username, movements[1].Username)
+	})
+
+	t.Run("returns empty slice when no movements", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
+
+		movements, err := repo.ListCashMovements(ctx, shift.ID)
+		require.NoError(t, err)
+		assert.Len(t, movements, 0)
+	})
+}
+
+func TestShiftRepository_GetShiftReportData_AggregatesCashMovements(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := newTestRepo(t)
+	ctx := context.Background()
+
+	userID := insertTestUser(ctx, t, 1)
+	shift := createOpenShift(ctx, t, repo, userID)
+
+	createCashMovementTx(ctx, t, repo, shift.ID, userID, "cash_drop", 100000, nil)
+	createCashMovementTx(ctx, t, repo, shift.ID, userID, "paid_out", 25000, nil)
+	createCashMovementTx(ctx, t, repo, shift.ID, userID, "paid_in", 10000, nil)
+
+	report, err := repo.GetShiftReportData(ctx, shift.ID)
+	require.NoError(t, err)
+	require.NotNil(t, report)
+	assert.Equal(t, shift.ID, report.Shift.ID)
+	assert.Equal(t, 100000, report.CashMovementSummary.CashDrops)
+	assert.Equal(t, 10000, report.CashMovementSummary.PaidIns)
+	assert.Equal(t, 25000, report.CashMovementSummary.PaidOuts)
+	assert.Equal(t, -115000, report.CashMovementSummary.NetEffect)
 }

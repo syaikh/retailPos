@@ -21,7 +21,7 @@ type Repo interface {
 	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	CreateCashMovement(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
 	ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error)
-	ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error)
+	ShiftCashMovementSummary(ctx context.Context, shiftID int) (CashMovementSummary, error)
 	GetShiftReportData(ctx context.Context, shiftID int) (*ReportData, error)
 }
 
@@ -142,7 +142,13 @@ func (s *service) CreateCashMovement(ctx context.Context, shiftID, userID int, m
 	if amount <= 0 {
 		return nil, fmt.Errorf("amount must be greater than zero")
 	}
-	return s.repo.CreateCashMovement(ctx, nil, shiftID, userID, movementType, amount, description)
+	var movement *CashMovement
+	err := s.InTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		movement, err = s.CreateCashMovementTx(ctx, tx, shiftID, userID, movementType, amount, description)
+		return err
+	})
+	return movement, err
 }
 
 func (s *service) CreateCashMovementTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error) {
@@ -156,8 +162,8 @@ func (s *service) ListCashMovements(ctx context.Context, shiftID int) ([]CashMov
 	return s.repo.ListCashMovements(ctx, shiftID)
 }
 
-func (s *service) ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error) {
-	return s.repo.ShiftCashMovementSummary(ctx, tx, shiftID)
+func (s *service) ShiftCashMovementSummary(ctx context.Context, shiftID int) (CashMovementSummary, error) {
+	return s.repo.ShiftCashMovementSummary(ctx, shiftID)
 }
 
 func (s *service) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {

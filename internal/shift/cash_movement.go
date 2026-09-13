@@ -119,9 +119,9 @@ func (r *Repository) ListCashMovements(ctx context.Context, shiftID int) ([]Cash
 	return movements, nil
 }
 
-func (r *Repository) ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error) {
+func (r *Repository) ShiftCashMovementSummary(ctx context.Context, shiftID int) (CashMovementSummary, error) {
 	var s CashMovementSummary
-	err := tx.QueryRow(ctx, `
+	err := r.db.QueryRow(ctx, `
 		SELECT
 			COALESCE(SUM(CASE WHEN type = 'cash_drop' THEN amount ELSE 0 END), 0),
 			COALESCE(SUM(CASE WHEN type = 'paid_in' THEN amount ELSE 0 END), 0),

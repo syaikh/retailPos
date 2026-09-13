@@ -30,7 +30,9 @@
   const counts: Record<number, number> = $state({});
 
   $effect(() => {
-    total = Object.entries(counts).reduce(
+    const entries = Object.entries(counts);
+    if (entries.length === 0) return;
+    total = entries.reduce(
       (sum, [denom, count]) => sum + Number(denom) * count,
       0,
     );

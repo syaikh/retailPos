@@ -6,6 +6,8 @@
   import { labels } from "$shared/i18n";
   import type { Shift } from "../types";
   import ShiftReport from "./ShiftReport.svelte";
+  import { listCashMovements } from "../services/shift-service";
+  import type { CashMovement } from "../types";
 
   let {
     selectedShift,
@@ -37,6 +39,39 @@
   function formatDateTime(dateStr: string | null) {
     if (!dateStr) return "-";
     return formatDateTimeInJakarta(dateStr);
+  }
+
+  let cashMovements = $state<CashMovement[]>([]);
+  let movementsLoading = $state(false);
+
+  $effect(() => {
+    if (showDetailDrawer && selectedShift) {
+      loadCashMovements(selectedShift.id);
+    }
+  });
+
+  async function loadCashMovements(shiftId: number) {
+    movementsLoading = true;
+    cashMovements = [];
+    try {
+      cashMovements = await listCashMovements(shiftId);
+    } catch {
+      cashMovements = [];
+    } finally {
+      movementsLoading = false;
+    }
+  }
+
+  function movementLabel(type: CashMovement["type"]) {
+    return type === "paid_in"
+      ? labels.paidIn
+      : type === "paid_out"
+        ? labels.paidOut
+        : labels.cashDrop;
+  }
+
+  function isPositive(type: CashMovement["type"]) {
+    return type === "paid_in";
   }
 </script>
 
@@ -176,6 +211,60 @@
                   selectedShift.discrepancy,
                 )}
               </span>
+            </div>
+          {/if}
+        </div>
+      </div>
+
+      <div
+        class="rounded-2xl bg-surface-default border border-border overflow-hidden"
+      >
+        <div
+          class="px-4 py-2 border-b border-border/60 flex items-center gap-1.5"
+        >
+          <span class="text-base leading-none">💸</span>
+          <h4
+            class="text-xs font-semibold uppercase tracking-wide text-text-muted/80"
+          >
+            {labels.cashMovements}
+          </h4>
+        </div>
+        <div class="p-4 space-y-3">
+          {#if movementsLoading}
+            <p class="text-sm text-text-muted">{labels.loading}</p>
+          {:else if cashMovements.length === 0}
+            <p class="text-sm text-text-muted">{labels.noCashMovements}</p>
+          {:else}
+            <div class="space-y-3">
+              {#each cashMovements as m (m.id)}
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span
+                        class="text-xs font-semibold {isPositive(m.type)
+                          ? 'text-success'
+                          : 'text-danger'}"
+                      >
+                        {movementLabel(m.type)}
+                      </span>
+                      <span class="text-xs text-text-muted/70"
+                        >{formatDateTime(m.created_at)}</span
+                      >
+                    </div>
+                    {#if m.description}
+                      <p class="text-xs text-text-muted truncate max-w-[220px]">
+                        {m.description}
+                      </p>
+                    {/if}
+                  </div>
+                  <span
+                    class="text-sm font-bold {isPositive(m.type)
+                      ? 'text-success'
+                      : 'text-danger'}"
+                    >{isPositive(m.type) ? "+" : "-"}{formatMoney(m.amount)}</span
+                  >
+                </div>
+              {/each}
             </div>
           {/if}
         </div>

@@ -299,3 +299,67 @@ func TestShiftService_FlagForReview(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestShiftService_CashMovements(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	_ = shared.TruncateTestData(dbPool)
+	repo := newTestRepo(t)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	t.Run("records, lists and summarizes via service path", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift, err := svc.OpenShift(ctx, userID, nil, 100000)
+		require.NoError(t, err)
+
+		desc := "service movement"
+		m, err := svc.CreateCashMovement(ctx, shift.ID, userID, "cash_drop", 75000, &desc)
+		require.NoError(t, err)
+		assert.Equal(t, shift.ID, m.ShiftID)
+		assert.Equal(t, "cash_drop", m.Type)
+		assert.Equal(t, 75000, m.Amount)
+
+		_, err = svc.CreateCashMovement(ctx, shift.ID, userID, "paid_in", 15000, nil)
+		require.NoError(t, err)
+
+		list, err := svc.ListCashMovements(ctx, shift.ID)
+		require.NoError(t, err)
+		require.Len(t, list, 2)
+		assert.NotEmpty(t, list[0].Username)
+
+		sum, err := svc.ShiftCashMovementSummary(ctx, shift.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 75000, sum.CashDrops)
+		assert.Equal(t, 15000, sum.PaidIns)
+		assert.Equal(t, 0, sum.PaidOuts)
+		assert.Equal(t, -60000, sum.NetEffect)
+	})
+
+	t.Run("validates amount is positive", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift, err := svc.OpenShift(ctx, userID, nil, 100000)
+		require.NoError(t, err)
+
+		_, err = svc.CreateCashMovement(ctx, shift.ID, userID, "paid_in", 0, nil)
+		assert.ErrorContains(t, err, "amount must be greater than zero")
+	})
+
+	t.Run("service report aggregates cash movements", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+		shift, err := svc.OpenShift(ctx, userID, nil, 100000)
+		require.NoError(t, err)
+
+		_, err = svc.CreateCashMovement(ctx, shift.ID, userID, "paid_out", 20000, nil)
+		require.NoError(t, err)
+
+		report, err := svc.GetShiftReportData(ctx, shift.ID)
+		require.NoError(t, err)
+		require.NotNil(t, report)
+		assert.Equal(t, 0, report.CashMovementSummary.CashDrops)
+		assert.Equal(t, 0, report.CashMovementSummary.PaidIns)
+		assert.Equal(t, 20000, report.CashMovementSummary.PaidOuts)
+		assert.Equal(t, -20000, report.CashMovementSummary.NetEffect)
+	})
+}

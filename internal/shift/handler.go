@@ -38,7 +38,7 @@ type Service interface {
 	CreateCashMovement(ctx context.Context, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
 	CreateCashMovementTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
 	ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error)
-	ShiftCashMovementSummary(ctx context.Context, tx pgx.Tx, shiftID int) (CashMovementSummary, error)
+	ShiftCashMovementSummary(ctx context.Context, shiftID int) (CashMovementSummary, error)
 	GetShiftReportData(ctx context.Context, shiftID int) (*ReportData, error)
 	InTx(ctx context.Context, fn func(tx pgx.Tx) error) error
 }
