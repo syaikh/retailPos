@@ -468,7 +468,7 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	// have store_id NULL).
 	if _, err := db.ExecContext(ctx, `
 		UPDATE users SET store_id = (
-			SELECT id FROM stores WHERE deleted_at IS NULL ORDER BY id LIMIT 1
+			SELECT id FROM stores WHERE is_active = true ORDER BY id LIMIT 1
 		)
 		WHERE store_id IS NULL
 		AND role_id IN (SELECT id FROM roles WHERE name IN ('manager', 'admin', 'cashier'))`); err != nil {
@@ -2725,7 +2725,7 @@ func ensureCashierUsers(ctx context.Context, db *sql.DB, minCashiers, maxCashier
 
 	// Resolve a valid store_id for cashiers (use the first active store).
 	var storeID sql.NullInt64
-	_ = db.QueryRowContext(ctx, `SELECT id FROM stores WHERE deleted_at IS NULL ORDER BY id LIMIT 1`).Scan(&storeID)
+	_ = db.QueryRowContext(ctx, `SELECT id FROM stores WHERE is_active = true ORDER BY id LIMIT 1`).Scan(&storeID)
 
 	for i := 0; i < needed; i++ {
 		idx := current + i + 1

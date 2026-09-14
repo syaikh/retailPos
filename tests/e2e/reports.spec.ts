@@ -19,7 +19,12 @@ test.describe('Reports & Analytics', () => {
   });
 
   test('should display revenue chart', async ({ page }) => {
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 15000 });
+    // Realtime view has no completed hours during Jakarta hour 0 (00:00-00:59),
+    // in which case ChartArea shows the empty state instead of a canvas.
+    const chartOrEmpty = page
+      .locator('canvas')
+      .or(page.getByText('No data available'));
+    await expect(chartOrEmpty.first()).toBeVisible({ timeout: 15000 });
   });
 
   test('should display period selector and change period', async ({ page }) => {
