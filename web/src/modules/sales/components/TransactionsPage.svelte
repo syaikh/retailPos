@@ -124,7 +124,7 @@
 
   // Stamp the last successful fetch time (covers filters, pagination, refresh).
   $effect(() => {
-    store.salesData;
+    void store.salesData;
     lastUpdated = new Date();
   });
 

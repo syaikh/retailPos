@@ -82,12 +82,12 @@
   }
 
   $effect(() => {
-    store.statusFilter;
-    store.needsReviewFilter;
-    store.discrepancyFilter;
-    store.userIdFilter;
-    store.sortBy;
-    store.sortDir;
+    void store.statusFilter;
+    void store.needsReviewFilter;
+    void store.discrepancyFilter;
+    void store.userIdFilter;
+    void store.sortBy;
+    void store.sortDir;
     store.page = 0;
     loadShifts();
   });

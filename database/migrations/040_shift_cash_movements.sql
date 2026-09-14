@@ -20,15 +20,18 @@ CREATE INDEX idx_cash_movements_shift_type ON cash_movements(shift_id, type);
 
 -- Permissions
 INSERT INTO permissions (code, name, description) VALUES
-    ('shift.cash_movement', 'Shift Cash Movement', 'Record cash drop / paid in / paid out');
+    ('shift.cash_movement', 'Shift Cash Movement', 'Record cash drop / paid in / paid out')
+ON CONFLICT (code) DO NOTHING;
 
 -- Cashier: record own movements on own shifts
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name = 'cashier' AND p.code = 'shift.cash_movement';
+WHERE r.name = 'cashier' AND p.code = 'shift.cash_movement'
+ON CONFLICT DO NOTHING;
 
 -- Manager, admin, superadmin: full access
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name IN ('manager', 'admin', 'superadmin')
-AND p.code = 'shift.cash_movement';
+AND p.code = 'shift.cash_movement'
+ON CONFLICT DO NOTHING;

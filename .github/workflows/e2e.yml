@@ -33,12 +33,12 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: 'npm'
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.26'
           cache: true
@@ -55,13 +55,14 @@ jobs:
         env:
           PGPASSWORD: admin123
         run: |
+          set -euo pipefail
           if ! command -v psql >/dev/null 2>&1; then
             sudo apt-get update && sudo apt-get install -y postgresql-client
           fi
-          psql -h localhost -p 5433 -U pos -d retail_pos -c "CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY)"
+          psql -h localhost -p 5433 -U pos -d retail_pos -v ON_ERROR_STOP=1 -c "CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY)"
           for f in database/migrations/*.sql; do
             echo "Applying $f"
-            psql -h localhost -p 5433 -U pos -d retail_pos -f "$f"
+            psql -h localhost -p 5433 -U pos -d retail_pos -v ON_ERROR_STOP=1 -f "$f"
           done
           echo "migrations done"
       - name: Seed dummy data
@@ -71,7 +72,7 @@ jobs:
       - name: Verify DB users
         env:
           PGPASSWORD: admin123
-        run: psql -h localhost -p 5433 -U pos -d retail_pos -c "SELECT username, is_active, substring(password_hash,1,7) AS hash_prefix FROM users WHERE username IN ('superadmin','admin','manager','cashier', 'staff') ORDER BY username"
+        run: psql -h localhost -p 5433 -U pos -d retail_pos -c "SELECT username, is_active, substring(password_hash,1,7) AS hash_prefix FROM users WHERE username IN ('superadmin','manager','supervisor','cashier', 'inventory_staff') ORDER BY username"
       - name: Start backend
         env:
           DB_HOST: localhost
@@ -144,13 +145,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v4
         with:
           pattern: report-*
           path: .
           merge-multiple: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
       - run: npx playwright merge-reports blob-reports --reporter html

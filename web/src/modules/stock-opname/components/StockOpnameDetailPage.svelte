@@ -149,8 +149,8 @@
   );
 
   $effect(() => {
-    searchQuery;
-    statusFilter;
+    void searchQuery;
+    void statusFilter;
     pageOffset = 0;
   });
 

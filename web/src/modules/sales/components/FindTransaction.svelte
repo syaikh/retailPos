@@ -136,7 +136,7 @@
   // results" message only appears after a real search, not while the cashier is
   // still typing/pasting the receipt number.
   $effect(() => {
-    searchQuery;
+    void searchQuery;
     hasSearched = false;
   });
 
