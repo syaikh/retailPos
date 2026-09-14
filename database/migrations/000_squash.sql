@@ -1252,7 +1252,8 @@ INSERT INTO roles (name, description, is_system) VALUES
     ('manager', 'Manajer Toko — pengelolaan toko secara penuh', True),
     ('supervisor', 'Supervisor — pengawasan operasional harian', True),
     ('cashier', 'Kasir', True),
-    ('inventory_staff', 'Staf Inventaris — pengelolaan stok dan opname', True)
+    ('inventory_staff', 'Staf Inventaris — pengelolaan stok dan opname', True),
+    ('finance', 'Keuangan — mencatat pembayaran supplier dan melihat laporan', True)
 ON CONFLICT (name) DO NOTHING;
 
 -- Payment methods
@@ -1645,6 +1646,11 @@ INSERT INTO users (username, email, password_hash, role_id, reports_to, is_activ
 SELECT 'inventory_staff', 'inventory_staff@retailpos.local', crypt('admin123', gen_salt('bf', 14)), r.id,
        (SELECT id FROM users WHERE username = 'supervisor'), true
 FROM roles r WHERE r.name = 'inventory_staff'
+ON CONFLICT (username) DO NOTHING;
+
+INSERT INTO users (username, email, password_hash, role_id, is_active)
+SELECT 'finance', 'finance@retailpos.local', crypt('admin123', gen_salt('bf', 14)), r.id, true
+FROM roles r WHERE r.name = 'finance'
 ON CONFLICT (username) DO NOTHING;
 
 COMMIT;

@@ -20,18 +20,22 @@ SERVER_BINARY="/tmp/retail-pos-server"
 echo "Starting server in $ENV mode on port $PORT"
 echo "Connecting to database: $DATABASE_URL"
 
-# Check if postgres-dev container exists and is running
-if ! podman inspect --format '{{.State.Running}}' postgres-dev 2>/dev/null | grep -q "true"; then
+# Check if the target database port is already reachable.
+DB_PORT="${DATABASE_PORT:-5433}"
+if pg_isready -h localhost -p "$DB_PORT" -U "${DB_USER:-pos}" >/dev/null 2>&1; then
+  echo "Postgres already reachable on port $DB_PORT."
+elif podman inspect --format '{{.State.Running}}' postgres-dev 2>/dev/null | grep -q "true"; then
+  echo "postgres-dev already running."
+else
   if podman ps -a --filter name="^/postgres-dev$" --format '{{.Names}}' 2>/dev/null | grep -q "postgres-dev"; then
     echo "postgres-dev container is not running, starting it..."
     podman start postgres-dev
   else
-    echo "Error: postgres-dev container does not exist. Create it first."
+    echo "Error: no postgres on port $DB_PORT and no postgres-dev container to start."
     exit 1
   fi
 
   echo "Waiting for postgres-dev to be ready..."
-  DB_PORT="${DATABASE_PORT:-5433}"
   for i in $(seq 1 30); do
     if pg_isready -h localhost -p "$DB_PORT" -U "${DB_USER:-pos}" >/dev/null 2>&1; then
       echo "postgres-dev is ready."

@@ -674,7 +674,7 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 	rows, err := conn.QueryContext(ctx, `
 		SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.reports_to, u.is_active, u.store_id
 		FROM users u
-		WHERE u.username IN ('superadmin', 'manager', 'supervisor', 'cashier', 'inventory_staff')`)
+		WHERE u.username IN ('superadmin', 'manager', 'supervisor', 'cashier', 'inventory_staff', 'finance')`)
 	if err == nil {
 		for rows.Next() {
 			var u sysUser
