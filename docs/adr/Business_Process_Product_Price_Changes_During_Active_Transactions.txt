@@ -59,7 +59,7 @@ Kasir scan Indomie
 
 Sale Item: Product : Indomie Unit Price : Rp3.500
 
-Pukul 09:10 admin mengubah harga menjadi Rp3.000.
+Pukul 09:10 manager mengubah harga menjadi Rp3.000.
 
 Sale Item tetap: Unit Price = Rp3.500
 
@@ -132,7 +132,7 @@ Keuntungan Pendekatan Ini
 Ringkasan Business Rules
 
 -   Scan item → snapshot harga disimpan pada Sale Item.
--   Admin mengubah harga → hanya memengaruhi item yang discan setelah
+-   Manager mengubah harga → hanya memengaruhi item yang discan setelah
     perubahan.
 -   Resume transaksi hold → harga item lama tetap digunakan.
 -   Tambah item setelah resume → menggunakan harga terbaru.

@@ -74,7 +74,7 @@ The Transactions page layout depends on the caller's permissions:
 - **Cashier** (`sale.lookup`, no `report.view`): two tabs — "My Transactions" (own sales)
    and "Find Transaction" (cross-cashier, redacted, `completed`-only, **invoice-lookup only — no browsable list**). This is where the
     cross-cashier capability is needed.
-- **Manager / admin / superadmin** (`report.view`): **no tab bar at all**. `GET /sales`
+- **Manager / supervisor / finance / superadmin** (`report.view`): **no tab bar at all**. `GET /sales`
   (My Transactions) already returns every cashier's sales — full detail, all statuses —
   for these roles via `ownership.CanAccessAll(permissions.ReportView)`. A separate
   "My Transactions" tab would be redundant (it already shows all cashiers), and the Find
@@ -83,8 +83,10 @@ The Transactions page layout depends on the caller's permissions:
   higher roles to the pre-"Find Transaction" single-view layout.
 - **Plain user** (neither): "My Transactions" only (own sales), no Find Transaction tab.
 
-`sale.lookup` is granted to the **cashier** role only; the manager grant is revoked
-(migration `031_revoke_sale_lookup_manager.sql`). Admin/superadmin never held it.
+`sale.lookup` is granted to the **cashier** role only; the grant was revoked from the
+supervisor role (migration `031_revoke_sale_lookup_manager.sql`, applied to the role then
+named "manager"; 031 predates the rename and kept the old name). Manager/superadmin never
+held it.
 
 This keeps the cross-cashier lookup where it is needed (cashiers) and gives higher roles a
 single, uncluttered all-cashier view.
@@ -117,7 +119,7 @@ A cashier who locates a sale can drill into a **read-only itemized receipt** and
 - **Drill-down detail**: `GET /sales/lookup/:id` (permission `sale.detail`) returns the
   redacted itemized detail (line items for the receipt, payments without reference).
   Cross-cashier, no ownership gate — access control is the `sale.detail` permission itself.
-  Granted to cashier, manager, admin, and superadmin (migration
+  Granted to cashier, supervisor, manager, and superadmin (migration
   `032_sale_detail_and_receipt_print.sql`).
 - **Reprint**: gated by `receipt.print` (new). Granted to the same roles. In the Find
   Transaction drawer the Print (reprint) button is shown only in lookup mode and only when
@@ -128,7 +130,7 @@ A cashier who locates a sale can drill into a **read-only itemized receipt** and
     reprinted receipt shows the generic walk-in label.
   - Payment tender **reference numbers are omitted** (payments carry only method + amount).
   - Store scoping is preserved (the underlying `GetSaleByID` still scopes by `store_id`).
-- **Manager / admin / superadmin** do not see the Find Transaction tab (they have
+- **Manager / supervisor / finance / superadmin** do not see the Find Transaction tab (they have
   `report.view` → single untabbed all-cashier view), so they reach full detail through that
   list, not this redacted endpoint. Holding `sale.detail`/`receipt.print` keeps the
   permission hierarchy coherent.

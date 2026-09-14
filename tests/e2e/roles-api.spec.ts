@@ -84,7 +84,7 @@ test.describe('Roles API - Delete Role', () => {
     expect(list.find((r: any) => r.id === id)).toBeUndefined();
   });
 
-  test('DELETE returns 400 for role with assigned users (admin, id=2)', async ({ request }) => {
+  test('DELETE returns 400 for role with assigned users (manager, id=2)', async ({ request }) => {
     const api = await apiAs(request, 'superadmin');
     const res = await api.del('/api/admin/roles/2');
     expect(res.status).toBe(400);

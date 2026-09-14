@@ -700,55 +700,54 @@ Current migrations:
 
 | Role | Username | Password | Description |
 |------|----------|----------|-------------|
-| Superadmin | `superadmin` | `admin123` | All permissions (84 including consignment.*, app_settings.*, audit.*) |
-| Admin | `admin` | `admin123` | Operational management: user CRUD, product/category/customer/pricing full CRUD, PO, stock opname, audit view+export (without user.delete, role.update/delete, app_settings.update, purchase_order.delete) |
-| Manager | `manager` | `admin123` | Store operator: product/category/customer full CRUD, pricing, PO, stock opname, consignment view/create/update/settle, shifts |
+| Superadmin | `superadmin` | `admin123` | All permissions (85 including consignment.*, app_settings.*, audit.*) |
+| Manager | `manager` | `admin123` | Operational management: user CRUD (no delete), product/category/customer/pricing full CRUD, PO, stock opname, consignment view/create/update/settle/pay, store management, audit view+export (without user.delete, role.update/delete, app_settings.update, purchase_order.delete) |
+| Supervisor | `supervisor` | `admin123` | Store operator: product/category/customer full CRUD, pricing, PO, stock opname, consignment view/create/update/settle, shifts, POS sales (sale.create) |
 | Cashier | `cashier` | `admin123` | POS: create/view sales, park, shift, stock count, dashboard, category/pricing/customer_group view, Find Transaction lookup |
-| Staff | `staff` | `admin123` | View-only: product + stock opname counting + category view |
+| Inventory Staff | `inventory_staff` | `admin123` | Stock ops: inventory.adjust, stock opname full lifecycle (create/assign/count/verify/post/close/export/report), storage location manage |
 
 Change password in production via the UI change-password. (Default user password seeds previously lived in `database/seeds/`, which was retired; the default `admin123` users are created in `database/migrations/000_squash.sql`.)
 
 ### Permission Matrix
 
-Permissions use **dot-notation** (`entity.action`), e.g.: `user.view`, `product.create`, `stock_opname.post`. This table is the default configuration from seeds; it can be changed via the Role Management UI. Total 85 permissions (including `consignment.*`, `app_settings.*`, `sale.lookup`, `sale.detail`, `receipt.print`, `audit.export`).
+Permissions use **dot-notation** (`entity.action`), e.g.: `user.view`, `product.create`, `stock_opname.post`. This table is the default configuration from seeds; it can be changed via the Role Management UI. Total 86 permissions (including `consignment.*`, `app_settings.*`, `sale.lookup`, `sale.detail`, `receipt.print`, `audit.export`, `shift.cash_movement`).
 
-| Permission | Superadmin | Admin | Manager | Cashier | Staff |
+| Permission | Superadmin | Manager | Supervisor | Cashier | Inventory Staff |
 |------------|:---:|:---:|:---:|:---:|:---:|
 | `dashboard.view` | ✅ | ✅ | ✅ | ✅ | – |
-| `product.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `product.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `product.create` | ✅ | ✅ | ✅ | – | – |
 | `product.update` | ✅ | ✅ | ✅ | – | – |
 | `product.delete` | ✅ | ✅ | – | – | – |
 | `product.import`, `product.export` | ✅ | ✅ | – | – | – |
 | `product.history.view` | ✅ | ✅ | – | – | – |
 | `product.cost.view` | ✅ | ✅ | ✅ | – | – |
-| `category.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `category.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `category.create` | ✅ | ✅ | ✅ | – | – |
 | `category.update`, `category.delete` | ✅ | ✅ | ✅ | – | – |
 | `category.import`, `category.export` | ✅ | ✅ | – | – | – |
 | `sale.view` | ✅ | ✅ | ✅ | ✅ | – |
-| `sale.create`, `sale.park` | ✅ | ✅ | – | ✅ | – |
+| `sale.create`, `sale.park` | ✅ | ✅ | ✅ | ✅ | – |
 | `sale.lookup` | – | – | – | ✅ | – |
 | `sale.detail`, `receipt.print` | ✅ | ✅ | ✅ | ✅ | – |
-| `shift.view`, `shift.create` | ✅ | ✅ | ✅ | ✅ | – |
+| `shift.view`, `shift.create`, `shift.cash_movement` | ✅ | ✅ | ✅ | ✅ | – |
 | `shift.review`, `shift.audit` | ✅ | ✅ | ✅ | – | – |
-| `inventory.adjust` | ✅ | ✅ | ✅ | – | – |
+| `inventory.adjust` | ✅ | ✅ | ✅ | – | ✅ |
 | `report.view` | ✅ | ✅ | ✅ | – | – |
 | `customer.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `customer.create`, `customer.update` | ✅ | ✅ | ✅ | – | – |
-| `customer.delete` | ✅ | ✅ | ✅ | – | – |
-| `customer.import`, `customer.export` | ✅ | ✅ | ✅ | – | – |
+| `customer.delete`, `customer.import`, `customer.export` | ✅ | ✅ | ✅ | – | – |
 | `customer_group.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `customer_group.create/update/delete` | ✅ | ✅ | ✅ | – | – |
-| `store.view` | ✅ | ✅ | – | – | – |
+| `store.view` | ✅ | ✅ | ✅ | – | – |
 | `store.create/update/delete` | ✅ | ✅ | – | – | – |
 | `storage_location.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `storage_location.create/update/delete` | ✅ | ✅ | – | – | – |
+| `storage_location.create/update/delete` | ✅ | ✅ | – | – | ✅ |
 | `stock_opname.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `stock_opname.count`, `stock_opname.submit` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `stock_opname.create`, `stock_opname.assign` | ✅ | ✅ | ✅ | – | – |
-| `stock_opname.verify`, `stock_opname.post`, `stock_opname.close`, `stock_opname.report` | ✅ | ✅ | ✅ | – | – |
-| `stock_opname.cancel`, `stock_opname.export`, `stock_opname.recount` | ✅ | ✅ | ✅ | – | – |
+| `stock_opname.create`, `stock_opname.assign` | ✅ | ✅ | ✅ | – | ✅ |
+| `stock_opname.verify`, `stock_opname.post`, `stock_opname.close`, `stock_opname.report` | ✅ | ✅ | ✅ | – | ✅ |
+| `stock_opname.cancel`, `stock_opname.export`, `stock_opname.recount` | ✅ | ✅ | ✅ | – | ✅ |
 | `pricing.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `pricing.create`, `pricing.update` | ✅ | ✅ | ✅ | – | – |
 | `pricing.delete` | ✅ | ✅ | ✅ | – | – |
@@ -1998,19 +1997,19 @@ Imports are processed with preview/validation before commit, so mistakes can be 
 
 Legend: ✓ full access · ◐ partial/limited · — no access
 
-| Capability | Superadmin | Admin | Manager | Cashier | Staff |
+| Capability | Superadmin | Manager | Supervisor | Cashier | Inventory Staff |
 |------------|:---:|:---:|:---:|:---:|:---:|
 | Dashboard | ✓ | ✓ | ✓ | ✓ | — |
-| Point of Sale (create sale) | ✓ | ✓ | — | ✓ | — |
+| Point of Sale (create sale) | ✓ | ✓ | ✓ | ✓ | — |
 | View transactions | ✓ | ✓ | ✓ | ✓ (own) | — |
 | Reports | ✓ | ✓ | ✓ | — | — |
 | Shifts — open/close own | ✓ | ✓ | ✓ | ✓ | — |
 | Shifts — view/review all | ✓ | ✓ | ✓ | — | — |
-| Products — view | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Products — view | ✓ | ✓ | ✓ | ✓ | — |
 | Products — create/edit | ✓ | ✓ | ✓ | — | — |
 | Products — delete | ✓ | ✓ | — | — | — |
-| Inventory adjustment | ✓ | ✓ | ✓ | — | — |
-| Categories — view | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Inventory adjustment | ✓ | ✓ | ✓ | — | ✓ |
+| Categories — view | ✓ | ✓ | ✓ | ✓ | — |
 | Categories — create | ✓ | ✓ | ✓ | — | — |
 | Categories — edit/delete | ✓ | ✓ | ✓ | — | — |
 | Customers — view | ✓ | ✓ | ✓ | ✓ | — |
@@ -2019,12 +2018,12 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 | Customer groups — view | ✓ | ✓ | ✓ | ✓ | — |
 | Customer groups — manage | ✓ | ✓ | ✓ | — | — |
 | Suppliers (use module) | ✓ | ✓ | ✓ | — | — |
-| Storage locations — manage | ✓ | ✓ | — | — | — |
+| Storage locations — manage | ✓ | ✓ | — | — | ✓ |
 | Pricing rules — create/manage | ✓ | ✓ | ✓ | ✓ (view) | — |
 | Purchase orders — create/confirm/receive | ✓ | ✓ | ✓ | — | — |
-| Stock opname — create/assign/verify/post/close | ✓ | ✓ | ✓ | — | — |
+| Stock opname — create/assign/verify/post/close | ✓ | ✓ | ✓ | — | ✓ |
 | Stock opname — count/submit | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Stock opname — export/report | ✓ | ✓ | ✓ | — | — |
+| Stock opname — export/report | ✓ | ✓ | ✓ | — | ✓ |
 | Konsinyasi — view | ✓ | ✓ | ✓ | — | — |
 | Konsinyasi — create/update terms | ✓ | ✓ | ✓ | — | — |
 | Konsinyasi — settle | ✓ | ✓ | ✓ | — | — |
@@ -2040,7 +2039,7 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 | Application settings — update | ✓ | — | — | — | — |
 | Import/Export (product, category, customer) | ✓ | ✓ | ✓ (customer) | — | — |
 
-> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions-1)). Exact permission codes per action: `dashboard.view`, `sale.create/view/lookup/detail/park`, `product.view/create/update/delete/export/import/history.view/cost.view`, `category.view/create/update/delete/export/import`, `customer.view/create/update/delete/export/import`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel/delete`, `shift.view/create/review/audit`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `consignment.view/create/update/settle/pay`, `app_settings.view/update`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view/export`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, admin, and manager can use it.
+> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions-1)). Exact permission codes per action: `dashboard.view`, `sale.create/view/lookup/detail/park`, `product.view/create/update/delete/export/import/history.view/cost.view`, `category.view/create/update/delete/export/import`, `customer.view/create/update/delete/export/import`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel/delete`, `shift.view/create/review/audit/cash_movement`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `consignment.view/create/update/settle/pay`, `app_settings.view/update`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view/export`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, manager, and supervisor can use it.
 
 ---
 

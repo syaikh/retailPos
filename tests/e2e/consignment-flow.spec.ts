@@ -5,7 +5,7 @@ import { API_BASE, authHeader, loginUI, logoutUI, getToken } from './fixtures';
 // API setup in beforeAll (store-scoped admin user), then UI-driven flow:
 //   arrangement → receipt → POS sale → pending return → return → settlement → payout
 //
-// The store-scoped admin (role 2, store_id 1) is required because the
+// The store-scoped manager (role 2, store_id 1) is required because the
 // consignment list endpoints resolve the store from the JWT and seed users
 // have a NULL store_id, which returns 403 for those endpoints. Role 2 holds
 // all consignment.* permissions (incl. settle and pay) plus sale.create.

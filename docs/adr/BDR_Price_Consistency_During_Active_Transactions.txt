@@ -145,7 +145,7 @@ Edge Cases
 -   Void lalu scan ulang → snapshot baru.
 -   Promo aktif saat transaksi berjalan → tidak memengaruhi item lama.
 -   Promo aktif sebelum scan → menggunakan promo baru.
--   Admin mengubah harga berkali-kali → setiap item memakai snapshot
+-   Manager mengubah harga berkali-kali → setiap item memakai snapshot
     sesuai waktu scan.
 
 Business Impact

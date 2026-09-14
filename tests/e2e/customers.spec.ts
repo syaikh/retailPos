@@ -650,10 +650,10 @@ test.describe('Customers UI - Superadmin', () => {
 });
 
 // ============================================================================
-// 7. UI tests: admin role
+// 7. UI tests: manager role
 // ============================================================================
 
-test.describe('Customers UI - Admin', () => {
+test.describe('Customers UI - Manager', () => {
   test.beforeEach(async ({ page }) => {
     await loginUI(page, TEST_USERS.manager.username, TEST_USERS.manager.password);
     await navigateToCustomers(page);

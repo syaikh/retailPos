@@ -36,7 +36,7 @@ Clicking it creates the category via `POST /categories`, adds it to the local li
 | Backend `CategoryRepo.GetCategoryIDByName` | Exists, used only in list/filter path |
 | Frontend `ProductFormModal` | Text input + dropdown, filters `categories: string[]` prop |
 | Frontend `ProductsPage` | Sends `category_name: form.category` in payload, no `category_id` |
-| RBAC | `category.create` permission: superadmin, admin, manager (NOT cashier) |
+| RBAC | `category.create` permission: superadmin, manager, supervisor (NOT cashier) |
 
 ---
 

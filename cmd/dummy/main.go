@@ -463,15 +463,15 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	}
 	fmt.Println("   ✅ Cashier users ensured")
 
-	// 3g. Ensure manager and admin users have store_id assigned (consignment
-	// settlement requires store_id from JWT; users created by 000_squash.sql
-	// have store_id NULL).
+	// 3g. Ensure manager/supervisor/cashier users have store_id assigned
+	// (consignment settlement requires store_id from JWT; users created by
+	// 000_squash.sql have store_id NULL).
 	if _, err := db.ExecContext(ctx, `
 		UPDATE users SET store_id = (
 			SELECT id FROM stores WHERE is_active = true ORDER BY id LIMIT 1
 		)
 		WHERE store_id IS NULL
-		AND role_id IN (SELECT id FROM roles WHERE name IN ('manager', 'admin', 'cashier'))`); err != nil {
+		AND role_id IN (SELECT id FROM roles WHERE name IN ('supervisor', 'manager', 'cashier', 'finance', 'inventory_staff'))`); err != nil {
 		return fmt.Errorf("failed to assign store_id to users: %w", err)
 	}
 	fmt.Println("   ✅ Store IDs assigned to users")
@@ -659,7 +659,10 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		}
 	}()
 
-	// Save system users (system role, non-test/dummy) before truncation
+	// Save system users before truncation. The preserved set is an explicit
+	// allowlist of default users (usernames match their role names, cf.
+	// migration 045), not a heuristic — anything else (dummy/test users, stray
+	// accounts) is truncated away and its sequence position reused.
 	type sysUser struct {
 		id, roleID                    int
 		username, email, passwordHash string
@@ -671,13 +674,7 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 	rows, err := conn.QueryContext(ctx, `
 		SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.reports_to, u.is_active, u.store_id
 		FROM users u
-		JOIN roles r ON r.id = u.role_id
-		WHERE r.is_system = true
-		  AND u.username NOT ILIKE '%test%'
-		  AND u.username NOT ILIKE '%user%'
-		  AND u.username NOT ILIKE '%dummy%'
-		  AND u.email NOT ILIKE '%test%'
-		  AND u.email NOT ILIKE '%dummy%'`)
+		WHERE u.username IN ('superadmin', 'manager', 'supervisor', 'cashier', 'inventory_staff')`)
 	if err == nil {
 		for rows.Next() {
 			var u sysUser

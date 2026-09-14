@@ -12,8 +12,8 @@ Users may mistakenly input incorrect quantities or prices when recording a consi
 | Role | `consignment.view` | `consignment.create` | `consignment.update` | `consignment.settle` | `consignment.pay` |
 |------|:--:|:--:|:--:|:--:|:--:|
 | Superadmin | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Admin | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Manager | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Manager | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Supervisor | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Cashier | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 **Decision:** Reuse `consignment.update` for receipt editing.

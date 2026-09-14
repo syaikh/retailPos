@@ -146,10 +146,10 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'cashier' AND p.code = 'shift.cash_movement';
 
--- Manager, admin, superadmin: full access
+-- Supervisor, manager, superadmin: full access
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name IN ('manager', 'admin', 'superadmin')
+WHERE r.name IN ('supervisor', 'manager', 'superadmin')
 AND p.code = 'shift.cash_movement';
 ```
 

@@ -284,11 +284,11 @@
   );
 
   const visibleNavItems = $derived(
-    (rbac.userRole === Roles.staff
+    (rbac.userRole === Roles.inventory_staff
       ? staffNavItems
       : rbac.userRole === Roles.cashier
         ? cashierNavItemsResolved
-        : rbac.userRole === Roles.manager
+        : rbac.userRole === Roles.supervisor
           ? managerNavItems
           : navItems
     ).filter((item) => canAccess(item.href)),
@@ -296,11 +296,11 @@
 
   // @display-only — grouping kandidat sub-menu Master Data per role (presentasi).
   const visibleMasterDataSubItems = $derived(
-    (rbac.userRole === Roles.staff
+    (rbac.userRole === Roles.inventory_staff
       ? staffMasterDataSubItems
       : rbac.userRole === Roles.cashier
         ? []
-        : rbac.userRole === Roles.manager
+        : rbac.userRole === Roles.supervisor
           ? managerMasterDataSubItems
           : masterDataSubItems
     ).filter((item) => canAccess(item.href)),

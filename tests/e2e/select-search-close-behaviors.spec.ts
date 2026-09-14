@@ -16,7 +16,7 @@ test.describe('SelectSearch dropdown close behaviors', () => {
   let adminUser: { username: string; password: string };
 
   test.beforeAll(async ({ request }) => {
-    // Create a store-scoped admin (role 2) with consignment permissions.
+    // Create a store-scoped manager (role 2) with consignment permissions.
     // Seed users have NULL store_id which 403s on consignment list endpoints,
     // so we must create a fresh user scoped to store 1.
     const superToken = await getToken(request);
@@ -31,7 +31,7 @@ test.describe('SelectSearch dropdown close behaviors', () => {
         username,
         email: `${username}@retail-pos.local`,
         password,
-        role_id: 2, // admin role – holds all consignment.* permissions
+        role_id: 2, // manager role – holds all consignment.* permissions
         store_id: 1,
       },
     });

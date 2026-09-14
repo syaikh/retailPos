@@ -194,7 +194,7 @@ File: `internal/sale/repository_test.go` (alur cart) dan `internal/sale/service_
 3. Matikan promo → add item lagi → snapshot tanpa promo.
 4. **Assert**: sesuai urutan snapshot.
 
-### 3.7 `IT-07 — admin mengubah harga berkali-kali (Edge Case #7)`
+### 3.7 `IT-07 — manager mengubah harga berkali-kali (Edge Case #7)`
 
 1. Add item P (harga 3500).
 2. Ubah harga 3000, 4000, 3200.
@@ -273,7 +273,7 @@ Konfigurasi: `playwright.config.js` yang ada (baseURL `http://localhost:5173`, A
 3. Via API nonaktifkan promo → add P lagi → harga normal.
 4. **Assert**: dua harga berbeda sesuai urutan.
 
-### 4.8 E2E-08 — admin ubah harga berkali-kali saat transaksi berjalan (Edge Case #7)
+### 4.8 E2E-08 — manager ubah harga berkali-kali saat transaksi berjalan (Edge Case #7)
 
 1. Add produk P (3500).
 2. Via API ubah harga 3000 → 4000 → 3200.
@@ -323,7 +323,7 @@ Konfigurasi: `playwright.config.js` yang ada (baseURL `http://localhost:5173`, A
 | Edge: void lalu scan ulang | RT-08 | IT-04 | E2E-05 |
 | Edge: promo aktif saat transaksi berjalan | — | IT-05 | E2E-06 |
 | Edge: promo aktif sebelum scan | — | IT-06 | E2E-07 |
-| Edge: admin ubah harga berkali-kali | — | IT-07 | E2E-08 |
+| Edge: manager ubah harga berkali-kali | — | IT-07 | E2E-08 |
 | Checkout tanpa re-resolve (arsitektur) | RT-12 | IT-08 | E2E-09 |
 | Backward-compat `POST /sales` | RT-16 | IT-09 | — |
 

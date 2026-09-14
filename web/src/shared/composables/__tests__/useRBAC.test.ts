@@ -6,20 +6,22 @@ import { Roles } from "$shared/constants/roles";
 
 /**
  * Role × permission matrix — source of truth: docs/audits/permission-matrix-final.md
- * (updated 2026-09-02, migrations 038–039).
+ * (updated 2026-09-14, migrations 039/044/045/046).
  */
 const MATRIX: Record<string, readonly string[]> = {
-  [Roles.superadmin]: ALL_PERMISSIONS,
-  [Roles.admin]: ALL_PERMISSIONS.filter(
+  [Roles.superadmin]: ALL_PERMISSIONS.filter((p) => p !== "sale.lookup"),
+  [Roles.manager]: ALL_PERMISSIONS.filter(
     (p) =>
       ![
         "user.delete",
         "role.update",
         "role.delete",
+        "app_settings.update",
         "purchase_order.delete",
+        "sale.lookup",
       ].includes(p),
   ),
-  [Roles.manager]: [
+  [Roles.supervisor]: [
     "dashboard.view",
     "report.view",
     "product.view",
@@ -31,10 +33,15 @@ const MATRIX: Record<string, readonly string[]> = {
     "category.update",
     "category.delete",
     "sale.view",
+    "sale.create",
+    "sale.park",
+    "sale.detail",
+    "receipt.print",
     "shift.view",
     "shift.create",
     "shift.review",
     "shift.audit",
+    "shift.cash_movement",
     "customer.view",
     "customer.create",
     "customer.update",
@@ -46,6 +53,7 @@ const MATRIX: Record<string, readonly string[]> = {
     "pricing.update",
     "pricing.delete",
     "inventory.adjust",
+    "store.view",
     "customer_group.view",
     "customer_group.create",
     "customer_group.update",
@@ -69,31 +77,58 @@ const MATRIX: Record<string, readonly string[]> = {
     "stock_opname.close",
     "stock_opname.report",
     "storage_location.view",
+    "consignment.view",
+    "consignment.create",
+    "consignment.update",
+    "consignment.settle",
   ],
   [Roles.cashier]: [
+    "dashboard.view",
     "product.view",
+    "category.view",
     "sale.view",
     "sale.create",
     "sale.park",
+    "sale.lookup",
+    "sale.detail",
+    "receipt.print",
     "shift.view",
     "shift.create",
+    "shift.cash_movement",
     "customer.view",
-    "category.view",
     "pricing.view",
     "customer_group.view",
-    "dashboard.view",
     "stock_opname.view",
     "stock_opname.count",
     "stock_opname.submit",
     "storage_location.view",
   ],
-  [Roles.staff]: [
-    "product.view",
-    "category.view",
+  [Roles.inventory_staff]: [
+    "inventory.adjust",
     "stock_opname.view",
+    "stock_opname.create",
+    "stock_opname.assign",
     "stock_opname.count",
     "stock_opname.submit",
+    "stock_opname.recount",
+    "stock_opname.cancel",
+    "stock_opname.export",
+    "stock_opname.verify",
+    "stock_opname.post",
+    "stock_opname.close",
+    "stock_opname.report",
     "storage_location.view",
+    "storage_location.create",
+    "storage_location.update",
+    "storage_location.delete",
+  ],
+  [Roles.finance]: [
+    "consignment.pay",
+    "report.view",
+    "audit.view",
+    "sale.view",
+    "store.view",
+    "dashboard.view",
   ],
 };
 
@@ -128,7 +163,7 @@ describe("useRBAC", () => {
     expect("isCashier" in rbac).toBe(true);
   });
 
-  it("matches the 81×5 permission matrix for every role", () => {
+  it("matches the 86×6 permission matrix for every role", () => {
     for (const [role, granted] of Object.entries(MATRIX)) {
       setRole(role, granted);
       const rbac = useRBAC();
@@ -141,7 +176,7 @@ describe("useRBAC", () => {
   });
 
   it("can returns true only for granted permissions", () => {
-    setRole(Roles.admin, ["product.create", "product.update"]);
+    setRole(Roles.manager, ["product.create", "product.update"]);
     const rbac = useRBAC();
     expect(rbac.can("product.create")).toBe(true);
     expect(rbac.can("product.update")).toBe(true);
@@ -156,7 +191,7 @@ describe("useRBAC", () => {
   });
 
   it("canAll returns true only when every permission is granted", () => {
-    setRole(Roles.admin, ["user.view", "user.create", "user.update"]);
+    setRole(Roles.manager, ["user.view", "user.create", "user.update"]);
     const rbac = useRBAC();
     expect(rbac.canAll(["user.view", "user.create"])).toBe(true);
     expect(rbac.canAll(["user.view", "user.delete"])).toBe(false);
@@ -183,9 +218,9 @@ describe("useRBAC", () => {
   it("isCashier is true only for the cashier role", () => {
     setRole(Roles.cashier, MATRIX[Roles.cashier]);
     expect(useRBAC().isCashier).toBe(true);
-    setRole(Roles.admin, MATRIX[Roles.admin]);
+    setRole(Roles.manager, MATRIX[Roles.manager]);
     expect(useRBAC().isCashier).toBe(false);
-    setRole(Roles.staff, MATRIX[Roles.staff]);
+    setRole(Roles.supervisor, MATRIX[Roles.supervisor]);
     expect(useRBAC().isCashier).toBe(false);
   });
 

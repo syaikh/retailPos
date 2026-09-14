@@ -6,14 +6,18 @@
  * - Roles must NEVER be used for authorization decisions.
  * - Authorization must always go through useRBAC().can()/canAny()/canAll()
  *   with permission codes from `permissions.ts`.
+ *
+ * Role names follow migration 044 (retail job titles): `manager` (was `admin`),
+ * `supervisor` (was `manager`), `inventory_staff` (was `staff`), new `finance`.
  */
 
 export const Roles = {
   superadmin: "superadmin",
-  admin: "admin",
   manager: "manager",
+  supervisor: "supervisor",
   cashier: "cashier",
-  staff: "staff",
+  inventory_staff: "inventory_staff",
+  finance: "finance",
 } as const;
 
 export type RoleName = (typeof Roles)[keyof typeof Roles];

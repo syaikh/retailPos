@@ -45,8 +45,8 @@ These are the same task — "add new product to catalog." Forcing the user to le
 | Role | Can create products? | Should create brands? | Permission needed |
 |------|---------------------|----------------------|-------------------|
 | Cashier | No | No | — |
+| Supervisor | Yes | Yes (same workflow) | `product.create` |
 | Manager | Yes | Yes (same workflow) | `product.create` |
-| Admin | Yes | Yes (same workflow) | `product.create` |
 | Superadmin | Yes | Yes (same workflow) | `product.create` |
 
 There is no real-world scenario where someone should create a brand but NOT a product, or vice versa. The responsibilities are co-located.
