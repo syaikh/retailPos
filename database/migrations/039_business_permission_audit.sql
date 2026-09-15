@@ -10,7 +10,11 @@
 --             +customer_group.create, +customer_group.update, +customer_group.delete,
 --             +pricing.delete, +stock_opname.count, +stock_opname.submit
 --   Cashier:  +category.view, +pricing.view, +customer_group.view, +dashboard.view
---   Staff:    +category.view
+--
+-- Note: the legacy 'staff' grant block was removed — the 'staff' role no longer
+-- exists on a fresh deploy (renamed to inventory_staff by migration 044, whose
+-- grants replace the old staff set). inventory_staff's category.view was intended
+-- here but the modern inventory_staff scope is intentionally inventory-only.
 
 -- ============================================================
 -- MANAGER
@@ -80,16 +84,6 @@ SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'cashier' AND p.code = 'dashboard.view'
 ON CONFLICT DO NOTHING;
 
--- ============================================================
--- STAFF
--- ============================================================
-
--- Category: can't view — same UX issue as cashier
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name = 'staff' AND p.code = 'category.view'
-ON CONFLICT DO NOTHING;
-
 -- ROLLBACK:
 -- Manager: DELETE FROM role_permissions WHERE role_id = (SELECT id FROM roles WHERE name = 'manager')
 --   AND permission_id IN (SELECT id FROM permissions WHERE code IN (
@@ -100,5 +94,3 @@ ON CONFLICT DO NOTHING;
 -- Cashier: DELETE FROM role_permissions WHERE role_id = (SELECT id FROM roles WHERE name = 'cashier')
 --   AND permission_id IN (SELECT id FROM permissions WHERE code IN (
 --   'category.view','pricing.view','customer_group.view','dashboard.view'));
--- Staff: DELETE FROM role_permissions WHERE role_id = (SELECT id FROM roles WHERE name = 'staff')
---   AND permission_id IN (SELECT id FROM permissions WHERE code IN ('category.view'));

@@ -166,18 +166,24 @@ Migrations must be applied **before** deploying a new server binary. The server 
 | `004_supplier_code_sequence.sql` | Creates `supplier_seq` for auto-generating `SUP-%06d` codes |
 | `005_app_settings.sql` | Creates `app_settings` key-value table, seeds defaults |
 | `006_user_preferences.sql` | Adds per-user `language`/`theme` columns to `users` |
-| `007_sale_lookup.sql` | Seeds `sale.lookup` permission for `cashier`/`manager` |
+| `007_sale_lookup.sql` | Grants `sale.lookup` to `cashier`/`manager` (code seeded in `000_squash`) |
 | `031_revoke_sale_lookup_manager.sql` | Revokes `sale.lookup` from `manager` (cashier-only) |
-| `032_sale_detail_and_receipt_print.sql` | Seeds `sale.detail`/`receipt.print` permissions |
+| `032_sale_detail_and_receipt_print.sql` | Grants `sale.detail`/`receipt.print` to cashier/manager/superadmin |
 | `033_audit_log_store_and_immutability.sql` | Adds `audit_logs.store_id` FK + append-only trigger |
-| `033_cash_change.sql` | Adds `cash_change` table |
+| `033b_cash_change.sql` | Adds `sales.change_due` column (returned change on cash over-tender); part of the `033` pair — both apply in lexical order before `034` |
 | `034_audit_immutable_bypass.sql` | GUC-aware bypass for audit immutability trigger |
 | `035_audit_correlation_id.sql` | Adds `audit_logs.correlation_id` column |
-| `036_audit_export_permission.sql` | Seeds `audit.export` permission |
+| `036_audit_export_permission.sql` | Grants `audit.export` to superadmin (code seeded in `000_squash`) |
 | `037_audit_immutable_fk_bypass.sql` | Allows FK-cascade updates through append-only trigger |
-| `038_grant_audit_view_to_admin.sql` | Grants `audit.view` to `admin` (fix: export without view) |
-| `039_business_permission_audit.sql` | Business-perspective audit: +12 manager, +4 cashier, +1 staff permissions |
-| `040_sales_return.sql` | Creates `sale_returns`/`sale_return_items`/`sale_return_payments`/`return_approvals` tables, seeds `sale.return`/`sale.return.approve` permissions, adds return settings |
+| `038_grant_audit_view_to_admin.sql` | No-op on fresh deploy (legacy `admin` role renamed; manager holds `audit.view`) |
+| `039_business_permission_audit.sql` | Business-perspective audit: +12 manager, +4 cashier permissions |
+| `040_shift_cash_movements.sql` | Creates `cash_movements` table, grants `shift.cash_movement` (code seeded in `000_squash`) |
+| `041_shift_settings.sql` | Seeds `shift_*` keys into `app_settings` |
+| `042_consignment_receipt_edit.sql` | Creates `consignment_receipt_edits` append-only audit table |
+| `043_product_ownership_type.sql` | Adds `products.ownership_type` (store/consignment) + backfill + view rebuild |
+| `044_store_first_and_finance_role.sql` | Seeds default store; renames roles (admin→manager, manager→supervisor, staff→inventory_staff); creates `finance` role; grants supervisor `sale.create`/`store.view`; replaces inventory_staff permissions; backfills `store_id` |
+| `045_rename_usernames.sql` | Aligns default usernames to role names (admin→manager, manager→supervisor, staff→inventory_staff) |
+| `046_manager_consignment_pay.sql` | Grants `consignment.pay` to `manager` (settle-without-pay bug fix) |
 
 ## Filesystem Convention
 

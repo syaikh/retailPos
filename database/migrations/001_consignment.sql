@@ -338,17 +338,11 @@ SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'superadmin'
     )
 ON CONFLICT DO NOTHING;
 
--- Admin
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'admin'
-    AND p.code IN (
-        'consignment.view',
-        'consignment.create',
-        'consignment.update',
-        'consignment.settle',
-        'consignment.pay'
-    )
-ON CONFLICT DO NOTHING;
+-- Note: the legacy 'admin' grant block was removed. The 'admin' role no longer
+-- exists on a fresh deploy — 000_squash.sql seeds only the modern role names,
+-- and migration 044 renamed the legacy roles (admin→manager, manager→supervisor,
+-- staff→inventory_staff). superadmin + manager receive consignment.* below, which
+-- matches the documented permission matrix (docs/audits/permission-matrix-final.md).
 
 -- Manager
 INSERT INTO role_permissions (role_id, permission_id)

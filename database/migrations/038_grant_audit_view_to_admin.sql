@@ -1,21 +1,18 @@
 -- Migration 038: Grant audit.view to admin role
 --
--- Bug fix: admin was granted audit.export (migration 036) but not audit.view.
--- The intent of 036 was that export is "more restrictive than view", meaning
--- anyone who can export must first be able to view. Without audit.view, admin
--- can export audit logs but cannot view them in the UI — an illogical state.
+-- Historical bug fix: admin was granted audit.export (migration 036) but not
+-- audit.view; export is meant to be "more restrictive than view", so anyone who
+-- can export must first be able to view. This migration originally granted
+-- audit.view to the legacy 'admin' role.
 --
--- This migration grants audit.view to admin, bringing admin to 68 permissions.
--- Superadmin retains exclusive access to audit.view + audit.export (already granted).
--- Manager/cashier/staff remain ungranted for both.
-
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM roles r
-CROSS JOIN permissions p
-WHERE r.name = 'admin'
-  AND p.code = 'audit.view'
-ON CONFLICT DO NOTHING;
+-- The 'admin' role no longer exists in the modern schema — 000_squash.sql seeds
+-- only the current role names, and migration 044 renamed the legacy roles
+-- (admin→manager, manager→supervisor, staff→inventory_staff). Manager already
+-- holds audit.view (and audit.export) from the 000_squash.sql seed, matching the
+-- documented permission matrix (docs/audits/permission-matrix-final.md).
+--
+-- This file is therefore a NO-OP on a fresh deploy and is kept only to preserve
+-- migration numbering/history. It deliberately contains no executable statements.
 
 -- ROLLBACK:
 -- DELETE FROM role_permissions

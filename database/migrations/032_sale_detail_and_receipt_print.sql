@@ -4,12 +4,16 @@
 --     no payment reference, no customer PII) via /sales/lookup/:id.
 --   * receipt.print — lets a cashier reprint another cashier's receipt from the
 --     Find Transaction drawer.
--- Both are granted to cashier (primary user), and to manager/admin/superadmin so
+-- Both are granted to cashier (primary user), and to manager/superadmin so
 -- the permission set stays consistent across roles (manager is a superset of
--- cashier; admin/superadmin are superusers). Managers/admin/superadmin do not see
+-- cashier; superadmin is the superuser). Managers/superadmin do not see
 -- the Find Transaction tab in the UI (they reach all cashiers' sales via report.view),
 -- but holding the codes keeps the hierarchy coherent and lets the endpoints be
 -- exercised directly.
+--
+-- Note: the legacy 'admin' role was dropped from the grant list — it no longer
+-- exists on a fresh deploy (renamed to manager by migration 044, where manager's
+-- sale.detail/receipt.print come from this grant).
 
 INSERT INTO permissions (code, name, description)
 VALUES
@@ -21,6 +25,6 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r
 CROSS JOIN permissions p
-WHERE r.name IN ('cashier', 'manager', 'admin', 'superadmin')
+WHERE r.name IN ('cashier', 'manager', 'superadmin')
   AND p.code IN ('sale.detail', 'receipt.print')
 ON CONFLICT DO NOTHING;

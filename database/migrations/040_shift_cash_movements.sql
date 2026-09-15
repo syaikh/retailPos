@@ -29,9 +29,10 @@ SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'cashier' AND p.code = 'shift.cash_movement'
 ON CONFLICT DO NOTHING;
 
--- Manager, admin, superadmin: full access
+-- Manager, superadmin: full access
+-- (Note: legacy 'admin' dropped — no longer exists on a fresh deploy; manager is the renamed admin.)
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name IN ('manager', 'admin', 'superadmin')
+WHERE r.name IN ('manager', 'superadmin')
 AND p.code = 'shift.cash_movement'
 ON CONFLICT DO NOTHING;

@@ -1,5 +1,14 @@
 # PRD: Sales Return (Retur Penjualan)
 
+> **STATUS: NOT YET IMPLEMENTED — design draft only**
+> The Sales Return feature described in this document has **not been built**.
+> There is no `040_sales_return.sql` migration, no `sale.return` /
+> `sale.return.approve` permission codes, and no return API endpoints in the
+> codebase. The migration number "040" referenced later in this PRD is now taken
+> by `040_shift_cash_movements.sql` (shifts feature). Treat everything below as a
+> forward-looking plan; implementation requires new migrations, permission codes
+> (registration in `internal/permissions`), and API/UI work.
+
 | Field | Nilai |
 |-------|-------|
 | Status | **Draft** |

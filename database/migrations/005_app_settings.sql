@@ -1,7 +1,7 @@
 -- Migration: 005_app_settings.sql
 -- Description: Creates the app_settings key-value table for global application
 -- configuration (store branding, receipt text, default language). Seeds defaults
--- and grants app_settings.view/update to superadmin/admin.
+-- and grants app_settings.view/update to superadmin.
 -- Deployment ordering: apply BEFORE deploying the binary that reads/writes
 -- app_settings, otherwise the server panics or returns 500 on /api/settings.
 
@@ -42,12 +42,9 @@ WHERE r.name = 'superadmin'
   AND p.code IN ('app_settings.view', 'app_settings.update')
 ON CONFLICT DO NOTHING;
 
--- Admin: view only
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name = 'admin'
-  AND p.code = 'app_settings.view'
-ON CONFLICT DO NOTHING;
+-- Note: the legacy 'admin' grant block (app_settings.view) was removed — the
+-- 'admin' role no longer exists on a fresh deploy (renamed to manager by 044,
+-- where manager's app_settings.view comes from the 000_squash seed).
 
 -- ============================================================
 -- Migration registration (idempotent)

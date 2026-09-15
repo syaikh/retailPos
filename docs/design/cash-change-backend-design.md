@@ -62,7 +62,7 @@ This is correct because change can only be given from physical cash.
 
 ## 4. Data Model Changes
 
-### 4.1 Migration — `database/migrations/033_cash_change.sql`
+### 4.1 Migration — `database/migrations/033b_cash_change.sql`
 ```sql
 -- Must be applied BEFORE the binary that reads/writes change_due (deployment ordering:
 -- migrations run prior to deploy, per AGENTS.md).
@@ -242,14 +242,14 @@ Add `s.change_due` to the SELECT column list and `&sale.ChangeDue` to the `Scan`
 
 ## 11. Rollout / Deployment Ordering
 
-Per `AGENTS.md`, apply migration **before** deploying the binary that reads/writes `change_due`. Add `033_cash_change.sql` to the migration set; the server will fail to insert `change_due` until the column exists, so ordering is enforced by the existing migration-before-deploy contract.
+Per `AGENTS.md`, apply migration **before** deploying the binary that reads/writes `change_due`. Add `033b_cash_change.sql` (renamed from `033_cash_change.sql` in 2026-09-15) to the migration set; the server will fail to insert `change_due` until the column exists, so ordering is enforced by the existing migration-before-deploy contract. The `033b` filename keeps the two-file `033` set (`033_audit_log_store_and_immutability.sql`, `033b_cash_change.sql`) unambiguously ordered before `034`.
 
 ---
 
 ## 12. Implementation Status (2026-08-23) — ✅ DONE & VERIFIED
 
 **Implemented (matches §4–§7):**
-- Migration `033_cash_change.sql` — `ALTER TABLE sales ADD COLUMN change_due integer NOT NULL DEFAULT 0` (applied to `retail_pos`).
+- Migration `033b_cash_change.sql` — `ALTER TABLE sales ADD COLUMN change_due integer NOT NULL DEFAULT 0` (applied to `retail_pos`).
 - `Sale.ChangeDue int` (`json:"change_due,omitempty"`) + `ErrPaymentOverTenderNonCash = errors.New("overpayment is only allowed on cash tender")` in `internal/sale/domain.go`.
 - `validatePayments` returns `([]Payment, int, error)`; tracks `cashTotal`/`nonCashTotal`; corrected over-tender rule: reject `ErrPaymentOverTenderNonCash` when `nonCashTotal > totalAmount` (change can only come from physical cash). See §3.
 - Call sites set `sale.ChangeDue = change`: `cart_service.go:519` (`checkoutCart`), `service.go` `CreateSale`, `service.go` `CreateSaleWithParkedSale`.

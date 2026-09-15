@@ -1,5 +1,13 @@
 # Implementation Plan: Sales Return (Retur Penjualan)
 
+> **STATUS: NOT YET IMPLEMENTED — forward-looking plan only**
+> The Sales Return feature has **not been built**. The planned migration file
+> `database/migrations/040_sales_return.sql` does not exist, the `sale.return` /
+> `sale.return.approve` permission codes are not registered, and no return API
+> endpoints exist. The migration number "040" is now used by
+> `040_shift_cash_movements.sql`. Do not treat the file lists, function names, or
+> endpoints below as current reality.
+
 | Field | Value |
 |-------|-------|
 | Status | **Planned** |
