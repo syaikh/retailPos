@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/permissions"
@@ -132,12 +133,45 @@ func TestHandler_ConsignmentSettlementAuthorization(t *testing.T) {
 				r, http.MethodPost, fmt.Sprintf("/api/consignment/settlements/%d/payouts", stID), `{"amount":1000}`).Code)
 		}
 
-		// A consignment.pay holder passes authorization; the malformed body is
-		// then rejected by service validation (amount 0 -> ErrInvalidPayoutAmount
-		// -> 422), pinned deterministically against a settlement seeded for this
-		// test's own store.
+		// A consignment.pay holder passes authorization (not 403); the malformed
+		// body is then rejected at the HTTP binding layer — the committed
+		// CreatePayoutRequest pins Amount binding:"required,min=1" and
+		// PaymentMethodID binding:"required", so `{}` fails ShouldBindJSON and the
+		// handler returns 400 before service validation is ever reached. Pinned
+		// deterministically against a settlement seeded for this test's own store.
 		rPay := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentPay)}, &store)
 		w := doConsignmentRequest(rPay, http.MethodPost, fmt.Sprintf("/api/consignment/settlements/%d/payouts", stID), `{}`)
-		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+}
+
+// TestHandler_ListAddTermProductOptions_RequiresView pins the authorization of
+// GET /consignment/arrangements/:id/available-products to consignment.view.
+func TestHandler_ListAddTermProductOptions_RequiresView(t *testing.T) {
+	ctx := context.Background()
+	storeID := insertTestStore(ctx, t)
+
+	svc := newTestService(t)
+	userID := insertTestUser(ctx, t)
+	supplierID := insertTestSupplier(ctx, t, "Konsinyasi Avail Test Supplier", true)
+	arr, err := svc.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierID, StoreID: storeID}, userID, nil)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name  string
+		perms []string
+		want  int
+	}{
+		{"consignment.view can list available products", []string{string(permissions.ConsignmentView)}, http.StatusOK},
+		{"consignment.update alone cannot list available products", []string{string(permissions.ConsignmentUpdate)}, http.StatusForbidden},
+		{"unrelated permission is rejected", []string{"report.view"}, http.StatusForbidden},
+		{"no permissions is rejected", []string{}, http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := setupConsignmentRBACRouter(t, tt.perms, &storeID)
+			w := doConsignmentRequest(r, http.MethodGet, fmt.Sprintf("/api/consignment/arrangements/%d/available-products", arr.ID), "")
+			assert.Equal(t, tt.want, w.Code)
+		})
+	}
 }

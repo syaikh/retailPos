@@ -278,6 +278,77 @@ func (s *Service) SetTerms(ctx context.Context, arrangementID int, reqs []SetTer
 	return terms, nil
 }
 
+// ListAddTermProductOptions returns the active products that may still have a
+// term added for the arrangement, mirroring SetTerms' ownership rules: products
+// already covered by a term, store-owned products with remaining global stock,
+// and products with live consignment stock under another supplier are excluded.
+// Unlike SetTerms it performs no writes, so it runs without a transaction.
+func (s *Service) ListAddTermProductOptions(ctx context.Context, arrangementID int, claimsStore *int) ([]shared.ProductOption, error) {
+	a, err := s.repo.GetArrangementByID(ctx, s.repo.db, arrangementID)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkArrangementStore(a, claimsStore); err != nil {
+		return nil, err
+	}
+	applyLazyEnded(a)
+	if a.Status == StatusEnded {
+		return []shared.ProductOption{}, nil
+	}
+
+	options, err := s.repo.productMetaProviderOrPanic().ActiveProductOptions(ctx, s.repo.db)
+	if err != nil {
+		return nil, err
+	}
+
+	terms, err := s.repo.ListTerms(ctx, s.repo.db, arrangementID)
+	if err != nil {
+		return nil, err
+	}
+	termIDs := make(map[int]bool, len(terms))
+	for _, t := range terms {
+		termIDs[t.ProductID] = true
+	}
+
+	ledger, err := s.repo.ListConsignmentStock(ctx, s.repo.db, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	ledgerIDs := make(map[int]bool, len(ledger))
+	liveOtherSupplier := make(map[int]bool)
+	for _, row := range ledger {
+		ledgerIDs[row.ProductID] = true
+		if row.SupplierID != a.SupplierID && (row.AvailableQty > 0 || row.PendingReturnQty > 0) {
+			liveOtherSupplier[row.ProductID] = true
+		}
+	}
+
+	candidates := make([]int, 0, len(options))
+	for _, o := range options {
+		if termIDs[o.ID] || liveOtherSupplier[o.ID] {
+			continue
+		}
+		candidates = append(candidates, o.ID)
+	}
+
+	owned, err := s.repo.stockReaderOrPanic().StoreOwnedQuantities(ctx, candidates)
+	if err != nil {
+		return nil, err
+	}
+
+	available := make([]shared.ProductOption, 0, len(options))
+	for _, o := range options {
+		if termIDs[o.ID] || liveOtherSupplier[o.ID] {
+			continue
+		}
+		if !ledgerIDs[o.ID] && owned[o.ID] > 0 {
+			continue
+		}
+		available = append(available, o)
+	}
+	return available, nil
+}
+
 // --- Receipts ---
 
 // CreateReceipt records accepted consignment goods after inspection and adds

@@ -461,6 +461,7 @@ Base path: `/api`. All endpoints require JWT (via `Authorization: Bearer` or coo
 | GET | `/consignment/arrangements` | Consignment arrangement list | `consignment.view` |
 | POST | `/consignment/arrangements` | Create arrangement | `consignment.create` |
 | GET | `/consignment/arrangements/:id` | Arrangement detail | `consignment.view` |
+| GET | `/consignment/arrangements/:id/available-products` | Products eligible for a new term | `consignment.view` |
 | PUT | `/consignment/arrangements/:id/terms` | Update terms/conditions | `consignment.update` |
 | GET | `/consignment/receipts` | Goods receipt list | `consignment.view` |
 | POST | `/consignment/receipts` | Create goods receipt | `consignment.create` |

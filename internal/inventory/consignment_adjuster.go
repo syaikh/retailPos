@@ -116,3 +116,33 @@ func (a ConsignmentAdjuster) GetStoreOwnedQuantity(ctx context.Context, productI
 	}
 	return qty, nil
 }
+
+// StoreOwnedQuantities returns the global product_stock quantity for each of
+// the given products (warehouse_id IS NULL AND store_id IS NULL AND
+// location_id IS NULL), keyed by product ID. Products with no global row are
+// absent from the map. It extends the StockReader port with a batched read so
+// pickers can filter thousands of candidates without per-product round trips.
+func (a ConsignmentAdjuster) StoreOwnedQuantities(ctx context.Context, productIDs []int) (map[int]int, error) {
+	owned := make(map[int]int, len(productIDs))
+	if len(productIDs) == 0 {
+		return owned, nil
+	}
+	rows, err := a.DB.Query(ctx, `
+		SELECT product_id, quantity
+		FROM product_stock
+		WHERE product_id = ANY($1)
+		  AND warehouse_id IS NULL AND store_id IS NULL AND location_id IS NULL
+	`, productIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read global stock: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var productID, qty int
+		if err := rows.Scan(&productID, &qty); err != nil {
+			return nil, fmt.Errorf("failed to scan global stock: %w", err)
+		}
+		owned[productID] = qty
+	}
+	return owned, rows.Err()
+}

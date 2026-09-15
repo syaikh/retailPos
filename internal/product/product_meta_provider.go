@@ -45,6 +45,31 @@ func (MetaLookup) ProductMetasByIDs(ctx context.Context, db shared.DBPool, ids [
 	return metas, rows.Err()
 }
 
+// ActiveProductOptions returns the active product catalog (id/sku/name) ordered
+// by name, mirroring the product active-options endpoint for consumers that
+// cannot import internal/product. Deleted and non-active products are omitted.
+func (MetaLookup) ActiveProductOptions(ctx context.Context, db shared.DBPool) ([]shared.ProductOption, error) {
+	rows, err := db.Query(ctx, `
+		SELECT id, COALESCE(sku, ''), COALESCE(name, '')
+		FROM products
+		WHERE deleted_at IS NULL AND status = 'active'
+		ORDER BY name ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active product options: %w", err)
+	}
+	defer rows.Close()
+	var options []shared.ProductOption
+	for rows.Next() {
+		var o shared.ProductOption
+		if err := rows.Scan(&o.ID, &o.SKU, &o.Name); err != nil {
+			return nil, fmt.Errorf("failed to scan active product option: %w", err)
+		}
+		options = append(options, o)
+	}
+	return options, rows.Err()
+}
+
 // ProductCostsByIDs returns product unit costs keyed by product ID. IDs with
 // no matching product are absent from the map. Cost is governed by the
 // product.cost.view permission on display paths; this provider serves backend

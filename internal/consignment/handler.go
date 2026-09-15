@@ -29,6 +29,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/consignment/arrangements", auth, perm(permissions.ConsignmentView), h.ListArrangements)
 	r.POST("/consignment/arrangements", auth, perm(permissions.ConsignmentCreate), h.CreateArrangement)
 	r.GET("/consignment/arrangements/:id", auth, perm(permissions.ConsignmentView), h.GetArrangement)
+	r.GET("/consignment/arrangements/:id/available-products", auth, perm(permissions.ConsignmentView), h.ListAddTermProductOptions)
 	r.PUT("/consignment/arrangements/:id/terms", auth, perm(permissions.ConsignmentUpdate), h.SetTerms)
 	r.GET("/consignment/receipts", auth, perm(permissions.ConsignmentView), h.ListReceipts)
 	r.POST("/consignment/receipts", auth, perm(permissions.ConsignmentCreate), h.CreateReceipt)
@@ -103,6 +104,20 @@ func (h *Handler) GetArrangement(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": a})
+}
+
+func (h *Handler) ListAddTermProductOptions(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	options, err := h.svc.ListAddTermProductOptions(c.Request.Context(), id, shared.GetStoreID(c))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": options})
 }
 
 func (h *Handler) SetTerms(c *gin.Context) {

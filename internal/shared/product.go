@@ -11,6 +11,16 @@ type ProductMeta struct {
 	StoreID *int   `json:"store_id,omitempty"`
 }
 
+// ProductOption is the lightweight active-product picker row (id/sku/name)
+// offered to consumers such as internal/consignment that cannot import
+// internal/product. internal/product is the single-writer of the products
+// table (Katalog) and provides the rows without a cross-context JOIN.
+type ProductOption struct {
+	ID   int    `json:"id"`
+	SKU  string `json:"sku"`
+	Name string `json:"name"`
+}
+
 // SnapshotProduct is the catalog half of the stock opname snapshot read-model:
 // product identity plus unit-of-measure id, WITHOUT stock quantities (those
 // live in product_stock, owned by internal/inventory). internal/product is the

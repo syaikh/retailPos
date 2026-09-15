@@ -64,6 +64,21 @@ export async function setTerms(
   return res.data.data || [];
 }
 
+export interface AddTermProductOption {
+  id: number;
+  sku: string;
+  name: string;
+}
+
+export async function listAddTermProductOptions(
+  arrangementId: number,
+): Promise<AddTermProductOption[]> {
+  const res = await apiClient.get(
+    `/consignment/arrangements/${arrangementId}/available-products`,
+  );
+  return res.data.data || [];
+}
+
 export async function listReceipts(supplierId: number): Promise<Receipt[]> {
   const res = await apiClient.get(
     `/consignment/receipts?supplier_id=${supplierId}`,

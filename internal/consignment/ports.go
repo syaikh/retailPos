@@ -23,6 +23,7 @@ type StockAdjuster interface {
 // product_stock table without a direct cross-context query.
 type StockReader interface {
 	GetStoreOwnedQuantity(ctx context.Context, productID int) (int, error)
+	StoreOwnedQuantities(ctx context.Context, productIDs []int) (map[int]int, error)
 }
 
 // SupplierStore is the supplier-side read port, implemented by
@@ -41,9 +42,11 @@ type StoreNameProvider interface {
 }
 
 // ProductMetaProvider is the product-side read port, implemented by
-// internal/product. It resolves product sku/name for consignment documents.
+// internal/product. It resolves product sku/name for consignment documents and
+// the active product catalog for term pickers.
 type ProductMetaProvider interface {
 	ProductMetasByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]shared.ProductMeta, error)
+	ActiveProductOptions(ctx context.Context, db shared.DBPool) ([]shared.ProductOption, error)
 }
 
 // UsernameProvider is the user-side read port, implemented by internal/user.

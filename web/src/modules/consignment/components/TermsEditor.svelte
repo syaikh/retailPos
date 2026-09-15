@@ -12,8 +12,10 @@
   } from "$shared/ui";
   import { Plus } from "lucide-svelte";
   import { labels } from "$shared/i18n";
-  import { getProductOptions } from "$modules/product/services/product-service";
-  import { setTerms } from "../services/consignment-service";
+  import {
+    setTerms,
+    listAddTermProductOptions,
+  } from "../services/consignment-service";
   import type { Arrangement, Term, SetTermsPayload } from "../types";
   import {
     SHARE_TYPE_PERCENTAGE,
@@ -66,7 +68,7 @@
 
   async function loadProducts() {
     try {
-      const opts = await getProductOptions();
+      const opts = await listAddTermProductOptions(arrangement.id);
       productOptions = opts.map((p) => ({
         value: p.id,
         label: p.sku ? `${p.name} (${p.sku})` : p.name,
@@ -126,6 +128,7 @@
       toast.success(labels.consignmentTermsSaved);
       showAddModal = false;
       onsaved?.();
+      await loadProducts();
     } catch (e: unknown) {
       const raw =
         e instanceof Error ? e.message : labels.consignmentTermsSaveError;
