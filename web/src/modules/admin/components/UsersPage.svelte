@@ -38,7 +38,7 @@
   let selectedUser = $state(null);
   let modalMode = $state("add");
   let saving = $state(false);
-  let isSearching = $state(false);
+
   let isInitialMount = $state(true);
   let subordinateCount = $state(0);
 
@@ -97,7 +97,6 @@
       toast.error(labels.failedToLoad);
     } finally {
       if (!isSearch) loading = false;
-      isSearching = false;
     }
   }
 
@@ -134,10 +133,8 @@
       if (sq === "") {
         offset = 0;
         prevOffset = 0;
-        isSearching = false;
         fetchUsers(false);
       } else {
-        isSearching = true;
         debouncedSearch();
       }
     }

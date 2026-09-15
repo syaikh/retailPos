@@ -56,7 +56,7 @@
   let saving = $state(false);
   let permissionSearch = $state("");
   let nameTouched = $state(false);
-  let pendingClose = $state(false);
+
   let loadError = $state("");
 
   // ── Pagination ───────────────────────────────────────────────────
@@ -379,18 +379,15 @@
 
   function requestClose() {
     if (isFormDirty) {
-      pendingClose = true;
       showDiscardModal = true;
     } else showModal = false;
   }
   function confirmDiscard() {
     showDiscardModal = false;
     showModal = false;
-    pendingClose = false;
   }
   function cancelDiscard() {
     showDiscardModal = false;
-    pendingClose = false;
   }
 
   async function saveRole() {

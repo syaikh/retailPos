@@ -51,7 +51,7 @@
     } else if (!open) {
       poCopied = false;
     }
-    reloadKey; // tracked dependency
+    void reloadKey; // tracked dependency
   });
 
   async function loadPO(id: number) {
