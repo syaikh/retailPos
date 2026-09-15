@@ -9,6 +9,21 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
+// seedOtherSupplierStock creates a consignment_stock row for productID under a
+// supplier different from the caller's arrangement supplier.  The receipt
+// creates both the consignment_stock ledger and the global product_stock qty,
+// exactly matching a real received-goods flow.
+func seedOtherSupplierStock(t *testing.T, productID, store int) {
+	t.Helper()
+	ctx := context.Background()
+	otherSvc, _, otherStore := setupArrangement(t, productID)
+	_, err := otherSvc.CreateReceipt(ctx, &ReceiptRequest{
+		ArrangementID: arrID(t, otherSvc, otherStore),
+		Items:         []ReceiptItemRequest{{ProductID: productID, AcceptedQty: 5}},
+	}, 1, &otherStore)
+	require.NoError(t, err)
+}
+
 // TestService_ListAddTermProductOptions pins the eligible-products picker for
 // the add-term modal: products already covered by a term, store-owned products
 // with remaining global stock, and products with live consignment stock under
@@ -31,11 +46,9 @@ func TestService_ListAddTermProductOptions(t *testing.T) {
 		}, userID, &storeP)
 		require.NoError(t, err)
 
-		// Live consignment stock under a DIFFERENT supplier than `sup`.
-		seedSettlement(t, "AVL-LIVE")
-		var liveProduct int
-		err = dbPool.QueryRow(ctx, `SELECT id FROM products WHERE sku = 'AVL-LIVE'`).Scan(&liveProduct)
-		require.NoError(t, err)
+		// Live consignment stock under a DIFFERENT supplier than the test's.
+		liveProduct := insertTestProduct(ctx, t, "AVL-LIVE")
+		seedOtherSupplierStock(t, liveProduct, store)
 
 		options, err := svc.ListAddTermProductOptions(ctx, arrID(t, svc, store), &storeP)
 		require.NoError(t, err)
