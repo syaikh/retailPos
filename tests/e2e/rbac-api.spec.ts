@@ -17,7 +17,7 @@ test.describe('RBAC behaviour (API driver)', () => {
   test.afterAll(() => tracker.cleanup());
 
   test('every role is issued a non-empty permission set', async ({ request }) => {
-    for (const role of ['superadmin', 'manager', 'supervisor', 'cashier'] as const) {
+    for (const role of ['superadmin', 'manager', 'supervisor', 'cashier', 'finance'] as const) {
       const api = await apiAs(request, role);
       expect(api.permissions().length, `${role} should have permissions`).toBeGreaterThan(0);
     }
@@ -52,6 +52,25 @@ test.describe('RBAC behaviour (API driver)', () => {
     const api = await apiAs(request, 'cashier');
     expect((await api.post('/api/stores', { name: 'x' })).status).toBe(403);
     expect((await api.post('/api/brands', { name: 'x' })).status).toBe(403);
+  });
+
+  test('finance role holds consignment view + pay (migrations 044/047)', async ({ request }) => {
+    const api = await apiAs(request, 'finance');
+    // consignment.pay: can open the payout cash picker
+    expect((await api.get('/api/consignment/payment-methods')).status).toBe(200);
+    // consignment.view (migration 047): can list settlements
+    expect((await api.get('/api/consignment/settlements?supplier_id=1')).status).toBe(200);
+    // finance still lacks consignment.settle: cannot originate a settlement
+    expect((await api.post('/api/consignment/settlements', { supplier_id: 1 })).status).toBe(403);
+  });
+
+  test('payment-methods read requires consignment.pay or consignment.settle', async ({ request }) => {
+    // supervisor holds consignment.settle (no pay) -> allowed
+    const supervisor = await apiAs(request, 'supervisor');
+    expect((await supervisor.get('/api/consignment/payment-methods')).status).toBe(200);
+    // cashier holds neither -> rejected
+    const cashier = await apiAs(request, 'cashier');
+    expect((await cashier.get('/api/consignment/payment-methods')).status).toBe(403);
   });
 
   test('unauthenticated request is rejected (401)', async ({ request }) => {

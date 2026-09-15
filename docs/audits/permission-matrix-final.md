@@ -11,7 +11,7 @@
 ## 1. Background
 
 - Total permissions in DB: **86** (0 ungranted).
-- Total grants after migrations 039/044/046: **266** (superadmin=85, manager=80, supervisor=59, cashier=19, inventory_staff=17, finance=6).
+- Total grants after migrations 039/044/046/047: **267** (superadmin=85, manager=80, supervisor=59, cashier=19, inventory_staff=17, finance=7).
 - Matrix covers 72 Sprint 0 permissions + 14 additional permissions (consignment.*, app_settings.*, sale.detail, receipt.print, sale.lookup, audit.export, product.history.view, product.cost.view, shift.cash_movement).
 
 ## 2. COMPLETE MATRIX (86 × 6 roles)
@@ -158,8 +158,8 @@ Legend: ✅ = granted, — = not granted.
 | supervisor | **59** | Store operator — full product/category/customer/pricing/PO/stock opname management; no user/role management, no product delete/import/export, no consignment.pay |
 | cashier | **19** | POS & basic tasks — sales, shifts, stock count, view-only master data, sale.lookup (only role besides direct grant) |
 | inventory_staff | **17** | Inventory-focused — stock opname full lifecycle, storage locations, inventory.adjust (no product/category view) |
-| finance | **6** | Payments & reporting — consignment.pay, report.view, audit.view, sale.view, store.view, dashboard.view |
-| **TOTAL** | **266** | |
+| finance | **7** | Payments & reporting — consignment.pay, consignment.view, report.view, audit.view, sale.view, store.view, dashboard.view |
+| **TOTAL** | **267** | |
 
 ## 4. CHANGE REGISTER
 
@@ -171,6 +171,7 @@ Legend: ✅ = granted, — = not granted.
 | R4 | `044_store_first_and_finance_role.sql` | Rename roles (admin→manager, manager→supervisor, staff→inventory_staff), create `finance` (6 perms), GRANT supervisor sale.create + store.view, replace inventory_staff permissions, backfill store_id |
 | R5 | `045_rename_usernames.sql` | Align default usernames to role names (admin→manager, manager→supervisor, staff→inventory_staff) |
 | R6 | `046_manager_consignment_pay.sql` | GRANT `consignment.pay` to manager (bug fix — settle without pay was illogical) |
+| R7 | `047_finance_consignment_view.sql` | GRANT `consignment.view` to finance (bug fix — finance could pay settlements but could not view them) |
 
 ### R3 Detail (migration 039, historical — roles were renamed later in 044)
 
@@ -235,7 +236,7 @@ Legend: ✅ = granted, — = not granted.
 ## 6. VERIFICATION
 
 ```sql
--- Total grants per role (after migrations 039/044/046)
+-- Total grants per role (after migrations 039/044/046/047)
 SELECT r.name, COUNT(*) AS grants
 FROM role_permissions rp
 JOIN roles r ON r.id = rp.role_id
@@ -243,7 +244,7 @@ GROUP BY r.name
 ORDER BY r.name;
 ```
 
-**Expected:** cashier=19, finance=6, inventory_staff=17, manager=80, superadmin=85, supervisor=59.
+**Expected:** cashier=19, finance=7, inventory_staff=17, manager=80, superadmin=85, supervisor=59.
 
 ```sql
 -- Total permission codes in DB

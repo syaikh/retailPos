@@ -44,7 +44,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/consignment/settlements", auth, perm(permissions.ConsignmentView), h.ListSettlements)
 	r.POST("/consignment/settlements", auth, perm(permissions.ConsignmentSettle), h.CreateSettlement)
 	r.GET("/consignment/settlements/:id", auth, perm(permissions.ConsignmentView), h.GetSettlement)
-	r.GET("/consignment/payment-methods", auth, perm(permissions.ConsignmentSettle), h.ListPaymentMethods)
+	r.GET("/consignment/payment-methods", auth, middleware.RequireAnyPermission(string(permissions.ConsignmentPay), string(permissions.ConsignmentSettle)), h.ListPaymentMethods)
 	r.POST("/consignment/settlements/:id/payouts", auth, perm(permissions.ConsignmentPay), h.CreatePayout)
 }
 

@@ -475,7 +475,7 @@ Base path: `/api`. All endpoints require JWT (via `Authorization: Bearer` or coo
 | GET | `/consignment/settlements` | Settlement list | `consignment.view` |
 | POST | `/consignment/settlements` | Create settlement | `consignment.settle` |
 | GET | `/consignment/settlements/:id` | Settlement detail | `consignment.view` |
-| GET | `/consignment/payment-methods` | Consignment payment methods | `consignment.settle` |
+| GET | `/consignment/payment-methods` | Consignment payment methods | `consignment.pay` or `consignment.settle` |
 | POST | `/consignment/settlements/:id/payouts` | Create payment to supplier | `consignment.pay` |
 
 ##### Shifts

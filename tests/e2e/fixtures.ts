@@ -146,6 +146,12 @@ export const TEST_USERS = {
     password: 'admin123',
     role: 'cashier',
     id: 4
+  },
+  finance: {
+    username: 'finance',
+    password: 'admin123',
+    role: 'finance',
+    id: 6
   }
 };
 

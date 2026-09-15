@@ -98,6 +98,10 @@ Finance records payment (consignment.pay)
     "Paid Rp 5,000,000 via bank transfer"
 ```
 
+Finance also holds `consignment.view` (since migration 047) so it can *see* the
+settlements it has to pay; it still lacks `consignment.create`/`consignment.update`/
+`consignment.settle`, so it cannot originate or settle them.
+
 **No single person can both create AND pay a settlement.**
 
 ## Current Gaps
@@ -148,6 +152,7 @@ ON CONFLICT (name) DO NOTHING;
 
 **1.4. Assign finance permissions**
 - `consignment.pay` — record payments to suppliers
+- `consignment.view` — see settlements to pay (added by migration `047_finance_consignment_view.sql`; the entire consignment module is gated on `consignment.view`)
 - `report.view` — view financial reports
 - `audit.view` — view audit trail
 - `sale.view` — view sales for reconciliation

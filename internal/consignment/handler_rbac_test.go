@@ -1,0 +1,143 @@
+package consignment
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+
+	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
+)
+
+// rbacAuthMiddleware authenticates the caller and grants exactly the given
+// permissions, mirroring the real JWT auth middleware (gin keys + request
+// context claims).
+func rbacAuthMiddleware(perms []string, storeID *int) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := 1
+		c.Set("userID", userID)
+		c.Set("username", "consignment_rbac_user")
+		c.Set("role", "rbac-tester")
+		c.Set("permissions", perms)
+		c.Set("storeID", storeID)
+
+		ctx := c.Request.Context()
+		ctx = context.WithValue(ctx, middleware.CtxKeyUserID, userID)
+		ctx = context.WithValue(ctx, middleware.CtxKeyUsername, "consignment_rbac_user")
+		ctx = context.WithValue(ctx, middleware.CtxKeyRole, "rbac-tester")
+		ctx = context.WithValue(ctx, middleware.CtxKeyStoreID, storeID)
+		ctx = context.WithValue(ctx, middleware.CtxKeyPermissions, perms)
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	}
+}
+
+// setupConsignmentRBACRouter wires the real consignment routes with the real
+// permission middleware, so a request is gated exactly as in production.
+func setupConsignmentRBACRouter(t *testing.T, perms []string, storeID *int) *gin.Engine {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	h := NewHandler(newTestService(t), nil)
+
+	r := gin.New()
+	h.RegisterRoutes(r.Group("/api"), rbacAuthMiddleware(perms, storeID), middleware.RequirePermission)
+	return r
+}
+
+func doConsignmentRequest(r *gin.Engine, method, path, body string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(method, path, strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	r.ServeHTTP(w, req)
+	return w
+}
+
+// TestHandler_PaymentMethods_RequiresPayOrSettle pins the authorization gate of
+// GET /consignment/payment-methods to (consignment.pay OR consignment.settle).
+func TestHandler_PaymentMethods_RequiresPayOrSettle(t *testing.T) {
+	ctx := context.Background()
+	storeID := insertTestStore(ctx, t)
+
+	tests := []struct {
+		name  string
+		perms []string
+		want  int
+	}{
+		{"consignment.pay alone can open the cash picker", []string{string(permissions.ConsignmentPay)}, http.StatusOK},
+		{"consignment.settle alone can open the cash picker", []string{string(permissions.ConsignmentSettle)}, http.StatusOK},
+		{"finance (pay + view) can open the cash picker", []string{string(permissions.ConsignmentPay), string(permissions.ConsignmentView)}, http.StatusOK},
+		{"consignment.view alone cannot open the cash picker", []string{string(permissions.ConsignmentView)}, http.StatusForbidden},
+		{"unrelated permission is rejected", []string{"report.view"}, http.StatusForbidden},
+		{"no permissions is rejected", []string{}, http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := setupConsignmentRBACRouter(t, tt.perms, &storeID)
+			w := doConsignmentRequest(r, http.MethodGet, "/api/consignment/payment-methods", "")
+			assert.Equal(t, tt.want, w.Code)
+		})
+	}
+}
+
+// TestHandler_ConsignmentSettlementAuthorization locks the consignment.*
+// separation of duties behind the settlements module (migration 047: finance
+// gains view, still pay-and-view-only).
+func TestHandler_ConsignmentSettlementAuthorization(t *testing.T) {
+	ctx := context.Background()
+	storeID := insertTestStore(ctx, t)
+
+	t.Run("listing settlements requires consignment.view", func(t *testing.T) {
+		rView := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentView)}, &storeID)
+		assert.Equal(t, http.StatusOK, doConsignmentRequest(rView, http.MethodGet, "/api/consignment/settlements?supplier_id=1", "").Code)
+
+		rPay := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentPay)}, &storeID)
+		assert.Equal(t, http.StatusForbidden, doConsignmentRequest(rPay, http.MethodGet, "/api/consignment/settlements?supplier_id=1", "").Code)
+	})
+
+	t.Run("finance (pay + view) can list settlements", func(t *testing.T) {
+		r := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentPay), string(permissions.ConsignmentView)}, &storeID)
+		assert.Equal(t, http.StatusOK, doConsignmentRequest(r, http.MethodGet, "/api/consignment/settlements?supplier_id=1", "").Code)
+	})
+
+	t.Run("creating a settlement requires consignment.settle", func(t *testing.T) {
+		for _, perms := range [][]string{
+			{string(permissions.ConsignmentPay)},
+			{string(permissions.ConsignmentView)},
+		} {
+			r := setupConsignmentRBACRouter(t, perms, &storeID)
+			assert.Equal(t, http.StatusForbidden, doConsignmentRequest(r, http.MethodPost, "/api/consignment/settlements", `{"supplier_id":1}`).Code)
+		}
+
+		rSettle := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentSettle)}, &storeID)
+		w := doConsignmentRequest(rSettle, http.MethodPost, "/api/consignment/settlements", `{}`)
+		assert.NotEqual(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("recording a payout requires consignment.pay", func(t *testing.T) {
+		_, stID, _, store := seedSettlement(t, "RBAC-PAY")
+		for _, perms := range [][]string{
+			{string(permissions.ConsignmentSettle)},
+			{string(permissions.ConsignmentView)},
+		} {
+			r := setupConsignmentRBACRouter(t, perms, &store)
+			assert.Equal(t, http.StatusForbidden, doConsignmentRequest(
+				r, http.MethodPost, fmt.Sprintf("/api/consignment/settlements/%d/payouts", stID), `{"amount":1000}`).Code)
+		}
+
+		// A consignment.pay holder passes authorization; the malformed body is
+		// then rejected by service validation (amount 0 -> ErrInvalidPayoutAmount
+		// -> 422), pinned deterministically against a settlement seeded for this
+		// test's own store.
+		rPay := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentPay)}, &store)
+		w := doConsignmentRequest(rPay, http.MethodPost, fmt.Sprintf("/api/consignment/settlements/%d/payouts", stID), `{}`)
+		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	})
+}

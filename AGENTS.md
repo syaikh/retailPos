@@ -184,6 +184,7 @@ Migrations must be applied **before** deploying a new server binary. The server 
 | `044_store_first_and_finance_role.sql` | Seeds default store; renames roles (admin→manager, manager→supervisor, staff→inventory_staff); creates `finance` role; grants supervisor `sale.create`/`store.view`; replaces inventory_staff permissions; backfills `store_id` |
 | `045_rename_usernames.sql` | Aligns default usernames to role names (admin→manager, manager→supervisor, staff→inventory_staff) |
 | `046_manager_consignment_pay.sql` | Grants `consignment.pay` to `manager` (settle-without-pay bug fix) |
+| `047_finance_consignment_view.sql` | Grants `consignment.view` to `finance` (fix: finance could pay settlements but not view them) |
 
 ## Filesystem Convention
 

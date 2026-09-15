@@ -6,7 +6,7 @@ import { Roles } from "$shared/constants/roles";
 
 /**
  * Role × permission matrix — source of truth: docs/audits/permission-matrix-final.md
- * (updated 2026-09-14, migrations 039/044/045/046).
+ * (updated 2026-09-14, migrations 039/044/045/046/047).
  */
 const MATRIX: Record<string, readonly string[]> = {
   [Roles.superadmin]: ALL_PERMISSIONS.filter((p) => p !== "sale.lookup"),
@@ -124,6 +124,7 @@ const MATRIX: Record<string, readonly string[]> = {
   ],
   [Roles.finance]: [
     "consignment.pay",
+    "consignment.view",
     "report.view",
     "audit.view",
     "sale.view",
