@@ -17,10 +17,11 @@ func seedOtherSupplierStock(t *testing.T, productID, store int) {
 	t.Helper()
 	ctx := context.Background()
 	otherSvc, _, otherStore := setupArrangement(t, productID)
+	otherUser := insertTestUser(ctx, t)
 	_, err := otherSvc.CreateReceipt(ctx, &ReceiptRequest{
 		ArrangementID: arrID(t, otherSvc, otherStore),
 		Items:         []ReceiptItemRequest{{ProductID: productID, AcceptedQty: 5}},
-	}, 1, &otherStore)
+	}, otherUser, &otherStore)
 	require.NoError(t, err)
 }
 
