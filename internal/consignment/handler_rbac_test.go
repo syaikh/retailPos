@@ -19,17 +19,16 @@ import (
 // rbacAuthMiddleware authenticates the caller and grants exactly the given
 // permissions, mirroring the real JWT auth middleware (gin keys + request
 // context claims).
-func rbacAuthMiddleware(perms []string, storeID *int) gin.HandlerFunc {
+func rbacAuthMiddleware(perms []string, storeID *int, uid int) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID := 1
-		c.Set("userID", userID)
+		c.Set("userID", uid)
 		c.Set("username", "consignment_rbac_user")
 		c.Set("role", "rbac-tester")
 		c.Set("permissions", perms)
 		c.Set("storeID", storeID)
 
 		ctx := c.Request.Context()
-		ctx = context.WithValue(ctx, middleware.CtxKeyUserID, userID)
+		ctx = context.WithValue(ctx, middleware.CtxKeyUserID, uid)
 		ctx = context.WithValue(ctx, middleware.CtxKeyUsername, "consignment_rbac_user")
 		ctx = context.WithValue(ctx, middleware.CtxKeyRole, "rbac-tester")
 		ctx = context.WithValue(ctx, middleware.CtxKeyStoreID, storeID)
@@ -41,13 +40,13 @@ func rbacAuthMiddleware(perms []string, storeID *int) gin.HandlerFunc {
 
 // setupConsignmentRBACRouter wires the real consignment routes with the real
 // permission middleware, so a request is gated exactly as in production.
-func setupConsignmentRBACRouter(t *testing.T, perms []string, storeID *int) *gin.Engine {
+func setupConsignmentRBACRouter(t *testing.T, perms []string, storeID *int, uid int) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	h := NewHandler(newTestService(t), nil)
 
 	r := gin.New()
-	h.RegisterRoutes(r.Group("/api"), rbacAuthMiddleware(perms, storeID), middleware.RequirePermission)
+	h.RegisterRoutes(r.Group("/api"), rbacAuthMiddleware(perms, storeID, uid), middleware.RequirePermission)
 	return r
 }
 
@@ -66,6 +65,7 @@ func doConsignmentRequest(r *gin.Engine, method, path, body string) *httptest.Re
 func TestHandler_PaymentMethods_RequiresPayOrSettle(t *testing.T) {
 	ctx := context.Background()
 	storeID := insertTestStore(ctx, t)
+	testUserID := insertTestUser(ctx, t)
 
 	tests := []struct {
 		name  string
@@ -81,7 +81,7 @@ func TestHandler_PaymentMethods_RequiresPayOrSettle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := setupConsignmentRBACRouter(t, tt.perms, &storeID)
+			r := setupConsignmentRBACRouter(t, tt.perms, &storeID, testUserID)
 			w := doConsignmentRequest(r, http.MethodGet, "/api/consignment/payment-methods", "")
 			assert.Equal(t, tt.want, w.Code)
 		})
@@ -94,17 +94,18 @@ func TestHandler_PaymentMethods_RequiresPayOrSettle(t *testing.T) {
 func TestHandler_ConsignmentSettlementAuthorization(t *testing.T) {
 	ctx := context.Background()
 	storeID := insertTestStore(ctx, t)
+	testUserID := insertTestUser(ctx, t)
 
 	t.Run("listing settlements requires consignment.view", func(t *testing.T) {
-		rView := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentView)}, &storeID)
+		rView := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentView)}, &storeID, testUserID)
 		assert.Equal(t, http.StatusOK, doConsignmentRequest(rView, http.MethodGet, "/api/consignment/settlements?supplier_id=1", "").Code)
 
-		rPay := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentPay)}, &storeID)
+		rPay := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentPay)}, &storeID, testUserID)
 		assert.Equal(t, http.StatusForbidden, doConsignmentRequest(rPay, http.MethodGet, "/api/consignment/settlements?supplier_id=1", "").Code)
 	})
 
 	t.Run("finance (pay + view) can list settlements", func(t *testing.T) {
-		r := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentPay), string(permissions.ConsignmentView)}, &storeID)
+		r := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentPay), string(permissions.ConsignmentView)}, &storeID, testUserID)
 		assert.Equal(t, http.StatusOK, doConsignmentRequest(r, http.MethodGet, "/api/consignment/settlements?supplier_id=1", "").Code)
 	})
 
@@ -113,11 +114,11 @@ func TestHandler_ConsignmentSettlementAuthorization(t *testing.T) {
 			{string(permissions.ConsignmentPay)},
 			{string(permissions.ConsignmentView)},
 		} {
-			r := setupConsignmentRBACRouter(t, perms, &storeID)
+			r := setupConsignmentRBACRouter(t, perms, &storeID, testUserID)
 			assert.Equal(t, http.StatusForbidden, doConsignmentRequest(r, http.MethodPost, "/api/consignment/settlements", `{"supplier_id":1}`).Code)
 		}
 
-		rSettle := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentSettle)}, &storeID)
+		rSettle := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentSettle)}, &storeID, testUserID)
 		w := doConsignmentRequest(rSettle, http.MethodPost, "/api/consignment/settlements", `{}`)
 		assert.NotEqual(t, http.StatusForbidden, w.Code)
 	})
@@ -128,7 +129,7 @@ func TestHandler_ConsignmentSettlementAuthorization(t *testing.T) {
 			{string(permissions.ConsignmentSettle)},
 			{string(permissions.ConsignmentView)},
 		} {
-			r := setupConsignmentRBACRouter(t, perms, &store)
+			r := setupConsignmentRBACRouter(t, perms, &store, testUserID)
 			assert.Equal(t, http.StatusForbidden, doConsignmentRequest(
 				r, http.MethodPost, fmt.Sprintf("/api/consignment/settlements/%d/payouts", stID), `{"amount":1000}`).Code)
 		}
@@ -139,7 +140,7 @@ func TestHandler_ConsignmentSettlementAuthorization(t *testing.T) {
 		// PaymentMethodID binding:"required", so `{}` fails ShouldBindJSON and the
 		// handler returns 400 before service validation is ever reached. Pinned
 		// deterministically against a settlement seeded for this test's own store.
-		rPay := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentPay)}, &store)
+		rPay := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentPay)}, &store, testUserID)
 		w := doConsignmentRequest(rPay, http.MethodPost, fmt.Sprintf("/api/consignment/settlements/%d/payouts", stID), `{}`)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
@@ -152,16 +153,17 @@ func TestHandler_CreateArrangement_StoreRequired(t *testing.T) {
 	ctx := context.Background()
 	storeID := insertTestStore(ctx, t)
 	supplierID := insertTestSupplier(ctx, t, "StoreReq Supplier", true)
+	testUserID := insertTestUser(ctx, t)
 
 	t.Run("superadmin without store_id gets 400", func(t *testing.T) {
-		r := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentCreate)}, nil)
+		r := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentCreate)}, nil, testUserID)
 		body := fmt.Sprintf(`{"supplier_id":%d}`, supplierID)
 		w := doConsignmentRequest(r, http.MethodPost, "/api/consignment/arrangements", body)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
 	t.Run("superadmin with store_id succeeds", func(t *testing.T) {
-		r := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentCreate)}, nil)
+		r := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentCreate)}, nil, testUserID)
 		body := fmt.Sprintf(`{"supplier_id":%d,"store_id":%d}`, supplierID, storeID)
 		w := doConsignmentRequest(r, http.MethodPost, "/api/consignment/arrangements", body)
 		assert.Contains(t, []int{http.StatusCreated, http.StatusConflict}, w.Code)
@@ -192,7 +194,7 @@ func TestHandler_ListAddTermProductOptions_RequiresView(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := setupConsignmentRBACRouter(t, tt.perms, &storeID)
+			r := setupConsignmentRBACRouter(t, tt.perms, &storeID, userID)
 			w := doConsignmentRequest(r, http.MethodGet, fmt.Sprintf("/api/consignment/arrangements/%d/available-products", arr.ID), "")
 			assert.Equal(t, tt.want, w.Code)
 		})
