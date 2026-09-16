@@ -59,9 +59,7 @@ describe("consignment-service", () => {
       };
       mockPost.mockResolvedValueOnce({ data: { data: returnResult } });
 
-      const { bulkReturnAllStock } = await import(
-        "../consignment-service"
-      );
+      const { bulkReturnAllStock } = await import("../consignment-service");
       const result = await bulkReturnAllStock(1, 5);
 
       expect(result).toEqual(returnResult);
@@ -122,9 +120,7 @@ describe("consignment-service", () => {
         .mockResolvedValueOnce({ data: { data: stock } })
         .mockResolvedValueOnce({ data: { data: pendingReturns } });
 
-      const { bulkReturnAllStock } = await import(
-        "../consignment-service"
-      );
+      const { bulkReturnAllStock } = await import("../consignment-service");
 
       await expect(bulkReturnAllStock(1, 5)).rejects.toThrow(
         "No stock to return",
@@ -146,9 +142,7 @@ describe("consignment-service", () => {
         .mockResolvedValueOnce({ data: { data: stock } })
         .mockResolvedValueOnce({ data: { data: pendingReturns } });
 
-      const { bulkReturnAllStock } = await import(
-        "../consignment-service"
-      );
+      const { bulkReturnAllStock } = await import("../consignment-service");
 
       await expect(bulkReturnAllStock(1, 5)).rejects.toThrow(
         "No stock to return",
@@ -182,9 +176,7 @@ describe("consignment-service", () => {
         data: { data: { id: 1, items: [] } },
       });
 
-      const { bulkReturnAllStock } = await import(
-        "../consignment-service"
-      );
+      const { bulkReturnAllStock } = await import("../consignment-service");
       await bulkReturnAllStock(1, 5);
 
       const callBody = mockPost.mock.calls[0][1];
@@ -230,9 +222,7 @@ describe("consignment-service", () => {
         data: { data: { id: 1, items: [] } },
       });
 
-      const { bulkReturnAllStock } = await import(
-        "../consignment-service"
-      );
+      const { bulkReturnAllStock } = await import("../consignment-service");
       await bulkReturnAllStock(1, 5);
 
       const callBody = mockPost.mock.calls[0][1];

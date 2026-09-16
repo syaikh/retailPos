@@ -256,7 +256,10 @@
     if (!activeArrangement) return;
     bulkReturning = true;
     try {
-      await bulkReturnAllStock(activeArrangement.id, activeArrangement.supplier_id);
+      await bulkReturnAllStock(
+        activeArrangement.id,
+        activeArrangement.supplier_id,
+      );
       toast.success(labels.consignmentBulkReturnSuccess);
       showBulkReturnModal = false;
       showReturnBanner = false;
