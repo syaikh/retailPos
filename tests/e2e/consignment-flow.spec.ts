@@ -398,13 +398,14 @@ test.describe('Consignment Supplier - Full Flow', () => {
           const retRes = await request.post(`${API_BASE}/api/consignment/returns`, {
             headers,
             data: {
-              supplier_id: supplier.id,
               arrangement_id: arrangement.id,
-              product_id: row.product_id,
-              qty: row.available_qty,
-              reason: 'other',
-              pending_return_id: prId,
               notes: 'E2E cleanup',
+              items: [{
+                product_id: row.product_id,
+                qty: row.available_qty,
+                reason: 'other',
+                pending_return_id: prId,
+              }],
             },
           });
           expect(retRes.ok(), `return failed: ${retRes.status()} ${await retRes.text()}`).toBeTruthy();
