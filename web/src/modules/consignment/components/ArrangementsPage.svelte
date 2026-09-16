@@ -601,7 +601,11 @@
       <Button variant="secondary" onclick={() => (showEndModal = false)}
         >{labels.cancel}</Button
       >
-      <Button variant="danger" onclick={confirmEndArrangement} disabled={ending}>
+      <Button
+        variant="danger"
+        onclick={confirmEndArrangement}
+        disabled={ending}
+      >
         {ending ? labels.saving : labels.consignmentEndArrangement}
       </Button>
     </div>

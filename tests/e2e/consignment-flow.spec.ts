@@ -361,9 +361,57 @@ test.describe('Consignment Supplier - Full Flow', () => {
     await expect(page.locator('text=Paid').first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('ends arrangement after all stock is returned', async ({ page }) => {
-    // This test runs after the settlement test. The arrangement should have
-    // stock = 0 (all returned) and can be ended.
+  test('ends arrangement after all stock is returned', async ({ page, request }) => {
+    // This test runs after the settlement test. The arrangement has 7 remaining
+    // stock (10 received - 1 sold - 1 pending returned - 1 returned). Return all
+    // remaining stock via API before attempting to end.
+    const token = await getToken(request);
+    const headers = authHeader(token);
+
+    // Get current stock for this supplier
+    const stockRes = await request.get(
+      `${API_BASE}/api/consignment/stock?supplier_id=${supplier.id}`,
+      { headers }
+    );
+    expect(stockRes.ok()).toBeTruthy();
+    const stockRows = (await stockRes.json()).data || [];
+    const totalAvailable = stockRows.reduce((sum: number, r: { available_qty: number }) => sum + r.available_qty, 0);
+
+    if (totalAvailable > 0) {
+      // Create pending returns for all remaining stock, then process them
+      for (const row of stockRows) {
+        if (row.available_qty > 0) {
+          const prRes = await request.post(`${API_BASE}/api/consignment/pending-returns`, {
+            headers,
+            data: {
+              supplier_id: supplier.id,
+              product_id: row.product_id,
+              qty: row.available_qty,
+              reason: 'other',
+              notes: 'E2E cleanup for end test',
+            },
+          });
+          expect(prRes.ok(), `pending return failed: ${prRes.status()} ${await prRes.text()}`).toBeTruthy();
+          const prId = (await prRes.json()).data.id;
+
+          // Process the return immediately
+          const retRes = await request.post(`${API_BASE}/api/consignment/returns`, {
+            headers,
+            data: {
+              supplier_id: supplier.id,
+              arrangement_id: arrangement.id,
+              product_id: row.product_id,
+              qty: row.available_qty,
+              reason: 'other',
+              pending_return_id: prId,
+              notes: 'E2E cleanup',
+            },
+          });
+          expect(retRes.ok(), `return failed: ${retRes.status()} ${await retRes.text()}`).toBeTruthy();
+        }
+      }
+    }
+
     await page.goto('/consignment');
     await page.waitForTimeout(1500);
 
@@ -471,7 +519,7 @@ test.describe('Consignment Supplier - Full Flow', () => {
     );
     expect(endRes.status()).toBe(409); // Conflict
     const endBody = await endRes.json();
-    expect(endBody.error).toContain('stock must be returned');
+    expect(endBody.error.message).toContain('stock must be returned');
   });
 
   test('cannot re-end an already ended arrangement', async ({ request }) => {
@@ -508,6 +556,6 @@ test.describe('Consignment Supplier - Full Flow', () => {
     );
     expect(endRes2.status()).toBe(400); // Bad Request
     const endBody = await endRes2.json();
-    expect(endBody.error).toContain('ended');
+    expect(endBody.error.message).toContain('ended');
   });
 });
