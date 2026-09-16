@@ -65,6 +65,7 @@ const (
 	ReasonDamaged        = "damaged"
 	ReasonExpired        = "expired"
 	ReasonCustomerReturn = "customer_return"
+	ReasonTermination    = "termination"
 	ReasonOther          = "other"
 )
 

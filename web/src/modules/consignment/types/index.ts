@@ -268,6 +268,7 @@ export const SETTLEMENT_PAID = "paid";
 export const RETURN_REASON_DAMAGED = "damaged";
 export const RETURN_REASON_EXPIRED = "expired";
 export const RETURN_REASON_CUSTOMER_RETURN = "customer_return";
+export const RETURN_REASON_TERMINATION = "termination";
 export const RETURN_REASON_OTHER = "other";
 
 export const ARRANGEMENT_STATUS_LABELS: Record<string, keyof Labels> = {
@@ -294,6 +295,7 @@ export const RETURN_REASON_LABELS: Record<string, keyof Labels> = {
   [RETURN_REASON_DAMAGED]: "returnReasonDamaged",
   [RETURN_REASON_EXPIRED]: "returnReasonExpired",
   [RETURN_REASON_CUSTOMER_RETURN]: "returnReasonCustomerReturn",
+  [RETURN_REASON_TERMINATION]: "returnReasonTermination",
   [RETURN_REASON_OTHER]: "returnReasonOther",
 };
 
@@ -301,5 +303,6 @@ export const RETURN_REASONS = [
   RETURN_REASON_DAMAGED,
   RETURN_REASON_EXPIRED,
   RETURN_REASON_CUSTOMER_RETURN,
+  RETURN_REASON_TERMINATION,
   RETURN_REASON_OTHER,
 ];

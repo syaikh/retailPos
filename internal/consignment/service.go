@@ -1453,7 +1453,7 @@ func validateShare(shareType string, shareValue, price float64) error {
 
 func validPendingReturnReason(reason string) bool {
 	switch reason {
-	case ReasonDamaged, ReasonExpired, ReasonCustomerReturn, ReasonOther:
+	case ReasonDamaged, ReasonExpired, ReasonCustomerReturn, ReasonTermination, ReasonOther:
 		return true
 	}
 	return false

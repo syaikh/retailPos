@@ -13,13 +13,18 @@
   } from "$shared/ui";
   import { Plus, Trash2, RotateCcw } from "lucide-svelte";
   import { labels, t } from "$shared/i18n";
-  import { getProductOptions } from "$modules/product/services/product-service";
   import {
     listReturns,
     createReturn,
     listPendingReturns,
+    listStock,
   } from "../services/consignment-service";
-  import type { Arrangement, ConsignmentReturn, PendingReturn } from "../types";
+  import type {
+    Arrangement,
+    ConsignmentReturn,
+    PendingReturn,
+    StockRow,
+  } from "../types";
   import { RETURN_REASON_LABELS, RETURN_REASONS } from "../types";
   import { formatDateTime } from "../lib/format";
 
@@ -43,10 +48,11 @@
 
   let returns = $state<ConsignmentReturn[]>([]);
   let openPending = $state<PendingReturn[]>([]);
+  let stockRows = $state<StockRow[]>([]);
   let loading = $state(true);
   let showModal = $state(false);
   let submitting = $state(false);
-  let productOptions = $state<{ value: number; label: string }[]>([]);
+  let stockOptions = $state<{ value: number; label: string }[]>([]);
   let lines = $state<Line[]>([]);
   let returnNotes = $state("");
 
@@ -74,13 +80,20 @@
 
   async function loadProducts() {
     try {
-      const opts = await getProductOptions();
-      productOptions = opts.map((p) => ({
-        value: p.id,
-        label: p.sku ? `${p.name} (${p.sku})` : p.name,
-      }));
+      const stock = await listStock(arrangement.supplier_id);
+      stockRows = stock;
+      stockOptions = stock
+        .filter(
+          (s) => s.available_qty > 0 && s.arrangement_id === arrangement.id,
+        )
+        .map((s) => ({
+          value: s.product_id,
+          label: s.product_sku
+            ? `${s.product_name} (${s.product_sku}) — ${labels.consignmentAvailableStock} ${s.available_qty}`
+            : `${s.product_name} — ${labels.consignmentAvailableStock} ${s.available_qty}`,
+        }));
     } catch {
-      productOptions = [];
+      stockOptions = [];
     }
   }
 
@@ -114,6 +127,26 @@
     if (items.length === 0) {
       toast.error(labels.consignmentEnterOneLine);
       return;
+    }
+    for (const item of items) {
+      if (item.pending_return_id) {
+        const pr = openPending.find((p) => p.id === item.pending_return_id);
+        if (pr && item.qty > pr.qty) {
+          toast.error(t("consignmentQtyExceedsStock", { max: pr.qty }));
+          return;
+        }
+      } else {
+        const max =
+          stockRows.find(
+            (s) =>
+              s.product_id === item.product_id &&
+              s.arrangement_id === arrangement.id,
+          )?.available_qty ?? 0;
+        if (item.qty > max) {
+          toast.error(t("consignmentQtyExceedsStock", { max }));
+          return;
+        }
+      }
     }
     submitting = true;
     try {
@@ -253,10 +286,10 @@
             >
             <SelectSearch
               bind:value={line.product_id}
-              options={productOptions}
+              options={stockOptions}
               placeholder={labels.consignmentSelectProduct}
               searchPlaceholder={labels.consignmentSearchProduct}
-              notFoundText={labels.consignmentProductNotFound}
+              notFoundText={labels.consignmentNoStockAvailable}
             />
           </label>
           <label

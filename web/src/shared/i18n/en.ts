@@ -1740,6 +1740,8 @@ export const en: Labels = {
     "Are you sure you want to end this arrangement? All consignment stock must be returned before ending.",
   consignmentArrangementEnded: "Arrangement ended successfully",
   consignmentEndError: "Failed to end arrangement",
+  consignmentReturnStockToEnd:
+    "All consignment stock must be returned before ending this arrangement. Please return the remaining stock below.",
   consignmentLastVisitLabel: "Last visit:",
   consignmentTabReceipts: "Receipts",
   consignmentTabTerms: "Terms",
@@ -1909,7 +1911,18 @@ export const en: Labels = {
   returnReasonDamaged: "Damaged",
   returnReasonExpired: "Expired",
   returnReasonCustomerReturn: "Customer Return",
+  returnReasonTermination: "Arrangement termination",
   returnReasonOther: "Other",
+  consignmentReturnAllStock: "Return All Remaining Stock",
+  consignmentBulkReturnDescription:
+    "The following products will be returned to the supplier. This action cannot be undone.",
+  consignmentBulkReturnProductCount: "{count} products",
+  consignmentBulkReturnTotalQty: "{count} items total",
+  consignmentNoStockToReturn: "No remaining stock to return.",
+  consignmentBulkReturnWarning:
+    "This will create a return document for all remaining consignment stock. The arrangement can be ended after this.",
+  consignmentBulkReturnSuccess: "All remaining stock returned successfully",
+  consignmentBulkReturnError: "Failed to return stock",
 
   // ===== App Settings =====
   appSettings: "Application Settings",

@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
 import type { SettlementItem } from "..";
+import {
+  RETURN_REASON_DAMAGED,
+  RETURN_REASON_EXPIRED,
+  RETURN_REASON_CUSTOMER_RETURN,
+  RETURN_REASON_TERMINATION,
+  RETURN_REASON_OTHER,
+  RETURN_REASONS,
+  RETURN_REASON_LABELS,
+} from "..";
 
 describe("Consignment types", () => {
   describe("SettlementItem", () => {
@@ -29,6 +38,36 @@ describe("Consignment types", () => {
         store_share: 2000,
       };
       expect(item.product_id).toBe(42);
+    });
+  });
+
+  describe("Return reasons", () => {
+    it("RETURN_REASON_TERMINATION constant is 'termination'", () => {
+      expect(RETURN_REASON_TERMINATION).toBe("termination");
+    });
+
+    it("RETURN_REASONS includes termination", () => {
+      expect(RETURN_REASONS).toContain(RETURN_REASON_TERMINATION);
+      expect(RETURN_REASONS).toEqual([
+        RETURN_REASON_DAMAGED,
+        RETURN_REASON_EXPIRED,
+        RETURN_REASON_CUSTOMER_RETURN,
+        RETURN_REASON_TERMINATION,
+        RETURN_REASON_OTHER,
+      ]);
+    });
+
+    it("RETURN_REASON_LABELS has label for termination", () => {
+      expect(RETURN_REASON_LABELS[RETURN_REASON_TERMINATION]).toBe(
+        "returnReasonTermination",
+      );
+    });
+
+    it("all five reasons have labels", () => {
+      for (const reason of RETURN_REASONS) {
+        expect(RETURN_REASON_LABELS[reason]).toBeDefined();
+        expect(typeof RETURN_REASON_LABELS[reason]).toBe("string");
+      }
     });
   });
 });

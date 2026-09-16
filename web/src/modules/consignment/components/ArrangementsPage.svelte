@@ -34,9 +34,11 @@
     createArrangement,
     endArrangement,
     listConsignmentSuppliers,
+    listStock,
+    bulkReturnAllStock,
   } from "../services/consignment-service";
   import { getActiveStores } from "$modules/stores/services/stores-service";
-  import type { Arrangement, ConsignmentSupplierRef } from "../types";
+  import type { Arrangement, ConsignmentSupplierRef, StockRow } from "../types";
   import type { ArrangementListParams } from "../services/consignment-service";
   import {
     ARRANGEMENT_STATUS_LABELS,
@@ -83,6 +85,22 @@
 
   let showEndModal = $state(false);
   let ending = $state(false);
+  let showReturnBanner = $state(false);
+
+  let showBulkReturnModal = $state(false);
+  let bulkReturning = $state(false);
+  let arrangementStock = $state<StockRow[]>([]);
+
+  const filteredStock = $derived(
+    arrangementStock.filter(
+      (s) =>
+        s.arrangement_id === activeArrangement?.id &&
+        (s.available_qty > 0 || s.pending_return_qty > 0),
+    ),
+  );
+  const totalReturnQty = $derived(
+    filteredStock.reduce((s, r) => s + r.available_qty, 0),
+  );
 
   async function load() {
     loading = true;
@@ -213,11 +231,40 @@
       await endArrangement(activeArrangement.id);
       toast.success(labels.consignmentArrangementEnded);
       showEndModal = false;
+      showReturnBanner = false;
       await refreshArrangement();
     } catch (e: unknown) {
-      toast.error(getApiErrorMessage(e, labels.consignmentEndError));
+      const msg = getApiErrorMessage(e, "");
+      if (msg.includes("stock must be returned")) {
+        showEndModal = false;
+        showReturnBanner = true;
+        activeTab = "return";
+        try {
+          arrangementStock = await listStock(activeArrangement.supplier_id);
+        } catch {
+          arrangementStock = [];
+        }
+      } else {
+        toast.error(getApiErrorMessage(e, labels.consignmentEndError));
+      }
     } finally {
       ending = false;
+    }
+  }
+
+  async function confirmBulkReturn() {
+    if (!activeArrangement) return;
+    bulkReturning = true;
+    try {
+      await bulkReturnAllStock(activeArrangement.id, activeArrangement.supplier_id);
+      toast.success(labels.consignmentBulkReturnSuccess);
+      showBulkReturnModal = false;
+      showReturnBanner = false;
+      await refreshArrangement();
+    } catch (e: unknown) {
+      toast.error(getApiErrorMessage(e, labels.consignmentBulkReturnError));
+    } finally {
+      bulkReturning = false;
     }
   }
 
@@ -278,6 +325,33 @@
           <p class="text-xs text-text-muted mt-1">
             {labels.consignmentTermsRequiredHint}
           </p>
+        </div>
+      </div>
+    {/if}
+
+    {#if showReturnBanner}
+      <div
+        class="rounded-xl border border-amber-300 bg-amber-50 p-4 flex items-center justify-between"
+      >
+        <div class="flex items-center gap-2 text-amber-800 text-sm">
+          <AlertTriangle class="w-4 h-4 shrink-0" />
+          <span>{t("consignmentReturnStockToEnd")}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <Button
+            variant="danger"
+            size="sm"
+            onclick={() => (showBulkReturnModal = true)}
+          >
+            {labels.consignmentReturnAllStock}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onclick={() => (showReturnBanner = false)}
+          >
+            {labels.dismiss}
+          </Button>
         </div>
       </div>
     {/if}
@@ -607,6 +681,66 @@
         disabled={ending}
       >
         {ending ? labels.saving : labels.consignmentEndArrangement}
+      </Button>
+    </div>
+  {/snippet}
+</Modal>
+
+<Modal
+  bind:open={showBulkReturnModal}
+  title={labels.consignmentReturnAllStock}
+  size="md"
+>
+  <div class="space-y-4">
+    <p class="text-sm text-text-secondary">
+      {labels.consignmentBulkReturnDescription}
+    </p>
+    {#if filteredStock.length > 0}
+      <div class="rounded-lg border border-border-default overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-muted/50">
+            <tr
+              class="text-left text-xs uppercase tracking-wider text-text-secondary"
+            >
+              <th class="p-3">{labels.consignmentProduct}</th>
+              <th class="p-3 text-right">{labels.consignmentQty}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each filteredStock as row (row.product_id || row)}
+              <tr class="border-t border-border/40">
+                <td class="p-3 text-text-primary">{row.product_name}</td>
+                <td class="p-3 text-right text-text-primary font-medium">
+                  {row.available_qty}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs text-text-muted">
+        {t("consignmentBulkReturnTotalQty", { count: totalReturnQty })}
+      </p>
+    {:else}
+      <p class="text-sm text-amber-600">{labels.consignmentNoStockToReturn}</p>
+    {/if}
+    <div
+      class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800"
+    >
+      {labels.consignmentBulkReturnWarning}
+    </div>
+  </div>
+  {#snippet footer()}
+    <div class="flex justify-end gap-3 w-full">
+      <Button variant="secondary" onclick={() => (showBulkReturnModal = false)}
+        >{labels.cancel}</Button
+      >
+      <Button
+        variant="danger"
+        onclick={confirmBulkReturn}
+        disabled={bulkReturning || filteredStock.length === 0}
+      >
+        {bulkReturning ? labels.saving : labels.consignmentReturnAllStock}
       </Button>
     </div>
   {/snippet}

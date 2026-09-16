@@ -1752,6 +1752,8 @@ export const id = {
     "Apakah Anda yakin ingin mengakhiri kesepakatan ini? Semua stok konsinyasi harus dikembalikan sebelum diakhiri.",
   consignmentArrangementEnded: "Kesepakatan berhasil diakhiri",
   consignmentEndError: "Gagal mengakhiri kesepakatan",
+  consignmentReturnStockToEnd:
+    "Semua stok konsinyasi harus dikembalikan sebelum mengakhiri kesepakatan ini. Silakan kembalikan stok yang tersisa di bawah.",
   consignmentLastVisitLabel: "Terakhir kunjungan:",
   consignmentTabReceipts: "Penerimaan",
   consignmentTabTerms: "Terms",
@@ -1923,7 +1925,18 @@ export const id = {
   returnReasonDamaged: "Rusak",
   returnReasonExpired: "Kadaluarsa",
   returnReasonCustomerReturn: "Retur Pelanggan",
+  returnReasonTermination: "Pengakhiran kesepakatan",
   returnReasonOther: "Lainnya",
+  consignmentReturnAllStock: "Kembalikan Semua Stok Tersisa",
+  consignmentBulkReturnDescription:
+    "Produk berikut akan dikembalikan ke pemasok. Tindakan ini tidak dapat dibatalkan.",
+  consignmentBulkReturnProductCount: "{count} produk",
+  consignmentBulkReturnTotalQty: "{count} item total",
+  consignmentNoStockToReturn: "Tidak ada stok tersisa untuk dikembalikan.",
+  consignmentBulkReturnWarning:
+    "Ini akan membuat dokumen retur untuk semua stok konsinyasi yang tersisa. Kesepakatan dapat diakhiri setelah ini.",
+  consignmentBulkReturnSuccess: "Semua stok tersisa berhasil dikembalikan",
+  consignmentBulkReturnError: "Gagal mengembalikan stok",
 
   // ===== App Settings =====
   appSettings: "Pengaturan Aplikasi",

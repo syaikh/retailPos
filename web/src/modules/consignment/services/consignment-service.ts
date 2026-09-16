@@ -13,6 +13,7 @@ import type {
   PendingReturnPayload,
   Receipt,
   ReceiptPayload,
+  ReturnItemPayload,
   ReturnPayload,
   Settlement,
   SetTermsPayload,
@@ -154,6 +155,60 @@ export async function createReturn(
 ): Promise<ConsignmentReturn> {
   const res = await apiClient.post("/consignment/returns", payload);
   return res.data.data;
+}
+
+export async function bulkReturnAllStock(
+  arrangementId: number,
+  supplierId: number,
+): Promise<ConsignmentReturn> {
+  const [stock, pendingReturns] = await Promise.all([
+    listStock(supplierId),
+    listPendingReturns(supplierId),
+  ]);
+
+  const openPending = pendingReturns.filter(
+    (pr) => pr.status === "open" && pr.arrangement_id === arrangementId,
+  );
+
+  const items: ReturnItemPayload[] = [];
+
+  for (const row of stock) {
+    if (row.arrangement_id !== arrangementId) continue;
+    if (row.available_qty <= 0 && row.pending_return_qty <= 0) continue;
+
+    const productPending = openPending.filter(
+      (pr) => pr.product_id === row.product_id,
+    );
+
+    if (productPending.length > 0) {
+      for (const pr of productPending) {
+        items.push({
+          product_id: row.product_id,
+          qty: pr.qty,
+          reason: "termination",
+          pending_return_id: pr.id,
+        });
+      }
+    }
+
+    if (row.available_qty > 0) {
+      items.push({
+        product_id: row.product_id,
+        qty: row.available_qty,
+        reason: "termination",
+      });
+    }
+  }
+
+  if (items.length === 0) {
+    throw new Error("No stock to return");
+  }
+
+  return createReturn({
+    arrangement_id: arrangementId,
+    notes: "Bulk return — ending arrangement",
+    items,
+  });
 }
 
 export async function getSettlementPreview(

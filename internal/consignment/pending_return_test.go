@@ -79,6 +79,31 @@ func TestService_PendingReturn(t *testing.T) {
 		require.ErrorIs(t, err, ErrInvalidReason)
 	})
 
+	t.Run("termination is accepted as a pending return reason", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "PR-TERM")
+		svc, _, store := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+
+		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		pr, err := svc.CreatePendingReturn(ctx, &CreatePendingReturnRequest{
+			ProductID: product,
+			Qty:       3,
+			Reason:    ReasonTermination,
+		}, userID, &store)
+		require.NoError(t, err)
+		require.Equal(t, ReasonTermination, pr.Reason)
+
+		row, err := svc.repo.GetConsignmentStock(ctx, svc.repo.db, product)
+		require.NoError(t, err)
+		require.Equal(t, 2, row.AvailableQty)
+		require.Equal(t, 3, row.PendingReturnQty)
+	})
+
 	t.Run("EC-06 EC-08 damaged and expired become pending returns", func(t *testing.T) {
 		skuD := insertTestProduct(ctx, t, "PR-DMG")
 		skuE := insertTestProduct(ctx, t, "PR-EXP")
@@ -394,6 +419,73 @@ func TestService_Return(t *testing.T) {
 		row, err := svcA.repo.GetConsignmentStock(ctx, svcA.repo.db, product)
 		require.NoError(t, err)
 		require.Nil(t, row)
+	})
+
+	t.Run("termination reason accepted in formal return", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "RET-TERM")
+		svc, _, store := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+
+		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		ret, err := svc.CreateReturn(ctx, &ReturnRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReturnItemRequest{{ProductID: product, Qty: 3, Reason: ReasonTermination}},
+		}, userID, &store)
+		require.NoError(t, err)
+		require.Len(t, ret.Items, 1)
+		require.Equal(t, ReasonTermination, ret.Items[0].Reason)
+
+		row, err := svc.repo.GetConsignmentStock(ctx, svc.repo.db, product)
+		require.NoError(t, err)
+		require.Equal(t, 2, row.AvailableQty)
+	})
+
+	t.Run("termination reason accepted with pending return link", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "RET-TERM-PR")
+		svc, sup, store := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+
+		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 10}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		pr, err := svc.CreatePendingReturn(ctx, &CreatePendingReturnRequest{
+			ProductID: product,
+			Qty:       4,
+			Reason:    ReasonTermination,
+		}, userID, &store)
+		require.NoError(t, err)
+		require.Equal(t, ReasonTermination, pr.Reason)
+
+		prID := pr.ID
+		ret, err := svc.CreateReturn(ctx, &ReturnRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReturnItemRequest{{ProductID: product, Qty: 4, Reason: ReasonTermination, PendingReturnID: &prID}},
+		}, userID, &store)
+		require.NoError(t, err)
+		require.Len(t, ret.Items, 1)
+		require.NotNil(t, ret.Items[0].PendingReturnID)
+
+		// pending_return drained; available untouched by this path.
+		row, err := svc.repo.GetConsignmentStock(ctx, svc.repo.db, product)
+		require.NoError(t, err)
+		require.Equal(t, 6, row.AvailableQty)
+		require.Equal(t, 0, row.PendingReturnQty)
+
+		// pending return no longer open.
+		list, err := svc.ListPendingReturns(ctx, sup, &store)
+		require.NoError(t, err)
+		require.Empty(t, list)
+
+		// Global stock reflects the removal of returned goods (6 soldable left).
+		require.Equal(t, 6, globalStockQty(ctx, t, product))
 	})
 }
 
