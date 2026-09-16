@@ -128,7 +128,7 @@ jobs:
       - name: List reports
         if: always()
         run: ls -la playwright-report 2>&1 || ls -la test-results 2>&1 || echo "no report found"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: report-${{ matrix.shard }}
@@ -146,7 +146,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: report-*
           path: .
@@ -155,7 +155,7 @@ jobs:
         with:
           node-version: "24"
       - run: npx playwright merge-reports blob-reports --reporter html
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: all-reports
           path: playwright-report
