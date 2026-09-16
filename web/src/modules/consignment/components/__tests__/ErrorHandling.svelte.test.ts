@@ -11,29 +11,25 @@ function getSource(component: string): string {
   );
 }
 
+const components = [
+  "ArrangementsPage.svelte",
+  "PendingReturnPage.svelte",
+  "ReceiptEntry.svelte",
+  "ReturnPage.svelte",
+  "SettlementPage.svelte",
+  "TermsEditor.svelte",
+];
+
 describe("Consignment components error-handling pattern", () => {
-  it("ArrangementsPage uses getApiErrorMessage", () => {
-    const src = getSource("ArrangementsPage.svelte");
-    expect(src).toContain("getApiErrorMessage");
-  });
+  for (const component of components) {
+    it(`${component} uses getApiErrorMessage`, () => {
+      const src = getSource(component);
+      expect(src).toContain("getApiErrorMessage");
+    });
 
-  it("PendingReturnPage uses getApiErrorMessage", () => {
-    const src = getSource("PendingReturnPage.svelte");
-    expect(src).toContain("getApiErrorMessage");
-  });
-
-  it("ReceiptEntry uses getApiErrorMessage", () => {
-    const src = getSource("ReceiptEntry.svelte");
-    expect(src).toContain("getApiErrorMessage");
-  });
-
-  it("ReturnPage uses getApiErrorMessage", () => {
-    const src = getSource("ReturnPage.svelte");
-    expect(src).toContain("getApiErrorMessage");
-  });
-
-  it("TermsEditor uses getApiErrorMessage", () => {
-    const src = getSource("TermsEditor.svelte");
-    expect(src).toContain("getApiErrorMessage");
-  });
+    it(`${component} does not use old e instanceof Error pattern`, () => {
+      const src = getSource(component);
+      expect(src).not.toContain("e instanceof Error");
+    });
+  }
 });
