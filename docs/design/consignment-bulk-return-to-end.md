@@ -1,6 +1,6 @@
 # Consignment Bulk Return to End Arrangement
 
-> **Status:** Implemented (partial — return dropdown fix + redirect banner done; bulk return pending)
+> **Status:** Implemented
 
 ## Problem
 
@@ -240,7 +240,7 @@ let bulkReturning = $state(false);
 In `confirmEndArrangement()` catch block, also load stock for the modal:
 
 ```typescript
-if (msg.includes("stock must be returned") || msg.includes("CNS-201")) {
+if (msg.includes("stock must be returned")) {
   showEndModal = false;
   showReturnBanner = true;
   activeTab = "return";

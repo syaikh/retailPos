@@ -267,10 +267,13 @@ Arrangement dapat tetap Active walaupun stok 0.
 Jika supplier tidak datang selama lebih dari 2 minggu, arrangement dapat menjadi Ended.
 
 ### BR-49 — Ended Tidak Otomatis Return
-Arrangement Ended tidak otomatis menyebabkan return.
+Arrangement Ended tidak otomatis menyebabkan return. Namun, semua stok harus dikembalikan terlebih dahulu sebelum arrangement dapat diakhiri secara eksplisit. Jika masih ada stok, endpoint `POST /consignment/arrangements/:id/end` mengembalikan 409; pengguna harus melakukan return semua stok terlebih dahulu (lihat BR-49b).
 
 ### BR-50 — Stock Ended Tetap Boleh Dijual
 Jika arrangement Ended tetapi masih terdapat stok yang layak jual, stok tetap boleh dijual.
+
+### BR-49b — Bulk Return Sebelum Ending
+Ketika pengguna mencoba mengakhiri arrangement yang masih memiliki stok, sistem menampilkan 409 error dan mengarahkan ke tab Returns. Pengguna dapat menggunakan fitur "Return All Remaining Stock" untuk mengembalikan semua stok sekaligus dengan reason `"termination"` (pengakhiran kesepakatan). Setelah semua stok dikembalikan, arrangement dapat diakhiri.
 
 ### BR-51 — Store Selection for Arrangement Creation
 Superadmin harus memilih store secara eksplisit saat membuat arrangement. User non-superadmin (manager, supervisor, cashier, inventory_staff) otomatis menggunakan store tempat mereka ditugaskan — field store tidak ditampilkan pada UI.
@@ -514,7 +517,7 @@ Supplier Return
 
 ## Scenario 10 — Supplier Stops Visiting
 
-Supplier tidak datang >2 minggu → Arrangement Ended. Jika Stock = 30, stock tetap boleh dijual dan tidak ada automatic return.
+Supplier tidak datang >2 minggu → Arrangement auto-Ended (lazy). Jika Stock = 30, stock tetap boleh dijual. Untuk mengakhiri arrangement secara eksplisit melalui API, semua stok harus dikembalikan terlebih dahulu menggunakan fitur "Return All" (reason: termination).
 
 ## Scenario 11 — Price Change
 
@@ -587,14 +590,22 @@ Active
   │
   └── no visit > 2 weeks
              ↓
-           Ended
+         Auto-Ended (lazy)
+             │
+             └── explicit end via API
+                    │
+                    ├── stock = 0 → Ended
+                    │
+                    └── stock > 0 → 409 (return all stock first)
+                           │
+                           └── bulk return (termination) → Ended
 ```
 
 Arrangement dapat Active walaupun stock = 0.
 
-Arrangement Ended tidak otomatis meretur stock.
+Arrangement Ended tidak otomatis meretur stock; namun untuk mengakhiri secara eksplisit, semua stok harus dikembalikan terlebih dahulu.
 
-Jika masih ada stock layak jual, stock tetap boleh dijual.
+Jika masih ada stock layak jual setelah Ended, stock tetap boleh dijual.
 
 ## 11.2 Consignment Stock
 
@@ -633,7 +644,7 @@ Payment
 | EC-02 | Supplier sama menambah stok ketika ada Pending Return | Boleh; Pending Return terpisah |
 | EC-03 | Harga berubah sebelum settlement | Sale lama menggunakan harga saat sale |
 | EC-04 | Hak toko berubah sebelum settlement | Sale lama menggunakan hak toko saat sale |
-| EC-05 | Arrangement Ended tetapi masih ada stok layak jual | Stok tetap boleh dijual |
+| EC-05 | Arrangement Ended tetapi masih ada stok layak jual | Stok tetap boleh dijual; namun untuk mengakhiri secara eksplisit, semua stok harus dikembalikan terlebih dahulu |
 | EC-06 | Barang rusak sendiri | Pending Return; bukan tanggung jawab toko |
 | EC-07 | Barang rusak karena customer | Tanggung jawab toko, kecuali force majeure |
 | EC-08 | Barang expired | Pending Return; tanggung jawab supplier |
@@ -762,7 +773,7 @@ Arrangement Active dengan stock 0 valid.
 Arrangement dapat Ended setelah supplier tidak datang >2 minggu.
 
 ### AC-C34
-Ending arrangement tidak otomatis meretur stock; stock layak jual tetap boleh dijual.
+Ending arrangement tidak otomatis meretur stock; namun semua stok harus dikembalikan sebelum arrangement dapat diakhiri. Fitur "Return All" memudahkan pengembalian massal dengan reason `"termination"`.
 
 ## 13.10 Ownership Invariant
 
@@ -779,8 +790,8 @@ Selama masih ada Pending Return milik supplier sebelumnya (walau available stock
 
 | ID | Rule |
 |---|---|
-| EC-BR-01 | Arrangement Ended tetap dapat memiliki stok belum terjual. |
-| EC-BR-02 | Stok layak jual tetap boleh dijual meskipun arrangement Ended. |
+| EC-BR-01 | Arrangement Ended tetap dapat memiliki stok belum terjual (auto-ended via inaktivitas). Untuk pengakhiran eksplisit, semua stok harus dikembalikan. |
+| EC-BR-02 | Stok layak jual tetap boleh dijual meskipun arrangement Ended (auto-ended). |
 | EC-BR-03 | Barang rusak sendiri menjadi Pending Return dan bukan tanggung jawab toko. |
 | EC-BR-04 | Barang rusak karena customer menjadi tanggung jawab toko, kecuali force majeure. |
 | EC-BR-05 | Barang expired menjadi tanggung jawab supplier dan diarahkan ke Pending Return. |
@@ -801,7 +812,7 @@ Selama masih ada Pending Return milik supplier sebelumnya (walau available stock
 6. Detail hak akses user.
 7. Detail audit trail.
 8. Detail payment apabila flow existing memiliki keterbatasan.
-9. Detail kebijakan settlement jika supplier tidak datang dalam waktu lama. **Konsekuensi BR-05b:** jika supplier berhenti datang (Arrangement Ended) dan meninggalkan Pending Return yang tidak pernah diambil, SKU tersebut tetap terkunci dari supplier lain selama Pending Return belum diselesaikan. Kebijakan release di luar kunjungan (mis. forced return oleh toko dengan permission khusus) ditunda; untuk MVP, skenario ini diterima sebagai konsekuensi ownership-first.
+9. Detail kebijakan settlement jika supplier tidak datang dalam waktu lama. **Konsekuensi BR-05b:** jika supplier berhenti datang (Arrangement Ended) dan meninggalkan Pending Return yang tidak pernah diambil, SKU tersebut tetap terkunci dari supplier lain selama Pending Return belum diselesaikan. **Update:** Fitur "Return All" dengan reason `"termination"` telah diimplementasi untuk memudahkan pengembalian massal stok sebelum pengakhiran eksplisit arrangement. Kebijakan forced return oleh toko (permission khusus) tetap ditunda untuk MVP.
 10. Detail rekonsiliasi jika terdapat perbedaan fisik antara catatan dan kondisi barang.
 
 # 16. MVP Business Scope
