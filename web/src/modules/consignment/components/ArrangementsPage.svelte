@@ -22,6 +22,8 @@
     AlertTriangle,
     ExternalLink,
   } from "lucide-svelte";
+  import { useRBAC } from "$shared/composables/useRBAC.svelte";
+  import { Roles } from "$shared/constants/roles";
   import { debounce } from "$shared/utils/debounce";
   import { labels, t } from "$shared/i18n";
   import {
@@ -47,6 +49,8 @@
   import StockPage from "./StockPage.svelte";
 
   const authStore = useAuthStore();
+  const rbac = useRBAC();
+  const isSuperadmin = $derived(rbac.userRole === Roles.superadmin);
   const userPermissions = $derived(authStore.user?.permissions || []);
   const canCreate = $derived(userPermissions.includes("consignment.create"));
   const canUpdate = $derived(userPermissions.includes("consignment.update"));
@@ -89,17 +93,13 @@
       suppliers = sups;
       supplierOptions = sups.map((s) => ({ value: s.id, label: s.name }));
 
-      // Load stores (may fail if user lacks store.view permission)
-      try {
-        const stores = await getActiveStores();
-        storeOptions = stores.map((s) => ({ value: s.id, label: s.name }));
-      } catch {
-        // Fall back to current user's store
-        const userStore = authStore.user?.store_id;
-        if (userStore) {
-          storeOptions = [
-            { value: userStore, label: labels.consignmentCurrentStore },
-          ];
+      // Load stores only for superadmin (non-superadmin is auto-assigned)
+      if (isSuperadmin) {
+        try {
+          const stores = await getActiveStores();
+          storeOptions = stores.map((s) => ({ value: s.id, label: s.name }));
+        } catch {
+          storeOptions = [];
         }
       }
     } catch {
@@ -132,13 +132,17 @@
 
   function openCreate() {
     createSupplierId = undefined;
-    createStoreId = authStore.user?.store_id;
+    createStoreId = isSuperadmin ? undefined : authStore.user?.store_id;
     showCreateModal = true;
   }
 
   async function submitCreate() {
     if (!createSupplierId) {
       toast.error(labels.consignmentSelectSupplier);
+      return;
+    }
+    if (isSuperadmin && !createStoreId) {
+      toast.error(labels.consignmentSelectStore);
       return;
     }
     creating = true;
@@ -503,18 +507,22 @@
         notFoundText={labels.consignmentNoConsignmentSuppliers}
       />
     </label>
-    <label
-      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-    >
-      <span>{labels.consignmentStore}</span>
-      <SelectSearch
-        bind:value={createStoreId}
-        options={storeOptions}
-        placeholder={labels.consignmentStorePlaceholder}
-        searchPlaceholder={labels.consignmentSearchStore}
-        notFoundText={labels.consignmentNoStores}
-      />
-    </label>
+    {#if isSuperadmin}
+      <label
+        class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+      >
+        <span
+          >{labels.consignmentStore} <span class="text-danger">*</span></span
+        >
+        <SelectSearch
+          bind:value={createStoreId}
+          options={storeOptions}
+          placeholder={labels.consignmentStorePlaceholder}
+          searchPlaceholder={labels.consignmentSearchStore}
+          notFoundText={labels.consignmentNoStores}
+        />
+      </label>
+    {/if}
     {#if suppliers.length === 0}
       <p class="text-xs text-amber-600">
         {labels.consignmentNoConsignmentSuppliersHint}

@@ -15,6 +15,15 @@ func TestService_ArrangementLifecycle(t *testing.T) {
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
+	t.Run("create rejects missing store for superadmin", func(t *testing.T) {
+		userID := insertTestUser(ctx, t)
+		sup := insertTestSupplier(ctx, t, "NoStore Supplier", true)
+
+		svc := newTestService(t)
+		_, err := svc.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: sup, StoreID: 0}, userID, nil)
+		require.ErrorIs(t, err, ErrStoreRequired)
+	})
+
 	t.Run("create rejects non-consignment supplier", func(t *testing.T) {
 		userID := insertTestUser(ctx, t)
 		storeID := insertTestStore(ctx, t)

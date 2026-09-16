@@ -82,7 +82,7 @@ Standard repo/service/handler split, wired in `internal/wiring/wiring.go`, route
 
 **Service methods (business rules enforced in service + SQL guards):**
 
-- `CreateArrangement(supplier, store)` — reject non-consignment supplier; reject if active arrangement exists (409). (BR-01)
+- `CreateArrangement(supplier, store)` — reject non-consignment supplier; reject if active arrangement exists (409). Superadmin must explicitly select a store; non-superadmin users are auto-assigned to their own store. (BR-01)
 - `ListArrangements / GetArrangement` — pagination/filter; **lazy Ended**: `status = COALESCE(status,'ended')` when `status='active' AND last_visit_at < now() − 14 days` (BR-48), surfaced in response and persisted on next write. (BR-47)
 - `SetTerms(arrangement, product, price, shareType, shareValue)` — validate one share type (BR-14/AC-C09); arrangement-owner scoped; upsert current term (BR-17/AC-C13 — applies to unsold stock, never retroactive to past sales). (BR-16)
 - `RecordSupplierVisit(arrangement)` — update `last_visit_at`; runs lazy Ended check; groups Receipt/Return/Settlement/Payout for the visit (BR-46/AC-C31).

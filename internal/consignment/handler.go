@@ -473,7 +473,8 @@ func writeError(c *gin.Context, err error) {
 		errors.Is(err, ErrInvalidQty),
 		errors.Is(err, ErrInvalidReason),
 		errors.Is(err, ErrPaymentMethodNotFound),
-		errors.Is(err, ErrEmptySettlement):
+		errors.Is(err, ErrEmptySettlement),
+		errors.Is(err, ErrStoreRequired):
 		status, code = http.StatusBadRequest, "CNS-102"
 	case errors.Is(err, ErrActiveArrangementExists),
 		errors.Is(err, ErrConflictStoreStock),

@@ -27,6 +27,7 @@ var (
 	ErrSettlementAlreadyPaid        = errors.New("consignment settlement is already paid")
 	ErrInvalidPayoutAmount          = errors.New("payout amount must match the settlement payable")
 	ErrPaymentMethodNotFound        = errors.New("payment method not found")
+	ErrStoreRequired                = errors.New("store is required")
 
 	// Receipt edit errors
 	ErrReceiptNotFound          = errors.New("consignment receipt not found")

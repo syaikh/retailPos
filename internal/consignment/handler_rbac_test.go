@@ -145,6 +145,29 @@ func TestHandler_ConsignmentSettlementAuthorization(t *testing.T) {
 	})
 }
 
+// TestHandler_CreateArrangement_StoreRequired verifies that a superadmin
+// (nil storeID claim) must explicitly select a store when creating an
+// arrangement. Omitting store_id returns 400 Bad Request (ErrStoreRequired).
+func TestHandler_CreateArrangement_StoreRequired(t *testing.T) {
+	ctx := context.Background()
+	storeID := insertTestStore(ctx, t)
+	supplierID := insertTestSupplier(ctx, t, "StoreReq Supplier", true)
+
+	t.Run("superadmin without store_id gets 400", func(t *testing.T) {
+		r := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentCreate)}, nil)
+		body := fmt.Sprintf(`{"supplier_id":%d}`, supplierID)
+		w := doConsignmentRequest(r, http.MethodPost, "/api/consignment/arrangements", body)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("superadmin with store_id succeeds", func(t *testing.T) {
+		r := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentCreate)}, nil)
+		body := fmt.Sprintf(`{"supplier_id":%d,"store_id":%d}`, supplierID, storeID)
+		w := doConsignmentRequest(r, http.MethodPost, "/api/consignment/arrangements", body)
+		assert.Contains(t, []int{http.StatusCreated, http.StatusConflict}, w.Code)
+	})
+}
+
 // TestHandler_ListAddTermProductOptions_RequiresView pins the authorization of
 // GET /consignment/arrangements/:id/available-products to consignment.view.
 func TestHandler_ListAddTermProductOptions_RequiresView(t *testing.T) {

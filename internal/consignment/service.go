@@ -39,7 +39,11 @@ func resolveStore(claimsStore *int, requested *int) (*int, error) {
 	if claimsStore == nil {
 		return requested, nil
 	}
-	if requested != nil && *requested != *claimsStore {
+	// Treat zero-value as omitted — auto-assign caller's store
+	if requested == nil || *requested == 0 {
+		return claimsStore, nil
+	}
+	if *requested != *claimsStore {
 		return nil, ErrStoreForbidden
 	}
 	return claimsStore, nil
@@ -70,6 +74,11 @@ func applyLazyEnded(a *Arrangement) {
 // CreateArrangement opens a consignment partnership for a consignment-flagged
 // supplier. Only one active arrangement may exist per supplier+store.
 func (s *Service) CreateArrangement(ctx context.Context, req *CreateArrangementRequest, userID int, claimsStore *int) (*Arrangement, error) {
+	// Superadmin must explicitly select a store
+	if claimsStore == nil && req.StoreID == 0 {
+		return nil, ErrStoreRequired
+	}
+
 	storeID, err := resolveStore(claimsStore, &req.StoreID)
 	if err != nil {
 		return nil, err

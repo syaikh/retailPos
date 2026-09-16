@@ -272,6 +272,9 @@ Arrangement Ended tidak otomatis menyebabkan return.
 ### BR-50 — Stock Ended Tetap Boleh Dijual
 Jika arrangement Ended tetapi masih terdapat stok yang layak jual, stok tetap boleh dijual.
 
+### BR-51 — Store Selection for Arrangement Creation
+Superadmin harus memilih store secara eksplisit saat membuat arrangement. User non-superadmin (manager, supervisor, cashier, inventory_staff) otomatis menggunakan store tempat mereka ditugaskan — field store tidak ditampilkan pada UI.
+
 # 6. Business Objects
 
 ## 6.1 Supplier
