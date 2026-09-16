@@ -16,9 +16,11 @@ test.describe('SelectSearch dropdown close behaviors', () => {
   let adminUser: { username: string; password: string };
 
   test.beforeAll(async ({ request }) => {
-    // Create a store-scoped manager (role 2) with consignment permissions.
-    // Seed users have NULL store_id which 403s on consignment list endpoints,
-    // so we must create a fresh user scoped to store 1.
+    // Create a store-scoped superadmin (role 1) with consignment permissions.
+    // Non-superadmin users no longer see the store dropdown (BR-51), so Test 6
+    // ("each dropdown closes independently") needs a superadmin to have two
+    // visible dropdowns. Seed users have NULL store_id which 403s on consignment
+    // list endpoints, so we must create a fresh user scoped to store 1.
     const superToken = await getToken(request);
     const superHeaders = authHeader(superToken);
     const suffix = Date.now();
@@ -31,7 +33,7 @@ test.describe('SelectSearch dropdown close behaviors', () => {
         username,
         email: `${username}@retail-pos.local`,
         password,
-        role_id: 2, // manager role – holds all consignment.* permissions
+        role_id: 1, // superadmin – sees both supplier and store dropdowns
         store_id: 1,
       },
     });
