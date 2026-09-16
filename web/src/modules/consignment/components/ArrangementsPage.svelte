@@ -22,6 +22,7 @@
     ArrowLeft,
     AlertTriangle,
     ExternalLink,
+    Square,
   } from "lucide-svelte";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { Roles } from "$shared/constants/roles";
@@ -31,6 +32,7 @@
     listArrangements,
     getArrangement,
     createArrangement,
+    endArrangement,
     listConsignmentSuppliers,
   } from "../services/consignment-service";
   import { getActiveStores } from "$modules/stores/services/stores-service";
@@ -78,6 +80,9 @@
   let activeTab = $state<
     "terms" | "receipt" | "pending" | "return" | "settlement" | "stock"
   >("receipt");
+
+  let showEndModal = $state(false);
+  let ending = $state(false);
 
   async function load() {
     loading = true;
@@ -197,6 +202,25 @@
     }
   }
 
+  function openEndModal() {
+    showEndModal = true;
+  }
+
+  async function confirmEndArrangement() {
+    if (!activeArrangement) return;
+    ending = true;
+    try {
+      await endArrangement(activeArrangement.id);
+      toast.success(labels.consignmentArrangementEnded);
+      showEndModal = false;
+      await refreshArrangement();
+    } catch (e: unknown) {
+      toast.error(getApiErrorMessage(e, labels.consignmentEndError));
+    } finally {
+      ending = false;
+    }
+  }
+
   onMount(load);
 </script>
 
@@ -229,6 +253,17 @@
           </span>
         </div>
       </div>
+      {#if activeArrangement.status === ARRANGEMENT_STATUS_ACTIVE && canUpdate}
+        <Button
+          variant="danger"
+          size="sm"
+          onclick={openEndModal}
+          class="shrink-0"
+        >
+          <Square class="w-4 h-4" />
+          {labels.consignmentEndArrangement}
+        </Button>
+      {/if}
     </div>
 
     {#if (activeArrangement.terms?.length ?? 0) === 0}
@@ -534,6 +569,40 @@
       >
       <Button onclick={submitCreate} disabled={creating}>
         {creating ? labels.saving : labels.create}
+      </Button>
+    </div>
+  {/snippet}
+</Modal>
+
+<Modal
+  bind:open={showEndModal}
+  title={labels.consignmentEndArrangement}
+  size="md"
+>
+  <div class="space-y-4">
+    <p class="text-sm text-text-secondary">
+      {labels.consignmentEndArrangementConfirm}
+    </p>
+    {#if activeArrangement}
+      <div class="rounded-lg bg-muted/30 p-3">
+        <p class="text-sm font-medium text-text-primary">
+          {activeArrangement.supplier_name}
+        </p>
+        <p class="text-xs text-text-muted mt-1">
+          {t("consignmentProductCount", {
+            count: activeArrangement.terms?.length ?? 0,
+          })}
+        </p>
+      </div>
+    {/if}
+  </div>
+  {#snippet footer()}
+    <div class="flex justify-end gap-3 w-full">
+      <Button variant="secondary" onclick={() => (showEndModal = false)}
+        >{labels.cancel}</Button
+      >
+      <Button variant="danger" onclick={confirmEndArrangement} disabled={ending}>
+        {ending ? labels.saving : labels.consignmentEndArrangement}
       </Button>
     </div>
   {/snippet}

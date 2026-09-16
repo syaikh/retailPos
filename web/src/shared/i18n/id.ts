@@ -1747,6 +1747,11 @@ export const id = {
   consignmentSelectStore: "Pilih store",
   consignmentCreateError: "Gagal membuat kesepakatan",
   consignmentCreatedFor: "Kesepakatan dibuat untuk {name}",
+  consignmentEndArrangement: "Akhiri Kesepakatan",
+  consignmentEndArrangementConfirm:
+    "Apakah Anda yakin ingin mengakhiri kesepakatan ini? Semua stok konsinyasi harus dikembalikan sebelum diakhiri.",
+  consignmentArrangementEnded: "Kesepakatan berhasil diakhiri",
+  consignmentEndError: "Gagal mengakhiri kesepakatan",
   consignmentLastVisitLabel: "Terakhir kunjungan:",
   consignmentTabReceipts: "Penerimaan",
   consignmentTabTerms: "Terms",

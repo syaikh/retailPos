@@ -455,3 +455,71 @@ func TestService_ListArrangementsPaginationSearch(t *testing.T) {
 		}
 	})
 }
+
+func TestService_EndArrangement(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	t.Run("ends active arrangement with zero stock", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "END-ZERO-STOCK")
+		svc, _, store := setupArrangement(t, product)
+
+		arrs, _, err := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+		require.NoError(t, err)
+		arr := arrs[0]
+		require.Equal(t, StatusActive, arr.Status)
+
+		got, err := svc.EndArrangement(ctx, arr.ID, &store)
+		require.NoError(t, err)
+		require.Equal(t, StatusEnded, got.Status)
+		require.NotNil(t, got.EndedAt)
+	})
+
+	t.Run("rejects ending when stock remains", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "END-HAS-STOCK")
+		svc, _, store := setupArrangement(t, product)
+
+		arrs, _, err := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+		require.NoError(t, err)
+		arr := arrs[0]
+
+		// Simulate received goods (stock > 0).
+		userID := insertTestUser(ctx, t)
+		_, err = svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arr.ID,
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		_, err = svc.EndArrangement(ctx, arr.ID, &store)
+		require.ErrorIs(t, err, ErrStockMustBeReturned)
+	})
+
+	t.Run("rejects ending already ended arrangement", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "END-ALREADY-ENDED")
+		svc, _, store := setupArrangement(t, product)
+
+		arrs, _, err := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+		require.NoError(t, err)
+		arr := arrs[0]
+
+		_, err = svc.EndArrangement(ctx, arr.ID, &store)
+		require.NoError(t, err)
+
+		_, err = svc.EndArrangement(ctx, arr.ID, &store)
+		require.ErrorIs(t, err, ErrArrangementEnded)
+	})
+
+	t.Run("store scope enforced", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "END-STORE-SCOPE")
+		svc, _, store := setupArrangement(t, product)
+
+		arrs, _, err := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+		require.NoError(t, err)
+		arr := arrs[0]
+
+		otherStore := insertTestStore(ctx, t)
+		_, err = svc.EndArrangement(ctx, arr.ID, &otherStore)
+		require.ErrorIs(t, err, ErrStoreForbidden)
+	})
+}

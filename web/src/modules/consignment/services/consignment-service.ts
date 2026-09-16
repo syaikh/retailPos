@@ -53,6 +53,11 @@ export async function createArrangement(
   return res.data.data;
 }
 
+export async function endArrangement(id: number): Promise<Arrangement> {
+  const res = await apiClient.post(`/consignment/arrangements/${id}/end`);
+  return res.data.data;
+}
+
 export async function setTerms(
   arrangementId: number,
   terms: SetTermsPayload[],

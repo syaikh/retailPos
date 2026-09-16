@@ -360,4 +360,154 @@ test.describe('Consignment Supplier - Full Flow', () => {
 
     await expect(page.locator('text=Paid').first()).toBeVisible({ timeout: 5000 });
   });
+
+  test('ends arrangement after all stock is returned', async ({ page }) => {
+    // This test runs after the settlement test. The arrangement should have
+    // stock = 0 (all returned) and can be ended.
+    await page.goto('/consignment');
+    await page.waitForTimeout(1500);
+
+    const row = page.locator('tbody tr').filter({ hasText: supplier.name }).first();
+    await expect(row).toBeVisible({ timeout: 10000 });
+    await row.locator('button').filter({ hasText: 'Open' }).click();
+    await page.waitForTimeout(800);
+
+    // End Arrangement button should be visible for active arrangements
+    const endBtn = page.locator('button').filter({ hasText: 'End Arrangement' });
+    await expect(endBtn).toBeVisible({ timeout: 5000 });
+    await endBtn.click();
+
+    // Confirmation modal
+    const confirmModal = page.getByRole('dialog', { name: 'End Arrangement' });
+    await expect(confirmModal).toBeVisible({ timeout: 5000 });
+
+    // Confirm
+    const endResponsePromise = page.waitForResponse(
+      (resp) => resp.url().includes('/api/consignment/arrangements/') && resp.url().includes('/end') && resp.request().method() === 'POST'
+    );
+    await confirmModal.locator('button').filter({ hasText: 'End Arrangement' }).click();
+    const endResponse = await endResponsePromise;
+    expect(endResponse.status(), `end arrangement failed: ${endResponse.status()} ${await endResponse.text()}`).toBe(200);
+
+    await expect(page.locator('text=Arrangement ended successfully')).toBeVisible({ timeout: 5000 });
+
+    // Status badge should show "ended"
+    await expect(page.locator('span').filter({ hasText: 'Ended' }).first()).toBeVisible({ timeout: 5000 });
+
+    // End Arrangement button should no longer be visible
+    await expect(endBtn).not.toBeVisible({ timeout: 3000 });
+  });
+
+  test('cannot end arrangement with remaining stock', async ({ request }) => {
+    // Create a fresh arrangement with stock > 0 via API
+    const token = await getToken(request);
+    const headers = authHeader(token);
+
+    // Create supplier
+    const suffix = Date.now();
+    const supRes = await request.post(`${API_BASE}/api/suppliers`, {
+      headers,
+      data: { name: `E2E End Test ${suffix}`, is_consignment: true },
+    });
+    expect(supRes.ok()).toBeTruthy();
+    const testSupplier = (await supRes.json()).data;
+
+    // Create product
+    const prodRes = await request.post(`${API_BASE}/api/products`, {
+      headers,
+      data: {
+        name: `End Test Product ${suffix}`,
+        sku: `END-${suffix}`,
+        price: 50000,
+        cost: 30000,
+        stock: 0,
+        status: 'active',
+        store_id: 1,
+      },
+    });
+    expect(prodRes.ok()).toBeTruthy();
+    const testProduct = (await prodRes.json()).data;
+
+    // Create arrangement
+    const arrRes = await request.post(`${API_BASE}/api/consignment/arrangements`, {
+      headers,
+      data: { supplier_id: testSupplier.id, store_id: 1 },
+    });
+    expect(arrRes.ok()).toBeTruthy();
+    const testArrangement = (await arrRes.json()).data;
+
+    // Add terms
+    const termsRes = await request.put(
+      `${API_BASE}/api/consignment/arrangements/${testArrangement.id}/terms`,
+      {
+        headers,
+        data: [
+          {
+            product_id: testProduct.id,
+            price: 50000,
+            store_share_type: 'percentage',
+            store_share_value: 20,
+          },
+        ],
+      }
+    );
+    expect(termsRes.ok()).toBeTruthy();
+
+    // Receive goods (stock > 0)
+    const recRes = await request.post(`${API_BASE}/api/consignment/receipts`, {
+      headers,
+      data: {
+        arrangement_id: testArrangement.id,
+        notes: 'End test',
+        items: [{ product_id: testProduct.id, accepted_qty: 5, notes: '' }],
+      },
+    });
+    expect(recRes.ok()).toBeTruthy();
+
+    // Try to end arrangement with stock > 0
+    const endRes = await request.post(
+      `${API_BASE}/api/consignment/arrangements/${testArrangement.id}/end`,
+      { headers }
+    );
+    expect(endRes.status()).toBe(409); // Conflict
+    const endBody = await endRes.json();
+    expect(endBody.error).toContain('stock must be returned');
+  });
+
+  test('cannot re-end an already ended arrangement', async ({ request }) => {
+    // Create and immediately end an arrangement
+    const token = await getToken(request);
+    const headers = authHeader(token);
+
+    const suffix = Date.now();
+    const supRes = await request.post(`${API_BASE}/api/suppliers`, {
+      headers,
+      data: { name: `E2E Re-end Test ${suffix}`, is_consignment: true },
+    });
+    expect(supRes.ok()).toBeTruthy();
+    const testSupplier = (await supRes.json()).data;
+
+    const arrRes = await request.post(`${API_BASE}/api/consignment/arrangements`, {
+      headers,
+      data: { supplier_id: testSupplier.id, store_id: 1 },
+    });
+    expect(arrRes.ok()).toBeTruthy();
+    const testArrangement = (await arrRes.json()).data;
+
+    // First end
+    const endRes1 = await request.post(
+      `${API_BASE}/api/consignment/arrangements/${testArrangement.id}/end`,
+      { headers }
+    );
+    expect(endRes1.ok()).toBeTruthy();
+
+    // Try to end again
+    const endRes2 = await request.post(
+      `${API_BASE}/api/consignment/arrangements/${testArrangement.id}/end`,
+      { headers }
+    );
+    expect(endRes2.status()).toBe(400); // Bad Request
+    const endBody = await endRes2.json();
+    expect(endBody.error).toContain('ended');
+  });
 });

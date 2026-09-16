@@ -29,6 +29,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/consignment/arrangements", auth, perm(permissions.ConsignmentView), h.ListArrangements)
 	r.POST("/consignment/arrangements", auth, perm(permissions.ConsignmentCreate), h.CreateArrangement)
 	r.GET("/consignment/arrangements/:id", auth, perm(permissions.ConsignmentView), h.GetArrangement)
+	r.POST("/consignment/arrangements/:id/end", auth, perm(permissions.ConsignmentUpdate), h.EndArrangement)
 	r.GET("/consignment/arrangements/:id/available-products", auth, perm(permissions.ConsignmentView), h.ListAddTermProductOptions)
 	r.PUT("/consignment/arrangements/:id/terms", auth, perm(permissions.ConsignmentUpdate), h.SetTerms)
 	r.GET("/consignment/receipts", auth, perm(permissions.ConsignmentView), h.ListReceipts)
@@ -103,6 +104,21 @@ func (h *Handler) GetArrangement(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{"data": a})
+}
+
+func (h *Handler) EndArrangement(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	a, err := h.svc.EndArrangement(c.Request.Context(), id, shared.GetStoreID(c))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	h.writeAudit(c, "end_arrangement", a.ID, fmt.Sprintf("Ended consignment arrangement with supplier %d", a.SupplierID), nil)
 	c.JSON(http.StatusOK, gin.H{"data": a})
 }
 
@@ -480,7 +496,8 @@ func writeError(c *gin.Context, err error) {
 		errors.Is(err, ErrConflictStoreStock),
 		errors.Is(err, ErrConflictOtherSupplier),
 		errors.Is(err, ErrPendingReturnBlocksTransfer),
-		errors.Is(err, ErrSettlementAlreadyPaid):
+		errors.Is(err, ErrSettlementAlreadyPaid),
+		errors.Is(err, ErrStockMustBeReturned):
 		status, code = http.StatusConflict, "CNS-201"
 	case errors.Is(err, ErrInsufficientConsignmentStock),
 		errors.Is(err, ErrInvalidPayoutAmount),

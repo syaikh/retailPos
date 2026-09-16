@@ -1735,6 +1735,11 @@ export const en: Labels = {
   consignmentSelectStore: "Select a store",
   consignmentCreateError: "Failed to create arrangement",
   consignmentCreatedFor: "Arrangement created for {name}",
+  consignmentEndArrangement: "End Arrangement",
+  consignmentEndArrangementConfirm:
+    "Are you sure you want to end this arrangement? All consignment stock must be returned before ending.",
+  consignmentArrangementEnded: "Arrangement ended successfully",
+  consignmentEndError: "Failed to end arrangement",
   consignmentLastVisitLabel: "Last visit:",
   consignmentTabReceipts: "Receipts",
   consignmentTabTerms: "Terms",

@@ -210,6 +210,58 @@ func (s *Service) GetArrangement(ctx context.Context, id int, claimsStore *int) 
 	return a, nil
 }
 
+// EndArrangement terminates an active arrangement. All consignment stock must be
+// returned (available_qty = 0 for every product) before the arrangement can be
+// ended. Unsettled sales are left as-is; the caller must settle them separately.
+func (s *Service) EndArrangement(ctx context.Context, arrangementID int, claimsStore *int) (*Arrangement, error) {
+	a, err := s.repo.GetArrangementByID(ctx, s.repo.db, arrangementID)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkArrangementStore(a, claimsStore); err != nil {
+		return nil, err
+	}
+	applyLazyEnded(a)
+	if a.Status == StatusEnded {
+		return nil, ErrArrangementEnded
+	}
+
+	// Check that all consignment stock for this arrangement has been returned.
+	stock, err := s.repo.ListConsignmentStock(ctx, s.repo.db, &a.SupplierID, &a.StoreID)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range stock {
+		if row.ArrangementID == a.ID && row.AvailableQty > 0 {
+			return nil, ErrStockMustBeReturned
+		}
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := s.repo.EndArrangement(ctx, tx, a.ID); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	// Return the updated arrangement.
+	updated, err := s.repo.GetArrangementByID(ctx, s.repo.db, a.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.hydrateArrangementNamesSingle(ctx, updated); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
 // SetTerms replaces the pricing/commission terms of an arrangement. All
 // products must be owned by the arrangement's supplier (BR-02/03 guard).
 func (s *Service) SetTerms(ctx context.Context, arrangementID int, reqs []SetTermsRequest, userID int, claimsStore *int) ([]Term, error) {
