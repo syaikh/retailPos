@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { toast } from "$shared/stores/toast.svelte";
+  import { getApiErrorMessage } from "$shared/utils/error-utils";
   import {
     Button,
     Modal,
@@ -175,9 +176,9 @@
       await load();
       oncreated?.();
     } catch (e: unknown) {
-      const raw =
-        e instanceof Error ? e.message : labels.consignmentRecordReceiptError;
-      toast.error(raw);
+      toast.error(
+        getApiErrorMessage(e, labels.consignmentRecordReceiptError),
+      );
     } finally {
       submitting = false;
     }
@@ -190,8 +191,7 @@
     try {
       detailReceipt = await getReceipt(receiptId);
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : labels.consignmentLoadError;
-      toast.error(raw);
+      toast.error(getApiErrorMessage(e, labels.consignmentLoadError));
       showDetailModal = false;
     } finally {
       loadingDetail = false;
@@ -256,8 +256,7 @@
       detailReceipt = await getReceipt(detailReceipt.id);
       editMode = false;
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : labels.consignmentEditError;
-      toast.error(raw);
+      toast.error(getApiErrorMessage(e, labels.consignmentEditError));
     } finally {
       savingEdit = false;
     }

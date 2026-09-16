@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { toast } from "$shared/stores/toast.svelte";
+  import { getApiErrorMessage } from "$shared/utils/error-utils";
   import {
     Button,
     Modal,
@@ -130,11 +131,9 @@
       await load();
       oncreated?.();
     } catch (e: unknown) {
-      const raw =
-        e instanceof Error
-          ? e.message
-          : labels.consignmentRecordPendingReturnError;
-      toast.error(raw);
+      toast.error(
+        getApiErrorMessage(e, labels.consignmentRecordPendingReturnError),
+      );
     } finally {
       submitting = false;
     }

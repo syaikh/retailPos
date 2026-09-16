@@ -12,28 +12,28 @@ function getSource(component: string): string {
 }
 
 describe("Consignment components error-handling pattern", () => {
-  it("ArrangementsPage uses instanceof Error error-handling pattern", () => {
+  it("ArrangementsPage uses getApiErrorMessage", () => {
     const src = getSource("ArrangementsPage.svelte");
-    expect(src).toContain("e instanceof Error");
+    expect(src).toContain("getApiErrorMessage");
   });
 
-  it("PendingReturnPage uses instanceof Error error-handling pattern", () => {
+  it("PendingReturnPage uses getApiErrorMessage", () => {
     const src = getSource("PendingReturnPage.svelte");
-    expect(src).toContain("e instanceof Error");
+    expect(src).toContain("getApiErrorMessage");
   });
 
-  it("ReceiptEntry uses instanceof Error error-handling pattern", () => {
+  it("ReceiptEntry uses getApiErrorMessage", () => {
     const src = getSource("ReceiptEntry.svelte");
-    expect(src).toContain("e instanceof Error");
+    expect(src).toContain("getApiErrorMessage");
   });
 
-  it("ReturnPage uses instanceof Error error-handling pattern", () => {
+  it("ReturnPage uses getApiErrorMessage", () => {
     const src = getSource("ReturnPage.svelte");
-    expect(src).toContain("e instanceof Error");
+    expect(src).toContain("getApiErrorMessage");
   });
 
-  it("TermsEditor uses instanceof Error error-handling pattern", () => {
+  it("TermsEditor uses getApiErrorMessage", () => {
     const src = getSource("TermsEditor.svelte");
-    expect(src).toContain("e instanceof Error");
+    expect(src).toContain("getApiErrorMessage");
   });
 });

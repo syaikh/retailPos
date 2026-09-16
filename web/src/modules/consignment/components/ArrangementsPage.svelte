@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { useAuthStore } from "$modules/auth";
   import { toast } from "$shared/stores/toast.svelte";
+  import { getApiErrorMessage } from "$shared/utils/error-utils";
   import { goto } from "$app/router";
   import {
     Button,
@@ -157,9 +158,7 @@
       showCreateModal = false;
       await load();
     } catch (e: unknown) {
-      const raw =
-        e instanceof Error ? e.message : labels.consignmentCreateError;
-      toast.error(raw);
+      toast.error(getApiErrorMessage(e, labels.consignmentCreateError));
     } finally {
       creating = false;
     }

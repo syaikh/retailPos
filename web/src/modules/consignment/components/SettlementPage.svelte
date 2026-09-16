@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { toast } from "$shared/stores/toast.svelte";
+  import { getApiErrorMessage } from "$shared/utils/error-utils";
   import {
     Button,
     Modal,
@@ -116,11 +117,9 @@
       await loadPreview();
       onsettled?.();
     } catch (e: unknown) {
-      const raw =
-        e instanceof Error
-          ? e.message
-          : labels.consignmentCreateSettlementError;
-      toast.error(raw);
+      toast.error(
+        getApiErrorMessage(e, labels.consignmentCreateSettlementError),
+      );
     } finally {
       creating = false;
     }
@@ -164,9 +163,9 @@
       await loadPreview();
       onsettled?.();
     } catch (e: unknown) {
-      const raw =
-        e instanceof Error ? e.message : labels.consignmentRecordPayoutError;
-      toast.error(raw);
+      toast.error(
+        getApiErrorMessage(e, labels.consignmentRecordPayoutError),
+      );
     } finally {
       paying = false;
     }

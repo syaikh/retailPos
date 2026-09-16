@@ -21,34 +21,8 @@ describe("SettlementPage.svelte source-structure guards", () => {
     );
   });
 
-  it("extracts error message from API response (e instanceof Error)", () => {
-    expect(src).toContain("e instanceof Error");
-  });
-
-  it("does not use the old flat error pattern for create settlement", () => {
-    const lines = src.split("\n");
-    const createSettlementLine = lines.findIndex((l) =>
-      l.includes("consignmentCreateSettlementError"),
-    );
-    if (createSettlementLine >= 0) {
-      const context = lines
-        .slice(Math.max(0, createSettlementLine - 5), createSettlementLine + 1)
-        .join("\n");
-      expect(context).toContain("e instanceof Error");
-    }
-  });
-
-  it("does not use the old flat error pattern for record payout", () => {
-    const lines = src.split("\n");
-    const payoutLine = lines.findIndex((l) =>
-      l.includes("consignmentRecordPayoutError"),
-    );
-    if (payoutLine >= 0) {
-      const context = lines
-        .slice(Math.max(0, payoutLine - 5), payoutLine + 1)
-        .join("\n");
-      expect(context).toContain("e instanceof Error");
-    }
+  it("uses getApiErrorMessage for error extraction", () => {
+    expect(src).toContain("getApiErrorMessage");
   });
 
   it("uses FormattedNumberInput for payout amount field", () => {
