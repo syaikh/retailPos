@@ -176,9 +176,7 @@
       await load();
       oncreated?.();
     } catch (e: unknown) {
-      toast.error(
-        getApiErrorMessage(e, labels.consignmentRecordReceiptError),
-      );
+      toast.error(getApiErrorMessage(e, labels.consignmentRecordReceiptError));
     } finally {
       submitting = false;
     }

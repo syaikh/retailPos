@@ -129,9 +129,7 @@
       await load();
       oncreated?.();
     } catch (e: unknown) {
-      toast.error(
-        getApiErrorMessage(e, labels.consignmentRecordReturnError),
-      );
+      toast.error(getApiErrorMessage(e, labels.consignmentRecordReturnError));
     } finally {
       submitting = false;
     }

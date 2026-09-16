@@ -131,9 +131,7 @@
       onsaved?.();
       await loadProducts();
     } catch (e: unknown) {
-      toast.error(
-        getApiErrorMessage(e, labels.consignmentTermsSaveError),
-      );
+      toast.error(getApiErrorMessage(e, labels.consignmentTermsSaveError));
     } finally {
       saving = false;
     }

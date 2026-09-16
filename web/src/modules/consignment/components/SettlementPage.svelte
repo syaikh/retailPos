@@ -163,9 +163,7 @@
       await loadPreview();
       onsettled?.();
     } catch (e: unknown) {
-      toast.error(
-        getApiErrorMessage(e, labels.consignmentRecordPayoutError),
-      );
+      toast.error(getApiErrorMessage(e, labels.consignmentRecordPayoutError));
     } finally {
       paying = false;
     }

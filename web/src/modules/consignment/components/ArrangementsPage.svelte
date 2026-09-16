@@ -510,8 +510,7 @@
       <label
         class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
       >
-        <span
-          >{labels.consignmentStore} <span class="text-danger">*</span></span
+        <span>{labels.consignmentStore} <span class="text-danger">*</span></span
         >
         <SelectSearch
           bind:value={createStoreId}

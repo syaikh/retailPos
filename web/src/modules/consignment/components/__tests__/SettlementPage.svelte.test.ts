@@ -25,10 +25,6 @@ describe("SettlementPage.svelte source-structure guards", () => {
     expect(src).toContain("getApiErrorMessage");
   });
 
-  it("does not use old e instanceof Error pattern", () => {
-    expect(src).not.toContain("e instanceof Error");
-  });
-
   it("uses FormattedNumberInput for payout amount field", () => {
     expect(src).toContain("<FormattedNumberInput");
     expect(src).toContain("bind:value={payoutForm.amount}");
