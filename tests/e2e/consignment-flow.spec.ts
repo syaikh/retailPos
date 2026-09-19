@@ -252,8 +252,9 @@ test.describe('Consignment Supplier - Full Flow', () => {
     const modal = page.getByRole('dialog', { name: 'Record Return', exact: true });
     await expect(modal).toBeVisible({ timeout: 5000 });
 
-    // Select product
-    const productSelect = modal.locator('label:has-text("Product")').first().locator('[aria-haspopup="listbox"]');
+    // Select product — data-table layout: first row's product cell contains [aria-haspopup="listbox"]
+    const firstRow = modal.locator('tbody tr').first();
+    const productSelect = firstRow.locator('td').first().locator('[aria-haspopup="listbox"]');
     await productSelect.click();
     await page.waitForTimeout(300);
     const listbox = page.locator('[role="listbox"]');
@@ -262,15 +263,16 @@ test.describe('Consignment Supplier - Full Flow', () => {
     await page.waitForTimeout(300);
 
     // Qty (default 1)
-    const qtyInput = modal.locator('input[type="number"]').first();
+    const qtyInput = firstRow.locator('input[type="number"]');
     await qtyInput.fill('1');
 
-    // Reason
-    await modal.locator('select').first().selectOption('damaged');
+    // Reason (3rd <td> contains native <select>)
+    const reasonSelect = firstRow.locator('td').nth(2).locator('select');
+    await reasonSelect.selectOption('damaged');
     await page.waitForTimeout(200);
 
-    // Link to the open pending return (2nd native <select> in the modal: 0 = reason, 1 = link)
-    const pendingSelect = modal.locator('select').nth(1);
+    // Link to the open pending return (4th <td> contains native <select>)
+    const pendingSelect = firstRow.locator('td').nth(3).locator('select');
     await pendingSelect.selectOption({ index: 1 });
     await page.waitForTimeout(200);
 

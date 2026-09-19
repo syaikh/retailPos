@@ -1934,16 +1934,14 @@ export const en: Labels = {
   consignmentDefaultPricing: "Default pricing for new products",
   consignmentDefaultPricingHint:
     "Applied to newly added products. Existing terms keep their original pricing unless edited above.",
-  consignmentConfirmReplace:
-    "This will replace all {count} terms. Continue?",
+  consignmentConfirmReplace: "This will replace all {count} terms. Continue?",
   consignmentRemoveTerm: "Remove",
   consignmentNoTermsHint:
     "Select products from the dropdown above to add terms.",
   consignmentAddProduct: "Add Product",
   consignmentShareValue: "Share Value",
   consignmentPriceAtLeastOne: "Price must be at least Rp 1",
-  consignmentShareValueRange:
-    "Amount must be between Rp 1 and Rp {max}",
+  consignmentShareValueRange: "Amount must be between Rp 1 and Rp {max}",
   arrangementStatusActive: "Active",
   arrangementStatusEnded: "Ended",
   shareTypePercentage: "Percentage (%)",

@@ -121,7 +121,37 @@ jobs:
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
       - name: Run govulncheck
-        run: govulncheck ./...
+        run: |
+          set +e
+          OUTPUT=$(govulncheck ./... 2>&1)
+          EXIT_CODE=$?
+          set -e
+
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "No vulnerabilities found"
+            exit 0
+          fi
+
+          # GO-2026-6452: excelize v2.11.0 already contains the fix (commit 93f0b3ca)
+          # but the Go vuln DB entry is incomplete (missing "fixed" event in semver range).
+          # Remove this filter once the vuln DB is corrected.
+          KNOWN_FP="GO-2026-6452"
+
+          VULN_IDS=$(echo "$OUTPUT" | grep -oP "GO-\d{4}-\d+" | sort -u || true)
+          REAL_VULNS=""
+          for vid in $VULN_IDS; do
+            if [ "$vid" != "$KNOWN_FP" ]; then
+              REAL_VULNS="$REAL_VULNS $vid"
+            fi
+          done
+
+          if [ -n "$REAL_VULNS" ]; then
+            echo "::error::Real vulnerabilities found:$REAL_VULNS"
+            echo "$OUTPUT"
+            exit 1
+          fi
+
+          echo "No real vulnerabilities found (GO-2026-6452 is a known false positive: excelize v2.11.0 is patched)"
 
   # ── Frontend ────────────────────────────────────────────────
   frontend-format:
@@ -133,8 +163,6 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: web/package-lock.json
       - name: Install dependencies
         working-directory: web
         run: npm ci

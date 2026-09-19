@@ -568,10 +568,14 @@
                       class="h-8 text-sm"
                     >
                       <option value={SHARE_TYPE_PERCENTAGE}
-                        >{labels[SHARE_TYPE_LABELS[SHARE_TYPE_PERCENTAGE]]}</option
+                        >{labels[
+                          SHARE_TYPE_LABELS[SHARE_TYPE_PERCENTAGE]
+                        ]}</option
                       >
                       <option value={SHARE_TYPE_FIXED_AMOUNT}
-                        >{labels[SHARE_TYPE_LABELS[SHARE_TYPE_FIXED_AMOUNT]]}</option
+                        >{labels[
+                          SHARE_TYPE_LABELS[SHARE_TYPE_FIXED_AMOUNT]
+                        ]}</option
                       >
                     </Input>
                   </td>
@@ -591,7 +595,8 @@
                           Number((e.target as HTMLInputElement).value),
                         )}
                       class="h-8 text-sm"
-                      disabled={row.store_share_type === SHARE_TYPE_FIXED_AMOUNT && row.price < 2}
+                      disabled={row.store_share_type ===
+                        SHARE_TYPE_FIXED_AMOUNT && row.price < 2}
                     />
                   </td>
                   <td class="p-2">
@@ -629,7 +634,10 @@
       >
         {labels.cancel}
       </Button>
-      <Button onclick={submitTerms} disabled={saving || editableTermCount === 0}>
+      <Button
+        onclick={submitTerms}
+        disabled={saving || editableTermCount === 0}
+      >
         {saving
           ? labels.saving
           : labels.consignmentTermsCount.replace(

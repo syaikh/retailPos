@@ -118,10 +118,7 @@
   }
 
   function addLine() {
-    lines = [
-      ...lines,
-      { product_id: undefined, qty: 1, reason: "other" },
-    ];
+    lines = [...lines, { product_id: undefined, qty: 1, reason: "other" }];
   }
 
   function removeLine(index: number) {
@@ -276,8 +273,7 @@
                 <td class="p-4 text-text-secondary"
                   >{formatDateTime(r.returned_at)}</td
                 >
-                <td class="p-4 text-right text-text-primary"
-                  >{r.total_items}</td
+                <td class="p-4 text-right text-text-primary">{r.total_items}</td
                 >
                 <td class="p-4 text-right text-text-primary font-medium">
                   {r.total_qty}
@@ -333,7 +329,8 @@
             <th class="px-3 py-3 w-[260px]">{labels.consignmentProduct}</th>
             <th class="px-3 py-3 w-20">{labels.consignmentQty}</th>
             <th class="px-3 py-3 w-32">{labels.consignmentReason}</th>
-            <th class="px-3 py-3 w-44">{labels.consignmentLinkPendingReturn}</th>
+            <th class="px-3 py-3 w-44">{labels.consignmentLinkPendingReturn}</th
+            >
             <th class="px-3 py-3 w-10"></th>
           </tr>
         </thead>
@@ -358,9 +355,9 @@
               <td class="px-3 py-3 w-[260px]">
                 {#if line.fromPending}
                   <span class="font-medium text-text-primary text-xs">
-                    {stockOptions.find((o) => o.value === line.product_id)
-                      ?.label?.split(" — ")[0] ||
-                      `#${line.product_id}`}
+                    {stockOptions
+                      .find((o) => o.value === line.product_id)
+                      ?.label?.split(" — ")[0] || `#${line.product_id}`}
                   </span>
                 {:else if rowOptions.length === 0}
                   <span class="text-text-muted text-xs"
@@ -507,9 +504,7 @@
       </div>
 
       <div>
-        <div
-          class="text-text-secondary text-xs uppercase tracking-wider mb-2"
-        >
+        <div class="text-text-secondary text-xs uppercase tracking-wider mb-2">
           {labels.consignmentReturnItem}
         </div>
         <div class="overflow-x-auto rounded-xl border border-border-default">
@@ -534,7 +529,9 @@
                       {item.product_sku || ""}
                     </div>
                   </td>
-                  <td class="px-4 py-3 text-right text-text-primary font-medium">
+                  <td
+                    class="px-4 py-3 text-right text-text-primary font-medium"
+                  >
                     {item.qty}
                   </td>
                   <td class="px-4 py-3 text-text-secondary">

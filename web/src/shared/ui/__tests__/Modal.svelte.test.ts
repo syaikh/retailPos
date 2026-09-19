@@ -36,6 +36,6 @@ describe("Modal.svelte source-structure guards", () => {
 
   it("supports configurable zIndex prop", () => {
     expect(src).toContain("zIndex");
-    expect(src).toContain("style=\"z-index: {zIndex}\"");
+    expect(src).toContain('style="z-index: {zIndex}"');
   });
 });

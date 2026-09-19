@@ -1956,8 +1956,7 @@ export const id = {
   consignmentAddProduct: "Tambah Produk",
   consignmentShareValue: "Nilai Share",
   consignmentPriceAtLeastOne: "Harga minimal Rp 1",
-  consignmentShareValueRange:
-    "Nominal harus antara Rp 1 dan Rp {max}",
+  consignmentShareValueRange: "Nominal harus antara Rp 1 dan Rp {max}",
   arrangementStatusActive: "Aktif",
   arrangementStatusEnded: "Berakhir",
   shareTypePercentage: "Persentase (%)",

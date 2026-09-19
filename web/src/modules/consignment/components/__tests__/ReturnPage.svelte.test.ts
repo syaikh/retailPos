@@ -15,15 +15,11 @@ describe("ReturnPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("uses HTMLSelectElement for pending return select onchange cast", () => {
-    expect(src).toContain(
-      "(e.target as HTMLSelectElement).value",
-    );
+    expect(src).toContain("(e.target as HTMLSelectElement).value");
   });
 
   it("does not use HTMLInputElement for the pending return select", () => {
-    const pendingReturnBlock = src.slice(
-      src.indexOf("pending_return_id"),
-    );
+    const pendingReturnBlock = src.slice(src.indexOf("pending_return_id"));
     expect(pendingReturnBlock).not.toContain(
       "(e.target as HTMLInputElement).value",
     );
