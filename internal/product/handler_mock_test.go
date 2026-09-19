@@ -379,6 +379,7 @@ func TestMockHandler_CreateProduct(t *testing.T) {
 		svc := &mockProductService{
 			createFn: func(ctx context.Context, product *Product) error {
 				product.ID = 100
+				product.SKU = "MK-CRT-001"
 				return nil
 			},
 		}
@@ -389,6 +390,18 @@ func TestMockHandler_CreateProduct(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusCreated, w.Code)
+		var resp struct {
+			Data struct {
+				ID   int    `json:"id"`
+				SKU  string `json:"sku"`
+				Name string `json:"name"`
+			} `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, 100, resp.Data.ID)
+		assert.Equal(t, "MK-CRT-001", resp.Data.SKU)
+		assert.Equal(t, "New Product", resp.Data.Name)
 	})
 
 	t.Run("invalid json", func(t *testing.T) {

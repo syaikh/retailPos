@@ -95,8 +95,9 @@ export async function getNextSku(): Promise<string> {
 
 export async function createProduct(
   data: ProductFormData & { category_name?: string },
-): Promise<void> {
-  await apiClient.post("/products", data);
+): Promise<{ id: number; sku: string; name: string }> {
+  const res = await apiClient.post("/products", data);
+  return res.data.data;
 }
 
 export async function updateProduct(

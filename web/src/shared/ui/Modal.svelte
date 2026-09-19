@@ -11,14 +11,16 @@
     size = "md",
     persistent = false,
     panelClass = "",
+    zIndex = 70,
     children,
     footer,
   }: {
     open?: boolean;
     title?: string;
-    size?: "sm" | "md" | "lg" | "xl";
+    size?: "sm" | "md" | "lg" | "xl" | "2xl";
     persistent?: boolean;
     panelClass?: string;
+    zIndex?: number;
     children: Snippet;
     footer?: Snippet;
   } = $props();
@@ -31,6 +33,7 @@
     md: "max-w-lg",
     lg: "max-w-2xl",
     xl: "max-w-4xl",
+    "2xl": "max-w-6xl",
   };
 
   const focusableSelector =
@@ -89,7 +92,8 @@
 {#if open}
   <!-- Backdrop -->
   <div
-    class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60"
+    class="fixed inset-0 flex items-center justify-center p-4 bg-black/60"
+    style="z-index: {zIndex}"
     transition:fade={{ duration: 200 }}
     role="presentation"
     onclick={() => {

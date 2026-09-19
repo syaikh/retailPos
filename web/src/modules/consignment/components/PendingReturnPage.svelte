@@ -49,7 +49,6 @@
     product_id: undefined as number | undefined,
     qty: 1,
     reason: "damaged",
-    notes: "",
   });
 
   let pageLimit = $state(20);
@@ -100,7 +99,7 @@
   }
 
   function openModal() {
-    form = { product_id: undefined, qty: 1, reason: "damaged", notes: "" };
+    form = { product_id: undefined, qty: 1, reason: "damaged" };
     showModal = true;
   }
 
@@ -124,7 +123,6 @@
         product_id: form.product_id,
         qty: form.qty,
         reason: form.reason,
-        notes: form.notes || undefined,
       });
       toast.success(labels.consignmentPendingReturnRecorded);
       showModal = false;
@@ -279,18 +277,6 @@
           <option value={reason}>{labels[RETURN_REASON_LABELS[reason]]}</option>
         {/each}
       </Input>
-    </label>
-    <label
-      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-    >
-      <span>{labels.notes}</span>
-      <Input
-        tag="textarea"
-        bind:value={form.notes}
-        rows={2}
-        placeholder={labels.consignmentNotesPlaceholder}
-        class="text-sm"
-      />
     </label>
   </div>
   {#snippet footer()}

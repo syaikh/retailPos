@@ -49,6 +49,7 @@ func TestAuditHandler_CreateProduct(t *testing.T) {
 	svc := &mockProductService{
 		createFn: func(ctx context.Context, product *Product) error {
 			product.ID = 42
+			product.SKU = "WDG-001"
 			return nil
 		},
 	}

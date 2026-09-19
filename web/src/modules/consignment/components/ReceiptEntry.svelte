@@ -34,8 +34,7 @@
 
   interface Line {
     product_id?: number;
-    brought_qty: number;
-    rejected_qty: number;
+    accepted_qty: number;
     notes: string;
     conflict?: string;
   }
@@ -114,10 +113,12 @@
     }));
   }
 
+  $effect(() => {
+    loadTermProducts();
+  });
+
   function openEntry() {
-    lines = [
-      { product_id: undefined, brought_qty: 1, rejected_qty: 0, notes: "" },
-    ];
+    lines = [{ product_id: undefined, accepted_qty: 1, notes: "" }];
     entryNotes = "";
     termByProduct = {};
     (arrangement.terms || []).forEach((t) => {
@@ -131,19 +132,11 @@
   }
 
   function addLine() {
-    lines = [
-      ...lines,
-      { product_id: undefined, brought_qty: 1, rejected_qty: 0, notes: "" },
-    ];
+    lines = [...lines, { product_id: undefined, accepted_qty: 1, notes: "" }];
   }
 
   function removeLine(index: number) {
     lines = lines.filter((_, i) => i !== index);
-  }
-
-  function acceptedQty(line: Line): number {
-    const a = Math.max(0, line.brought_qty - (line.rejected_qty || 0));
-    return a;
   }
 
   async function submitEntry() {
@@ -152,10 +145,10 @@
       return;
     }
     const items = lines
-      .filter((l) => l.product_id && acceptedQty(l) > 0)
+      .filter((l) => l.product_id && l.accepted_qty > 0)
       .map((l) => ({
         product_id: l.product_id!,
-        accepted_qty: acceptedQty(l),
+        accepted_qty: l.accepted_qty,
         notes: l.notes || undefined,
       }));
     if (items.length === 0) {
@@ -262,7 +255,6 @@
 
   onMount(() => {
     load();
-    loadTermProducts();
   });
 
   function handlePageChange(newOffset: number, newLimit: number) {
@@ -376,7 +368,7 @@
     {#each lines as line, i (i)}
       <div class="rounded-xl border border-border-default p-3 space-y-3">
         <div
-          class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-3 items-end"
+          class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-end"
         >
           <label
             class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
@@ -396,20 +388,10 @@
           <label
             class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
           >
-            <span>{labels.consignmentBrought}</span>
+            <span>{labels.consignmentAcceptedQty}</span>
             <NumberInput
-              min="0"
-              bind:value={line.brought_qty}
-              class="h-9 w-24 text-sm"
-            />
-          </label>
-          <label
-            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-          >
-            <span>{labels.consignmentRejected}</span>
-            <NumberInput
-              min="0"
-              bind:value={line.rejected_qty}
+              min="1"
+              bind:value={line.accepted_qty}
               class="h-9 w-24 text-sm"
             />
           </label>
@@ -425,12 +407,6 @@
           {/if}
         </div>
         <div class="flex flex-wrap items-center gap-4 text-xs">
-          <span class="text-text-secondary">
-            {labels.consignmentAccepted}
-            <span class="font-semibold text-text-primary"
-              >{acceptedQty(line)}</span
-            >
-          </span>
           {#if line.product_id && termByProduct[line.product_id]}
             <span class="text-text-secondary">
               {labels.consignmentTabTerms}:

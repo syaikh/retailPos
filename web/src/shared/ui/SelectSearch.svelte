@@ -15,6 +15,7 @@
     searchPlaceholder = "Search...",
     disabled = false,
     class: className = "",
+    size = "md",
     notFoundText = "No results found",
     onchange,
   }: {
@@ -24,6 +25,7 @@
     searchPlaceholder?: string;
     disabled?: boolean;
     class?: string;
+    size?: "sm" | "md";
     notFoundText?: string;
     onchange?: (value: number) => void;
   } = $props();
@@ -46,6 +48,11 @@
         )
       : options,
   );
+
+  const sizeClasses = {
+    sm: "px-3 py-1.5 text-xs",
+    md: "px-3.5 py-2.5 text-sm",
+  };
 
   function computePosition() {
     if (!container) return;
@@ -128,14 +135,15 @@
   });
 </script>
 
-<div bind:this={container} class={cn("relative", className)}>
+<div bind:this={container} class={cn("relative w-full", className)}>
   <button
     bind:this={buttonEl}
     type="button"
     onclick={toggleDropdown}
     {disabled}
     class={cn(
-      "w-full rounded-xl border bg-bg-secondary px-3.5 py-2.5 text-sm text-left transition-colors duration-200 flex items-center gap-2",
+      "w-full rounded-xl border bg-bg-secondary text-left transition-colors duration-200 flex items-center gap-2",
+      sizeClasses[size],
       open
         ? "border-primary-default ring-2 ring-primary/30"
         : "border-border-default",

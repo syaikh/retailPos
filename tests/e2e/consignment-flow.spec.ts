@@ -270,8 +270,8 @@ test.describe('Consignment Supplier - Full Flow', () => {
     await modal.locator('select').first().selectOption('damaged');
     await page.waitForTimeout(200);
 
-    // Link to the open pending return (index 1 = first real option, index 0 = no link)
-    const pendingSelect = modal.locator('select').nth(1);
+    // Link to the open pending return (select inside "Link to pending return" label)
+    const pendingSelect = modal.locator('label:has-text("Tautkan ke retur tertunda")').locator('select');
     await pendingSelect.selectOption({ index: 1 });
     await page.waitForTimeout(200);
 

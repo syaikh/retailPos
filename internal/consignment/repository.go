@@ -953,8 +953,15 @@ func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID int,
 
 	rows, err := q.Query(ctx, `
 		SELECT rt.id, rt.return_number, rt.supplier_id, rt.store_id, rt.arrangement_id,
-		       rt.returned_by, rt.returned_at, COALESCE(rt.notes,''), rt.created_at
+		       rt.returned_by, rt.returned_at, COALESCE(rt.notes,''), rt.created_at,
+		       COALESCE(agg.total_items, 0), COALESCE(agg.total_qty, 0)
 		FROM consignment_returns rt
+		LEFT JOIN LATERAL (
+			SELECT COUNT(*) AS total_items,
+			       SUM(i.qty) AS total_qty
+			FROM consignment_return_items i
+			WHERE i.consignment_return_id = rt.id
+		) agg ON true
 	`+where+` ORDER BY rt.created_at DESC`, args...)
 	if err != nil {
 		return nil, err
@@ -966,7 +973,8 @@ func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID int,
 		var ret Return
 		var returnedAt, createdAt time.Time
 		if err := rows.Scan(&ret.ID, &ret.ReturnNumber, &ret.SupplierID, &ret.StoreID, &ret.ArrangementID,
-			&ret.ReturnedBy, &returnedAt, &ret.Notes, &createdAt); err != nil {
+			&ret.ReturnedBy, &returnedAt, &ret.Notes, &createdAt,
+			&ret.TotalItems, &ret.TotalQty); err != nil {
 			return nil, err
 		}
 		ret.ReturnedAt = returnedAt.In(shared.JakartaLocation()).Format(time.RFC3339)

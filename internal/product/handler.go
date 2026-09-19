@@ -282,7 +282,7 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
-	c.JSON(http.StatusCreated, gin.H{"data": product})
+	c.JSON(http.StatusCreated, gin.H{"data": gin.H{"id": product.ID, "sku": product.SKU, "name": product.Name}})
 }
 
 // UpdateProduct godoc

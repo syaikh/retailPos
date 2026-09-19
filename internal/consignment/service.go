@@ -988,6 +988,14 @@ func (s *Service) CreateReturn(ctx context.Context, req *ReturnRequest, userID i
 	if len(req.Items) == 0 {
 		return nil, ErrInvalidQty
 	}
+	// Check for duplicate products
+	seen := make(map[int]bool)
+	for _, r := range req.Items {
+		if seen[r.ProductID] {
+			return nil, ErrDuplicateProduct
+		}
+		seen[r.ProductID] = true
+	}
 	a, err := s.repo.GetArrangementByID(ctx, s.repo.db, req.ArrangementID)
 	if err != nil {
 		return nil, err

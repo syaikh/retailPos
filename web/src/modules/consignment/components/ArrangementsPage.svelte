@@ -90,6 +90,7 @@
   let showBulkReturnModal = $state(false);
   let bulkReturning = $state(false);
   let arrangementStock = $state<StockRow[]>([]);
+  let returnRefreshKey = $state(0);
 
   const filteredStock = $derived(
     arrangementStock.filter(
@@ -263,6 +264,7 @@
       toast.success(labels.consignmentBulkReturnSuccess);
       showBulkReturnModal = false;
       showReturnBanner = false;
+      returnRefreshKey++;
       await refreshArrangement();
     } catch (e: unknown) {
       toast.error(getApiErrorMessage(e, labels.consignmentBulkReturnError));
@@ -430,11 +432,13 @@
         oncreated={refreshArrangement}
       />
     {:else if activeTab === "return"}
-      <ReturnPage
-        arrangement={activeArrangement}
-        {canCreate}
-        oncreated={refreshArrangement}
-      />
+      {#key returnRefreshKey}
+        <ReturnPage
+          arrangement={activeArrangement}
+          {canCreate}
+          oncreated={refreshArrangement}
+        />
+      {/key}
     {:else if activeTab === "settlement"}
       <SettlementPage
         arrangement={activeArrangement}

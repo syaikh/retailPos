@@ -188,6 +188,8 @@ type Return struct {
 	Notes              string       `json:"notes,omitempty"`
 	CreatedAt          string       `json:"created_at"`
 	Items              []ReturnItem `json:"items,omitempty"`
+	TotalItems         int          `json:"total_items"`
+	TotalQty           int          `json:"total_qty"`
 }
 
 type ReturnItem struct {

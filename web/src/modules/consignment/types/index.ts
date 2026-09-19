@@ -118,6 +118,8 @@ export interface ConsignmentReturn {
   notes?: string;
   created_at: string;
   items: ReturnItem[];
+  total_items: number;
+  total_qty: number;
 }
 
 export interface SettlementItem {

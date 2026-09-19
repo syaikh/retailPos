@@ -18,6 +18,7 @@
     createReturn,
     listPendingReturns,
     listStock,
+    getReturn,
   } from "../services/consignment-service";
   import type {
     Arrangement,
@@ -43,7 +44,7 @@
     qty: number;
     reason: string;
     pending_return_id?: number;
-    notes: string;
+    fromPending?: boolean;
   }
 
   let returns = $state<ConsignmentReturn[]>([]);
@@ -54,7 +55,10 @@
   let submitting = $state(false);
   let stockOptions = $state<{ value: number; label: string }[]>([]);
   let lines = $state<Line[]>([]);
-  let returnNotes = $state("");
+
+  let selectedReturn = $state<ConsignmentReturn | null>(null);
+  let showDetailModal = $state(false);
+  let loadingDetail = $state(false);
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
@@ -98,15 +102,25 @@
   }
 
   function openModal() {
-    lines = [{ product_id: undefined, qty: 1, reason: "other", notes: "" }];
-    returnNotes = "";
+    lines = [{ product_id: undefined, qty: 1, reason: "other" }];
+    showModal = true;
+  }
+
+  function returnAllPending() {
+    lines = openPending.map((pr) => ({
+      product_id: pr.product_id,
+      qty: pr.qty,
+      reason: pr.reason,
+      pending_return_id: pr.id,
+      fromPending: true,
+    }));
     showModal = true;
   }
 
   function addLine() {
     lines = [
       ...lines,
-      { product_id: undefined, qty: 1, reason: "other", notes: "" },
+      { product_id: undefined, qty: 1, reason: "other" },
     ];
   }
 
@@ -122,7 +136,6 @@
         qty: l.qty,
         reason: l.reason,
         pending_return_id: l.pending_return_id || undefined,
-        notes: l.notes || undefined,
       }));
     if (items.length === 0) {
       toast.error(labels.consignmentEnterOneLine);
@@ -152,7 +165,6 @@
     try {
       const ret = await createReturn({
         arrangement_id: arrangement.id,
-        notes: returnNotes || undefined,
         items,
       });
       toast.success(
@@ -177,6 +189,18 @@
     pageOffset = newOffset;
     pageLimit = newLimit;
   }
+
+  async function loadDetail(id: number) {
+    loadingDetail = true;
+    try {
+      selectedReturn = await getReturn(id);
+      showDetailModal = true;
+    } catch {
+      toast.error(labels.consignmentRecordReturnError);
+    } finally {
+      loadingDetail = false;
+    }
+  }
 </script>
 
 <div class="space-y-4">
@@ -188,6 +212,12 @@
         {labels.consignmentReturns}
       </h2>
       {#if canCreate}
+        {#if openPending.length > 0}
+          <Button variant="primary" size="sm" onclick={returnAllPending}>
+            <RotateCcw class="w-4 h-4" />
+            {labels.consignmentReturnAllPending}
+          </Button>
+        {/if}
         <Button variant="secondary" size="sm" onclick={openModal}>
           <Plus class="w-4 h-4" />
           {labels.consignmentRecordReturn}
@@ -229,7 +259,16 @@
           <tbody>
             {#each pagedReturns as r (r.id || r)}
               <tr
-                class="border-t border-border hover:bg-surface-hover/50 transition-colors"
+                class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
+                role="button"
+                tabindex="0"
+                onclick={() => loadDetail(r.id)}
+                onkeydown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    loadDetail(r.id);
+                  }
+                }}
               >
                 <td class="p-4 font-medium text-text-primary"
                   >{r.return_number}</td
@@ -237,11 +276,11 @@
                 <td class="p-4 text-text-secondary"
                   >{formatDateTime(r.returned_at)}</td
                 >
-                <td class="p-4 text-right text-text-secondary"
-                  >{r.items?.length ?? 0}</td
+                <td class="p-4 text-right text-text-primary"
+                  >{r.total_items}</td
                 >
-                <td class="p-4 text-right text-text-primary">
-                  {(r.items || []).reduce((s, i) => s + i.qty, 0)}
+                <td class="p-4 text-right text-text-primary font-medium">
+                  {r.total_qty}
                 </td>
               </tr>
             {/each}
@@ -260,8 +299,21 @@
   </div>
 </div>
 
-<Modal bind:open={showModal} title={labels.consignmentRecordReturn} size="lg">
+<Modal bind:open={showModal} title={labels.consignmentRecordReturn} size="2xl">
   <div class="space-y-4">
+    {#if lines.length > 0 && lines.some((l) => l.fromPending)}
+      <div
+        class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 text-sm text-primary"
+      >
+        <RotateCcw class="w-4 h-4 shrink-0" />
+        <span
+          >{t("consignmentOpenPendingNotice", {
+            count: lines.filter((l) => l.fromPending).length,
+          })}</span
+        >
+      </div>
+    {/if}
+
     <div class="flex items-center justify-between">
       <span class="text-sm font-medium text-text-secondary"
         >{labels.consignmentItemLines}</span
@@ -272,110 +324,134 @@
       </Button>
     </div>
 
-    {#each lines as line, i (i)}
-      <div class="rounded-xl border border-border-default p-3 space-y-3">
-        <div
-          class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-3 items-end"
-        >
-          <label
-            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    <div class="overflow-x-auto rounded-xl border border-border-default">
+      <table class="w-full text-sm" style="min-width: 700px;">
+        <thead class="bg-muted/50">
+          <tr
+            class="text-left text-xs uppercase tracking-wider text-text-secondary"
           >
-            <span
-              >{labels.consignmentProduct}
-              <span class="text-danger">*</span></span
+            <th class="px-3 py-3 w-[260px]">{labels.consignmentProduct}</th>
+            <th class="px-3 py-3 w-20">{labels.consignmentQty}</th>
+            <th class="px-3 py-3 w-32">{labels.consignmentReason}</th>
+            <th class="px-3 py-3 w-44">{labels.consignmentLinkPendingReturn}</th>
+            <th class="px-3 py-3 w-10"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each lines as line, i (i)}
+            {@const otherSelectedIds = new Set(
+              lines
+                .filter((l, j) => j !== i && l.product_id)
+                .map((l) => l.product_id!),
+            )}
+            {@const rowOptions = stockOptions.filter(
+              (o) => !otherSelectedIds.has(o.value),
+            )}
+            {@const rowPending = openPending.filter(
+              (pr) => !otherSelectedIds.has(pr.product_id),
+            )}
+            <tr
+              class="border-t border-border/40 {line.fromPending
+                ? 'bg-primary/5'
+                : ''}"
             >
-            <SelectSearch
-              bind:value={line.product_id}
-              options={stockOptions}
-              placeholder={labels.consignmentSelectProduct}
-              searchPlaceholder={labels.consignmentSearchProduct}
-              notFoundText={labels.consignmentNoStockAvailable}
-            />
-          </label>
-          <label
-            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-          >
-            <span>{labels.consignmentQty}</span>
-            <NumberInput
-              min="1"
-              bind:value={line.qty}
-              class="h-9 w-24 text-sm"
-            />
-          </label>
-          <label
-            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-          >
-            <span>{labels.consignmentReason}</span>
-            <Input
-              tag="select"
-              bind:value={line.reason}
-              class="h-9 w-36 text-sm"
-            >
-              {#each RETURN_REASONS as reason (reason)}
-                <option value={reason}
-                  >{labels[RETURN_REASON_LABELS[reason]]}</option
-                >
-              {/each}
-            </Input>
-          </label>
-          {#if lines.length > 1}
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label={labels.consignmentDeleteLine}
-              onclick={() => removeLine(i)}
-            >
-              <Trash2 class="w-4 h-4" />
-            </Button>
-          {/if}
-        </div>
-
-        <label
-          class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-        >
-          <span>{labels.consignmentLinkPendingReturn}</span>
-          <Input
-            tag="select"
-            bind:value={line.pending_return_id}
-            class="h-9 text-sm"
-          >
-            <option value={undefined}>{labels.consignmentNoLink}</option>
-            {#each openPending as pr (pr.id || pr)}
-              <option value={pr.id}>
-                {pr.product_name} ×{pr.qty} ({labels[
-                  RETURN_REASON_LABELS[pr.reason]
-                ] || pr.reason})
-              </option>
-            {/each}
-          </Input>
-        </label>
-
-        <label
-          class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-        >
-          <span>{labels.notes}</span>
-          <Input
-            type="text"
-            bind:value={line.notes}
-            placeholder={labels.consignmentNotesPlaceholder}
-            class="h-9 text-sm"
-          />
-        </label>
-      </div>
-    {/each}
-
-    <label
-      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-    >
-      <span>{labels.consignmentOverallNotes}</span>
-      <Input
-        tag="textarea"
-        bind:value={returnNotes}
-        rows={2}
-        placeholder={labels.consignmentReturnNotesPlaceholder}
-        class="text-sm"
-      />
-    </label>
+              <td class="px-3 py-3 w-[260px]">
+                {#if line.fromPending}
+                  <span class="font-medium text-text-primary text-xs">
+                    {stockOptions.find((o) => o.value === line.product_id)
+                      ?.label?.split(" — ")[0] ||
+                      `#${line.product_id}`}
+                  </span>
+                {:else if rowOptions.length === 0}
+                  <span class="text-text-muted text-xs"
+                    >{labels.consignmentAllProductsAssigned}</span
+                  >
+                {:else}
+                  <SelectSearch
+                    bind:value={line.product_id}
+                    options={rowOptions}
+                    placeholder={labels.consignmentSelectProduct}
+                    searchPlaceholder={labels.consignmentSearchProduct}
+                    notFoundText={labels.consignmentNoStockAvailable}
+                    disabled={!!line.pending_return_id}
+                    size="sm"
+                  />
+                {/if}
+              </td>
+              <td class="px-3 py-3 w-20">
+                <NumberInput
+                  min="1"
+                  bind:value={line.qty}
+                  class="h-8 w-16 text-xs"
+                />
+              </td>
+              <td class="px-3 py-3 w-32">
+                {#if line.fromPending}
+                  <span class="text-text-primary text-xs">
+                    {labels[RETURN_REASON_LABELS[line.reason]] || line.reason}
+                  </span>
+                {:else}
+                  <Input
+                    tag="select"
+                    bind:value={line.reason}
+                    class="h-8 text-xs"
+                  >
+                    {#each RETURN_REASONS as reason (reason)}
+                      <option value={reason}
+                        >{labels[RETURN_REASON_LABELS[reason]]}</option
+                      >
+                    {/each}
+                  </Input>
+                {/if}
+              </td>
+              <td class="px-3 py-3 w-44">
+                {#if line.fromPending}
+                  <span class="text-xs text-text-primary">
+                    PR-{line.pending_return_id}
+                  </span>
+                {:else}
+                  <Input
+                    tag="select"
+                    bind:value={line.pending_return_id}
+                    class="h-8 text-xs"
+                    onchange={(e: Event) => {
+                      const val = (e.target as HTMLInputElement).value;
+                      const prId = val ? Number(val) : undefined;
+                      if (prId) {
+                        const pr = openPending.find((p) => p.id === prId);
+                        if (pr) {
+                          line.product_id = pr.product_id;
+                          line.reason = pr.reason;
+                        }
+                      }
+                    }}
+                  >
+                    <option value={undefined}>—</option>
+                    {#each rowPending as pr (pr.id || pr)}
+                      <option value={pr.id}>
+                        {pr.product_name} ×{pr.qty}
+                      </option>
+                    {/each}
+                  </Input>
+                {/if}
+              </td>
+              <td class="px-3 py-3 w-10">
+                {#if lines.length > 1}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={labels.consignmentDeleteLine}
+                    onclick={() => removeLine(i)}
+                  >
+                    <Trash2 class="w-3.5 h-3.5" />
+                  </Button>
+                {/if}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   </div>
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
@@ -384,6 +460,95 @@
       >
       <Button onclick={submit} disabled={submitting}>
         {submitting ? labels.saving : labels.save}
+      </Button>
+    </div>
+  {/snippet}
+</Modal>
+
+<Modal
+  bind:open={showDetailModal}
+  title={selectedReturn?.return_number || labels.consignmentReturnDetail}
+  size="xl"
+>
+  {#if loadingDetail}
+    <div class="p-8 text-center text-sm text-text-secondary">
+      {labels.loading}
+    </div>
+  {:else if selectedReturn}
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+        <div>
+          <div class="text-text-secondary text-xs uppercase tracking-wider">
+            {labels.consignmentReturnNo}
+          </div>
+          <div class="font-medium text-text-primary">
+            {selectedReturn.return_number}
+          </div>
+        </div>
+        <div>
+          <div class="text-text-secondary text-xs uppercase tracking-wider">
+            {labels.consignmentDate}
+          </div>
+          <div class="font-medium text-text-primary">
+            {formatDateTime(selectedReturn.returned_at)}
+          </div>
+        </div>
+        <div>
+          <div class="text-text-secondary text-xs uppercase tracking-wider">
+            {labels.consignmentReturnedBy}
+          </div>
+          <div class="font-medium text-text-primary">
+            {selectedReturn.returned_by_username || "—"}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div
+          class="text-text-secondary text-xs uppercase tracking-wider mb-2"
+        >
+          {labels.consignmentReturnItem}
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-border-default">
+          <table class="w-full text-sm">
+            <thead class="bg-muted/50">
+              <tr
+                class="text-left text-xs uppercase tracking-wider text-text-secondary"
+              >
+                <th class="px-4 py-3">{labels.consignmentProduct}</th>
+                <th class="px-4 py-3 text-right">{labels.consignmentQty}</th>
+                <th class="px-4 py-3">{labels.consignmentReason}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each selectedReturn.items as item (item.id)}
+                <tr class="border-t border-border/40">
+                  <td class="px-4 py-3">
+                    <div class="font-medium text-text-primary">
+                      {item.product_name || `#${item.product_id}`}
+                    </div>
+                    <div class="text-xs text-text-secondary">
+                      {item.product_sku || ""}
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-right text-text-primary font-medium">
+                    {item.qty}
+                  </td>
+                  <td class="px-4 py-3 text-text-secondary">
+                    {labels[RETURN_REASON_LABELS[item.reason]] || item.reason}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {/if}
+  {#snippet footer()}
+    <div class="flex justify-end">
+      <Button variant="secondary" onclick={() => (showDetailModal = false)}>
+        {labels.cancel}
       </Button>
     </div>
   {/snippet}

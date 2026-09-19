@@ -33,4 +33,9 @@ describe("Modal.svelte source-structure guards", () => {
   it("renders close button with X icon", () => {
     expect(src).toContain("<X");
   });
+
+  it("supports configurable zIndex prop", () => {
+    expect(src).toContain("zIndex");
+    expect(src).toContain("style=\"z-index: {zIndex}\"");
+  });
 });

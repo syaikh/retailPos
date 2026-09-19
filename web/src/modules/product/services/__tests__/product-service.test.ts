@@ -65,11 +65,13 @@ describe("product-service", () => {
     expect(url).toContain("maxStock=5");
   });
 
-  it("createProduct posts to /products", async () => {
-    mockPost.mockResolvedValueOnce({ status: 201 });
+  it("createProduct posts to /products and returns id, sku, name", async () => {
+    mockPost.mockResolvedValueOnce({
+      data: { data: { id: 42, sku: "TST-001", name: "Test Product" } },
+    });
 
     const { createProduct } = await import("../product-service");
-    await createProduct({
+    const result = await createProduct({
       name: "Test Product",
       sku: "TST-001",
       category_name: "Food",
@@ -93,6 +95,7 @@ describe("product-service", () => {
         sku: "TST-001",
       }),
     );
+    expect(result).toEqual({ id: 42, sku: "TST-001", name: "Test Product" });
   });
 
   it("updateProduct puts to /products/:id", async () => {
