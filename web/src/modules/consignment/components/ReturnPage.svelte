@@ -415,7 +415,7 @@
                     bind:value={line.pending_return_id}
                     class="h-8 text-xs"
                     onchange={(e: Event) => {
-                      const val = (e.target as HTMLInputElement).value;
+                      const val = (e.target as HTMLSelectElement).value;
                       const prId = val ? Number(val) : undefined;
                       if (prId) {
                         const pr = openPending.find((p) => p.id === prId);
@@ -423,6 +423,9 @@
                           line.product_id = pr.product_id;
                           line.reason = pr.reason;
                         }
+                      } else {
+                        line.product_id = undefined;
+                        line.reason = "other";
                       }
                     }}
                   >

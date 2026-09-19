@@ -563,7 +563,7 @@
                         updateTerm(
                           i,
                           "store_share_type",
-                          (e.target as HTMLInputElement).value,
+                          (e.target as HTMLSelectElement).value,
                         )}
                       class="h-8 text-sm"
                     >
@@ -577,9 +577,7 @@
                   </td>
                   <td class="p-2">
                     <NumberInput
-                      min={row.store_share_type === SHARE_TYPE_PERCENTAGE
-                        ? "1"
-                        : "1"}
+                      min="1"
                       max={row.store_share_type === SHARE_TYPE_PERCENTAGE
                         ? "99"
                         : row.price >= 2
