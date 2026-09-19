@@ -13,7 +13,12 @@
     oncreated,
   }: {
     open: boolean;
-    oncreated?: (product: { id: number; sku: string; name: string; price: number }) => void;
+    oncreated?: (product: {
+      id: number;
+      sku: string;
+      name: string;
+      price: number;
+    }) => void;
   } = $props();
 
   let saving = $state(false);
@@ -69,9 +74,7 @@
       toast.success(labels.consignmentProductCreated);
       oncreated?.({ ...product, price: form.price });
     } catch (e: unknown) {
-      toast.error(
-        getApiErrorMessage(e, labels.consignmentProductCreateError),
-      );
+      toast.error(getApiErrorMessage(e, labels.consignmentProductCreateError));
     } finally {
       saving = false;
     }

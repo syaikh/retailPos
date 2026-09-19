@@ -193,10 +193,10 @@
 
       <div class="grid grid-cols-2 gap-4">
         <div class="relative form-role-dropdown-container">
-        <label
-          for="store-select"
-          class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2"
-        >
+          <label
+            for="store-select"
+            class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2"
+          >
             <Shield size={14} class="text-text-muted" />
             {labels.role}<span class="text-red-500">*</span>
           </label>

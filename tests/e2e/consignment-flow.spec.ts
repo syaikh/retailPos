@@ -10,9 +10,8 @@ import { API_BASE, authHeader, loginUI, logoutUI, getToken } from './fixtures';
 // have a NULL store_id, which returns 403 for those endpoints. Role 2 holds
 // all consignment.* permissions (incl. settle and pay) plus sale.create.
 //
-// Locale: the app defaults to Indonesian ('id'); a fresh Playwright context
-// has empty localStorage, so `loadInitialLocale()` returns 'id'. All label
-// selectors below use the Indonesian dictionary.
+// Locale: fixtures.ts forces English via addInitScript + localStorage 'pos.locale'.
+// All label selectors below use the English dictionary.
 
 test.describe('Consignment Supplier - Full Flow', () => {
   let headers: Record<string, string>;
@@ -270,8 +269,8 @@ test.describe('Consignment Supplier - Full Flow', () => {
     await modal.locator('select').first().selectOption('damaged');
     await page.waitForTimeout(200);
 
-    // Link to the open pending return (select inside "Link to pending return" label)
-    const pendingSelect = modal.locator('label:has-text("Tautkan ke retur tertunda")').locator('select');
+    // Link to the open pending return (2nd native <select> in the modal: 0 = reason, 1 = link)
+    const pendingSelect = modal.locator('select').nth(1);
     await pendingSelect.selectOption({ index: 1 });
     await page.waitForTimeout(200);
 

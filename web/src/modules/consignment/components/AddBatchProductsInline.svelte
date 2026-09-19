@@ -20,7 +20,9 @@
     oncreated,
   }: {
     open: boolean;
-    oncreated?: (products: { id: number; sku: string; name: string; price: number }[]) => void;
+    oncreated?: (
+      products: { id: number; sku: string; name: string; price: number }[],
+    ) => void;
   } = $props();
 
   let saving = $state(false);
@@ -76,7 +78,8 @@
     }
 
     saving = true;
-    const created: { id: number; sku: string; name: string; price: number }[] = [];
+    const created: { id: number; sku: string; name: string; price: number }[] =
+      [];
 
     try {
       for (const row of validRows) {
@@ -105,9 +108,7 @@
       );
       oncreated?.(created);
     } catch (e: unknown) {
-      toast.error(
-        getApiErrorMessage(e, labels.consignmentProductCreateError),
-      );
+      toast.error(getApiErrorMessage(e, labels.consignmentProductCreateError));
     } finally {
       saving = false;
     }
@@ -123,7 +124,13 @@
   });
 </script>
 
-<Modal bind:open title={labels.consignmentNewProducts} size="xl" panelClass="max-h-[92vh]" zIndex={80}>
+<Modal
+  bind:open
+  title={labels.consignmentNewProducts}
+  size="xl"
+  panelClass="max-h-[92vh]"
+  zIndex={80}
+>
   <div class="space-y-4">
     <p class="text-sm text-text-secondary">
       {labels.consignmentBatchProductHint}
@@ -137,9 +144,7 @@
           >
             <th class="p-3 w-48">SKU</th>
             <th class="p-3">{labels.consignmentProductName}</th>
-            <th class="p-3 w-36"
-              >{labels.consignmentProductPrice} (Rp)</th
-            >
+            <th class="p-3 w-36">{labels.consignmentProductPrice} (Rp)</th>
             <th class="p-3 w-12"></th>
           </tr>
         </thead>
@@ -159,11 +164,7 @@
                 <Input
                   value={row.name}
                   oninput={(e: Event) =>
-                    updateRow(
-                      i,
-                      "name",
-                      (e.target as HTMLInputElement).value,
-                    )}
+                    updateRow(i, "name", (e.target as HTMLInputElement).value)}
                   placeholder={labels.consignmentProductNamePlaceholder}
                   class="h-8 text-sm"
                 />
