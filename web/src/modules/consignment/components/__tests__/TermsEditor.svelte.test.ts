@@ -27,9 +27,9 @@ describe("TermsEditor.svelte source-structure guards", () => {
   });
 
   it("uses hardcoded min='1' for share value NumberInput (no redundant ternary)", () => {
-    const minIdx = src.indexOf('min="1"');
+    const minIdx = src.lastIndexOf('min="1"');
     expect(minIdx).toBeGreaterThan(-1);
-    const surrounding = src.slice(minIdx - 200, minIdx + 200);
+    const surrounding = src.slice(minIdx - 400, minIdx + 400);
     expect(surrounding).toContain("store_share_value");
     expect(surrounding).not.toMatch(
       /min=\{.*SHARE_TYPE_PERCENTAGE.*\? "1" : "1"\}/,

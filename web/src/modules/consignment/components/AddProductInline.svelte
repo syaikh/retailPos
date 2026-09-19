@@ -54,9 +54,16 @@
       const product = await createProduct({
         sku: form.sku.trim(),
         name: form.name.trim(),
+        barcode: "",
+        category: "",
+        brand_id: null,
         price: form.price,
         cost: 0,
         stock: 0,
+        unit_of_measure_id: null,
+        tax_class_id: null,
+        weight_grams: null,
+        description: "",
         status: "active",
       });
       toast.success(labels.consignmentProductCreated);

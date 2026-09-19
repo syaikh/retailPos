@@ -76,16 +76,23 @@
     }
 
     saving = true;
-    const created: { id: number; sku: string; name: string }[] = [];
+    const created: { id: number; sku: string; name: string; price: number }[] = [];
 
     try {
       for (const row of validRows) {
         const product = await createProduct({
           sku: row.sku.trim(),
           name: row.name.trim(),
+          barcode: "",
+          category: "",
+          brand_id: null,
           price: row.price,
           cost: 0,
           stock: 0,
+          unit_of_measure_id: null,
+          tax_class_id: null,
+          weight_grams: null,
+          description: "",
           status: "active",
         });
         created.push({ ...product, price: row.price });

@@ -193,9 +193,10 @@
 
       <div class="grid grid-cols-2 gap-4">
         <div class="relative form-role-dropdown-container">
-          <label
-            class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2"
-          >
+        <label
+          for="store-select"
+          class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2"
+        >
             <Shield size={14} class="text-text-muted" />
             {labels.role}<span class="text-red-500">*</span>
           </label>
@@ -243,6 +244,7 @@
 
       <div>
         <label
+          for="store-select"
           class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2"
         >
           <svg
@@ -266,6 +268,7 @@
           {/if}
         </label>
         <select
+          id="store-select"
           class="w-full px-3 h-10 rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
           bind:value={form.store_id}
           required={isOperationalRole}
