@@ -59,7 +59,7 @@
       const product = await createProduct({
         sku: form.sku.trim(),
         name: form.name.trim(),
-        barcode: "",
+        barcode: null,
         category: "",
         brand_id: null,
         price: form.price,

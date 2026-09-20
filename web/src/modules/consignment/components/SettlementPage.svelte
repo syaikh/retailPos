@@ -18,6 +18,7 @@
     getSettlementPreview,
     createSettlement,
     listSettlements,
+    getSettlement,
     listPaymentMethods,
     createPayout,
   } from "../services/consignment-service";
@@ -54,6 +55,10 @@
     reference_number: "",
     notes: "",
   });
+
+  let showDetailModal = $state(false);
+  let detailSettlement = $state<Settlement | null>(null);
+  let loadingDetail = $state(false);
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
@@ -166,6 +171,19 @@
       toast.error(getApiErrorMessage(e, labels.consignmentRecordPayoutError));
     } finally {
       paying = false;
+    }
+  }
+
+  async function openDetail(settlementId: number) {
+    loadingDetail = true;
+    showDetailModal = true;
+    try {
+      detailSettlement = await getSettlement(settlementId);
+    } catch (e: unknown) {
+      toast.error(getApiErrorMessage(e, labels.consignmentLoadError));
+      showDetailModal = false;
+    } finally {
+      loadingDetail = false;
     }
   }
 
@@ -310,7 +328,13 @@
           <tbody>
             {#each pagedSettlements as st (st.id || st)}
               <tr
-                class="border-t border-border hover:bg-surface-hover/50 transition-colors"
+                class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
+                onclick={() => openDetail(st.id)}
+                role="button"
+                tabindex="0"
+                onkeydown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") openDetail(st.id);
+                }}
               >
                 <td class="p-4 font-medium text-text-primary"
                   >{st.settlement_number}</td
@@ -335,7 +359,10 @@
                     <Button
                       variant="secondary"
                       size="sm"
-                      onclick={() => openPayout(st)}
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        openPayout(st);
+                      }}
                     >
                       {labels.consignmentPay}
                     </Button>
@@ -451,6 +478,136 @@
       <Button onclick={submitPayout} disabled={paying}>
         {paying ? labels.saving : labels.consignmentPay}
       </Button>
+    </div>
+  {/snippet}
+</Modal>
+
+<Modal
+  bind:open={showDetailModal}
+  title={detailSettlement?.settlement_number || labels.consignmentSettlementDetail}
+  size="xl"
+>
+  {#if loadingDetail}
+    <div class="p-8 text-center text-sm text-text-secondary">
+      {labels.loading}
+    </div>
+  {:else if detailSettlement}
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+        <div>
+          <div class="text-text-secondary text-xs uppercase tracking-wider">
+            {labels.consignmentDate}
+          </div>
+          <div class="font-medium text-text-primary">
+            {formatDateTime(detailSettlement.created_at)}
+          </div>
+        </div>
+        <div>
+          <div class="text-text-secondary text-xs uppercase tracking-wider">
+            {labels.consignmentStatus}
+          </div>
+          <Badge
+            variant={detailSettlement.status === SETTLEMENT_PAID
+              ? "success"
+              : "warning"}
+          >
+            {labels[SETTLEMENT_STATUS_LABELS[detailSettlement.status]] || detailSettlement.status}
+          </Badge>
+        </div>
+        <div>
+          <div class="text-text-secondary text-xs uppercase tracking-wider">
+            {labels.consignmentTotal}
+          </div>
+          <div class="font-semibold text-primary">
+            {formatCurrency(detailSettlement.total_payable)}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="font-semibold text-text-primary mb-2">{labels.consignmentItems}</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-muted/50">
+              <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+                <th class="p-4">{labels.consignmentProduct}</th>
+                <th class="p-4 text-right">{labels.consignmentQty}</th>
+                <th class="p-4 text-right">{labels.consignmentUnitPrice}</th>
+                <th class="p-4 text-right">{labels.consignmentSubtotal}</th>
+                <th class="p-4 text-right">{labels.consignmentStoreShare}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each detailSettlement.items as item, i (i)}
+                <tr class="border-t border-border/40">
+                  <td class="p-4 font-medium text-text-primary">
+                    {item.product_name || `Product #${item.product_id}`}
+                  </td>
+                  <td class="p-4 text-right text-text-primary">{item.quantity}</td>
+                  <td class="p-4 text-right text-text-secondary">{formatCurrency(item.unit_price)}</td>
+                  <td class="p-4 text-right text-text-primary">{formatCurrency(item.subtotal)}</td>
+                  <td class="p-4 text-right text-text-primary">{formatCurrency(item.store_share)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="font-semibold text-text-primary mb-2">{labels.consignmentPayouts}</h3>
+        {#if detailSettlement.payouts.length === 0}
+          <EmptyState
+            icon={Banknote}
+            title={labels.consignmentNoPayouts}
+            subtitle={labels.consignmentNoPayoutsSubtitle}
+          />
+        {:else}
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-muted/50">
+                <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+                  <th class="p-4">{labels.consignmentPayoutNo}</th>
+                  <th class="p-4">{labels.consignmentPaymentMethod}</th>
+                  <th class="p-4 text-right">{labels.consignmentAmount}</th>
+                  <th class="p-4">{labels.consignmentReference}</th>
+                  <th class="p-4">{labels.consignmentPaidBy}</th>
+                  <th class="p-4">{labels.consignmentPaidAt}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each detailSettlement.payouts as payout (payout.id)}
+                  <tr class="border-t border-border/40">
+                    <td class="p-4 font-medium text-text-primary">{payout.payout_number}</td>
+                    <td class="p-4 text-text-secondary">{payout.payment_method_name || "-"}</td>
+                    <td class="p-4 text-right text-text-primary">{formatCurrency(payout.amount)}</td>
+                    <td class="p-4 text-text-secondary">{payout.reference_number || "-"}</td>
+                    <td class="p-4 text-text-secondary">{payout.paid_by_username || "-"}</td>
+                    <td class="p-4 text-text-secondary">{formatDateTime(payout.paid_at)}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+      </div>
+    </div>
+  {/if}
+  {#snippet footer()}
+    <div class="flex justify-end gap-3 w-full">
+      <Button variant="secondary" onclick={() => (showDetailModal = false)}>
+        {labels.close}
+      </Button>
+      {#if detailSettlement && canPay && detailSettlement.status !== SETTLEMENT_PAID}
+        <Button
+          onclick={() => {
+            showDetailModal = false;
+            openPayout(detailSettlement!);
+          }}
+        >
+          {labels.consignmentPay}
+        </Button>
+      {/if}
     </div>
   {/snippet}
 </Modal>

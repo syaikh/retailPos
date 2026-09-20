@@ -339,6 +339,113 @@ func (s *Service) SetTerms(ctx context.Context, arrangementID int, reqs []SetTer
 	return terms, nil
 }
 
+// AddTerm adds a single pricing/commission term for a product in an arrangement.
+// The product must not already have a term, must not be store-owned with stock,
+// and must not be live under another supplier.
+func (s *Service) AddTerm(ctx context.Context, arrangementID int, req SetTermsRequest, userID int, claimsStore *int) (Term, error) {
+	a, err := s.repo.GetArrangementByID(ctx, s.repo.db, arrangementID)
+	if err != nil {
+		return Term{}, err
+	}
+	if err := checkArrangementStore(a, claimsStore); err != nil {
+		return Term{}, err
+	}
+	applyLazyEnded(a)
+	if a.Status == StatusEnded {
+		return Term{}, ErrArrangementEnded
+	}
+
+	if req.Price <= 0 {
+		return Term{}, ErrInvalidPrice
+	}
+	if err := validateShare(req.StoreShareType, req.StoreShareValue, float64(req.Price)); err != nil {
+		return Term{}, err
+	}
+	hasStock, err := s.hasStoreOwnedStock(ctx, req.ProductID)
+	if err != nil {
+		return Term{}, err
+	}
+	if hasStock {
+		return Term{}, ErrConflictStoreStock
+	}
+	row, err := s.repo.GetConsignmentStock(ctx, s.repo.db, req.ProductID)
+	if err != nil {
+		return Term{}, err
+	}
+	if row != nil && row.SupplierID != a.SupplierID && (row.AvailableQty > 0 || row.PendingReturnQty > 0) {
+		return Term{}, ErrConflictOtherSupplier
+	}
+
+	terms, err := s.repo.ListTerms(ctx, s.repo.db, arrangementID)
+	if err != nil {
+		return Term{}, err
+	}
+	for _, t := range terms {
+		if t.ProductID == req.ProductID {
+			return Term{}, ErrDuplicateProduct
+		}
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return Term{}, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	term := Term{
+		ArrangementID:  arrangementID,
+		ProductID:      req.ProductID,
+		Price:          req.Price,
+		StoreShareType: req.StoreShareType,
+		StoreShareValue: req.StoreShareValue,
+		CreatedBy:      userID,
+	}
+	if err := s.repo.InsertTerm(ctx, tx, &term); err != nil {
+		return Term{}, err
+	}
+	if err := s.repo.TouchVisit(ctx, tx, arrangementID); err != nil {
+		return Term{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Term{}, err
+	}
+
+	terms = []Term{term}
+	if err = s.hydrateTermProductNames(ctx, terms); err != nil {
+		return Term{}, err
+	}
+	return terms[0], nil
+}
+
+// RemoveTerm removes a single pricing/commission term from an arrangement.
+func (s *Service) RemoveTerm(ctx context.Context, arrangementID, productID int, claimsStore *int) error {
+	a, err := s.repo.GetArrangementByID(ctx, s.repo.db, arrangementID)
+	if err != nil {
+		return err
+	}
+	if err := checkArrangementStore(a, claimsStore); err != nil {
+		return err
+	}
+	applyLazyEnded(a)
+	if a.Status == StatusEnded {
+		return ErrArrangementEnded
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := s.repo.DeleteTerm(ctx, tx, arrangementID, productID); err != nil {
+		return err
+	}
+	if err := s.repo.TouchVisit(ctx, tx, arrangementID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // ListAddTermProductOptions returns the active products that may still have a
 // term added for the arrangement, mirroring SetTerms' ownership rules: products
 // already covered by a term, store-owned products with remaining global stock,
@@ -408,6 +515,26 @@ func (s *Service) ListAddTermProductOptions(ctx context.Context, arrangementID i
 		available = append(available, o)
 	}
 	return available, nil
+}
+
+// SearchAvailableProducts searches for active products that match the search
+// query and are available for adding as terms. It applies the same exclusivity
+// rules as ListAddTermProductOptions but filters at the database level.
+// Returns matching products and whether the search text exactly matches any
+// product name (case-insensitive).
+func (s *Service) SearchAvailableProducts(ctx context.Context, arrangementID int, search string, claimsStore *int) ([]shared.ProductOption, bool, error) {
+	a, err := s.repo.GetArrangementByID(ctx, s.repo.db, arrangementID)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := checkArrangementStore(a, claimsStore); err != nil {
+		return nil, false, err
+	}
+	applyLazyEnded(a)
+	if a.Status == StatusEnded {
+		return []shared.ProductOption{}, false, nil
+	}
+	return s.repo.SearchAvailableProducts(ctx, arrangementID, search, a.SupplierID, claimsStore)
 }
 
 // --- Receipts ---
@@ -1201,7 +1328,11 @@ func (s *Service) GetSettlementPreview(ctx context.Context, supplierID int, clai
 	if len(items) == 0 {
 		return nil, ErrEmptySettlement
 	}
-	return buildSettlementPreview(supplierID, *storeID, items), nil
+	preview := buildSettlementPreview(supplierID, *storeID, items)
+	if err := s.hydrateSettlementItemProductNames(ctx, preview.Items); err != nil {
+		return nil, err
+	}
+	return preview, nil
 }
 
 // CreateSettlement finalizes a full settlement for the supplier's unsettled

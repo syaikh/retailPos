@@ -46,4 +46,9 @@ describe("UserFormModal.svelte source-structure guards", () => {
     expect(src).toContain("reports_to");
     expect(src).toContain("labels.reportsTo");
   });
+
+  it("has accessible label-input association for store select", () => {
+    expect(src).toContain('for="store-select"');
+    expect(src).toContain('id="store-select"');
+  });
 });

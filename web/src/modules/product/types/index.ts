@@ -70,7 +70,7 @@ export interface Product {
 export interface ProductFormData {
   name: string;
   sku: string;
-  barcode: string;
+  barcode: string | null;
   category: string;
   brand_id: number | null;
   price: number;

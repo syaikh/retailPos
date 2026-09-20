@@ -523,3 +523,185 @@ func TestService_EndArrangement(t *testing.T) {
 		require.ErrorIs(t, err, ErrStoreForbidden)
 	})
 }
+
+func TestService_AddTerm(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	t.Run("happy path adds single term", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "ADD-TERM-PROD")
+		svc, _, store, _ := setupArrangementNoTerms(t)
+		userID := insertTestUser(ctx, t)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		term, err := svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: 15000, StoreShareType: ShareTypePercentage, StoreShareValue: 25,
+		}, userID, &store)
+		require.NoError(t, err)
+		require.Equal(t, product, term.ProductID)
+		require.Equal(t, 15000, term.Price)
+		require.Equal(t, ShareTypePercentage, term.StoreShareType)
+		require.Equal(t, 25.0, term.StoreShareValue)
+		require.Equal(t, "Test Product ADD-TERM-PROD", term.ProductName)
+
+		got, err := svc.GetArrangement(ctx, arrs[0].ID, &store)
+		require.NoError(t, err)
+		require.Len(t, got.Terms, 1)
+	})
+
+	t.Run("duplicate product rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "ADD-DUP-PROD")
+		svc, _, store, _ := setupArrangementNoTerms(t)
+		userID := insertTestUser(ctx, t)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+		}, userID, &store)
+		require.NoError(t, err)
+
+		_, err = svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: 12000, StoreShareType: ShareTypeFixedAmount, StoreShareValue: 3000,
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrDuplicateProduct)
+	})
+
+	t.Run("store-owned stock rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "ADD-STORE-OWNED")
+		svc, _, store, _ := setupArrangementNoTerms(t)
+		userID := insertTestUser(ctx, t)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		seedStoreOwnedStock(ctx, t, product, 10)
+
+		_, err := svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrConflictStoreStock)
+	})
+
+	t.Run("invalid share type rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "ADD-INVALID-SHARE")
+		svc, _, store, _ := setupArrangementNoTerms(t)
+		userID := insertTestUser(ctx, t)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: 10000, StoreShareType: "flat", StoreShareValue: 20,
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrInvalidShareType)
+	})
+
+	t.Run("percentage >= 100 rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "ADD-PCT-OVER")
+		svc, _, store, _ := setupArrangementNoTerms(t)
+		userID := insertTestUser(ctx, t)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 100,
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrInvalidShareValueForType)
+	})
+
+	t.Run("ended arrangement rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "ADD-ENDED")
+		svc, _, store, _ := setupArrangementNoTerms(t)
+		userID := insertTestUser(ctx, t)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.EndArrangement(ctx, arrs[0].ID, &store)
+		require.NoError(t, err)
+
+		_, err = svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrArrangementEnded)
+	})
+
+	t.Run("zero price rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "ADD-ZERO-PRICE")
+		svc, _, store, _ := setupArrangementNoTerms(t)
+		userID := insertTestUser(ctx, t)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: 0, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrInvalidPrice)
+	})
+}
+
+func TestService_RemoveTerm(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	t.Run("happy path removes term", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "RM-TERM-PROD")
+		svc, _, store := setupArrangement(t, product)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		err := svc.RemoveTerm(ctx, arrs[0].ID, product, &store)
+		require.NoError(t, err)
+
+		got, err := svc.GetArrangement(ctx, arrs[0].ID, &store)
+		require.NoError(t, err)
+		require.Len(t, got.Terms, 0)
+	})
+
+	t.Run("non-existent term returns error", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "RM-NONEXIST")
+		svc, _, store, _ := setupArrangementNoTerms(t)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		err := svc.RemoveTerm(ctx, arrs[0].ID, product, &store)
+		require.Error(t, err)
+	})
+
+	t.Run("ended arrangement rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "RM-ENDED")
+		svc, _, store := setupArrangement(t, product)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.EndArrangement(ctx, arrs[0].ID, &store)
+		require.NoError(t, err)
+
+		err = svc.RemoveTerm(ctx, arrs[0].ID, product, &store)
+		require.ErrorIs(t, err, ErrArrangementEnded)
+	})
+
+	t.Run("store scope enforced", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "RM-STORE-SCOPE")
+		svc, _, store := setupArrangement(t, product)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		otherStore := insertTestStore(ctx, t)
+		err := svc.RemoveTerm(ctx, arrs[0].ID, product, &otherStore)
+		require.ErrorIs(t, err, ErrStoreForbidden)
+	})
+
+	t.Run("removed product can be re-added", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "RM-READD")
+		svc, _, store, _ := setupArrangementNoTerms(t)
+		userID := insertTestUser(ctx, t)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+		}, userID, &store)
+		require.NoError(t, err)
+
+		err = svc.RemoveTerm(ctx, arrs[0].ID, product, &store)
+		require.NoError(t, err)
+
+		_, err = svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: 12000, StoreShareType: ShareTypeFixedAmount, StoreShareValue: 3000,
+		}, userID, &store)
+		require.NoError(t, err)
+
+		got, err := svc.GetArrangement(ctx, arrs[0].ID, &store)
+		require.NoError(t, err)
+		require.Len(t, got.Terms, 1)
+		require.Equal(t, 12000, got.Terms[0].Price)
+	})
+}

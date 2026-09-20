@@ -11,7 +11,8 @@
     EmptyState,
     Pagination,
   } from "$shared/ui";
-  import { Plus, Trash2, RotateCcw } from "lucide-svelte";
+  import { Plus, Trash2, RotateCcw, Copy, Check } from "lucide-svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import { labels, t } from "$shared/i18n";
   import {
     listReturns,
@@ -181,6 +182,22 @@
     load();
     loadProducts();
   });
+
+  let showCopied = $state(new SvelteSet<string>());
+
+  function copySku(sku: string) {
+    navigator.clipboard.writeText(sku).then(() => {
+      const next = new SvelteSet(showCopied);
+      next.add(sku);
+      showCopied = next;
+      toast.success(labels.copiedToClipboard);
+      setTimeout(() => {
+        const removed = new SvelteSet(next);
+        removed.delete(sku);
+        showCopied = removed;
+      }, 2000);
+    });
+  }
 
   function handlePageChange(newOffset: number, newLimit: number) {
     pageOffset = newOffset;
@@ -525,8 +542,22 @@
                     <div class="font-medium text-text-primary">
                       {item.product_name || `#${item.product_id}`}
                     </div>
-                    <div class="text-xs text-text-secondary">
+                    <div class="text-xs text-text-secondary flex items-center gap-1">
                       {item.product_sku || ""}
+                      {#if item.product_sku}
+                        <button
+                          type="button"
+                          onclick={() => copySku(item.product_sku ?? "")}
+                          class="p-0.5 text-text-muted hover:text-text-primary"
+                          title={labels.copiedToClipboard}
+                        >
+                          {#if showCopied.has(item.product_sku)}
+                            <Check size={10} class="text-success" />
+                          {:else}
+                            <Copy size={10} />
+                          {/if}
+                        </button>
+                      {/if}
                     </div>
                   </td>
                   <td

@@ -1,40 +1,20 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { toast } from "$shared/stores/toast.svelte";
   import { getApiErrorMessage } from "$shared/utils/error-utils";
-  import {
-    Button,
-    Modal,
-    Input,
-    NumberInput,
-    EmptyState,
-    Pagination,
-  } from "$shared/ui";
-  import { Plus, Check, Trash2 } from "lucide-svelte";
-  import { setDropdownOpen } from "$shared/ui/dropdown-state";
+  import { Button, EmptyState, Pagination, FormattedNumberInput } from "$shared/ui";
+  import { Plus, Trash2, Loader2, Check, Copy, X } from "lucide-svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import { labels } from "$shared/i18n";
   import {
-    setTerms,
-    listAddTermProductOptions,
+    addTerm,
+    removeTerm,
+    searchAvailableProducts,
   } from "../services/consignment-service";
-  import type { Arrangement, Term, SetTermsPayload } from "../types";
-  import {
-    SHARE_TYPE_PERCENTAGE,
-    SHARE_TYPE_FIXED_AMOUNT,
-    SHARE_TYPE_LABELS,
-  } from "../types";
+  import { createProduct, getNextSku } from "$modules/product/services/product-service";
+  import type { Arrangement, Term } from "../types";
+  import { SHARE_TYPE_PERCENTAGE, SHARE_TYPE_LABELS } from "../types";
   import { formatCurrency } from "../lib/format";
-  import AddProductInline from "./AddProductInline.svelte";
-  import AddBatchProductsInline from "./AddBatchProductsInline.svelte";
-
-  interface EditableTerm {
-    product_id: number;
-    product_name: string;
-    product_sku: string;
-    price: number;
-    store_share_type: string;
-    store_share_value: number;
-  }
 
   const {
     arrangement,
@@ -48,39 +28,30 @@
 
   let terms = $state<Term[]>([]);
   let loading = $state(true);
-  let productOptions = $state<{ value: number; label: string }[]>([]);
-  let showManageModal = $state(false);
-  let showCreateSingleModal = $state(false);
-  let showCreateBatchModal = $state(false);
-  let saving = $state(false);
 
-  // Multi-select state
-  let selectedProductIds = $state<number[]>([]);
-  let dropdownOpen = $state(false);
-  let searchTerm = $state("");
-  let triggerEl = $state<HTMLButtonElement>();
+  // Draft row state
+  let editingTerm = $state<{
+    product_id: number;
+    product_label: string;
+    price: number;
+    share_type: string;
+    share_value: number;
+  } | null>(null);
+  let savingTerm = $state(false);
+
+  // Search state
+  let searchQuery = $state("");
+  let searchResults = $state<{ id: number; sku: string; name: string }[]>([]);
+  let searchLoading = $state(false);
+  let exactMatch = $state(false);
+  let showResults = $state(false);
+  let debounceTimer = $state<ReturnType<typeof setTimeout>>();
+  let searchInput = $state<HTMLInputElement>();
   let dropdownStyle = $state("");
-
-  // Editable terms in modal
-  let editableTerms = $state<EditableTerm[]>([]);
-
-  // Default share type/value for newly added products
-  let defaultShareType = $state(SHARE_TYPE_PERCENTAGE);
-  let defaultShareValue = $state(20);
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
   const pagedTerms = $derived(terms.slice(pageOffset, pageOffset + pageLimit));
-
-  const filteredOptions = $derived(
-    searchTerm
-      ? productOptions.filter((o) =>
-          o.label.toLowerCase().includes(searchTerm.toLowerCase()),
-        )
-      : productOptions,
-  );
-
-  const editableTermCount = $derived(editableTerms.length);
 
   async function load() {
     loading = true;
@@ -91,230 +62,180 @@
     }
   }
 
-  async function loadProducts() {
-    try {
-      const opts = await listAddTermProductOptions(arrangement.id);
-      productOptions = opts.map((p) => ({
-        value: p.id,
-        label: p.sku ? `${p.name} (${p.sku})` : p.name,
-      }));
-    } catch {
-      productOptions = [];
-    }
+  function positionDropdown() {
+    if (!searchInput) return;
+    const rect = searchInput.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const maxHeight = Math.min(spaceBelow, 300);
+    dropdownStyle = `position:fixed;left:${rect.left}px;top:${rect.bottom + 4}px;width:${rect.width}px;max-height:${maxHeight}px;z-index:10000;`;
   }
 
-  function openManage() {
-    // Initialize editable terms from existing terms
-    editableTerms = terms.map((t) => ({
-      product_id: t.product_id,
-      product_name: t.product_name || "",
-      product_sku: t.product_sku || "",
-      price: t.price,
-      store_share_type: t.store_share_type,
-      store_share_value: t.store_share_value,
-    }));
-    selectedProductIds = editableTerms.map((t) => t.product_id);
-    defaultShareType = SHARE_TYPE_PERCENTAGE;
-    defaultShareValue = 20;
-    searchTerm = "";
-    showManageModal = true;
+  function clearSearchState() {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    searchQuery = "";
+    searchResults = [];
+    exactMatch = false;
+    showResults = false;
   }
 
-  function toggleDropdown() {
-    if (dropdownOpen) {
-      dropdownOpen = false;
-      setDropdownOpen(false);
-      return;
-    }
-    if (triggerEl) {
-      const rect = triggerEl.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const dropHeight = 380;
-      const openUp = spaceBelow < dropHeight;
-      dropdownStyle = `position:fixed;left:${rect.left}px;width:${rect.width}px;z-index:100;${openUp ? `bottom:${window.innerHeight - rect.top + 4}px` : `top:${rect.bottom + 4}px`}`;
-    }
-    searchTerm = "";
-    dropdownOpen = true;
-    setDropdownOpen(true);
+  function localExactMatch(query: string): boolean {
+    const q = query.trim().toLowerCase();
+    if (!q) return false;
+    return terms.some((t) => t.product_name?.toLowerCase() === q);
   }
 
-  $effect(() => {
-    if (!dropdownOpen) return;
-    function handleClick(e: MouseEvent) {
-      const target = e.target as HTMLElement;
-      if (!target.closest("[data-dropdown-popover]")) {
-        dropdownOpen = false;
-        setDropdownOpen(false);
-      }
-    }
-    function handleKeydown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        dropdownOpen = false;
-        setDropdownOpen(false);
-      }
-    }
-    document.addEventListener("click", handleClick, true);
-    document.addEventListener("keydown", handleKeydown, true);
-    return () => {
-      document.removeEventListener("click", handleClick, true);
-      document.removeEventListener("keydown", handleKeydown, true);
+  async function startAddTerm() {
+    editingTerm = {
+      product_id: 0,
+      product_label: "",
+      price: 0,
+      share_type: SHARE_TYPE_PERCENTAGE,
+      share_value: 20,
     };
-  });
-
-  function toggleProductSelection(productId: number) {
-    const opt = productOptions.find((o) => o.value === productId);
-    if (!opt) return;
-
-    if (selectedProductIds.includes(productId)) {
-      // Remove from selection and editable terms
-      selectedProductIds = selectedProductIds.filter((id) => id !== productId);
-      editableTerms = editableTerms.filter((t) => t.product_id !== productId);
-    } else {
-      // Add to selection — price must be set explicitly in the table
-      selectedProductIds = [...selectedProductIds, productId];
-      const labelParts = opt.label.match(/^(.+)\s*\((.+)\)$/);
-      editableTerms = [
-        ...editableTerms,
-        {
-          product_id: productId,
-          product_name: labelParts ? labelParts[1].trim() : opt.label,
-          product_sku: labelParts ? labelParts[2] : "",
-          price: 0,
-          store_share_type: defaultShareType,
-          store_share_value: defaultShareValue,
-        },
-      ];
-    }
+    clearSearchState();
+    await tick();
+    searchInput?.focus();
   }
 
-  function removeTerm(index: number) {
-    const removed = editableTerms[index];
-    editableTerms = editableTerms.filter((_, i) => i !== index);
-    selectedProductIds = selectedProductIds.filter(
-      (id) => id !== removed.product_id,
-    );
-  }
-
-  function updateTerm(
-    index: number,
-    field: keyof EditableTerm,
-    value: string | number,
-  ) {
-    editableTerms = editableTerms.map((row, i) =>
-      i === index ? { ...row, [field]: value } : row,
-    );
-  }
-
-  function onSingleProductCreated(product: {
-    id: number;
-    sku: string;
-    name: string;
-    price: number;
-  }) {
-    showCreateSingleModal = false;
-    selectedProductIds = [...selectedProductIds, product.id];
-    editableTerms = [
-      ...editableTerms,
-      {
-        product_id: product.id,
-        product_name: product.name,
-        product_sku: product.sku,
-        price: product.price,
-        store_share_type: defaultShareType,
-        store_share_value: defaultShareValue,
-      },
-    ];
-    loadProducts();
-  }
-
-  function onBatchProductsCreated(
-    products: { id: number; sku: string; name: string; price: number }[],
-  ) {
-    showCreateBatchModal = false;
-    for (const p of products) {
-      if (!selectedProductIds.includes(p.id)) {
-        selectedProductIds = [...selectedProductIds, p.id];
-        editableTerms = [
-          ...editableTerms,
-          {
-            product_id: p.id,
-            product_name: p.name,
-            product_sku: p.sku,
-            price: p.price,
-            store_share_type: defaultShareType,
-            store_share_value: defaultShareValue,
-          },
-        ];
-      }
-    }
-    loadProducts();
-  }
-
-  function validateRow(row: EditableTerm): string | null {
-    if (row.price < 1) return labels.consignmentPriceAtLeastOne;
-    if (row.store_share_type === SHARE_TYPE_PERCENTAGE) {
-      if (row.store_share_value < 1 || row.store_share_value >= 100)
-        return labels.consignmentPercentRange;
-    } else {
-      if (row.store_share_value < 1)
-        return labels.consignmentShareGreaterThanZero;
-      if (row.store_share_value >= row.price)
-        return labels.consignmentShareValueRange.replace(
-          "{max}",
-          formatCurrency(row.price - 1),
-        );
-    }
-    return null;
-  }
-
-  async function submitTerms() {
-    if (editableTerms.length === 0) {
-      toast.error(labels.consignmentSelectAtLeastOneProduct);
+  function handleSearchInput(value: string) {
+    searchQuery = value;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    if (value.length < 2) {
+      searchResults = [];
+      exactMatch = false;
+      showResults = false;
       return;
     }
-
-    // Validate all rows
-    for (const row of editableTerms) {
-      const err = validateRow(row);
-      if (err) {
-        toast.error(err);
-        return;
+    const localMatch = localExactMatch(value);
+    debounceTimer = setTimeout(async () => {
+      searchLoading = true;
+      positionDropdown();
+      showResults = true;
+      try {
+        const result = await searchAvailableProducts(arrangement.id, value);
+        searchResults = result.products;
+        exactMatch = result.exactMatch || localMatch;
+      } catch {
+        searchResults = [];
+        exactMatch = localMatch;
+      } finally {
+        searchLoading = false;
       }
-    }
+    }, 300);
+  }
 
-    const confirmMsg = labels.consignmentConfirmReplace.replace(
-      "{count}",
-      String(editableTerms.length),
-    );
-    if (!confirm(confirmMsg)) return;
+  function collapseResults() {
+    showResults = false;
+  }
 
-    saving = true;
+  function handleCreateNew() {
+    if (!editingTerm) return;
+    editingTerm.product_label = searchQuery.trim();
+    showResults = false;
+  }
+
+  function cancelEdit() {
+    editingTerm = null;
+    clearSearchState();
+  }
+
+  async function clearProduct() {
+    if (!editingTerm) return;
+    editingTerm.product_id = 0;
+    editingTerm.product_label = "";
+    clearSearchState();
+    await tick();
+    searchInput?.focus();
+  }
+
+  async function confirmAddTerm() {
+    if (!editingTerm || editingTerm.price <= 0) return;
+    if (editingTerm.product_id <= 0 && !editingTerm.product_label.trim()) return;
+    savingTerm = true;
     try {
-      const payload: SetTermsPayload[] = editableTerms.map((t) => ({
-        product_id: t.product_id,
-        price: t.price,
-        store_share_type: t.store_share_type,
-        store_share_value: t.store_share_value,
-      }));
-
-      const saved = await setTerms(arrangement.id, payload);
-      terms = saved;
-      toast.success(labels.consignmentTermsSaved);
-      showManageModal = false;
+      let productId = editingTerm.product_id;
+      if (productId <= 0) {
+        const sku = await getNextSku();
+        const product = await createProduct({
+          sku,
+          name: editingTerm.product_label.trim(),
+          barcode: null,
+          category: "",
+          brand_id: null,
+          price: editingTerm.price,
+          cost: 0,
+          stock: 0,
+          unit_of_measure_id: null,
+          tax_class_id: null,
+          weight_grams: null,
+          description: "",
+          status: "active",
+        });
+        productId = product.id;
+        toast.success(labels.consignmentProductCreated);
+      }
+      const term = await addTerm(arrangement.id, {
+        product_id: productId,
+        price: editingTerm.price,
+        store_share_type: editingTerm.share_type,
+        store_share_value: editingTerm.share_value,
+      });
+      terms = [...terms, term];
+      toast.success(labels.consignmentTermAdded);
+      editingTerm = null;
+      clearSearchState();
       onsaved?.();
-      await loadProducts();
     } catch (e: unknown) {
       toast.error(getApiErrorMessage(e, labels.consignmentTermsSaveError));
     } finally {
-      saving = false;
+      savingTerm = false;
     }
   }
 
-  function shareLabel(t: Term): string {
+  async function handleRemoveTerm(t: Term) {
+    const labelParts = (t.product_name || "").split(" (");
+    const displayName =
+      labelParts[0] || t.product_name || `Product #${t.product_id}`;
+    if (
+      !confirm(
+        labels.consignmentRemoveTermConfirm.replace("{product}", displayName),
+      )
+    )
+      return;
+
+    try {
+      await removeTerm(arrangement.id, t.product_id);
+      terms = terms.filter((term) => term.product_id !== t.product_id);
+      toast.success(labels.consignmentTermRemoved);
+      onsaved?.();
+    } catch (e: unknown) {
+      toast.error(getApiErrorMessage(e, labels.consignmentTermsSaveError));
+    }
+  }
+
+  function shareLabel(t: {
+    store_share_type: string;
+    store_share_value: number;
+  }): string {
     if (t.store_share_type === SHARE_TYPE_PERCENTAGE)
       return `${t.store_share_value}%`;
     return formatCurrency(t.store_share_value);
+  }
+
+  let showCopied = $state(new SvelteSet<string>());
+
+  function copySku(sku: string) {
+    navigator.clipboard.writeText(sku).then(() => {
+      const next = new SvelteSet(showCopied);
+      next.add(sku);
+      showCopied = next;
+      toast.success(labels.copiedToClipboard);
+      setTimeout(() => {
+        const removed = new SvelteSet(next);
+        removed.delete(sku);
+        showCopied = removed;
+      }, 2000);
+    });
   }
 
   function handlePageChange(newOffset: number, newLimit: number) {
@@ -324,7 +245,6 @@
 
   onMount(() => {
     load();
-    loadProducts();
   });
 </script>
 
@@ -336,9 +256,9 @@
       {labels.consignmentTermsHeader}
     </h2>
     {#if canUpdate}
-      <Button variant="secondary" size="sm" onclick={openManage}>
+      <Button variant="secondary" size="sm" onclick={startAddTerm}>
         <Plus class="w-4 h-4" />
-        {labels.consignmentManageTerms}
+        {labels.consignmentAddProduct}
       </Button>
     {/if}
   </div>
@@ -347,7 +267,7 @@
     <div class="p-8 text-center text-sm text-text-secondary">
       {labels.loading}
     </div>
-  {:else if terms.length === 0}
+  {:else if terms.length === 0 && !editingTerm}
     <EmptyState
       icon={Plus}
       title={labels.consignmentNoTerms}
@@ -363,9 +283,114 @@
             <th class="p-4">{labels.consignmentProduct}</th>
             <th class="p-4 text-right">{labels.consignmentPrice}</th>
             <th class="p-4">{labels.consignmentStoreShare}</th>
+            {#if canUpdate}
+              <th class="p-4 w-20"></th>
+            {/if}
           </tr>
         </thead>
         <tbody>
+          <!-- Draft row -->
+          {#if editingTerm}
+            <tr class="border-t border-primary/30 bg-primary/5">
+              <td class="p-4">
+                {#if editingTerm.product_id > 0}
+                  <div class="flex items-center gap-2">
+                    <span class="font-medium text-text-primary"
+                      >{editingTerm.product_label}</span
+                    >
+                    <button
+                      type="button"
+                      onclick={clearProduct}
+                      class="p-0.5 text-text-muted hover:text-danger"
+                      title="Change product"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                {:else}
+                  <input
+                    type="text"
+                    bind:this={searchInput}
+                    value={searchQuery}
+                    oninput={(e) =>
+                      handleSearchInput(
+                        (e.target as HTMLInputElement).value,
+                      )}
+                    onfocus={positionDropdown}
+                    placeholder={labels.consignmentSearchProduct}
+                    class="w-full bg-bg-secondary border border-border-default rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary-default"
+                  />
+                {/if}
+              </td>
+              <td class="p-4 text-right">
+                <div onfocusin={collapseResults}>
+                  <FormattedNumberInput
+                    bind:value={editingTerm.price}
+                    placeholder="0"
+                    disabled={!editingTerm.product_label}
+                    class="w-28 text-right"
+                  />
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <select
+                    bind:value={editingTerm.share_type}
+                    disabled={!editingTerm.product_label}
+                    onfocus={collapseResults}
+                    class="bg-bg-secondary border border-border-default rounded-lg px-3 py-1.5 text-sm outline-none disabled:opacity-40"
+                  >
+                    <option value={SHARE_TYPE_PERCENTAGE}
+                      >{labels.shareTypePercentage}</option
+                    >
+                    <option value="fixed_amount"
+                      >{labels.shareTypeFixedAmount}</option
+                    >
+                  </select>
+                  <input
+                    type="number"
+                    bind:value={editingTerm.share_value}
+                    min="1"
+                    max={editingTerm.share_type === SHARE_TYPE_PERCENTAGE
+                      ? 99
+                      : undefined}
+                    disabled={!editingTerm.product_label}
+                    onfocus={collapseResults}
+                    class="w-20 bg-bg-secondary border border-border-default rounded-lg px-3 py-1.5 text-sm text-right outline-none focus:ring-2 focus:ring-primary-default disabled:opacity-40"
+                  />
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onclick={confirmAddTerm}
+                    disabled={(editingTerm.product_id <= 0 &&
+                      !editingTerm.product_label.trim()) ||
+                      editingTerm.price <= 0 ||
+                      savingTerm}
+                    class="p-1 text-success hover:text-success/80 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {#if savingTerm}
+                      <Loader2 size={14} class="animate-spin" />
+                    {:else}
+                      <Check size={14} />
+                    {/if}
+                  </button>
+                  <button
+                    type="button"
+                    onclick={cancelEdit}
+                    disabled={savingTerm}
+                    class="p-1 text-text-muted hover:text-danger disabled:opacity-40"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          {/if}
+
+          <!-- Existing terms -->
           {#each pagedTerms as t (t.id || t)}
             <tr
               class="border-t border-border hover:bg-surface-hover/50 transition-colors"
@@ -374,7 +399,23 @@
                 <div class="font-medium text-text-primary">
                   {t.product_name}
                 </div>
-                <div class="text-xs text-text-secondary">{t.product_sku}</div>
+                <div class="text-xs text-text-secondary flex items-center gap-1">
+                  {t.product_sku}
+                  {#if t.product_sku}
+                    <button
+                      type="button"
+                      onclick={() => copySku(t.product_sku)}
+                      class="p-0.5 text-text-muted hover:text-text-primary"
+                      title={labels.copiedToClipboard}
+                    >
+                      {#if showCopied.has(t.product_sku)}
+                        <Check size={10} class="text-success" />
+                      {:else}
+                        <Copy size={10} />
+                      {/if}
+                    </button>
+                  {/if}
+                </div>
               </td>
               <td class="p-4 text-right text-text-primary"
                 >{formatCurrency(t.price)}</td
@@ -384,11 +425,61 @@
                   t,
                 )}
               </td>
+              {#if canUpdate}
+                <td class="p-4">
+                  <button
+                    type="button"
+                    onclick={() => handleRemoveTerm(t)}
+                    class="p-1 text-text-muted hover:text-danger"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </td>
+              {/if}
             </tr>
           {/each}
         </tbody>
       </table>
     </div>
+
+    <!-- Search results dropdown — rendered outside overflow-x-auto -->
+    {#if editingTerm && editingTerm.product_id <= 0 && showResults && searchQuery.length >= 2}
+      <div class="bg-surface-default border border-border rounded-xl shadow-xl py-1 flex flex-col overflow-y-auto" style={dropdownStyle} onfocusin={() => {}} onfocusout={collapseResults}>
+        {#if searchLoading}
+          <div class="px-3 py-4 text-sm text-text-muted text-center flex items-center justify-center gap-2">
+            <Loader2 size={14} class="animate-spin" />
+            {labels.loading}
+          </div>
+        {:else}
+          {#if searchResults.length > 0}
+            <div class="px-3 py-1.5 text-xs text-text-muted">
+              {labels.consignmentSimilarProductsFound}
+            </div>
+            {#each searchResults as product (product.id)}
+              <div class="px-3 py-2 text-sm text-text-secondary">
+                {product.name}
+                {#if product.sku}
+                  <span class="text-text-muted">({product.sku})</span>
+                {/if}
+              </div>
+            {/each}
+          {/if}
+          {#if exactMatch}
+            <div class="px-3 py-2 text-sm text-danger border-t border-border">
+              {labels.consignmentProductAlreadyExists}
+            </div>
+          {:else}
+            <button
+              type="button"
+              onclick={handleCreateNew}
+              class="w-full text-left px-3 py-2 text-sm text-primary hover:bg-surface-hover border-t border-border"
+            >
+              {labels.consignmentCreateAsNewProduct.replace("{name}", searchQuery)}
+            </button>
+          {/if}
+        {/if}
+      </div>
+    {/if}
     <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
       <Pagination
         total={terms.length}
@@ -399,266 +490,3 @@
     </div>
   {/if}
 </div>
-
-<!-- Manage Terms Modal -->
-<Modal
-  bind:open={showManageModal}
-  title={labels.consignmentManageTerms}
-  size="xl"
-  panelClass="max-h-[92vh]"
->
-  <div class="space-y-4">
-    <p class="text-sm text-text-secondary">
-      {labels.consignmentManageTermsDescription}
-    </p>
-
-    <!-- Product Multi-Select -->
-    <label
-      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-    >
-      <span>{labels.consignmentAddProduct}</span>
-
-      <div class="relative">
-        <button
-          type="button"
-          bind:this={triggerEl}
-          onclick={toggleDropdown}
-          class="w-full rounded-xl border bg-bg-secondary px-3.5 py-2.5 text-sm text-left transition-colors duration-200 flex items-center gap-2 border-border-default hover:border-primary-default focus:outline-none focus:ring-2 focus:ring-primary/30"
-        >
-          <span class="flex-1 truncate">
-            {labels.consignmentSelectProduct}
-          </span>
-          <Plus
-            size={16}
-            class="text-text-muted transition-transform duration-200 shrink-0 {dropdownOpen
-              ? 'rotate-45'
-              : ''}"
-          />
-        </button>
-
-        {#if dropdownOpen}
-          <div
-            data-dropdown-popover
-            style={dropdownStyle}
-            class="bg-surface-default border border-border rounded-xl shadow-xl py-1 overflow-hidden max-h-[360px] flex flex-col"
-          >
-            <div class="px-2 pb-1.5">
-              <input
-                type="text"
-                bind:value={searchTerm}
-                placeholder={labels.consignmentSearchProduct}
-                class="w-full bg-bg-secondary border border-border-default rounded-lg px-3 py-1.5 text-sm outline-none"
-              />
-            </div>
-
-            <div class="overflow-y-auto flex-1 min-h-0">
-              {#if filteredOptions.length === 0}
-                <div class="px-3 py-4 text-sm text-text-muted text-center">
-                  {labels.consignmentProductNotFound}
-                </div>
-              {:else}
-                {#each filteredOptions as opt (opt.value)}
-                  <button
-                    type="button"
-                    onclick={() => toggleProductSelection(opt.value)}
-                    class="w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2 hover:bg-surface-hover"
-                  >
-                    <div
-                      class="w-4 h-4 rounded border flex items-center justify-center {selectedProductIds.includes(
-                        opt.value,
-                      )
-                        ? 'bg-primary border-primary text-white'
-                        : 'border-border-default'}"
-                    >
-                      {#if selectedProductIds.includes(opt.value)}
-                        <Check size={12} />
-                      {/if}
-                    </div>
-                    <span>{opt.label}</span>
-                  </button>
-                {/each}
-              {/if}
-            </div>
-
-            <div class="border-t border-border px-2 py-1.5 shrink-0">
-              <button
-                type="button"
-                onclick={() => {
-                  dropdownOpen = false;
-                  setDropdownOpen(false);
-                  showCreateSingleModal = true;
-                }}
-                class="w-full text-left px-3 py-2 text-sm text-primary hover:bg-surface-hover rounded-lg"
-              >
-                {labels.consignmentCreateNewProduct}
-              </button>
-              <button
-                type="button"
-                onclick={() => {
-                  dropdownOpen = false;
-                  setDropdownOpen(false);
-                  showCreateBatchModal = true;
-                }}
-                class="w-full text-left px-3 py-2 text-sm text-primary hover:bg-surface-hover rounded-lg"
-              >
-                {labels.consignmentCreateMultipleProducts}
-              </button>
-            </div>
-          </div>
-        {/if}
-      </div>
-    </label>
-
-    <!-- Terms Table -->
-    {#if editableTerms.length > 0}
-      <div>
-        <div class="text-sm font-medium text-text-secondary mb-2">
-          {labels.consignmentTermsCount.replace(
-            "{count}",
-            String(editableTermCount),
-          )}
-        </div>
-        <div class="border border-border rounded-lg overflow-hidden">
-          <table class="w-full text-sm">
-            <thead class="bg-muted/50">
-              <tr
-                class="text-left text-xs uppercase tracking-wider text-text-secondary"
-              >
-                <th class="p-3">{labels.consignmentProduct}</th>
-                <th class="p-3 w-28">{labels.consignmentPrice} (Rp)</th>
-                <th class="p-3 w-44">{labels.consignmentShareType}</th>
-                <th class="p-3 w-28">{labels.consignmentShareValue}</th>
-                <th class="p-3 w-12"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each editableTerms as row, i (row.product_id)}
-                <tr class="border-t border-border">
-                  <td class="p-2">
-                    <div class="font-medium text-text-primary">
-                      {row.product_name}
-                    </div>
-                    <div class="text-xs text-text-secondary">
-                      {row.product_sku}
-                    </div>
-                  </td>
-                  <td class="p-2">
-                    <NumberInput
-                      min="1"
-                      value={row.price}
-                      oninput={(e: Event) =>
-                        updateTerm(
-                          i,
-                          "price",
-                          Number((e.target as HTMLInputElement).value),
-                        )}
-                      class="h-8 text-sm"
-                    />
-                  </td>
-                  <td class="p-2">
-                    <Input
-                      tag="select"
-                      value={row.store_share_type}
-                      oninput={(e: Event) =>
-                        updateTerm(
-                          i,
-                          "store_share_type",
-                          (e.target as HTMLSelectElement).value,
-                        )}
-                      class="h-8 text-sm"
-                    >
-                      <option value={SHARE_TYPE_PERCENTAGE}
-                        >{labels[
-                          SHARE_TYPE_LABELS[SHARE_TYPE_PERCENTAGE]
-                        ]}</option
-                      >
-                      <option value={SHARE_TYPE_FIXED_AMOUNT}
-                        >{labels[
-                          SHARE_TYPE_LABELS[SHARE_TYPE_FIXED_AMOUNT]
-                        ]}</option
-                      >
-                    </Input>
-                  </td>
-                  <td class="p-2">
-                    <NumberInput
-                      min="1"
-                      max={row.store_share_type === SHARE_TYPE_PERCENTAGE
-                        ? "99"
-                        : row.price >= 2
-                          ? String(row.price - 1)
-                          : "0"}
-                      value={row.store_share_value}
-                      oninput={(e: Event) =>
-                        updateTerm(
-                          i,
-                          "store_share_value",
-                          Number((e.target as HTMLInputElement).value),
-                        )}
-                      class="h-8 text-sm"
-                      disabled={row.store_share_type ===
-                        SHARE_TYPE_FIXED_AMOUNT && row.price < 2}
-                    />
-                  </td>
-                  <td class="p-2">
-                    <button
-                      type="button"
-                      onclick={() => removeTerm(i)}
-                      class="p-1 text-text-muted hover:text-danger"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    {:else}
-      <div class="text-sm text-text-muted text-center py-4">
-        {labels.consignmentNoTermsHint}
-      </div>
-    {/if}
-
-    <p class="text-xs text-text-muted">{labels.consignmentTermsNote}</p>
-  </div>
-  {#snippet footer()}
-    <div class="flex justify-end gap-3 w-full">
-      <Button
-        variant="secondary"
-        onclick={() => {
-          showManageModal = false;
-          dropdownOpen = false;
-          setDropdownOpen(false);
-        }}
-      >
-        {labels.cancel}
-      </Button>
-      <Button
-        onclick={submitTerms}
-        disabled={saving || editableTermCount === 0}
-      >
-        {saving
-          ? labels.saving
-          : labels.consignmentTermsCount.replace(
-              "{count}",
-              String(editableTermCount),
-            )}
-      </Button>
-    </div>
-  {/snippet}
-</Modal>
-
-{#if showCreateSingleModal}
-  <AddProductInline
-    bind:open={showCreateSingleModal}
-    oncreated={onSingleProductCreated}
-  />
-{/if}
-
-{#if showCreateBatchModal}
-  <AddBatchProductsInline
-    bind:open={showCreateBatchModal}
-    oncreated={onBatchProductsCreated}
-  />
-{/if}

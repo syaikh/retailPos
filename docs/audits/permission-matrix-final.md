@@ -101,7 +101,7 @@ Legend: ✅ = granted, — = not granted.
 
 | # | Permission | SA | Manager | Supervisor | Cashier | Inventory Staff | Finance |
 |---|-----------|----|---------|------------|---------|-----------------|---------|
-| 41 | `store.view` | ✅ | ✅ | ✅ | — | — | ✅ |
+| 41 | `store.view` | ✅ | ✅ | — | — | — | — |
 | 42 | `store.create` | ✅ | ✅ | — | — | — | — |
 | 43 | `store.update` | ✅ | ✅ | — | — | — | — |
 | 44 | `store.delete` | ✅ | ✅ | — | — | — | — |
@@ -143,7 +143,7 @@ Legend: ✅ = granted, — = not granted.
 
 | # | Permission | SA | Manager | Supervisor | Cashier | Inventory Staff | Finance |
 |---|-----------|----|---------|------------|---------|-----------------|---------|
-| 75 | `consignment.view` | ✅ | ✅ | ✅ | — | — | — |
+| 75 | `consignment.view` | ✅ | ✅ | ✅ | — | — | ✅ |
 | 76 | `consignment.create` | ✅ | ✅ | ✅ | — | — | — |
 | 77 | `consignment.update` | ✅ | ✅ | ✅ | — | — | — |
 | 78 | `consignment.settle` | ✅ | ✅ | ✅ | — | — | — |
@@ -158,7 +158,7 @@ Legend: ✅ = granted, — = not granted.
 | supervisor | **59** | Store operator — full product/category/customer/pricing/PO/stock opname management; no user/role management, no product delete/import/export, no consignment.pay |
 | cashier | **19** | POS & basic tasks — sales, shifts, stock count, view-only master data, sale.lookup (only role besides direct grant) |
 | inventory_staff | **17** | Inventory-focused — stock opname full lifecycle, storage locations, inventory.adjust (no product/category view) |
-| finance | **7** | Payments & reporting — consignment.pay, consignment.view, report.view, audit.view, sale.view, store.view, dashboard.view |
+| finance | **5** | Payments & reporting — consignment.pay, consignment.view, report.view, audit.view, sale.view, dashboard.view |
 | **TOTAL** | **267** | |
 
 ## 4. CHANGE REGISTER
@@ -209,8 +209,8 @@ Legend: ✅ = granted, — = not granted.
 | Change | Detail |
 |--------|--------|
 | Roles renamed | `admin`→`manager`, `manager`→`supervisor`, `staff`→`inventory_staff` (order-aware, idempotent) |
-| `finance` role created | 6 permissions: `consignment.pay`, `report.view`, `audit.view`, `sale.view`, `store.view`, `dashboard.view` |
-| Supervisor +2 | GRANT `sale.create`, `store.view` — supervisors ring up POS sales and see store dropdown |
+| `finance` role created | 5 permissions: `consignment.pay`, `report.view`, `audit.view`, `sale.view`, `dashboard.view` |
+| Supervisor +1 | GRANT `sale.create` — supervisors ring up POS sales |
 | Inventory staff replaced | REMOVE all prior grants; GRANT 17 inventory permissions: `inventory.adjust`, stock_opname.* (12), storage_location.* (4) |
 | Store backfill | Existing users with supervisor/manager/cashier/finance/inventory_staff roles get `store_id` = default store |
 
@@ -228,7 +228,7 @@ Legend: ✅ = granted, — = not granted.
 | D2 | Bug 403 "Add Product" for manager fixed | Add Product button now only appears for roles with `product.create` | **Bug fix** |
 | D3 | inventory_staff loses product/category view | 044 replaced staff grants with pure inventory set — least privilege for stock ops | **Intentional** |
 | D4 | Manager can view audit logs | Manager (was admin) retains audit.view/export | **Retained** |
-| D5 | Supervisor can add products & ring sales | 039 gave product.create; 044 gave sale.create/store.view | **Enhancement** |
+| D5 | Supervisor can add products & ring sales | 039 gave product.create; 044 gave sale.create | **Enhancement** |
 | D6 | Cashier can view categories, pricing, customer groups | Product filter and pricing info visible in POS | **Enhancement** |
 | D7 | Manager can pay consignments | 046 grants consignment.pay — settle + pay consistent | **Bug fix** |
 | D8 | Finance role exists | Read-only payments/reporting scope — no master-data or inventory grants | **Enhancement** |

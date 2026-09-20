@@ -12,6 +12,8 @@ function getSource(component: string): string {
 }
 
 const components = [
+  "AddBatchProductsInline.svelte",
+  "AddProductInline.svelte",
   "ArrangementsPage.svelte",
   "PendingReturnPage.svelte",
   "ReceiptEntry.svelte",

@@ -1621,6 +1621,20 @@ SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'inventory_staff'
     )
 ON CONFLICT DO NOTHING;
 
+-- Finance
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'finance'
+    AND p.code IN (
+        'audit.view',
+        'consignment.pay',
+        'consignment.view',
+        'dashboard.view',
+        'report.view',
+        'sale.view',
+        'store.view'
+    )
+ON CONFLICT DO NOTHING;
+
 -- Default users (password: admin123)
 INSERT INTO users (username, email, password_hash, role_id, is_active)
 SELECT 'superadmin', 'superadmin@retailpos.local', crypt('admin123', gen_salt('bf', 14)), r.id, true

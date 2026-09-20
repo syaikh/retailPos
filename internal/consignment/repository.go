@@ -393,6 +393,91 @@ func (r *Repository) ReplaceTerms(ctx context.Context, tx pgx.Tx, arrangementID 
 	return nil
 }
 
+// DeleteTerm removes a single term for a product within an arrangement.
+func (r *Repository) DeleteTerm(ctx context.Context, tx pgx.Tx, arrangementID, productID int) error {
+	tag, err := tx.Exec(ctx,
+		`DELETE FROM consignment_terms WHERE arrangement_id = $1 AND product_id = $2`,
+		arrangementID, productID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrConsignmentNotFound
+	}
+	return nil
+}
+
+// SearchAvailableProducts returns active products that match the search query
+// and are available for adding as terms to the arrangement. It applies the same
+// exclusivity rules as ListAddTermProductOptions but filters at the database
+// level using full-text search (search_vector) and ILIKE on name/SKU.
+// Returns the matching products and whether the search text exactly matches
+// any product name (case-insensitive).
+func (r *Repository) SearchAvailableProducts(ctx context.Context, arrangementID int, search string, supplierID int, storeID *int) ([]shared.ProductOption, bool, error) {
+	// First check for exact name match (case-insensitive)
+	var exactMatch bool
+	err := r.db.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM products
+			WHERE LOWER(name) = LOWER($1)
+			  AND deleted_at IS NULL AND status = 'active'
+		)
+	`, search).Scan(&exactMatch)
+	if err != nil {
+		return nil, false, fmt.Errorf("check exact match: %w", err)
+	}
+
+	// Search for available products using full-text search + ILIKE
+	rows, err := r.db.Query(ctx, `
+		SELECT p.id, COALESCE(p.sku, ''), p.name
+		FROM products p
+		WHERE p.deleted_at IS NULL
+		  AND p.status = 'active'
+		  AND (
+		    p.search_vector @@ plainto_tsquery('english', $1)
+		    OR p.name ILIKE '%' || $1 || '%'
+		    OR p.sku ILIKE '%' || $1 || '%'
+		  )
+		  AND p.id NOT IN (
+		    SELECT ct.product_id FROM consignment_terms ct
+		    WHERE ct.arrangement_id = $2
+		  )
+		  AND p.id NOT IN (
+		    SELECT ps.product_id FROM product_stock ps
+		    WHERE ps.store_id IS NOT NULL
+		      AND ps.quantity > 0
+		      AND NOT EXISTS (
+		        SELECT 1 FROM consignment_stock cs
+		        WHERE cs.product_id = ps.product_id
+		      )
+		  )
+		  AND p.id NOT IN (
+		    SELECT cs.product_id FROM consignment_stock cs
+		    WHERE cs.supplier_id != $3
+		      AND (cs.available_qty > 0 OR cs.pending_return_qty > 0)
+		  )
+		ORDER BY p.name ASC
+		LIMIT 10
+	`, search, arrangementID, supplierID)
+	if err != nil {
+		return nil, false, fmt.Errorf("search available products: %w", err)
+	}
+	defer rows.Close()
+
+	var options []shared.ProductOption
+	for rows.Next() {
+		var o shared.ProductOption
+		if err := rows.Scan(&o.ID, &o.SKU, &o.Name); err != nil {
+			return nil, false, fmt.Errorf("scan product option: %w", err)
+		}
+		options = append(options, o)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	return options, exactMatch, nil
+}
+
 // --- Consignment stock ledger (consignment-owned) ---
 
 // GetConsignmentStock returns the ownership ledger row for a product, or nil

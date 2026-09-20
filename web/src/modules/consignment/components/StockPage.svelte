@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { toast } from "$shared/stores/toast.svelte";
   import { EmptyState, Badge, Pagination } from "$shared/ui";
-  import { Package } from "lucide-svelte";
+  import { Package, Copy, Check } from "lucide-svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import { labels, t } from "$shared/i18n";
   import { listStock } from "../services/consignment-service";
   import type { Arrangement, StockRow } from "../types";
@@ -42,6 +44,22 @@
   onMount(() => {
     load();
   });
+
+  let showCopied = $state(new SvelteSet<string>());
+
+  function copySku(sku: string) {
+    navigator.clipboard.writeText(sku).then(() => {
+      const next = new SvelteSet(showCopied);
+      next.add(sku);
+      showCopied = next;
+      toast.success(labels.copiedToClipboard);
+      setTimeout(() => {
+        const removed = new SvelteSet(next);
+        removed.delete(sku);
+        showCopied = removed;
+      }, 2000);
+    });
+  }
 
   function handlePageChange(newOffset: number, newLimit: number) {
     pageOffset = newOffset;
@@ -88,7 +106,23 @@
                 <div class="font-medium text-text-primary">
                   {r.product_name}
                 </div>
-                <div class="text-xs text-text-secondary">{r.product_sku}</div>
+                <div class="text-xs text-text-secondary flex items-center gap-1">
+                  {r.product_sku}
+                  {#if r.product_sku}
+                    <button
+                      type="button"
+                      onclick={() => copySku(r.product_sku ?? "")}
+                      class="p-0.5 text-text-muted hover:text-text-primary"
+                      title={labels.copiedToClipboard}
+                    >
+                      {#if showCopied.has(r.product_sku)}
+                        <Check size={10} class="text-success" />
+                      {:else}
+                        <Copy size={10} />
+                      {/if}
+                    </button>
+                  {/if}
+                </div>
               </td>
               <td class="p-4 text-right">
                 <Badge variant={r.available_qty > 0 ? "success" : "muted"}

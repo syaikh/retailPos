@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGet = vi.fn();
 const mockPost = vi.fn();
+const mockDelete = vi.fn();
 
 vi.mock("$shared/api/http-client", () => ({
   default: {
     get: (...args: unknown[]) => mockGet(...args),
     post: (...args: unknown[]) => mockPost(...args),
+    delete: (...args: unknown[]) => mockDelete(...args),
   },
 }));
 
@@ -233,6 +235,107 @@ describe("consignment-service", () => {
         qty: 3,
         reason: "termination",
       });
+    });
+  });
+
+  describe("addTerm", () => {
+    it("posts term payload and returns created term", async () => {
+      const term = {
+        id: 1,
+        arrangement_id: 10,
+        product_id: 42,
+        price: 15000,
+        store_share_type: "percentage",
+        store_share_value: 25,
+        product_name: "Test Product",
+      };
+      mockPost.mockResolvedValueOnce({ data: { data: term } });
+
+      const { addTerm } = await import("../consignment-service");
+      const result = await addTerm(10, {
+        product_id: 42,
+        price: 15000,
+        store_share_type: "percentage",
+        store_share_value: 25,
+      });
+
+      expect(result).toEqual(term);
+      expect(mockPost).toHaveBeenCalledWith(
+        "/consignment/arrangements/10/terms",
+        {
+          product_id: 42,
+          price: 15000,
+          store_share_type: "percentage",
+          store_share_value: 25,
+        },
+      );
+    });
+  });
+
+  describe("removeTerm", () => {
+    it("sends delete request for the product term", async () => {
+      mockDelete.mockResolvedValueOnce({});
+
+      const { removeTerm } = await import("../consignment-service");
+      await removeTerm(10, 42);
+
+      expect(mockDelete).toHaveBeenCalledWith(
+        "/consignment/arrangements/10/terms/42",
+      );
+    });
+  });
+
+  describe("searchAvailableProducts", () => {
+    it("sends search query and returns products with exactMatch flag", async () => {
+      mockGet.mockResolvedValueOnce({
+        data: {
+          data: [
+            { id: 1, sku: "SKU-001", name: "Apple Juice" },
+            { id: 2, sku: "SKU-002", name: "Apple Sauce" },
+          ],
+          exact_match: true,
+        },
+      });
+
+      const { searchAvailableProducts } = await import(
+        "../consignment-service"
+      );
+      const result = await searchAvailableProducts(10, "Apple");
+
+      expect(result.products).toHaveLength(2);
+      expect(result.exactMatch).toBe(true);
+      expect(mockGet).toHaveBeenCalledWith(
+        "/consignment/arrangements/10/available-products",
+        { params: { search: "Apple" } },
+      );
+    });
+
+    it("defaults exactMatch to false when not provided", async () => {
+      mockGet.mockResolvedValueOnce({
+        data: { data: [{ id: 3, sku: "SKU-003", name: "Banana" }] },
+      });
+
+      const { searchAvailableProducts } = await import(
+        "../consignment-service"
+      );
+      const result = await searchAvailableProducts(10, "Ban");
+
+      expect(result.products).toHaveLength(1);
+      expect(result.exactMatch).toBe(false);
+    });
+
+    it("returns empty array when no products match", async () => {
+      mockGet.mockResolvedValueOnce({
+        data: { data: [], exact_match: false },
+      });
+
+      const { searchAvailableProducts } = await import(
+        "../consignment-service"
+      );
+      const result = await searchAvailableProducts(10, "NonExistent");
+
+      expect(result.products).toHaveLength(0);
+      expect(result.exactMatch).toBe(false);
     });
   });
 });

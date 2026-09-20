@@ -14,25 +14,41 @@ function getSource(): string {
 describe("TermsEditor.svelte source-structure guards", () => {
   const src = getSource();
 
-  it("uses HTMLSelectElement for store_share_type select oninput cast", () => {
+  it("uses addTerm and removeTerm from consignment-service", () => {
+    expect(src).toContain("addTerm");
+    expect(src).toContain("removeTerm");
     expect(src).toContain(
-      '"store_share_type",\n                          (e.target as HTMLSelectElement).value,',
+      'from "../services/consignment-service"',
     );
   });
 
-  it("does not use HTMLInputElement for the store_share_type select", () => {
-    expect(src).not.toContain(
-      '"store_share_type",\n                          (e.target as HTMLInputElement).value,',
-    );
+  it("uses searchAvailableProducts for search-based product assignment", () => {
+    expect(src).toContain("searchAvailableProducts");
   });
 
-  it("uses hardcoded min='1' for share value NumberInput (no redundant ternary)", () => {
-    const minIdx = src.lastIndexOf('min="1"');
-    expect(minIdx).toBeGreaterThan(-1);
-    const surrounding = src.slice(minIdx - 400, minIdx + 400);
-    expect(surrounding).toContain("store_share_value");
-    expect(surrounding).not.toMatch(
-      /min=\{.*SHARE_TYPE_PERCENTAGE.*\? "1" : "1"\}/,
-    );
+  it("does not import Modal from shared/ui", () => {
+    const sharedUiImport = src.match(/import\s*\{[^}]*\}\s*from\s*"\$shared\/ui"/);
+    if (sharedUiImport) {
+      expect(sharedUiImport[0]).not.toContain("Modal");
+    }
+  });
+
+  it("uses Trash2 icon for delete button", () => {
+    expect(src).toContain("Trash2");
+  });
+
+  it("uses Plus icon for add button", () => {
+    expect(src).toContain("Plus");
+  });
+
+  it("has a search input for product assignment", () => {
+    expect(src).toContain("searchQuery");
+    expect(src).toContain("handleSearchInput");
+    expect(src).toContain("searchResults");
+  });
+
+  it("does not use productDropdownOpen or loadProducts", () => {
+    expect(src).not.toContain("productDropdownOpen");
+    expect(src).not.toContain("loadProducts()");
   });
 });

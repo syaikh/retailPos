@@ -200,3 +200,164 @@ func TestHandler_ListAddTermProductOptions_RequiresView(t *testing.T) {
 		})
 	}
 }
+
+// TestHandler_AddTerm_RequiresUpdate pins the authorization of
+// POST /consignment/arrangements/:id/terms to consignment.update.
+func TestHandler_AddTerm_RequiresUpdate(t *testing.T) {
+	ctx := context.Background()
+	storeID := insertTestStore(ctx, t)
+	testUserID := insertTestUser(ctx, t)
+	productID := insertTestProduct(ctx, t, "RBAC-ADD-TERM")
+	supplierID := insertTestSupplier(ctx, t, "Konsinyasi Add Term Supplier", true)
+
+	svc := newTestService(t)
+	arr, err := svc.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierID, StoreID: storeID}, testUserID, nil)
+	require.NoError(t, err)
+
+	body := fmt.Sprintf(`{"product_id":%d,"price":10000,"store_share_type":"percentage","store_share_value":20}`, productID)
+
+	tests := []struct {
+		name  string
+		perms []string
+		want  int
+	}{
+		{"consignment.update can add term", []string{string(permissions.ConsignmentUpdate)}, http.StatusCreated},
+		{"consignment.view alone cannot add term", []string{string(permissions.ConsignmentView)}, http.StatusForbidden},
+		{"unrelated permission is rejected", []string{"report.view"}, http.StatusForbidden},
+		{"no permissions is rejected", []string{}, http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := setupConsignmentRBACRouter(t, tt.perms, &storeID, testUserID)
+			w := doConsignmentRequest(r, http.MethodPost, fmt.Sprintf("/api/consignment/arrangements/%d/terms", arr.ID), body)
+			assert.Equal(t, tt.want, w.Code)
+		})
+	}
+}
+
+// TestHandler_AddTerm_ErrorPaths covers the request-validation branches of
+// POST /consignment/arrangements/:id/terms that are not exercised by RBAC tests.
+func TestHandler_AddTerm_ErrorPaths(t *testing.T) {
+	ctx := context.Background()
+	storeID := insertTestStore(ctx, t)
+	testUserID := insertTestUser(ctx, t)
+	productID := insertTestProduct(ctx, t, "ADDTERM-ERR")
+	supplierID := insertTestSupplier(ctx, t, "AddTerm Error Supplier", true)
+
+	svc := newTestService(t)
+	arr, err := svc.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierID, StoreID: storeID}, testUserID, nil)
+	require.NoError(t, err)
+
+	perms := []string{string(permissions.ConsignmentUpdate)}
+	r := setupConsignmentRBACRouter(t, perms, &storeID, testUserID)
+
+	t.Run("invalid arrangement id returns 400", func(t *testing.T) {
+		w := doConsignmentRequest(r, http.MethodPost, "/api/consignment/arrangements/abc/terms",
+			fmt.Sprintf(`{"product_id":%d,"price":10000,"store_share_type":"percentage","store_share_value":20}`, productID))
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("invalid json body returns 400", func(t *testing.T) {
+		w := doConsignmentRequest(r, http.MethodPost,
+			fmt.Sprintf("/api/consignment/arrangements/%d/terms", arr.ID), "not-json")
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("duplicate product returns 400", func(t *testing.T) {
+		body := fmt.Sprintf(`{"product_id":%d,"price":10000,"store_share_type":"percentage","store_share_value":20}`, productID)
+		// First add succeeds.
+		w1 := doConsignmentRequest(r, http.MethodPost,
+			fmt.Sprintf("/api/consignment/arrangements/%d/terms", arr.ID), body)
+		assert.Equal(t, http.StatusCreated, w1.Code)
+		// Duplicate returns 400 (ErrDuplicateProduct maps to Bad Request).
+		w2 := doConsignmentRequest(r, http.MethodPost,
+			fmt.Sprintf("/api/consignment/arrangements/%d/terms", arr.ID), body)
+		assert.Equal(t, http.StatusBadRequest, w2.Code)
+		// Clean up.
+		_ = svc.RemoveTerm(ctx, arr.ID, productID, &storeID)
+	})
+
+	t.Run("non-existent arrangement returns 404", func(t *testing.T) {
+		w := doConsignmentRequest(r, http.MethodPost, "/api/consignment/arrangements/999999/terms",
+			fmt.Sprintf(`{"product_id":%d,"price":10000,"store_share_type":"percentage","store_share_value":20}`, productID))
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+// TestHandler_RemoveTerm_ErrorPaths covers the request-validation branches of
+// DELETE /consignment/arrangements/:id/terms/:productId that are not exercised
+// by RBAC tests.
+func TestHandler_RemoveTerm_ErrorPaths(t *testing.T) {
+	ctx := context.Background()
+	storeID := insertTestStore(ctx, t)
+	testUserID := insertTestUser(ctx, t)
+	productID := insertTestProduct(ctx, t, "RMTERM-ERR")
+	supplierID := insertTestSupplier(ctx, t, "RemoveTerm Error Supplier", true)
+
+	svc := newTestService(t)
+	arr, err := svc.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierID, StoreID: storeID}, testUserID, nil)
+	require.NoError(t, err)
+
+	perms := []string{string(permissions.ConsignmentUpdate)}
+	r := setupConsignmentRBACRouter(t, perms, &storeID, testUserID)
+
+	t.Run("invalid arrangement id returns 400", func(t *testing.T) {
+		w := doConsignmentRequest(r, http.MethodDelete,
+			fmt.Sprintf("/api/consignment/arrangements/abc/terms/%d", productID), "")
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("invalid product id returns 400", func(t *testing.T) {
+		w := doConsignmentRequest(r, http.MethodDelete,
+			fmt.Sprintf("/api/consignment/arrangements/%d/terms/abc", arr.ID), "")
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("non-existent term returns 404", func(t *testing.T) {
+		w := doConsignmentRequest(r, http.MethodDelete,
+			fmt.Sprintf("/api/consignment/arrangements/%d/terms/%d", arr.ID, productID), "")
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+// TestHandler_RemoveTerm_RequiresUpdate pins the authorization of
+// DELETE /consignment/arrangements/:id/terms/:productId to consignment.update.
+func TestHandler_RemoveTerm_RequiresUpdate(t *testing.T) {
+	ctx := context.Background()
+	storeID := insertTestStore(ctx, t)
+	testUserID := insertTestUser(ctx, t)
+	productID := insertTestProduct(ctx, t, "RBAC-RM-TERM")
+	supplierID := insertTestSupplier(ctx, t, "Konsinyasi Remove Term Supplier", true)
+
+	svc := newTestService(t)
+	arr, err := svc.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierID, StoreID: storeID}, testUserID, nil)
+	require.NoError(t, err)
+
+	// Add a term first so the DELETE has something to remove.
+	_, err = svc.AddTerm(ctx, arr.ID, SetTermsRequest{
+		ProductID: productID, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+	}, testUserID, &storeID)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name  string
+		perms []string
+		want  int
+	}{
+		{"consignment.update can remove term", []string{string(permissions.ConsignmentUpdate)}, http.StatusNoContent},
+		{"consignment.view alone cannot remove term", []string{string(permissions.ConsignmentView)}, http.StatusForbidden},
+		{"unrelated permission is rejected", []string{"report.view"}, http.StatusForbidden},
+		{"no permissions is rejected", []string{}, http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := setupConsignmentRBACRouter(t, tt.perms, &storeID, testUserID)
+			w := doConsignmentRequest(r, http.MethodDelete, fmt.Sprintf("/api/consignment/arrangements/%d/terms/%d", arr.ID, productID), "")
+			assert.Equal(t, tt.want, w.Code)
+			// Re-add term for subsequent test cases (DELETE is idempotent in tests).
+			_, _ = svc.AddTerm(ctx, arr.ID, SetTermsRequest{
+				ProductID: productID, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+			}, testUserID, &storeID)
+		})
+	}
+}

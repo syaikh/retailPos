@@ -11,7 +11,8 @@
     EmptyState,
     Pagination,
   } from "$shared/ui";
-  import { Plus, Trash2, Truck, Pencil } from "lucide-svelte";
+  import { Plus, Trash2, Truck, Pencil, Copy, Check } from "lucide-svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import { labels, t } from "$shared/i18n";
   import {
     createReceipt,
@@ -35,7 +36,6 @@
   interface Line {
     product_id?: number;
     accepted_qty: number;
-    notes: string;
     conflict?: string;
   }
 
@@ -113,12 +113,22 @@
     }));
   }
 
+  const optionsForLine = $derived(
+    (excludeIndex: number) =>
+      productOptions.filter(
+        (opt) =>
+          !lines.some(
+            (l, i) => i !== excludeIndex && l.product_id === opt.value,
+          ),
+      ),
+  );
+
   $effect(() => {
     loadTermProducts();
   });
 
   function openEntry() {
-    lines = [{ product_id: undefined, accepted_qty: 1, notes: "" }];
+    lines = [{ product_id: undefined, accepted_qty: 1 }];
     entryNotes = "";
     termByProduct = {};
     (arrangement.terms || []).forEach((t) => {
@@ -132,7 +142,7 @@
   }
 
   function addLine() {
-    lines = [...lines, { product_id: undefined, accepted_qty: 1, notes: "" }];
+    lines = [...lines, { product_id: undefined, accepted_qty: 1 }];
   }
 
   function removeLine(index: number) {
@@ -149,7 +159,6 @@
       .map((l) => ({
         product_id: l.product_id!,
         accepted_qty: l.accepted_qty,
-        notes: l.notes || undefined,
       }));
     if (items.length === 0) {
       toast.error(labels.consignmentEnterAcceptedQty);
@@ -253,6 +262,22 @@
     }
   }
 
+  let showCopied = $state(new SvelteSet<string>());
+
+  function copySku(sku: string) {
+    navigator.clipboard.writeText(sku).then(() => {
+      const next = new SvelteSet(showCopied);
+      next.add(sku);
+      showCopied = next;
+      toast.success(labels.copiedToClipboard);
+      setTimeout(() => {
+        const removed = new SvelteSet(next);
+        removed.delete(sku);
+        showCopied = removed;
+      }, 2000);
+    });
+  }
+
   onMount(() => {
     load();
   });
@@ -352,80 +377,78 @@
 <Modal
   bind:open={showEntryModal}
   title={labels.consignmentRecordReceipt}
-  size="lg"
+  size="2xl"
 >
   <div class="space-y-4">
-    <div class="flex items-center justify-between">
-      <span class="text-sm font-medium text-text-secondary"
-        >{labels.consignmentItemLines}</span
-      >
+    <div class="flex items-center justify-end">
       <Button variant="secondary" size="sm" onclick={addLine}>
         <Plus class="w-4 h-4" />
         {labels.consignmentAddLine}
       </Button>
     </div>
 
-    {#each lines as line, i (i)}
-      <div class="rounded-xl border border-border-default p-3 space-y-3">
-        <div
-          class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-end"
-        >
-          <label
-            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-muted/50">
+          <tr
+            class="text-left text-xs uppercase tracking-wider text-text-secondary"
           >
-            <span
-              >{labels.consignmentProduct}
-              <span class="text-danger">*</span></span
-            >
-            <SelectSearch
-              bind:value={line.product_id}
-              options={productOptions}
-              placeholder={labels.consignmentSelectProduct}
-              searchPlaceholder={labels.consignmentSearchProduct}
-              notFoundText={labels.consignmentProductNotFound}
-            />
-          </label>
-          <label
-            class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-          >
-            <span>{labels.consignmentAcceptedQty}</span>
-            <NumberInput
-              min="1"
-              bind:value={line.accepted_qty}
-              class="h-9 w-24 text-sm"
-            />
-          </label>
-          {#if lines.length > 1}
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label={labels.consignmentDeleteLine}
-              onclick={() => removeLine(i)}
-            >
-              <Trash2 class="w-4 h-4" />
-            </Button>
-          {/if}
-        </div>
-        <div class="flex flex-wrap items-center gap-4 text-xs">
-          {#if line.product_id && termByProduct[line.product_id]}
-            <span class="text-text-secondary">
-              {labels.consignmentTabTerms}:
-              <span class="font-medium text-text-primary"
-                >{formatCurrency(termByProduct[line.product_id].price)}</span
-              >
-              {labels.consignmentPerUnit}
-            </span>
-          {:else if line.product_id}
-            <span class="text-amber-600"
-              >{labels.consignmentNoTermsWarning}</span
-            >
-          {/if}
-          {#if line.conflict}
-            <span class="text-danger">{line.conflict}</span>
-          {/if}
-        </div>
-      </div>
-    {/each}
+            <th class="p-4">{labels.consignmentProduct}</th>
+            <th class="p-4 text-right">{labels.consignmentAcceptedQty}</th>
+            <th class="p-4 text-right">{labels.consignmentPrice}</th>
+            <th class="p-4 w-16"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each lines as line, i (i)}
+            <tr class="border-t border-border">
+              <td class="p-4">
+                <SelectSearch
+                  bind:value={line.product_id}
+                  options={optionsForLine(i)}
+                  placeholder={labels.consignmentSelectProduct}
+                  searchPlaceholder={labels.consignmentSearchProduct}
+                  notFoundText={labels.consignmentProductNotFound}
+                />
+                {#if line.conflict}
+                  <span class="text-xs text-danger mt-1">{line.conflict}</span>
+                {/if}
+              </td>
+              <td class="p-4 text-right">
+                <NumberInput
+                  min="1"
+                  bind:value={line.accepted_qty}
+                  class="h-9 w-24 text-sm text-right"
+                />
+              </td>
+              <td class="p-4 text-right text-text-secondary text-xs">
+                {#if line.product_id && termByProduct[line.product_id]}
+                  {formatCurrency(termByProduct[line.product_id].price)}
+                  <span class="text-text-muted">{labels.consignmentPerUnit}</span
+                  >
+                {:else if line.product_id}
+                  <span class="text-amber-600"
+                    >{labels.consignmentNoTermsWarning}</span
+                  >
+                {/if}
+              </td>
+              <td class="p-4">
+                {#if lines.length > 1}
+                  <button
+                    type="button"
+                    class="p-1 text-text-muted hover:text-danger"
+                    aria-label={labels.consignmentDeleteLine}
+                    onclick={() => removeLine(i)}
+                  >
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                {/if}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
 
     <label
       class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
@@ -532,8 +555,22 @@
                       <div class="font-medium text-text-primary">
                         {item.product_name}
                       </div>
-                      <div class="text-xs text-text-secondary">
+                      <div class="text-xs text-text-secondary flex items-center gap-1">
                         {item.product_sku}
+                        {#if item.product_sku}
+                          <button
+                            type="button"
+                          onclick={() => copySku(item.product_sku ?? "")}
+                            class="p-0.5 text-text-muted hover:text-text-primary"
+                            title={labels.copiedToClipboard}
+                          >
+                            {#if showCopied.has(item.product_sku)}
+                              <Check size={10} class="text-success" />
+                            {:else}
+                              <Copy size={10} />
+                            {/if}
+                          </button>
+                        {/if}
                       </div>
                     </td>
                     <td class="px-4 py-3 text-right">
@@ -644,8 +681,22 @@
                     <div class="font-medium text-text-primary">
                       {item.product_name || `Product #${item.product_id}`}
                     </div>
-                    <div class="text-xs text-text-secondary">
+                    <div class="text-xs text-text-secondary flex items-center gap-1">
                       {item.product_sku || ""}
+                      {#if item.product_sku}
+                        <button
+                          type="button"
+                          onclick={() => copySku(item.product_sku)}
+                          class="p-0.5 text-text-muted hover:text-text-primary"
+                          title={labels.copiedToClipboard}
+                        >
+                          {#if showCopied.has(item.product_sku)}
+                            <Check size={10} class="text-success" />
+                          {:else}
+                            <Copy size={10} />
+                          {/if}
+                        </button>
+                      {/if}
                     </div>
                   </td>
                   <td class="px-4 py-3 text-right text-text-primary"

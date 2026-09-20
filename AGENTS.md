@@ -181,10 +181,12 @@ Migrations must be applied **before** deploying a new server binary. The server 
 | `041_shift_settings.sql` | Seeds `shift_*` keys into `app_settings` |
 | `042_consignment_receipt_edit.sql` | Creates `consignment_receipt_edits` append-only audit table |
 | `043_product_ownership_type.sql` | Adds `products.ownership_type` (store/consignment) + backfill + view rebuild |
-| `044_store_first_and_finance_role.sql` | Seeds default store; renames roles (admin→manager, manager→supervisor, staff→inventory_staff); creates `finance` role; grants supervisor `sale.create`/`store.view`; replaces inventory_staff permissions; backfills `store_id` |
+| `044_store_first_and_finance_role.sql` | Seeds default store; renames roles (admin→manager, manager→supervisor, staff→inventory_staff); creates `finance` role; grants supervisor `sale.create`; replaces inventory_staff permissions; backfills `store_id` |
 | `045_rename_usernames.sql` | Aligns default usernames to role names (admin→manager, manager→supervisor, staff→inventory_staff) |
 | `046_manager_consignment_pay.sql` | Grants `consignment.pay` to `manager` (settle-without-pay bug fix) |
 | `047_finance_consignment_view.sql` | Grants `consignment.view` to `finance` (fix: finance could pay settlements but not view them) |
+| `048_add_termination_return_reason.sql` | Adds 'termination' to consignment_pending_returns reason check constraint |
+| `049_revoke_store_view_finance_supervisor.sql` | Revokes `store.view` from `finance` and `supervisor` (both are store-scoped via JWT; permission was redundant) |
 
 ## Filesystem Convention
 

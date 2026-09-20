@@ -64,7 +64,7 @@ manager (store boss)
 |------|-------------|-------|---------|
 | superadmin | 85 | All stores | unchanged |
 | manager | 80 | Single store | renamed from "admin" |
-| supervisor | 59 | Single store | renamed from "manager", +sale.create, +store.view |
+| supervisor | 58 | Single store | renamed from "manager", +sale.create |
 | finance | 6 | Single store | new role |
 | cashier | 19 | Single store | unchanged |
 | inventory_staff | 6 | Single store | renamed from "staff", permissions replaced |
@@ -129,7 +129,7 @@ Finance records payment (consignment.pay)
 | Permission | superadmin | manager | supervisor | finance | cashier | inventory_staff |
 |------------|------------|---------|------------|---------|---------|-----------------|
 | `store.create` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `store.view` | ✅ | ✅ | ➕ | ✅ | ❌ | ❌ |
+| `store.view` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `store.update` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `store.delete` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 
@@ -283,12 +283,10 @@ Finance records payment (consignment.pay)
 | Role | Permission | Reason |
 |------|------------|--------|
 | supervisor | `sale.create` | Supervisors can ring up sales at POS |
-| supervisor | `store.view` | Supervisors need to see store dropdown |
 | finance | `consignment.pay` | Finance records payments to suppliers |
 | finance | `report.view` | Finance views financial reports |
 | finance | `audit.view` | Finance views audit trail |
 | finance | `sale.view` | Finance views sales for reconciliation |
-| finance | `store.view` | Finance sees which store they're paying for |
 | finance | `dashboard.view` | Finance sees dashboard |
 | inventory_staff | `inventory.adjust` | Inventory staff adjusts stock levels |
 | inventory_staff | `stock_opname.*` (12) | Inventory staff manages stock opname |

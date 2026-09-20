@@ -52,7 +52,7 @@ The person who manages staff shouldn't also pay suppliers.
 | superadmin | **superadmin** | 85 | All stores | IT admin at HQ |
 | admin | **manager** | 80 | Single store | Store manager (the boss) |
 | manager | **supervisor** | 57 | Single store | Shift supervisor |
-| finance | **finance** | 5 | Single store | Payment processing |
+| finance | **finance** | 7 | Single store | Payment processing |
 | cashier | **cashier** | 19 | Single store | Sales |
 | staff | **inventory_staff** | 6 | Single store | Stock management |
 
@@ -113,8 +113,6 @@ settlements it has to pay; it still lacks `consignment.create`/`consignment.upda
 | Seeded users | All have `store_id = NULL` | Can't operate properly |
 | Auth middleware | Never rejects nil store_id | Users without store can access everything |
 | Sale creation | `store_id` is nullable | Sales saved with NULL store |
-| Manager role | Has `consignment.pay` | No separation of duties |
-| Supervisor role | Missing `sale.create`, `store.view` | Can't ring sales, can't see stores |
 
 ## Implementation Plan
 
@@ -156,12 +154,10 @@ ON CONFLICT (name) DO NOTHING;
 - `report.view` — view financial reports
 - `audit.view` — view audit trail
 - `sale.view` — view sales for reconciliation
-- `store.view` — see which store they're paying for
 - `dashboard.view` — see dashboard
 
 **1.5. Update supervisor role**
 - Add `sale.create` — supervisors can ring up sales at POS
-- Add `store.view` — supervisors can see store dropdown
 
 **1.6. Update inventory_staff permissions**
 Replace current permissions with inventory-related ones:

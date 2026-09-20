@@ -86,7 +86,7 @@
         const product = await createProduct({
           sku: row.sku.trim(),
           name: row.name.trim(),
-          barcode: "",
+          barcode: null,
           category: "",
           brand_id: null,
           price: row.price,

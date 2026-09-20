@@ -32,6 +32,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.POST("/consignment/arrangements/:id/end", auth, perm(permissions.ConsignmentUpdate), h.EndArrangement)
 	r.GET("/consignment/arrangements/:id/available-products", auth, perm(permissions.ConsignmentView), h.ListAddTermProductOptions)
 	r.PUT("/consignment/arrangements/:id/terms", auth, perm(permissions.ConsignmentUpdate), h.SetTerms)
+	r.POST("/consignment/arrangements/:id/terms", auth, perm(permissions.ConsignmentUpdate), h.AddTerm)
+	r.DELETE("/consignment/arrangements/:id/terms/:productId", auth, perm(permissions.ConsignmentUpdate), h.RemoveTerm)
 	r.GET("/consignment/receipts", auth, perm(permissions.ConsignmentView), h.ListReceipts)
 	r.POST("/consignment/receipts", auth, perm(permissions.ConsignmentCreate), h.CreateReceipt)
 	r.GET("/consignment/receipts/:id", auth, perm(permissions.ConsignmentView), h.GetReceipt)
@@ -128,6 +130,16 @@ func (h *Handler) ListAddTermProductOptions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+	search := c.Query("search")
+	if search != "" {
+		options, exactMatch, err := h.svc.SearchAvailableProducts(c.Request.Context(), id, search, shared.GetStoreID(c))
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": options, "exact_match": exactMatch})
+		return
+	}
 	options, err := h.svc.ListAddTermProductOptions(c.Request.Context(), id, shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
@@ -159,6 +171,50 @@ func (h *Handler) SetTerms(c *gin.Context) {
 	}
 	h.writeAudit(c, "set_terms", id, fmt.Sprintf("Updated %d consignment terms", len(terms)), nil)
 	c.JSON(http.StatusOK, gin.H{"data": terms})
+}
+
+func (h *Handler) AddTerm(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req SetTermsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
+		return
+	}
+	uid := userID(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "invalid user"))
+		return
+	}
+	term, err := h.svc.AddTerm(c.Request.Context(), id, req, uid, shared.GetStoreID(c))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	h.writeAudit(c, "add_term", id, fmt.Sprintf("Added term for product %d", req.ProductID), nil)
+	c.JSON(http.StatusCreated, gin.H{"data": term})
+}
+
+func (h *Handler) RemoveTerm(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	productID, err := strconv.Atoi(c.Param("productId"))
+	if err != nil || productID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid product id"})
+		return
+	}
+	if err := h.svc.RemoveTerm(c.Request.Context(), id, productID, shared.GetStoreID(c)); err != nil {
+		writeError(c, err)
+		return
+	}
+	h.writeAudit(c, "remove_term", id, fmt.Sprintf("Removed term for product %d", productID), nil)
+	c.JSON(http.StatusNoContent, nil)
 }
 
 func (h *Handler) CreateReceipt(c *gin.Context) {

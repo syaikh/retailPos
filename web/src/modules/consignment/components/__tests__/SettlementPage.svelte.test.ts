@@ -29,4 +29,25 @@ describe("SettlementPage.svelte source-structure guards", () => {
     expect(src).toContain("<FormattedNumberInput");
     expect(src).toContain("bind:value={payoutForm.amount}");
   });
+
+  it("imports getSettlement for detail modal", () => {
+    expect(src).toContain("getSettlement");
+  });
+
+  it("has detail modal state variables", () => {
+    expect(src).toContain("showDetailModal");
+    expect(src).toContain("detailSettlement");
+    expect(src).toContain("loadingDetail");
+  });
+
+  it("has openDetail function that fetches settlement details", () => {
+    expect(src).toContain("async function openDetail");
+    expect(src).toContain("getSettlement(settlementId)");
+  });
+
+  it("makes settlement rows clickable with keyboard support", () => {
+    expect(src).toContain('role="button"');
+    expect(src).toContain('tabindex="0"');
+    expect(src).toContain("onkeydown");
+  });
 });

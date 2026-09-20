@@ -12,7 +12,8 @@
     Badge,
     Pagination,
   } from "$shared/ui";
-  import { Plus, RotateCcw } from "lucide-svelte";
+  import { Plus, RotateCcw, Copy, Check } from "lucide-svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import { labels, t } from "$shared/i18n";
   import { getProductOptions } from "$modules/product/services/product-service";
   import {
@@ -142,6 +143,22 @@
     loadProducts();
   });
 
+  let showCopied = $state(new SvelteSet<string>());
+
+  function copySku(sku: string) {
+    navigator.clipboard.writeText(sku).then(() => {
+      const next = new SvelteSet(showCopied);
+      next.add(sku);
+      showCopied = next;
+      toast.success(labels.copiedToClipboard);
+      setTimeout(() => {
+        const removed = new SvelteSet(next);
+        removed.delete(sku);
+        showCopied = removed;
+      }, 2000);
+    });
+  }
+
   function handlePageChange(newOffset: number, newLimit: number) {
     pageOffset = newOffset;
     pageLimit = newLimit;
@@ -197,8 +214,22 @@
                   <div class="font-medium text-text-primary">
                     {pr.product_name}
                   </div>
-                  <div class="text-xs text-text-secondary">
+                  <div class="text-xs text-text-secondary flex items-center gap-1">
                     {pr.product_sku}
+                    {#if pr.product_sku}
+                      <button
+                        type="button"
+                        onclick={() => copySku(pr.product_sku ?? "")}
+                        class="p-0.5 text-text-muted hover:text-text-primary"
+                        title={labels.copiedToClipboard}
+                      >
+                        {#if showCopied.has(pr.product_sku)}
+                          <Check size={10} class="text-success" />
+                        {:else}
+                          <Copy size={10} />
+                        {/if}
+                      </button>
+                    {/if}
                   </div>
                 </td>
                 <td class="p-4 text-right text-text-primary">{pr.qty}</td>

@@ -70,10 +70,35 @@ export async function setTerms(
   return res.data.data || [];
 }
 
+export async function addTerm(
+  arrangementId: number,
+  payload: SetTermsPayload,
+): Promise<Term> {
+  const res = await apiClient.post(
+    `/consignment/arrangements/${arrangementId}/terms`,
+    payload,
+  );
+  return res.data.data;
+}
+
+export async function removeTerm(
+  arrangementId: number,
+  productId: number,
+): Promise<void> {
+  await apiClient.delete(
+    `/consignment/arrangements/${arrangementId}/terms/${productId}`,
+  );
+}
+
 export interface AddTermProductOption {
   id: number;
   sku: string;
   name: string;
+}
+
+export interface SearchProductResult {
+  products: AddTermProductOption[];
+  exactMatch: boolean;
 }
 
 export async function listAddTermProductOptions(
@@ -83,6 +108,20 @@ export async function listAddTermProductOptions(
     `/consignment/arrangements/${arrangementId}/available-products`,
   );
   return res.data.data || [];
+}
+
+export async function searchAvailableProducts(
+  arrangementId: number,
+  search: string,
+): Promise<SearchProductResult> {
+  const res = await apiClient.get(
+    `/consignment/arrangements/${arrangementId}/available-products`,
+    { params: { search } },
+  );
+  return {
+    products: res.data.data || [],
+    exactMatch: res.data.exact_match ?? false,
+  };
 }
 
 export async function listReceipts(supplierId: number): Promise<Receipt[]> {
