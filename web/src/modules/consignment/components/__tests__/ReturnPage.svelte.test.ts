@@ -42,4 +42,34 @@ describe("ReturnPage.svelte source-structure guards", () => {
     expect(afterElse).toContain("line.product_id = undefined");
     expect(afterElse).toContain('line.reason = "other"');
   });
+
+  it("sets line.qty from pending return when linked", () => {
+    expect(src).toContain("line.qty = pr.qty");
+  });
+
+  it("resets line.qty to 1 when pending return is unlinked", () => {
+    const elseBlock = src.indexOf('line.product_id = undefined');
+    expect(elseBlock).toBeGreaterThan(-1);
+    const afterElse = src.slice(elseBlock, elseBlock + 200);
+    expect(afterElse).toContain("line.qty = 1");
+  });
+
+  it("imports Copy and Check icons for SKU copy feature", () => {
+    expect(src).toContain("Copy");
+    expect(src).toContain("Check");
+  });
+
+  it("has copySku function that uses navigator.clipboard", () => {
+    expect(src).toContain("function copySku");
+    expect(src).toContain("navigator.clipboard.writeText");
+  });
+
+  it("has showCopied state for tracking copied SKUs", () => {
+    expect(src).toContain("showCopied");
+  });
+
+  it("renders copy button for product SKU", () => {
+    expect(src).toContain("product_sku");
+    expect(src).toContain("copySku");
+  });
 });

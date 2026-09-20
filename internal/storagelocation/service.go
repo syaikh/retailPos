@@ -7,7 +7,7 @@ import (
 )
 
 type Repo interface {
-	GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]StorageLocation, int, error)
+	GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]StorageLocation, int, error)
 	GetByID(ctx context.Context, id int) (*StorageLocation, error)
 	GetAllActive(ctx context.Context) ([]StorageLocation, error)
 	CodeExists(ctx context.Context, code string, excludeID int) (bool, error)
@@ -28,8 +28,8 @@ func NewService(repo Repo) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]StorageLocation, int, error) {
-	return s.repo.GetAll(ctx, limit, offset, search, isActive)
+func (s *Service) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]StorageLocation, int, error) {
+	return s.repo.GetAll(ctx, limit, offset, search, isActive, storeID)
 }
 
 func (s *Service) GetByID(ctx context.Context, id int) (*StorageLocation, error) {

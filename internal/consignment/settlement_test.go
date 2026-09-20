@@ -69,6 +69,7 @@ func TestService_SettlementMath(t *testing.T) {
 		require.Equal(t, 10000, preview.TotalStoreShare) // 20% of 50,000
 		require.Equal(t, 40000, preview.TotalPayable)
 		require.Len(t, preview.Items, 1)
+		require.NotEmpty(t, preview.Items[0].ProductName, "ProductName should be hydrated in settlement preview items")
 	})
 
 	t.Run("fixed amount share preview", func(t *testing.T) {

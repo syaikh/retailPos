@@ -49,7 +49,7 @@ func (m *mockUserService) GetUserByID(ctx context.Context, id int) (*User, error
 func (m *mockUserService) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	return m.getByUsernameFn(ctx, username)
 }
-func (m *mockUserService) GetAllUsers(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool) ([]User, int, error) {
+func (m *mockUserService) GetAllUsers(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool, storeID *int) ([]User, int, error) {
 	return m.getAllUsersFn(ctx, limit, offset, search, sortBy, sortDir, roleID, isActive)
 }
 func (m *mockUserService) CreateUser(ctx context.Context, user *User) error {

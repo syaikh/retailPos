@@ -45,7 +45,7 @@ func (m *mockShiftService) CloseShift(ctx context.Context, shiftID, userID int, 
 func (m *mockShiftService) GetActiveShift(ctx context.Context, userID int) (*Shift, error) {
 	return m.getActiveShiftFn(ctx, userID)
 }
-func (m *mockShiftService) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+func (m *mockShiftService) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string, storeID *int) ([]Shift, int, error) {
 	return m.listShiftsFn(ctx, scope, status, needsReview, discrepancyFilter, limit, offset, sortBy, sortDir)
 }
 func (m *mockShiftService) GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error) {
@@ -70,7 +70,7 @@ func (m *mockShiftService) SetSettingsProvider(p SettingsProvider) {}
 func (m *mockShiftService) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {
 	return m.auditShiftFn(ctx, shiftID)
 }
-func (m *mockShiftService) ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
+func (m *mockShiftService) ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, storeID *int) ([]Shift, error) {
 	if m.exportShiftsFn != nil {
 		return m.exportShiftsFn(ctx, scope, status, needsReview, discrepancyFilter)
 	}

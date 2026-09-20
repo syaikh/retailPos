@@ -1630,8 +1630,7 @@ SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'finance'
         'consignment.view',
         'dashboard.view',
         'report.view',
-        'sale.view',
-        'store.view'
+        'sale.view'
     )
 ON CONFLICT DO NOTHING;
 

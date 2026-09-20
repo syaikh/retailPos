@@ -51,4 +51,18 @@ describe("TermsEditor.svelte source-structure guards", () => {
     expect(src).not.toContain("productDropdownOpen");
     expect(src).not.toContain("loadProducts()");
   });
+
+  it("imports Copy and Check icons for SKU copy feature", () => {
+    expect(src).toContain("Copy");
+    expect(src).toContain("Check");
+  });
+
+  it("has copySku function for copying term SKUs to clipboard", () => {
+    expect(src).toContain("function copySku");
+    expect(src).toContain("navigator.clipboard.writeText");
+  });
+
+  it("has showCopied state for tracking copied SKUs", () => {
+    expect(src).toContain("showCopied");
+  });
 });

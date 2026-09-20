@@ -630,6 +630,69 @@ func TestService_AddTerm(t *testing.T) {
 		}, userID, &store)
 		require.ErrorIs(t, err, ErrInvalidPrice)
 	})
+
+	t.Run("negative price rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "ADD-NEG-PRICE")
+		svc, _, store, _ := setupArrangementNoTerms(t)
+		userID := insertTestUser(ctx, t)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: -1000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrInvalidPrice)
+	})
+
+	t.Run("other supplier conflict rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "ADD-OTHER-SUP")
+		svcA, _, storeA, _ := setupArrangementNoTerms(t)
+		userID := insertTestUser(ctx, t)
+
+		// Supplier A creates an arrangement and receives stock.
+		_, err := svcA.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svcA, storeA),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
+		}, userID, &storeA)
+		require.NoError(t, err)
+
+		// Supplier B creates a separate arrangement.
+		supplierB := insertTestSupplier(ctx, t, "AddTerm Supplier B", true)
+		storeB := insertTestStore(ctx, t)
+		svcB := newTestService(t)
+		arrB, err := svcB.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierB, StoreID: storeB}, userID, nil)
+		require.NoError(t, err)
+
+		// Supplier B tries to add a term on the same product that has stock under supplier A.
+		_, err = svcB.AddTerm(ctx, arrB.ID, SetTermsRequest{
+			ProductID: product, Price: 12000, StoreShareType: ShareTypePercentage, StoreShareValue: 30,
+		}, userID, &storeB)
+		require.ErrorIs(t, err, ErrConflictOtherSupplier)
+	})
+
+	t.Run("store scope enforced", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "ADD-STORE-SCOPE")
+		svc, _, store, _ := setupArrangementNoTerms(t)
+		userID := insertTestUser(ctx, t)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		otherStore := insertTestStore(ctx, t)
+		_, err := svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+		}, userID, &otherStore)
+		require.ErrorIs(t, err, ErrStoreForbidden)
+	})
+
+	t.Run("fixed_amount share >= price rejected", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "ADD-FIXED-OVER")
+		svc, _, store, _ := setupArrangementNoTerms(t)
+		userID := insertTestUser(ctx, t)
+		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
+
+		_, err := svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
+			ProductID: product, Price: 10000, StoreShareType: ShareTypeFixedAmount, StoreShareValue: 10000,
+		}, userID, &store)
+		require.ErrorIs(t, err, ErrFixedShareExceedsPrice)
+	})
 }
 
 func TestService_RemoveTerm(t *testing.T) {

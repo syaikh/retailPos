@@ -226,7 +226,7 @@ func TestShiftRepository_ListShifts(t *testing.T) {
 		userID := insertTestUser(ctx, t, 1)
 		createOpenShift(ctx, t, repo, userID)
 
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "opened_at", "DESC", nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(shifts), 1)
@@ -236,7 +236,7 @@ func TestShiftRepository_ListShifts(t *testing.T) {
 		userID := insertTestUser(ctx, t, 1)
 		createOpenShift(ctx, t, repo, userID)
 
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", 10, 0, "opened_at", "DESC", nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, s := range shifts {
@@ -278,7 +278,7 @@ func TestShiftRepository_ListShifts_OwnershipScope(t *testing.T) {
 	shiftB := createOpenShift(ctx, t, repo, userB)
 
 	t.Run("all-access scope returns shifts for every user", func(t *testing.T) {
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "opened_at", "DESC", nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 2)
 		foundA, foundB := false, false
@@ -295,7 +295,7 @@ func TestShiftRepository_ListShifts_OwnershipScope(t *testing.T) {
 	})
 
 	t.Run("restricted scope only returns own shifts", func(t *testing.T) {
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{UserID: &userA}, "", nil, "", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{UserID: &userA}, "", nil, "", 10, 0, "opened_at", "DESC", nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		require.Len(t, shifts, 1)
@@ -489,7 +489,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("filter by status", func(t *testing.T) {
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "closed", nil, "", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "closed", nil, "", 10, 0, "opened_at", "DESC", nil)
 		require.NoError(t, err)
 		assert.Equal(t, 3, total)
 		assert.Len(t, shifts, 3)
@@ -500,7 +500,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 
 	t.Run("filter by needs_review", func(t *testing.T) {
 		val := true
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", &val, "", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", &val, "", 10, 0, "opened_at", "DESC", nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Len(t, shifts, 1)
@@ -512,7 +512,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("filter by balanced discrepancy", func(t *testing.T) {
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "balanced", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "balanced", 10, 0, "opened_at", "DESC", nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, s := range shifts {
@@ -521,7 +521,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 	})
 
 	t.Run("filter by surplus discrepancy", func(t *testing.T) {
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "surplus", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "surplus", 10, 0, "opened_at", "DESC", nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, s := range shifts {
@@ -530,7 +530,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 	})
 
 	t.Run("filter by shortage discrepancy", func(t *testing.T) {
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "shortage", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "shortage", 10, 0, "opened_at", "DESC", nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, s := range shifts {
@@ -544,7 +544,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 			storeID, "list notes", balanced.ID).Scan(&updatedID)
 		require.NoError(t, err)
 
-		shifts, _, err := repo.ListShifts(ctx, ownership.Scope{}, "closed", nil, "", 10, 0, "opened_at", "DESC")
+		shifts, _, err := repo.ListShifts(ctx, ownership.Scope{}, "closed", nil, "", 10, 0, "opened_at", "DESC", nil)
 		require.NoError(t, err)
 		var found Shift
 		for _, s := range shifts {
@@ -568,7 +568,7 @@ func TestShiftRepository_ListShifts_InvalidSort(t *testing.T) {
 	userID := insertTestUser(ctx, t, 1)
 	createOpenShift(ctx, t, repo, userID)
 
-	shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "bogus_col", "sideways")
+	shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "bogus_col", "sideways", nil)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, total, 1)
 	assert.GreaterOrEqual(t, len(shifts), 1)

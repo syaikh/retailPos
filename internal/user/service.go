@@ -58,12 +58,12 @@ func (s *service) GetUserByUsername(ctx context.Context, username string) (*User
 	return user, nil
 }
 
-func (s *service) GetAllUsers(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool) ([]User, int, error) {
+func (s *service) GetAllUsers(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool, storeID *int) ([]User, int, error) {
 	rid := 0
 	if roleID != nil {
 		rid = *roleID
 	}
-	users, total, err := s.repo.GetAllUsers(ctx, limit, offset, search, sortBy, sortDir, rid, isActive)
+	users, total, err := s.repo.GetAllUsers(ctx, limit, offset, search, sortBy, sortDir, rid, isActive, storeID)
 	if err != nil {
 		return nil, 0, err
 	}

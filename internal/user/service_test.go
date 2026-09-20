@@ -39,7 +39,7 @@ func TestUserService_ReadOperations(t *testing.T) {
 	})
 
 	t.Run("GetAllUsers", func(t *testing.T) {
-		users, total, err := svc.GetAllUsers(ctx, 10, 0, "svc_read_ops_001", "id", "asc", nil, nil)
+		users, total, err := svc.GetAllUsers(ctx, 10, 0, "svc_read_ops_001", "id", "asc", nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(users), 1)
@@ -47,7 +47,7 @@ func TestUserService_ReadOperations(t *testing.T) {
 
 	t.Run("GetAllUsers with roleID filter", func(t *testing.T) {
 		roleID := 1
-		users, total, err := svc.GetAllUsers(ctx, 10, 0, "", "id", "asc", &roleID, nil)
+		users, total, err := svc.GetAllUsers(ctx, 10, 0, "", "id", "asc", &roleID, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, len(users))
 		for _, u := range users {

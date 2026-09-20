@@ -435,10 +435,12 @@
                         const pr = openPending.find((p) => p.id === prId);
                         if (pr) {
                           line.product_id = pr.product_id;
+                          line.qty = pr.qty;
                           line.reason = pr.reason;
                         }
                       } else {
                         line.product_id = undefined;
+                        line.qty = 1;
                         line.reason = "other";
                       }
                     }}

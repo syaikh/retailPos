@@ -45,11 +45,16 @@ func (r *Repository) scanLocation(scanner interface{ Scan(...interface{}) error 
 	return &sl, nil
 }
 
-func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]StorageLocation, int, error) {
+func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]StorageLocation, int, error) {
 	where := "1=1"
 	args := []interface{}{}
 	argIdx := 1
 
+	if storeID != nil {
+		where += fmt.Sprintf(" AND (sl.store_id IS NULL OR sl.store_id = $%d)", argIdx)
+		args = append(args, *storeID)
+		argIdx++
+	}
 	if search != "" {
 		where += fmt.Sprintf(" AND (LOWER(sl.name) LIKE LOWER($%d) OR LOWER(sl.code) LIKE LOWER($%d))", argIdx, argIdx)
 		args = append(args, "%"+strings.ToLower(search)+"%")

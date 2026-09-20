@@ -18,7 +18,7 @@ type Repo interface {
 	GetActiveShiftByUserID(ctx context.Context, userID int) (*Shift, error)
 	GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
 	GetShiftWithLiveSales(ctx context.Context, shiftID int) (*Shift, int, error)
-	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
+	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string, storeID *int) ([]Shift, int, error)
 	CreateCashMovement(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
 	ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error)
 	ShiftCashMovementSummary(ctx context.Context, shiftID int) (CashMovementSummary, error)
@@ -113,13 +113,13 @@ func (s *service) GetActiveShift(ctx context.Context, userID int) (*Shift, error
 	return s.repo.GetActiveShiftByUserID(ctx, userID)
 }
 
-func (s *service) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
-	return s.repo.ListShifts(ctx, scope, status, needsReview, discrepancyFilter, limit, offset, sortBy, sortDir)
+func (s *service) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string, storeID *int) ([]Shift, int, error) {
+	return s.repo.ListShifts(ctx, scope, status, needsReview, discrepancyFilter, limit, offset, sortBy, sortDir, storeID)
 }
 
-func (s *service) ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
+func (s *service) ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, storeID *int) ([]Shift, error) {
 	const maxExportRows = 10000
-	shifts, _, err := s.repo.ListShifts(ctx, scope, status, needsReview, discrepancyFilter, maxExportRows, 0, "opened_at", "DESC")
+	shifts, _, err := s.repo.ListShifts(ctx, scope, status, needsReview, discrepancyFilter, maxExportRows, 0, "opened_at", "DESC", storeID)
 	if err != nil {
 		return nil, err
 	}

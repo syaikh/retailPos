@@ -390,7 +390,7 @@ func TestRepository_GetAllUsers_NoFilters(t *testing.T) {
 	mock.ExpectQuery("SELECT u.id, u.username").WithArgs(10, 0).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	users, total, err := repo.GetAllUsers(context.Background(), 10, 0, "", "id", "asc", 0, nil)
+	users, total, err := repo.GetAllUsers(context.Background(), 10, 0, "", "id", "asc", 0, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	assert.Len(t, users, 1)
@@ -406,7 +406,7 @@ func TestRepository_GetAllUsers_CountError(t *testing.T) {
 	mock.ExpectQuery("SELECT COUNT").WillReturnError(fmt.Errorf("count error"))
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllUsers(context.Background(), 10, 0, "", "id", "asc", 0, nil)
+	_, _, err = repo.GetAllUsers(context.Background(), 10, 0, "", "id", "asc", 0, nil, nil)
 	assert.Error(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -426,7 +426,7 @@ func TestRepository_GetAllUsers_InvalidSort(t *testing.T) {
 	}))
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllUsers(context.Background(), 10, 0, "", "evil_col", "evil_dir", 0, nil)
+	_, _, err = repo.GetAllUsers(context.Background(), 10, 0, "", "evil_col", "evil_dir", 0, nil, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

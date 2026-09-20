@@ -28,7 +28,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 	t.Run("getall count error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectQuery("SELECT COUNT").WillReturnError(boom)
-		_, _, err := repo.GetAll(ctx, 10, 0, "", nil)
+		_, _, err := repo.GetAll(ctx, 10, 0, "", nil, nil)
 		assert.ErrorContains(t, err, "count storage locations")
 	})
 
@@ -36,7 +36,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectQuery("SELECT COUNT").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery("SELECT sl.id").WillReturnError(boom)
-		_, _, err := repo.GetAll(ctx, 10, 0, "", nil)
+		_, _, err := repo.GetAll(ctx, 10, 0, "", nil, nil)
 		assert.ErrorContains(t, err, "list storage locations")
 	})
 
@@ -44,7 +44,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectQuery("SELECT COUNT").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 		mock.ExpectQuery("SELECT sl.id").WithArgs(10, 0).WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(1))
-		_, _, err := repo.GetAll(ctx, 10, 0, "", nil)
+		_, _, err := repo.GetAll(ctx, 10, 0, "", nil, nil)
 		assert.ErrorContains(t, err, "scan storage location")
 	})
 

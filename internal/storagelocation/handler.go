@@ -56,7 +56,7 @@ func (h *Handler) List(c *gin.Context) {
 		isActive = &b
 	}
 
-	locations, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, isActive)
+	locations, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, isActive, shared.GetStoreID(c))
 	if err != nil {
 		shared.InternalError(c, err)
 		return

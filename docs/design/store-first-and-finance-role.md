@@ -179,10 +179,11 @@ WHERE store_id IS NULL
 
 ### Phase 2: Backend Guards
 
-**2.1. Middleware: Require store_id for operational roles**
+**2.1. Middleware: Require store_id for all non-superadmin roles**
 - File: `internal/middleware/auth.go`
-- After JWT validation, check: if role is `cashier`, `supervisor`, `finance`, or `inventory_staff` and `store_id` is nil → reject with 403
-- superadmin/manager bypass (they can operate across stores)
+- After JWT validation, check: if role is NOT `superadmin` and `store_id` is nil → reject with 403
+- Only superadmin bypasses (operates across all stores)
+- Manager, supervisor, finance, cashier, inventory_staff all require store_id
 
 **2.2. User creation: Require store_id for cashier/supervisor/finance/inventory_staff**
 - File: `internal/user/handler.go`
@@ -199,6 +200,13 @@ WHERE store_id IS NULL
 - File: `internal/user/handler.go`
 - In `UpdateUser`:
   - If role is `cashier`, `supervisor`, `finance`, or `inventory_staff` → cannot set `store_id` to NULL
+
+**2.5. Store scoping for all queries**
+- All list/query endpoints must filter by store_id for non-superadmin roles
+- Handlers read `shared.GetStoreID(c.Request.Context())` and pass to repository
+- Repositories add `AND (store_id IS NULL OR store_id = $N)` filter
+- Superadmin passes `nil` → no filter (sees all stores)
+- Affected modules: audit logs, users, shifts, storage locations
 
 ### Phase 3: Code Updates
 

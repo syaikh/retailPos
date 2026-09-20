@@ -158,12 +158,16 @@ func (r *Repository) GetDistinctEntityTypes(ctx context.Context) ([]string, erro
 	return types, nil
 }
 
-func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string, entityID *int, startDate *time.Time, endDate *time.Time) ([]LogListItem, int, error) {
+func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string, entityID *int, startDate *time.Time, endDate *time.Time, storeID *int) ([]LogListItem, int, error) {
 	var logs []LogListItem
 	var total int
 
 	query := `SELECT COUNT(*) FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id WHERE 1=1`
 	args := []interface{}{}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND (al.store_id IS NULL OR al.store_id = $%d)", len(args)+1)
+		args = append(args, *storeID)
+	}
 	if userID != nil {
 		query += fmt.Sprintf(" AND al.user_id = $%d", len(args)+1)
 		args = append(args, *userID)
@@ -200,6 +204,10 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 
 	query = `SELECT al.id, al.user_id, al.store_id, COALESCE(s.name, ''), COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb), COALESCE(al.correlation_id, '') FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id LEFT JOIN stores s ON al.store_id = s.id WHERE 1=1`
 	args2 := []interface{}{}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND (al.store_id IS NULL OR al.store_id = $%d)", len(args2)+1)
+		args2 = append(args2, *storeID)
+	}
 	if userID != nil {
 		query += fmt.Sprintf(" AND al.user_id = $%d", len(args2)+1)
 		args2 = append(args2, *userID)

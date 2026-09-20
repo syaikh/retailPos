@@ -142,7 +142,7 @@ func TestShiftService_ListShifts(t *testing.T) {
 	userID := insertTestUser(ctx, t, 1)
 	createOpenShift(ctx, t, repo, userID)
 
-	shifts, total, err := svc.ListShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", 10, 0, "opened_at", "DESC")
+	shifts, total, err := svc.ListShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", 10, 0, "opened_at", "DESC", nil)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, total, 1)
 	assert.NotEmpty(t, shifts)
@@ -176,7 +176,7 @@ func TestShiftService_ExportShifts(t *testing.T) {
 	userID := insertTestUser(ctx, t, 1)
 	createOpenShift(ctx, t, repo, userID)
 
-	shifts, err := svc.ExportShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "")
+	shifts, err := svc.ExportShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, shifts)
 }

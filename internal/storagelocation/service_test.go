@@ -22,7 +22,7 @@ func TestService_GetAll(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, sl))
 	defer func() { _ = repo.Delete(ctx, sl.ID) }()
 
-	locations, total, err := svc.GetAll(ctx, 10, 0, "", nil)
+	locations, total, err := svc.GetAll(ctx, 10, 0, "", nil, nil)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, total, 1)
 	assert.GreaterOrEqual(t, len(locations), 1)

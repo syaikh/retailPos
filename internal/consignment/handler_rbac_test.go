@@ -361,3 +361,48 @@ func TestHandler_RemoveTerm_RequiresUpdate(t *testing.T) {
 		})
 	}
 }
+
+// TestHandler_ListAddTermProductOptions_SearchParameter verifies that the
+// search query parameter on GET /consignment/arrangements/:id/available-products
+// routes to SearchAvailableProducts and returns filtered results.
+func TestHandler_ListAddTermProductOptions_SearchParameter(t *testing.T) {
+	ctx := context.Background()
+	storeID := insertTestStore(ctx, t)
+	testUserID := insertTestUser(ctx, t)
+	supplierID := insertTestSupplier(ctx, t, "Search Supplier", true)
+
+	svc := newTestService(t)
+	arr, err := svc.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierID, StoreID: storeID}, testUserID, nil)
+	require.NoError(t, err)
+
+	productID := insertTestProduct(ctx, t, "SEARCH-TERM-PROD")
+	_, err = svc.AddTerm(ctx, arr.ID, SetTermsRequest{
+		ProductID: productID, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+	}, testUserID, &storeID)
+	require.NoError(t, err)
+
+	perms := []string{string(permissions.ConsignmentView)}
+	r := setupConsignmentRBACRouter(t, perms, &storeID, testUserID)
+
+	t.Run("without search parameter returns all available products", func(t *testing.T) {
+		w := doConsignmentRequest(r, http.MethodGet,
+			fmt.Sprintf("/api/consignment/arrangements/%d/available-products", arr.ID), "")
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "data")
+	})
+
+	t.Run("with search parameter returns search results", func(t *testing.T) {
+		w := doConsignmentRequest(r, http.MethodGet,
+			fmt.Sprintf("/api/consignment/arrangements/%d/available-products?search=SEARCH", arr.ID), "")
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "data")
+		assert.Contains(t, w.Body.String(), "exact_match")
+	})
+
+	t.Run("with empty search parameter returns all available products", func(t *testing.T) {
+		w := doConsignmentRequest(r, http.MethodGet,
+			fmt.Sprintf("/api/consignment/arrangements/%d/available-products?search=", arr.ID), "")
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "data")
+	})
+}

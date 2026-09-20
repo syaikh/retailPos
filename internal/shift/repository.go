@@ -345,11 +345,16 @@ func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*S
 	return &shift, nil
 }
 
-func (r *Repository) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+func (r *Repository) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string, storeID *int) ([]Shift, int, error) {
 	where := "1=1"
 	args := []interface{}{}
 	argIdx := 1
 
+	if storeID != nil {
+		where += fmt.Sprintf(" AND (s.store_id IS NULL OR s.store_id = $%d)", argIdx)
+		args = append(args, *storeID)
+		argIdx++
+	}
 	if ownerID, restricted := scope.OwnID(); restricted {
 		where += fmt.Sprintf(" AND s.user_id = $%d", argIdx)
 		args = append(args, ownerID)

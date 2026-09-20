@@ -137,7 +137,7 @@ func (r *Repository) getUserByID(ctx context.Context, id int) (*User, error) {
 	return &u, nil
 }
 
-func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search string, sortBy string, sortDir string, roleID int, isActive *bool) ([]User, int, error) {
+func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search string, sortBy string, sortDir string, roleID int, isActive *bool, storeID *int) ([]User, int, error) {
 	var users []User
 	var total int
 
@@ -156,6 +156,11 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 	query := `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL`
 	args := []interface{}{}
 	argIdx := 1
+	if storeID != nil {
+		query += fmt.Sprintf(" AND (store_id IS NULL OR store_id = $%d)", argIdx)
+		args = append(args, *storeID)
+		argIdx++
+	}
 	if search != "" {
 		query += fmt.Sprintf(" AND (username ILIKE $%d OR email ILIKE $%d)", argIdx, argIdx)
 		args = append(args, "%"+search+"%")
@@ -187,6 +192,11 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 	          WHERE u.deleted_at IS NULL`
 	args2 := []interface{}{}
 	argIdx2 := 1
+	if storeID != nil {
+		query += fmt.Sprintf(" AND (u.store_id IS NULL OR u.store_id = $%d)", argIdx2)
+		args2 = append(args2, *storeID)
+		argIdx2++
+	}
 	if search != "" {
 		query += fmt.Sprintf(" AND (u.username ILIKE $%d OR u.email ILIKE $%d)", argIdx2, argIdx2)
 		args2 = append(args2, "%"+search+"%")

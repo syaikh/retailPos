@@ -27,14 +27,14 @@ type Service interface {
 	CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
 	CloseShiftTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
 	GetActiveShift(ctx context.Context, userID int) (*Shift, error)
-	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
+	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string, storeID *int) ([]Shift, int, error)
 	GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
 	ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
 	FlagForReview(ctx context.Context, shiftID int) error
 	GetDiscrepancyThreshold(ctx context.Context) int
 	SetSettingsProvider(p SettingsProvider)
 	AuditShift(ctx context.Context, shiftID int) (*Shift, int, error)
-	ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
+	ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, storeID *int) ([]Shift, error)
 	CreateCashMovement(ctx context.Context, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
 	CreateCashMovementTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
 	ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error)
@@ -227,7 +227,7 @@ func (h *Handler) ListShifts(c *gin.Context) {
 		needsReview = &val
 	}
 
-	shifts, total, err := h.svc.ListShifts(c.Request.Context(), h.shiftScope(c, userID), status, needsReview, discFilter, limit, offset, sortBy, sortDir)
+	shifts, total, err := h.svc.ListShifts(c.Request.Context(), h.shiftScope(c, userID), status, needsReview, discFilter, limit, offset, sortBy, sortDir, shared.GetStoreID(c))
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -255,7 +255,7 @@ func (h *Handler) ExportShifts(c *gin.Context) {
 	}
 
 	scope := h.shiftScope(c, userID)
-	shifts, err := h.svc.ExportShifts(c.Request.Context(), scope, status, needsReview, discFilter)
+	shifts, err := h.svc.ExportShifts(c.Request.Context(), scope, status, needsReview, discFilter, shared.GetStoreID(c))
 	if err != nil {
 		shared.InternalError(c, err)
 		return

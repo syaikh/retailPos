@@ -210,21 +210,21 @@ func TestUserRepository_GetAllUsers(t *testing.T) {
 	require.NoError(t, repo.CreateUser(ctx, inactiveUser))
 
 	t.Run("list all with pagination", func(t *testing.T) {
-		users, total, err := repo.GetAllUsers(ctx, 10, 0, "", "id", "asc", 0, nil)
+		users, total, err := repo.GetAllUsers(ctx, 10, 0, "", "id", "asc", 0, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 4)
 		assert.GreaterOrEqual(t, len(users), 4)
 	})
 
 	t.Run("search by username", func(t *testing.T) {
-		users, total, err := repo.GetAllUsers(ctx, 10, 0, "testuser_list", "id", "asc", 0, nil)
+		users, total, err := repo.GetAllUsers(ctx, 10, 0, "testuser_list", "id", "asc", 0, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 3, total)
 		assert.Equal(t, 3, len(users))
 	})
 
 	t.Run("filter by role", func(t *testing.T) {
-		users, total, err := repo.GetAllUsers(ctx, 10, 0, "", "id", "asc", 1, nil)
+		users, total, err := repo.GetAllUsers(ctx, 10, 0, "", "id", "asc", 1, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, u := range users {
@@ -234,7 +234,7 @@ func TestUserRepository_GetAllUsers(t *testing.T) {
 
 	t.Run("filter by active status", func(t *testing.T) {
 		active := true
-		users, total, err := repo.GetAllUsers(ctx, 10, 0, "", "id", "asc", 0, &active)
+		users, total, err := repo.GetAllUsers(ctx, 10, 0, "", "id", "asc", 0, &active, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 3)
 		for _, u := range users {
@@ -242,14 +242,14 @@ func TestUserRepository_GetAllUsers(t *testing.T) {
 		}
 
 		active = false
-		users, total, err = repo.GetAllUsers(ctx, 10, 0, "", "id", "asc", 0, &active)
+		users, total, err = repo.GetAllUsers(ctx, 10, 0, "", "id", "asc", 0, &active, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.False(t, users[0].IsActive)
 	})
 
 	t.Run("limit and offset", func(t *testing.T) {
-		users, total, err := repo.GetAllUsers(ctx, 2, 0, "", "id", "asc", 0, nil)
+		users, total, err := repo.GetAllUsers(ctx, 2, 0, "", "id", "asc", 0, nil, nil)
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(users), 2)
 		assert.Greater(t, total, 0)
@@ -270,7 +270,7 @@ func TestUserRepository_GetAllUsers(t *testing.T) {
 		}
 
 		// ASC -> role name alphabetical: cashier(4), manager(2), superadmin(1), supervisor(3)
-		users, total, err := repo.GetAllUsers(ctx, 10, 0, prefix, "role_id", "asc", 0, nil)
+		users, total, err := repo.GetAllUsers(ctx, 10, 0, prefix, "role_id", "asc", 0, nil, nil)
 		require.NoError(t, err)
 		require.Equal(t, 4, total)
 		assert.Equal(t, 4, users[0].RoleID)
@@ -279,7 +279,7 @@ func TestUserRepository_GetAllUsers(t *testing.T) {
 		assert.Equal(t, 3, users[3].RoleID)
 
 		// DESC -> role name reverse: supervisor(3), superadmin(1), manager(2), cashier(4)
-		users, total, err = repo.GetAllUsers(ctx, 10, 0, prefix, "role_id", "desc", 0, nil)
+		users, total, err = repo.GetAllUsers(ctx, 10, 0, prefix, "role_id", "desc", 0, nil, nil)
 		require.NoError(t, err)
 		require.Equal(t, 4, total)
 		assert.Equal(t, 3, users[0].RoleID)

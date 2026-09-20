@@ -462,10 +462,17 @@ func TestRequireStoreID(t *testing.T) {
 			wantCode: http.StatusOK,
 		},
 		{
-			name:     "manager bypasses",
+			name:     "manager without store returns 403",
 			role:     "manager",
 			storeID:  nil,
 			setStore: false,
+			wantCode: http.StatusForbidden,
+		},
+		{
+			name:     "manager with store passes",
+			role:     "manager",
+			storeID:  intPtr(1),
+			setStore: true,
 			wantCode: http.StatusOK,
 		},
 		{

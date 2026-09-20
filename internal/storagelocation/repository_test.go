@@ -80,14 +80,14 @@ func TestStorageLocationRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("Get all with pagination", func(t *testing.T) {
-		locations, total, err := repo.GetAll(ctx, 10, 0, "", nil)
+		locations, total, err := repo.GetAll(ctx, 10, 0, "", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(locations), 1)
 	})
 
 	t.Run("Get all with search", func(t *testing.T) {
-		locations, total, err := repo.GetAll(ctx, 10, 0, "Rack CRUD", nil)
+		locations, total, err := repo.GetAll(ctx, 10, 0, "Rack CRUD", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(locations), 1)
@@ -95,7 +95,7 @@ func TestStorageLocationRepository_CRUD(t *testing.T) {
 
 	t.Run("Get all with is_active filter", func(t *testing.T) {
 		active := true
-		locations, _, err := repo.GetAll(ctx, 10, 0, "", &active)
+		locations, _, err := repo.GetAll(ctx, 10, 0, "", &active, nil)
 		require.NoError(t, err)
 		for _, l := range locations {
 			assert.True(t, l.IsActive)

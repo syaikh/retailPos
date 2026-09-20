@@ -313,3 +313,13 @@ Finance records payment (consignment.pay)
 The role restructuring was implemented as part of migration 044. All items above
 have been applied to the dev database. Go role constants, middleware, frontend
 role labels, seeder files, and E2E tests all reflect the new naming.
+
+## Store Scoping Enforcement
+
+**All roles except superadmin are scoped to their assigned store.**
+
+- `RequireStoreID` middleware rejects any non-superadmin role without a `store_id` in JWT
+- Query-layer filtering ensures manager, supervisor, finance, cashier, and inventory_staff only see data from their assigned store
+- Superadmin sees all stores (no filter applied)
+- Affected modules: audit logs, users, shifts, storage locations
+- See [Store Scoping All Roles](./store-scoping-all-roles.md) for details

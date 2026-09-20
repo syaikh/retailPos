@@ -46,7 +46,7 @@ func storeIDFromGin(c *gin.Context) *int {
 type Service interface {
 	GetUserByID(ctx context.Context, id int) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
-	GetAllUsers(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool) ([]User, int, error)
+	GetAllUsers(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool, storeID *int) ([]User, int, error)
 	CreateUser(ctx context.Context, user *User) error
 	UpdateUser(ctx context.Context, user *User) error
 	UpdatePreferences(ctx context.Context, userID int, language, theme string) error
@@ -151,7 +151,7 @@ func (h *Handler) ListUsers(c *gin.Context) {
 		isActive = &b
 	}
 
-	users, total, err := h.svc.GetAllUsers(c.Request.Context(), limit, offset, search, sortBy, sortDir, roleID, isActive)
+	users, total, err := h.svc.GetAllUsers(c.Request.Context(), limit, offset, search, sortBy, sortDir, roleID, isActive, shared.GetStoreID(c))
 	if err != nil {
 		shared.InternalError(c, err)
 		return

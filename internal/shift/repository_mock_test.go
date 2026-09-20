@@ -182,7 +182,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 	t.Run("list shifts count error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectQuery("SELECT COUNT").WillReturnError(boom)
-		_, _, err := repo.ListShifts(ctx, ownershipScopeEmpty(), "", nil, "", 10, 0, "opened_at", "DESC")
+		_, _, err := repo.ListShifts(ctx, ownershipScopeEmpty(), "", nil, "", 10, 0, "opened_at", "DESC", nil)
 		assert.ErrorContains(t, err, "failed to count shifts")
 	})
 
@@ -190,7 +190,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectQuery("SELECT COUNT").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(10, 0).WillReturnError(boom)
-		_, _, err := repo.ListShifts(ctx, ownershipScopeEmpty(), "", nil, "", 10, 0, "opened_at", "DESC")
+		_, _, err := repo.ListShifts(ctx, ownershipScopeEmpty(), "", nil, "", 10, 0, "opened_at", "DESC", nil)
 		assert.ErrorContains(t, err, "failed to list shifts")
 	})
 }
