@@ -297,9 +297,8 @@ describe("consignment-service", () => {
         },
       });
 
-      const { searchAvailableProducts } = await import(
-        "../consignment-service"
-      );
+      const { searchAvailableProducts } =
+        await import("../consignment-service");
       const result = await searchAvailableProducts(10, "Apple");
 
       expect(result.products).toHaveLength(2);
@@ -315,9 +314,8 @@ describe("consignment-service", () => {
         data: { data: [{ id: 3, sku: "SKU-003", name: "Banana" }] },
       });
 
-      const { searchAvailableProducts } = await import(
-        "../consignment-service"
-      );
+      const { searchAvailableProducts } =
+        await import("../consignment-service");
       const result = await searchAvailableProducts(10, "Ban");
 
       expect(result.products).toHaveLength(1);
@@ -329,9 +327,8 @@ describe("consignment-service", () => {
         data: { data: [], exact_match: false },
       });
 
-      const { searchAvailableProducts } = await import(
-        "../consignment-service"
-      );
+      const { searchAvailableProducts } =
+        await import("../consignment-service");
       const result = await searchAvailableProducts(10, "NonExistent");
 
       expect(result.products).toHaveLength(0);

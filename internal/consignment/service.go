@@ -393,12 +393,12 @@ func (s *Service) AddTerm(ctx context.Context, arrangementID int, req SetTermsRe
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	term := Term{
-		ArrangementID:  arrangementID,
-		ProductID:      req.ProductID,
-		Price:          req.Price,
-		StoreShareType: req.StoreShareType,
+		ArrangementID:   arrangementID,
+		ProductID:       req.ProductID,
+		Price:           req.Price,
+		StoreShareType:  req.StoreShareType,
 		StoreShareValue: req.StoreShareValue,
-		CreatedBy:      userID,
+		CreatedBy:       userID,
 	}
 	if err := s.repo.InsertTerm(ctx, tx, &term); err != nil {
 		return Term{}, err

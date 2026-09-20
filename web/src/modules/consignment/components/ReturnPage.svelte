@@ -183,18 +183,14 @@
     loadProducts();
   });
 
-  let showCopied = $state(new SvelteSet<string>());
+  let showCopied = new SvelteSet<string>();
 
   function copySku(sku: string) {
     navigator.clipboard.writeText(sku).then(() => {
-      const next = new SvelteSet(showCopied);
-      next.add(sku);
-      showCopied = next;
+      showCopied.add(sku);
       toast.success(labels.copiedToClipboard);
       setTimeout(() => {
-        const removed = new SvelteSet(next);
-        removed.delete(sku);
-        showCopied = removed;
+        showCopied.delete(sku);
       }, 2000);
     });
   }
@@ -544,7 +540,9 @@
                     <div class="font-medium text-text-primary">
                       {item.product_name || `#${item.product_id}`}
                     </div>
-                    <div class="text-xs text-text-secondary flex items-center gap-1">
+                    <div
+                      class="text-xs text-text-secondary flex items-center gap-1"
+                    >
                       {item.product_sku || ""}
                       {#if item.product_sku}
                         <button

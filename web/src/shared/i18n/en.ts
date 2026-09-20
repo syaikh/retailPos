@@ -1913,7 +1913,8 @@ export const en: Labels = {
   consignmentRemoveTermConfirm: "Remove {product} from terms?",
   consignmentSimilarProductsFound: "Similar products found:",
   consignmentCreateAsNewProduct: '+ Create "{name}" as new product',
-  consignmentProductAlreadyExists: "Product already exists with this exact name",
+  consignmentProductAlreadyExists:
+    "Product already exists with this exact name",
   consignmentRemoveProduct: "Remove",
   consignmentCreateNewProduct: "+ Create 1 new product",
   consignmentNewProduct: "New Product",

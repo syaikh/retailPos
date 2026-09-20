@@ -48,7 +48,7 @@ describe("ReturnPage.svelte source-structure guards", () => {
   });
 
   it("resets line.qty to 1 when pending return is unlinked", () => {
-    const elseBlock = src.indexOf('line.product_id = undefined');
+    const elseBlock = src.indexOf("line.product_id = undefined");
     expect(elseBlock).toBeGreaterThan(-1);
     const afterElse = src.slice(elseBlock, elseBlock + 200);
     expect(afterElse).toContain("line.qty = 1");

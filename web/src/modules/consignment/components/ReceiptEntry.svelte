@@ -113,14 +113,11 @@
     }));
   }
 
-  const optionsForLine = $derived(
-    (excludeIndex: number) =>
-      productOptions.filter(
-        (opt) =>
-          !lines.some(
-            (l, i) => i !== excludeIndex && l.product_id === opt.value,
-          ),
-      ),
+  const optionsForLine = $derived((excludeIndex: number) =>
+    productOptions.filter(
+      (opt) =>
+        !lines.some((l, i) => i !== excludeIndex && l.product_id === opt.value),
+    ),
   );
 
   $effect(() => {
@@ -262,18 +259,14 @@
     }
   }
 
-  let showCopied = $state(new SvelteSet<string>());
+  let showCopied = new SvelteSet<string>();
 
   function copySku(sku: string) {
     navigator.clipboard.writeText(sku).then(() => {
-      const next = new SvelteSet(showCopied);
-      next.add(sku);
-      showCopied = next;
+      showCopied.add(sku);
       toast.success(labels.copiedToClipboard);
       setTimeout(() => {
-        const removed = new SvelteSet(next);
-        removed.delete(sku);
-        showCopied = removed;
+        showCopied.delete(sku);
       }, 2000);
     });
   }
@@ -424,7 +417,8 @@
               <td class="p-4 text-right text-text-secondary text-xs">
                 {#if line.product_id && termByProduct[line.product_id]}
                   {formatCurrency(termByProduct[line.product_id].price)}
-                  <span class="text-text-muted">{labels.consignmentPerUnit}</span
+                  <span class="text-text-muted"
+                    >{labels.consignmentPerUnit}</span
                   >
                 {:else if line.product_id}
                   <span class="text-amber-600"
@@ -555,12 +549,14 @@
                       <div class="font-medium text-text-primary">
                         {item.product_name}
                       </div>
-                      <div class="text-xs text-text-secondary flex items-center gap-1">
+                      <div
+                        class="text-xs text-text-secondary flex items-center gap-1"
+                      >
                         {item.product_sku}
                         {#if item.product_sku}
                           <button
                             type="button"
-                          onclick={() => copySku(item.product_sku ?? "")}
+                            onclick={() => copySku(item.product_sku ?? "")}
                             class="p-0.5 text-text-muted hover:text-text-primary"
                             title={labels.copiedToClipboard}
                           >
@@ -681,12 +677,14 @@
                     <div class="font-medium text-text-primary">
                       {item.product_name || `Product #${item.product_id}`}
                     </div>
-                    <div class="text-xs text-text-secondary flex items-center gap-1">
+                    <div
+                      class="text-xs text-text-secondary flex items-center gap-1"
+                    >
                       {item.product_sku || ""}
                       {#if item.product_sku}
                         <button
                           type="button"
-                          onclick={() => copySku(item.product_sku)}
+                          onclick={() => copySku(item.product_sku!)}
                           class="p-0.5 text-text-muted hover:text-text-primary"
                           title={labels.copiedToClipboard}
                         >

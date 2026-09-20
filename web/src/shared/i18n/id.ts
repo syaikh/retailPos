@@ -1830,7 +1830,8 @@ export const id = {
   consignmentPaidBy: "Dibayar oleh",
   consignmentPaidAt: "Tanggal Pembayaran",
   consignmentNoPayouts: "Belum ada pembayaran",
-  consignmentNoPayoutsSubtitle: "Pembayaran akan muncul di sini setelah dicatat.",
+  consignmentNoPayoutsSubtitle:
+    "Pembayaran akan muncul di sini setelah dicatat.",
   consignmentNoUnsettledSalesError: "Tidak ada penjualan belum diselesaikan",
   consignmentReceiptHistory: "Riwayat Penerimaan",
   consignmentRecordReceipt: "Catat Penerimaan",
@@ -1927,7 +1928,8 @@ export const id = {
   consignmentRemoveTermConfirm: "Hapus {product} dari terms?",
   consignmentSimilarProductsFound: "Produk serupa ditemukan:",
   consignmentCreateAsNewProduct: '+ Buat "{name}" sebagai produk baru',
-  consignmentProductAlreadyExists: "Produk sudah ada dengan nama yang sama persis",
+  consignmentProductAlreadyExists:
+    "Produk sudah ada dengan nama yang sama persis",
   consignmentRemoveProduct: "Hapus",
   consignmentCreateNewProduct: "+ Buat 1 produk baru",
   consignmentNewProduct: "Produk Baru",

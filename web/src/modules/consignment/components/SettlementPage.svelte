@@ -484,7 +484,8 @@
 
 <Modal
   bind:open={showDetailModal}
-  title={detailSettlement?.settlement_number || labels.consignmentSettlementDetail}
+  title={detailSettlement?.settlement_number ||
+    labels.consignmentSettlementDetail}
   size="xl"
 >
   {#if loadingDetail}
@@ -511,7 +512,8 @@
               ? "success"
               : "warning"}
           >
-            {labels[SETTLEMENT_STATUS_LABELS[detailSettlement.status]] || detailSettlement.status}
+            {labels[SETTLEMENT_STATUS_LABELS[detailSettlement.status]] ||
+              detailSettlement.status}
           </Badge>
         </div>
         <div>
@@ -525,11 +527,15 @@
       </div>
 
       <div>
-        <h3 class="font-semibold text-text-primary mb-2">{labels.consignmentItems}</h3>
+        <h3 class="font-semibold text-text-primary mb-2">
+          {labels.consignmentItems}
+        </h3>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-muted/50">
-              <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+              <tr
+                class="text-left text-xs uppercase tracking-wider text-text-secondary"
+              >
                 <th class="p-4">{labels.consignmentProduct}</th>
                 <th class="p-4 text-right">{labels.consignmentQty}</th>
                 <th class="p-4 text-right">{labels.consignmentUnitPrice}</th>
@@ -543,10 +549,18 @@
                   <td class="p-4 font-medium text-text-primary">
                     {item.product_name || `Product #${item.product_id}`}
                   </td>
-                  <td class="p-4 text-right text-text-primary">{item.quantity}</td>
-                  <td class="p-4 text-right text-text-secondary">{formatCurrency(item.unit_price)}</td>
-                  <td class="p-4 text-right text-text-primary">{formatCurrency(item.subtotal)}</td>
-                  <td class="p-4 text-right text-text-primary">{formatCurrency(item.store_share)}</td>
+                  <td class="p-4 text-right text-text-primary"
+                    >{item.quantity}</td
+                  >
+                  <td class="p-4 text-right text-text-secondary"
+                    >{formatCurrency(item.unit_price)}</td
+                  >
+                  <td class="p-4 text-right text-text-primary"
+                    >{formatCurrency(item.subtotal)}</td
+                  >
+                  <td class="p-4 text-right text-text-primary"
+                    >{formatCurrency(item.store_share)}</td
+                  >
                 </tr>
               {/each}
             </tbody>
@@ -555,7 +569,9 @@
       </div>
 
       <div>
-        <h3 class="font-semibold text-text-primary mb-2">{labels.consignmentPayouts}</h3>
+        <h3 class="font-semibold text-text-primary mb-2">
+          {labels.consignmentPayouts}
+        </h3>
         {#if detailSettlement.payouts.length === 0}
           <EmptyState
             icon={Banknote}
@@ -566,7 +582,9 @@
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead class="bg-muted/50">
-                <tr class="text-left text-xs uppercase tracking-wider text-text-secondary">
+                <tr
+                  class="text-left text-xs uppercase tracking-wider text-text-secondary"
+                >
                   <th class="p-4">{labels.consignmentPayoutNo}</th>
                   <th class="p-4">{labels.consignmentPaymentMethod}</th>
                   <th class="p-4 text-right">{labels.consignmentAmount}</th>
@@ -578,12 +596,24 @@
               <tbody>
                 {#each detailSettlement.payouts as payout (payout.id)}
                   <tr class="border-t border-border/40">
-                    <td class="p-4 font-medium text-text-primary">{payout.payout_number}</td>
-                    <td class="p-4 text-text-secondary">{payout.payment_method_name || "-"}</td>
-                    <td class="p-4 text-right text-text-primary">{formatCurrency(payout.amount)}</td>
-                    <td class="p-4 text-text-secondary">{payout.reference_number || "-"}</td>
-                    <td class="p-4 text-text-secondary">{payout.paid_by_username || "-"}</td>
-                    <td class="p-4 text-text-secondary">{formatDateTime(payout.paid_at)}</td>
+                    <td class="p-4 font-medium text-text-primary"
+                      >{payout.payout_number}</td
+                    >
+                    <td class="p-4 text-text-secondary"
+                      >{payout.payment_method_name || "-"}</td
+                    >
+                    <td class="p-4 text-right text-text-primary"
+                      >{formatCurrency(payout.amount)}</td
+                    >
+                    <td class="p-4 text-text-secondary"
+                      >{payout.reference_number || "-"}</td
+                    >
+                    <td class="p-4 text-text-secondary"
+                      >{payout.paid_by_username || "-"}</td
+                    >
+                    <td class="p-4 text-text-secondary"
+                      >{formatDateTime(payout.paid_at)}</td
+                    >
                   </tr>
                 {/each}
               </tbody>

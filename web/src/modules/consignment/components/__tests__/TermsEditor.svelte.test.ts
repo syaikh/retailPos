@@ -17,9 +17,7 @@ describe("TermsEditor.svelte source-structure guards", () => {
   it("uses addTerm and removeTerm from consignment-service", () => {
     expect(src).toContain("addTerm");
     expect(src).toContain("removeTerm");
-    expect(src).toContain(
-      'from "../services/consignment-service"',
-    );
+    expect(src).toContain('from "../services/consignment-service"');
   });
 
   it("uses searchAvailableProducts for search-based product assignment", () => {
@@ -27,7 +25,9 @@ describe("TermsEditor.svelte source-structure guards", () => {
   });
 
   it("does not import Modal from shared/ui", () => {
-    const sharedUiImport = src.match(/import\s*\{[^}]*\}\s*from\s*"\$shared\/ui"/);
+    const sharedUiImport = src.match(
+      /import\s*\{[^}]*\}\s*from\s*"\$shared\/ui"/,
+    );
     if (sharedUiImport) {
       expect(sharedUiImport[0]).not.toContain("Modal");
     }

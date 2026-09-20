@@ -222,7 +222,7 @@ func TestService_SetTermsValidation(t *testing.T) {
 		product := insertTestProduct(ctx, t, "TERMS-STORE-STOCK")
 		svc, _, store := setupArrangement(t, product)
 		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
-		seedStoreOwnedStock(ctx, t, product, 5)
+		seedStoreOwnedStock(ctx, t, product, store, 5)
 
 		_, err := svc.SetTerms(ctx, arrs[0].ID, []SetTermsRequest{
 			{ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20},
@@ -572,7 +572,7 @@ func TestService_AddTerm(t *testing.T) {
 		userID := insertTestUser(ctx, t)
 		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
 
-		seedStoreOwnedStock(ctx, t, product, 10)
+		seedStoreOwnedStock(ctx, t, product, store, 10)
 
 		_, err := svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
 			ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
@@ -645,11 +645,16 @@ func TestService_AddTerm(t *testing.T) {
 
 	t.Run("other supplier conflict rejected", func(t *testing.T) {
 		product := insertTestProduct(ctx, t, "ADD-OTHER-SUP")
-		svcA, _, storeA, _ := setupArrangementNoTerms(t)
-		userID := insertTestUser(ctx, t)
+		svcA, _, storeA, userID := setupArrangementNoTerms(t)
+
+		// Add a term for supplier A before creating a receipt.
+		_, err := svcA.SetTerms(ctx, arrID(t, svcA, storeA), []SetTermsRequest{
+			{ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20},
+		}, userID, &storeA)
+		require.NoError(t, err)
 
 		// Supplier A creates an arrangement and receives stock.
-		_, err := svcA.CreateReceipt(ctx, &ReceiptRequest{
+		_, err = svcA.CreateReceipt(ctx, &ReceiptRequest{
 			ArrangementID: arrID(t, svcA, storeA),
 			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
 		}, userID, &storeA)
