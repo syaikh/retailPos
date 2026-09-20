@@ -40,7 +40,7 @@ func TestService_ListAddTermProductOptions(t *testing.T) {
 		free := insertTestProduct(ctx, t, "AVL-FREE")
 		termed := insertTestProduct(ctx, t, "AVL-TERMED")
 		storeOwned := insertTestProduct(ctx, t, "AVL-OWNED")
-		seedStoreOwnedStock(ctx, t, storeOwned, store, 5)
+		seedStoreOwnedStock(ctx, t, storeOwned, 5)
 
 		_, err := svc.SetTerms(ctx, arrID(t, svc, store), []SetTermsRequest{
 			{ProductID: termed, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20},
@@ -134,7 +134,7 @@ func TestService_SearchAvailableProducts(t *testing.T) {
 		svc, _, store, _ := setupArrangementNoTerms(t)
 
 		storeOwned := insertTestProduct(ctx, t, "SRCH-OWNED")
-		seedStoreOwnedStock(ctx, t, storeOwned, store, 5)
+		seedStoreOwnedStock(ctx, t, storeOwned, 5)
 
 		results, _, err := svc.SearchAvailableProducts(ctx, arrID(t, svc, store), "SRCH-OWNED", &store)
 		require.NoError(t, err)

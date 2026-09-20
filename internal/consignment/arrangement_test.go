@@ -222,7 +222,7 @@ func TestService_SetTermsValidation(t *testing.T) {
 		product := insertTestProduct(ctx, t, "TERMS-STORE-STOCK")
 		svc, _, store := setupArrangement(t, product)
 		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
-		seedStoreOwnedStock(ctx, t, product, store, 5)
+		seedStoreOwnedStock(ctx, t, product, 5)
 
 		_, err := svc.SetTerms(ctx, arrs[0].ID, []SetTermsRequest{
 			{ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20},
@@ -572,7 +572,7 @@ func TestService_AddTerm(t *testing.T) {
 		userID := insertTestUser(ctx, t)
 		arrs, _, _ := svc.ListArrangements(ctx, &store, 0, 0, "", "")
 
-		seedStoreOwnedStock(ctx, t, product, store, 10)
+		seedStoreOwnedStock(ctx, t, product, 10)
 
 		_, err := svc.AddTerm(ctx, arrs[0].ID, SetTermsRequest{
 			ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,

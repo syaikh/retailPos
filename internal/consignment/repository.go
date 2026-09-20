@@ -444,7 +444,9 @@ func (r *Repository) SearchAvailableProducts(ctx context.Context, arrangementID 
 		  )
 		  AND p.id NOT IN (
 		    SELECT ps.product_id FROM product_stock ps
-		    WHERE ps.store_id IS NOT NULL
+		    WHERE ps.warehouse_id IS NULL
+		      AND ps.store_id IS NULL
+		      AND ps.location_id IS NULL
 		      AND ps.quantity > 0
 		      AND NOT EXISTS (
 		        SELECT 1 FROM consignment_stock cs

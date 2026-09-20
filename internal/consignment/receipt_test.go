@@ -11,13 +11,13 @@ import (
 
 // seedStoreOwnedStock writes the global product_stock bucket directly to model
 // a product the store still owns (BR-02).
-func seedStoreOwnedStock(ctx context.Context, t *testing.T, productID, storeID, qty int) {
+func seedStoreOwnedStock(ctx context.Context, t *testing.T, productID, qty int) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx, `
-		INSERT INTO product_stock (product_id, store_id, quantity, updated_at)
-		VALUES ($1, $2, $3, NOW())
+		INSERT INTO product_stock (product_id, quantity, updated_at)
+		VALUES ($1, $2, NOW())
 		ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET quantity = EXCLUDED.quantity
-	`, productID, storeID, qty)
+	`, productID, qty)
 	require.NoError(t, err)
 }
 
@@ -60,7 +60,7 @@ func TestService_ReceiptConflictMatrix(t *testing.T) {
 		product := insertTestProduct(ctx, t, "REC-BR02")
 		svc, _, store := setupArrangement(t, product)
 		userID := insertTestUser(ctx, t)
-		seedStoreOwnedStock(ctx, t, product, store, 5)
+		seedStoreOwnedStock(ctx, t, product, 5)
 
 		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
 			ArrangementID: arrID(t, svc, store),
@@ -73,7 +73,7 @@ func TestService_ReceiptConflictMatrix(t *testing.T) {
 		product := insertTestProduct(ctx, t, "REC-BR02-ZERO")
 		svc, _, store := setupArrangement(t, product)
 		userID := insertTestUser(ctx, t)
-		seedStoreOwnedStock(ctx, t, product, store, 0)
+		seedStoreOwnedStock(ctx, t, product, 0)
 
 		rec, err := svc.CreateReceipt(ctx, &ReceiptRequest{
 			ArrangementID: arrID(t, svc, store),
@@ -277,7 +277,7 @@ func TestService_ReceiptConflictMatrix(t *testing.T) {
 
 		// skuA is store-owned, so only skuB can be consigned. The whole
 		// receipt is atomic: skuA's conflict aborts skuB's acceptance too.
-		seedStoreOwnedStock(ctx, t, skuA, storeA, 3)
+		seedStoreOwnedStock(ctx, t, skuA, 3)
 		_, err := svcA.CreateReceipt(ctx, &ReceiptRequest{
 			ArrangementID: arrID(t, svcA, storeA),
 			Items: []ReceiptItemRequest{
