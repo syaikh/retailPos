@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { toast } from "$shared/stores/toast.svelte";
-  import { EmptyState, Badge, Pagination } from "$shared/ui";
-  import { Package, Copy, Check } from "lucide-svelte";
+  import { EmptyState, Badge, Pagination, SearchBar } from "$shared/ui";
+  import { Package, Copy, Check, Search } from "lucide-svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { labels, t } from "$shared/i18n";
   import { listStock } from "../services/consignment-service";
@@ -20,7 +20,21 @@
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
-  const pagedRows = $derived(rows.slice(pageOffset, pageOffset + pageLimit));
+  let filterQuery = $state("");
+  const filteredRows = $derived(
+    filterQuery.trim()
+      ? rows.filter((r) => {
+          const q = filterQuery.trim().toLowerCase();
+          return (
+            r.product_name?.toLowerCase().includes(q) ||
+            r.product_sku?.toLowerCase().includes(q)
+          );
+        })
+      : rows,
+  );
+  const pagedRows = $derived(
+    filteredRows.slice(pageOffset, pageOffset + pageLimit),
+  );
 
   const priceByProduct = $derived.by(() => {
     const map: Record<number, number> = {};
@@ -61,13 +75,25 @@
     pageOffset = newOffset;
     pageLimit = newLimit;
   }
+
+  function handleFilterInput() {
+    pageOffset = 0;
+  }
 </script>
 
 <div class="card">
-  <div class="px-4 py-3 border-b border-border/50">
-    <h2 class="font-semibold text-text-primary">
+  <div class="flex items-center gap-3 px-4 py-3 border-b border-border/50">
+    <h2 class="font-semibold text-text-primary whitespace-nowrap">
       {t("consignmentStockFor", { name: arrangement.supplier_name || "" })}
     </h2>
+    {#if !loading && rows.length > 0}
+      <SearchBar
+        bind:value={filterQuery}
+        placeholder={labels.consignmentFilterByProduct}
+        oninput={handleFilterInput}
+        class="flex-1 max-w-xs"
+      />
+    {/if}
   </div>
 
   {#if loading}
@@ -79,6 +105,11 @@
       icon={Package}
       title={labels.consignmentNoStock}
       subtitle={labels.consignmentNoStockSubtitle}
+    />
+  {:else if filteredRows.length === 0}
+    <EmptyState
+      icon={Search}
+      title={labels.noResultsFor.replace("{query}", filterQuery.trim())}
     />
   {:else}
     <div class="overflow-x-auto">
@@ -142,7 +173,7 @@
     </div>
     <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
       <Pagination
-        total={rows.length}
+        total={filteredRows.length}
         limit={pageLimit}
         offset={pageOffset}
         onPageChange={handlePageChange}
