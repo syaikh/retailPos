@@ -78,6 +78,6 @@ describe("ReceiptEntry.svelte source-structure guards", () => {
   });
 
   it("resets pagination when filter changes", () => {
-    expect(src).toContain('pageOffset = 0');
+    expect(src).toContain("pageOffset = 0");
   });
 });

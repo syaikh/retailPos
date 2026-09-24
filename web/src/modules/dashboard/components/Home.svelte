@@ -158,7 +158,8 @@
     const role = typeof user?.role === "string" ? user.role : user?.role?.name;
 
     const showCategories = role === "superadmin" || role === "manager";
-    const showOutOfStock = role === "superadmin" || role === "manager" || role === "supervisor";
+    const showOutOfStock =
+      role === "superadmin" || role === "manager" || role === "supervisor";
 
     return {
       showCategories,
@@ -222,7 +223,9 @@
         <div class="animate-slide-up" style="animation-delay: 300ms;">
           <StatCard
             label="Categories"
-            value={loading ? "—" : categoriesCount?.toLocaleString("id-ID") || 0}
+            value={loading
+              ? "—"
+              : categoriesCount?.toLocaleString("id-ID") || 0}
             sub="Active product categories"
             icon={TagsComp}
             iconBg="bg-info-subtle"
@@ -235,7 +238,9 @@
         <div class="animate-slide-up" style="animation-delay: 350ms;">
           <StatCard
             label={labels.outOfStock}
-            value={loading ? "—" : outOfStockCount?.toLocaleString("id-ID") || 0}
+            value={loading
+              ? "—"
+              : outOfStockCount?.toLocaleString("id-ID") || 0}
             sub={outOfStockCount > 0
               ? labels.actionRequired
               : labels.allItemsInStock}
@@ -267,15 +272,22 @@
             <div
               class="w-11 h-11 rounded-xl {financeQuickAccess.iconBg} flex items-center justify-center"
             >
-              <financeQuickAccess.icon size={22} class={financeQuickAccess.iconColor} />
+              <financeQuickAccess.icon
+                size={22}
+                class={financeQuickAccess.iconColor}
+              />
             </div>
             <ArrowRight
               size={16}
               class="text-text-muted group-hover:text-text-primary group-hover:translate-x-0.5 transition-all"
             />
           </div>
-          <h3 class="font-semibold text-text-primary mb-1">{financeQuickAccess.label}</h3>
-          <p class="text-xs text-text-muted leading-snug">{financeQuickAccess.desc}</p>
+          <h3 class="font-semibold text-text-primary mb-1">
+            {financeQuickAccess.label}
+          </h3>
+          <p class="text-xs text-text-muted leading-snug">
+            {financeQuickAccess.desc}
+          </p>
         </button>
       {/if}
       {#each modules as mod, index (index)}

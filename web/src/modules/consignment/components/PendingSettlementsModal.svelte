@@ -40,7 +40,8 @@
   }
 
   function formatStatus(status: string) {
-    if (status === "pending_payment") return labels.settlementStatusPendingPayment;
+    if (status === "pending_payment")
+      return labels.settlementStatusPendingPayment;
     if (status === "paid") return labels.settlementStatusPaid;
     return status;
   }
@@ -49,7 +50,9 @@
 <Modal bind:open={show} title={labels.consignmentPendingSettlements} size="lg">
   <div class="space-y-3">
     {#if loading}
-      <div class="p-8 text-center text-sm text-text-secondary">{labels.loading}</div>
+      <div class="p-8 text-center text-sm text-text-secondary">
+        {labels.loading}
+      </div>
     {:else if settlements.length === 0}
       <EmptyState
         title={labels.consignmentNoPendingSettlements}
@@ -78,7 +81,9 @@
                   {formatCurrency(st.total_payable)}
                 </td>
                 <td class="px-4 py-3">
-                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warning/10 text-warning">
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warning/10 text-warning"
+                  >
                     {formatStatus(st.status)}
                   </span>
                 </td>
@@ -96,7 +101,9 @@
   </div>
   {#snippet footer()}
     <div class="flex justify-end w-full">
-      <Button variant="secondary" onclick={() => (show = false)}>{labels.close}</Button>
+      <Button variant="secondary" onclick={() => (show = false)}
+        >{labels.close}</Button
+      >
     </div>
   {/snippet}
 </Modal>

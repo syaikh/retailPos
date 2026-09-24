@@ -172,9 +172,7 @@
 
 <div class="space-y-4">
   <div class="card">
-    <div
-      class="flex items-center gap-3 px-4 py-3 border-b border-border/50"
-    >
+    <div class="flex items-center gap-3 px-4 py-3 border-b border-border/50">
       <h2 class="font-semibold text-text-primary whitespace-nowrap">
         {labels.consignmentUnsettled}
       </h2>
@@ -276,9 +274,7 @@
   </div>
 
   <div class="card">
-    <div
-      class="flex items-center gap-3 px-4 py-3 border-b border-border/50"
-    >
+    <div class="flex items-center gap-3 px-4 py-3 border-b border-border/50">
       <h2 class="font-semibold text-text-primary whitespace-nowrap">
         {labels.consignmentSettlementHistory}
       </h2>
@@ -295,18 +291,18 @@
         <Button
           variant={historyTab === "all" ? "secondary" : "ghost"}
           size="sm"
-          onclick={() => (historyTab = "all")}
-        >All</Button>
+          onclick={() => (historyTab = "all")}>All</Button
+        >
         <Button
           variant={historyTab === "pending" ? "secondary" : "ghost"}
           size="sm"
-          onclick={() => (historyTab = "pending")}
-        >Pending</Button>
+          onclick={() => (historyTab = "pending")}>Pending</Button
+        >
         <Button
           variant={historyTab === "paid" ? "secondary" : "ghost"}
           size="sm"
-          onclick={() => (historyTab = "paid")}
-        >Paid</Button>
+          onclick={() => (historyTab = "paid")}>Paid</Button
+        >
       </div>
     {/if}
     {#if loading}

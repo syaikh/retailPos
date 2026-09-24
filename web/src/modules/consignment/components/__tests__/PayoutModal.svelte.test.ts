@@ -18,7 +18,7 @@ describe("PayoutModal.svelte source-structure guards", () => {
     expect(src).toContain("Modal");
     expect(src).toContain("Button");
     expect(src).toContain("SelectSearch");
-    expect(src).toContain('$shared/ui');
+    expect(src).toContain("$shared/ui");
   });
 
   it("imports createPayout and listPaymentMethods from consignment-service", () => {

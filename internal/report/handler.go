@@ -106,12 +106,12 @@ func (h *Handler) GetLiveDashboardStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
-			"todays_revenue":    todaysRevenue,
-			"todays_sales":      todaysSales,
-			"total_products":    totalProducts,
-			"low_stock_count":   lowStockCount,
+			"todays_revenue":     todaysRevenue,
+			"todays_sales":       todaysSales,
+			"total_products":     totalProducts,
+			"low_stock_count":    lowStockCount,
 			"out_of_stock_count": outOfStockCount,
-			"categories_count":  categoriesCount,
+			"categories_count":   categoriesCount,
 		},
 	})
 }

@@ -16,7 +16,7 @@ describe("SettlementPage.svelte source-structure guards", () => {
 
   it("delegates payout to PayoutModal component", () => {
     expect(src).toContain("PayoutModal");
-    expect(src).toContain('bind:show={showPayoutModal}');
+    expect(src).toContain("bind:show={showPayoutModal}");
   });
 
   it("uses getApiErrorMessage for error extraction", () => {

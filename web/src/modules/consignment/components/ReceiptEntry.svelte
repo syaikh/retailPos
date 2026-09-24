@@ -108,10 +108,7 @@
   async function load() {
     loading = true;
     try {
-      receipts = await listReceipts(
-        arrangement.supplier_id,
-        filterProductId,
-      );
+      receipts = await listReceipts(arrangement.supplier_id, filterProductId);
     } catch {
       receipts = [];
     } finally {
@@ -294,9 +291,7 @@
     if (!q) {
       filterProductId = undefined;
     } else {
-      const match = productOptions.find(
-        (opt) => opt.label.toLowerCase() === q,
-      );
+      const match = productOptions.find((opt) => opt.label.toLowerCase() === q);
       filterProductId = match?.value;
     }
   });
@@ -314,9 +309,7 @@
 
 <div class="space-y-4">
   <div class="card">
-    <div
-      class="flex items-center gap-3 px-4 py-3 border-b border-border/50"
-    >
+    <div class="flex items-center gap-3 px-4 py-3 border-b border-border/50">
       <h2 class="font-semibold text-text-primary whitespace-nowrap">
         {labels.consignmentReceiptHistory}
       </h2>
@@ -324,7 +317,9 @@
         <SearchBar
           bind:value={filterProductSearch}
           placeholder={labels.consignmentFilterByProduct}
-          oninput={() => { pageOffset = 0; }}
+          oninput={() => {
+            pageOffset = 0;
+          }}
           class="flex-1 max-w-xs"
         />
       {/if}
@@ -345,8 +340,12 @@
     {:else if filteredReceipts.length === 0}
       <EmptyState
         icon={Truck}
-        title={filterProductSearch ? labels.consignmentNoMatchingReceipts : labels.consignmentNoReceipts}
-        subtitle={filterProductSearch ? labels.consignmentNoMatchingReceiptsSubtitle : labels.consignmentNoReceiptsSubtitle}
+        title={filterProductSearch
+          ? labels.consignmentNoMatchingReceipts
+          : labels.consignmentNoReceipts}
+        subtitle={filterProductSearch
+          ? labels.consignmentNoMatchingReceiptsSubtitle
+          : labels.consignmentNoReceiptsSubtitle}
       />
     {:else}
       <div class="overflow-x-auto">

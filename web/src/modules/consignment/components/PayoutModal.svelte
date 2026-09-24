@@ -1,9 +1,18 @@
 <script lang="ts">
   import { toast } from "$shared/stores/toast.svelte";
   import { getApiErrorMessage } from "$shared/utils/error-utils";
-  import { Button, Modal, Input, SelectSearch, FormattedNumberInput } from "$shared/ui";
+  import {
+    Button,
+    Modal,
+    Input,
+    SelectSearch,
+    FormattedNumberInput,
+  } from "$shared/ui";
   import { labels, t } from "$shared/i18n";
-  import { createPayout, listPaymentMethods } from "../services/consignment-service";
+  import {
+    createPayout,
+    listPaymentMethods,
+  } from "../services/consignment-service";
   import type { Settlement } from "../types";
   import { formatCurrency } from "../lib/format";
 

@@ -94,7 +94,9 @@ describe("Home.svelte source-structure guards", () => {
 
   it("outOfStockCount stat card is gated by showOutOfStock for superadmin/manager/supervisor", () => {
     expect(src).toContain("showOutOfStock");
-    expect(src).toContain('role === "superadmin" || role === "manager" || role === "supervisor"');
+    expect(src).toContain(
+      'role === "superadmin" || role === "manager" || role === "supervisor"',
+    );
   });
 
   it("source uses visibleStatCards.showCategories conditional in template", () => {
@@ -114,7 +116,9 @@ describe("Home.svelte source-structure guards", () => {
   });
 
   it("source imports PendingSettlementsModal from consignment module", () => {
-    expect(src).toContain('import PendingSettlementsModal from "$modules/consignment/components/PendingSettlementsModal.svelte"');
+    expect(src).toContain(
+      'import PendingSettlementsModal from "$modules/consignment/components/PendingSettlementsModal.svelte"',
+    );
   });
 
   it("financeQuickAccess is a $derived based on consignment.pay permission", () => {
@@ -139,7 +143,9 @@ describe("permission helpers", () => {
   });
 
   it("defines hasAnyPermission function", () => {
-    expect(src).toContain("function hasAnyPermission(perms: string[]): boolean");
+    expect(src).toContain(
+      "function hasAnyPermission(perms: string[]): boolean",
+    );
   });
 
   it("accesses auth.user.permissions to check permission membership", () => {

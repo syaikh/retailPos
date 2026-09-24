@@ -41,8 +41,8 @@ test.describe('Dashboard Live Stats', () => {
   test('shows real stat cards on initial load', async ({ page }) => {
     await expect(page.getByText("Today's Revenue")).toBeVisible();
     await expect(page.locator('#main-content').getByText('Transactions', { exact: true })).toBeVisible();
-    await expect(page.getByText('Total Products')).toBeVisible();
-    await expect(page.getByText('Low Stock Alerts')).toBeVisible();
+    await expect(page.getByText('Categories')).toBeVisible();
+    await expect(page.getByText('Out of Stock')).toBeVisible();
   });
 
   test('records a new sale in real time while live dashboard stats stay coherent', async ({ page, request }) => {

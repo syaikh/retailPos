@@ -130,9 +130,7 @@ export async function listReceipts(
 ): Promise<Receipt[]> {
   const params = new URLSearchParams({ supplier_id: String(supplierId) });
   if (productId) params.set("product_id", String(productId));
-  const res = await apiClient.get(
-    `/consignment/receipts?${params.toString()}`,
-  );
+  const res = await apiClient.get(`/consignment/receipts?${params.toString()}`);
   return res.data.data || [];
 }
 
