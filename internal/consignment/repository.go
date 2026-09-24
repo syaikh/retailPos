@@ -344,6 +344,38 @@ func (r *Repository) ListTerms(ctx context.Context, q queryer, arrangementID int
 	return result, rows.Err()
 }
 
+// ListTermsByArrangements returns terms for multiple arrangements in one query.
+func (r *Repository) ListTermsByArrangements(ctx context.Context, q queryer, arrangementIDs []int) (map[int][]Term, error) {
+	if len(arrangementIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := q.Query(ctx, `
+		SELECT t.id, t.arrangement_id, t.product_id,
+		       t.price, t.store_share_type, t.store_share_value, t.effective_from, t.created_by, t.created_at
+		FROM consignment_terms t
+		WHERE t.arrangement_id = ANY($1)
+		ORDER BY t.arrangement_id ASC, t.id ASC
+	`, arrangementIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int][]Term)
+	for rows.Next() {
+		var t Term
+		var effectiveFrom, createdAt time.Time
+		if err := rows.Scan(&t.ID, &t.ArrangementID, &t.ProductID,
+			&t.Price, &t.StoreShareType, &t.StoreShareValue, &effectiveFrom, &t.CreatedBy, &createdAt); err != nil {
+			return nil, err
+		}
+		t.EffectiveFrom = effectiveFrom.In(shared.JakartaLocation()).Format(time.RFC3339)
+		t.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		result[t.ArrangementID] = append(result[t.ArrangementID], t)
+	}
+	return result, rows.Err()
+}
+
 func (r *Repository) GetTermByProduct(ctx context.Context, q queryer, arrangementID, productID int) (*Term, error) {
 	var t Term
 	var effectiveFrom, createdAt time.Time

@@ -137,6 +137,9 @@ func (s *Service) ListArrangements(ctx context.Context, claimsStore *int, limit,
 		if err := s.hydrateArrangementNames(ctx, arrs); err != nil {
 			return nil, 0, err
 		}
+		if err := s.hydrateArrangementTerms(ctx, arrs); err != nil {
+			return nil, 0, err
+		}
 		return arrs, total, nil
 	}
 	if _, idErr := strconv.Atoi(search); idErr == nil {
@@ -145,6 +148,9 @@ func (s *Service) ListArrangements(ctx context.Context, claimsStore *int, limit,
 			return nil, 0, err
 		}
 		if err := s.hydrateArrangementNames(ctx, arrs); err != nil {
+			return nil, 0, err
+		}
+		if err := s.hydrateArrangementTerms(ctx, arrs); err != nil {
 			return nil, 0, err
 		}
 		return arrs, total, nil
@@ -158,6 +164,9 @@ func (s *Service) ListArrangements(ctx context.Context, claimsStore *int, limit,
 		return nil, 0, err
 	}
 	if err := s.hydrateArrangementNames(ctx, arrs); err != nil {
+		return nil, 0, err
+	}
+	if err := s.hydrateArrangementTerms(ctx, arrs); err != nil {
 		return nil, 0, err
 	}
 
@@ -1638,6 +1647,24 @@ func (s *Service) hydrateArrangementNamesSingle(ctx context.Context, a *Arrangem
 		return err
 	}
 	*a = arrs[0]
+	return nil
+}
+
+func (s *Service) hydrateArrangementTerms(ctx context.Context, arrs []Arrangement) error {
+	if len(arrs) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(arrs))
+	for i := range arrs {
+		ids = append(ids, arrs[i].ID)
+	}
+	termsByArr, err := s.repo.ListTermsByArrangements(ctx, s.repo.db, ids)
+	if err != nil {
+		return fmt.Errorf("lookup arrangement terms: %w", err)
+	}
+	for i := range arrs {
+		arrs[i].Terms = termsByArr[arrs[i].ID]
+	}
 	return nil
 }
 
