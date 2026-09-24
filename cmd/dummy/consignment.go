@@ -680,7 +680,7 @@ func seedConsignmentSettlements(
 	settlementCount := 0
 	for _, a := range assignments {
 		rows, err := tx.QueryContext(ctx, `
-			SELECT i.id, i.quantity, i.unit_price, i.subtotal, i.store_share_type, i.store_share_value, i.created_at
+			SELECT i.id, i.product_id, i.quantity, i.unit_price, i.subtotal, i.store_share_type, i.store_share_value, i.created_at
 			FROM consignment_sale_items i
 			WHERE i.supplier_id = $1 AND i.settlement_id IS NULL
 			ORDER BY i.created_at ASC, i.id ASC`, a.supplierID)
@@ -688,15 +688,15 @@ func seedConsignmentSettlements(
 			return 0, fmt.Errorf("query unsettled items: %w", err)
 		}
 		type itemRow struct {
-			id, quantity, unitPrice, subtotal int
-			shareType                         string
-			shareValue                        float64
-			createdAt                         time.Time
+			id, productID, quantity, unitPrice, subtotal int
+			shareType                                    string
+			shareValue                                   float64
+			createdAt                                    time.Time
 		}
 		var items []itemRow
 		for rows.Next() {
 			var it itemRow
-			if err := rows.Scan(&it.id, &it.quantity, &it.unitPrice, &it.subtotal, &it.shareType, &it.shareValue, &it.createdAt); err == nil {
+			if err := rows.Scan(&it.id, &it.productID, &it.quantity, &it.unitPrice, &it.subtotal, &it.shareType, &it.shareValue, &it.createdAt); err == nil {
 				items = append(items, it)
 			}
 		}
@@ -752,8 +752,8 @@ func seedConsignmentSettlements(
 			share := seedStoreShare(it.unitPrice, it.quantity, it.shareType, it.shareValue)
 			if _, err := tx.ExecContext(ctx, `
 				INSERT INTO consignment_settlement_items (consignment_settlement_id, consignment_sale_item_id, product_id, quantity, unit_price, subtotal, store_share)
-				VALUES ($1, $2, NULL, $3, $4, $5, $6)`,
-				settlementID, it.id, it.quantity, it.unitPrice, it.subtotal, share); err != nil {
+				VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+				settlementID, it.id, it.productID, it.quantity, it.unitPrice, it.subtotal, share); err != nil {
 				return 0, err
 			}
 		}
