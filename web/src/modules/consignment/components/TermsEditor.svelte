@@ -275,9 +275,7 @@
 </script>
 
 <div class="card">
-  <div
-    class="flex items-center gap-3 px-4 py-3 border-b border-border/50"
-  >
+  <div class="flex items-center gap-3 px-4 py-3 border-b border-border/50">
     <h2 class="font-semibold text-text-primary whitespace-nowrap">
       {labels.consignmentTermsHeader}
     </h2>
@@ -312,10 +310,7 @@
   {:else if filteredTerms.length === 0 && !editingTerm}
     <EmptyState
       icon={Search}
-      title={labels.noResultsFor.replace(
-        "{query}",
-        filterQuery.trim(),
-      )}
+      title={labels.noResultsFor.replace("{query}", filterQuery.trim())}
     />
   {:else}
     <div class="overflow-x-auto">
