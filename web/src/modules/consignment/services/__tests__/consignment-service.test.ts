@@ -335,4 +335,49 @@ describe("consignment-service", () => {
       expect(result.exactMatch).toBe(false);
     });
   });
+
+  describe("listReceipts", () => {
+    it("fetches receipts without productId", async () => {
+      const receipts = [
+        { id: 1, receipt_number: "RCP-001", items: [] },
+        { id: 2, receipt_number: "RCP-002", items: [] },
+      ];
+      mockGet.mockResolvedValueOnce({ data: { data: receipts } });
+
+      const { listReceipts } = await import("../consignment-service");
+      const result = await listReceipts(5);
+
+      expect(result).toEqual(receipts);
+      expect(mockGet).toHaveBeenCalledWith(
+        "/consignment/receipts?supplier_id=5",
+      );
+    });
+
+    it("fetches receipts with productId", async () => {
+      const receipts = [
+        { id: 1, receipt_number: "RCP-001", items: [{ product_id: 42 }] },
+      ];
+      mockGet.mockResolvedValueOnce({ data: { data: receipts } });
+
+      const { listReceipts } = await import("../consignment-service");
+      const result = await listReceipts(5, 42);
+
+      expect(result).toEqual(receipts);
+      expect(mockGet).toHaveBeenCalledWith(
+        "/consignment/receipts?supplier_id=5&product_id=42",
+      );
+    });
+
+    it("returns empty array when no receipts match", async () => {
+      mockGet.mockResolvedValueOnce({ data: { data: [] } });
+
+      const { listReceipts } = await import("../consignment-service");
+      const result = await listReceipts(5, 999);
+
+      expect(result).toEqual([]);
+      expect(mockGet).toHaveBeenCalledWith(
+        "/consignment/receipts?supplier_id=5&product_id=999",
+      );
+    });
+  });
 });

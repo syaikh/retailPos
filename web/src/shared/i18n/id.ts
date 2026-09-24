@@ -1838,6 +1838,10 @@ export const id = {
   consignmentNoReceipts: "Belum ada penerimaan",
   consignmentNoReceiptsSubtitle:
     "Catat barang konsinyasi yang diterima setelah pemeriksaan.",
+  consignmentFilterByProduct: "Filter berdasarkan nama atau SKU produk...",
+  consignmentNoMatchingReceipts: "Tidak ada penerimaan yang cocok",
+  consignmentNoMatchingReceiptsSubtitle:
+    "Tidak ada penerimaan yang memuat produk yang dicari.",
   consignmentReceiptNo: "No. Penerimaan",
   consignmentItems: "Barang",
   consignmentTotalValue: "Total Nilai",
@@ -1982,6 +1986,12 @@ export const id = {
     "Ini akan membuat dokumen retur untuk semua stok konsinyasi yang tersisa. Kesepakatan dapat diakhiri setelah ini.",
   consignmentBulkReturnSuccess: "Semua stok tersisa berhasil dikembalikan",
   consignmentBulkReturnError: "Gagal mengembalikan stok",
+  consignmentTabAll: "Semua",
+  consignmentTabPending: "Tertunda",
+  consignmentTabPaid: "Lunas",
+  consignmentPendingSettlements: "Penyelesaian Tertunda",
+  consignmentNoPendingSettlements: "Tidak ada penyelesaian tertunda",
+  consignmentNoPendingSettlementsSubtitle: "Semua penyelesaian sudah dibayar.",
 
   // ===== App Settings =====
   appSettings: "Pengaturan Aplikasi",

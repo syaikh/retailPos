@@ -733,12 +733,16 @@ func (s *Service) GetReceipt(ctx context.Context, id int, claimsStore *int) (*Re
 	return rec, nil
 }
 
-func (s *Service) ListReceipts(ctx context.Context, supplierID int, claimsStore *int) ([]Receipt, error) {
+func (s *Service) ListReceipts(ctx context.Context, supplierID int, claimsStore *int, productID *int) ([]Receipt, error) {
 	storeID, err := resolveStore(claimsStore, nil)
 	if err != nil {
 		return nil, err
 	}
-	recs, err := s.repo.ListReceipts(ctx, s.repo.db, supplierID, storeID)
+	var pid *int
+	if productID != nil && *productID > 0 {
+		pid = productID
+	}
+	recs, err := s.repo.ListReceipts(ctx, s.repo.db, supplierID, storeID, pid)
 	if err != nil {
 		return nil, err
 	}
@@ -1453,12 +1457,12 @@ func (s *Service) GetSettlement(ctx context.Context, id int, claimsStore *int) (
 	return st, nil
 }
 
-func (s *Service) ListSettlements(ctx context.Context, supplierID int, claimsStore *int) ([]Settlement, error) {
+func (s *Service) ListSettlements(ctx context.Context, supplierID *int, claimsStore *int, status *string) ([]Settlement, error) {
 	storeID, err := resolveStore(claimsStore, nil)
 	if err != nil {
 		return nil, err
 	}
-	sts, err := s.repo.ListSettlements(ctx, s.repo.db, supplierID, storeID)
+	sts, err := s.repo.ListSettlements(ctx, s.repo.db, supplierID, storeID, status)
 	if err != nil {
 		return nil, err
 	}
@@ -1807,6 +1811,7 @@ func (s *Service) hydrateSettlementItemProductNames(ctx context.Context, items [
 		for i := range items {
 			if items[i].ProductID != nil && *items[i].ProductID == id {
 				items[i].ProductName = name
+				items[i].ProductSKU = sku
 			}
 		}
 	})

@@ -6,11 +6,10 @@
     Button,
     Modal,
     Input,
-    FormattedNumberInput,
     EmptyState,
     Badge,
-    SelectSearch,
     Pagination,
+    SearchBar,
   } from "$shared/ui";
   import { Wallet, Banknote } from "lucide-svelte";
   import { labels, t } from "$shared/i18n";
@@ -19,10 +18,9 @@
     createSettlement,
     listSettlements,
     getSettlement,
-    listPaymentMethods,
-    createPayout,
   } from "../services/consignment-service";
   import type { Arrangement, Settlement } from "../types";
+  import PayoutModal from "./PayoutModal.svelte";
   import { SETTLEMENT_STATUS_LABELS, SETTLEMENT_PAID } from "../types";
   import { formatCurrency, formatDateTime } from "../lib/format";
 
@@ -30,11 +28,13 @@
     arrangement,
     canSettle,
     canPay,
+    initialTab = "all",
     onsettled,
   }: {
     arrangement: Arrangement;
     canSettle: boolean;
     canPay: boolean;
+    initialTab?: "all" | "pending" | "paid";
     onsettled?: () => void;
   } = $props();
 
@@ -47,24 +47,46 @@
 
   let showPayoutModal = $state(false);
   let payoutSettlement = $state<Settlement | null>(null);
-  let paying = $state(false);
-  let paymentMethods = $state<{ value: number; label: string }[]>([]);
-  let payoutForm = $state({
-    payment_method_id: undefined as number | undefined,
-    amount: 0,
-    reference_number: "",
-    notes: "",
-  });
 
   let showDetailModal = $state(false);
   let detailSettlement = $state<Settlement | null>(null);
   let loadingDetail = $state(false);
 
+  let historyTab = $state<"all" | "pending" | "paid">($state.snapshot(initialTab) as "all" | "pending" | "paid");
+  let historySearch = $state("");
+  let previewSearch = $state("");
+
   let pageLimit = $state(20);
   let pageOffset = $state(0);
+
+  const filteredSettlements = $derived.by(() => {
+    let result = settlements;
+    if (historyTab === "pending")
+      result = result.filter((s) => s.status === "pending_payment");
+    if (historyTab === "paid")
+      result = result.filter((s) => s.status === "paid");
+    if (historySearch.trim()) {
+      const q = historySearch.toLowerCase();
+      result = result.filter((s) =>
+        (s.items || []).some((item) =>
+          item.product_name?.toLowerCase().includes(q),
+        ),
+      );
+    }
+    return result;
+  });
+
   const pagedSettlements = $derived(
-    settlements.slice(pageOffset, pageOffset + pageLimit),
+    filteredSettlements.slice(pageOffset, pageOffset + pageLimit),
   );
+
+  const filteredPreviewItems = $derived.by(() => {
+    if (!previewSearch.trim()) return preview?.items || [];
+    const q = previewSearch.toLowerCase();
+    return (preview?.items || []).filter((item) =>
+      item.product_name?.toLowerCase().includes(q),
+    );
+  });
 
   async function loadPreview() {
     previewLoading = true;
@@ -85,18 +107,6 @@
       settlements = [];
     } finally {
       loading = false;
-    }
-  }
-
-  async function loadPaymentMethods() {
-    try {
-      const methods = await listPaymentMethods();
-      paymentMethods = methods.map((m) => ({
-        value: m.id,
-        label: m.code ? `${m.name} (${m.code})` : m.name,
-      }));
-    } catch {
-      paymentMethods = [];
     }
   }
 
@@ -133,45 +143,7 @@
   function openPayout(st: Settlement) {
     if (st.status === SETTLEMENT_PAID) return;
     payoutSettlement = st;
-    payoutForm = {
-      payment_method_id: undefined,
-      amount: st.total_payable,
-      reference_number: "",
-      notes: "",
-    };
     showPayoutModal = true;
-  }
-
-  async function submitPayout() {
-    if (!payoutSettlement) return;
-    if (!payoutForm.payment_method_id) {
-      toast.error(labels.consignmentSelectPaymentMethodError);
-      return;
-    }
-    if (payoutForm.amount <= 0) {
-      toast.error(labels.consignmentAmountGreaterThanZero);
-      return;
-    }
-    paying = true;
-    try {
-      const payout = await createPayout(payoutSettlement.id, {
-        payment_method_id: payoutForm.payment_method_id,
-        amount: payoutForm.amount,
-        reference_number: payoutForm.reference_number || undefined,
-        notes: payoutForm.notes || undefined,
-      });
-      toast.success(
-        t("consignmentPayoutRecorded", { number: payout.payout_number }),
-      );
-      showPayoutModal = false;
-      await load();
-      await loadPreview();
-      onsettled?.();
-    } catch (e: unknown) {
-      toast.error(getApiErrorMessage(e, labels.consignmentRecordPayoutError));
-    } finally {
-      paying = false;
-    }
   }
 
   async function openDetail(settlementId: number) {
@@ -190,7 +162,6 @@
   onMount(() => {
     load();
     loadPreview();
-    loadPaymentMethods();
   });
 
   function handlePageChange(newOffset: number, newLimit: number) {
@@ -202,22 +173,31 @@
 <div class="space-y-4">
   <div class="card">
     <div
-      class="flex items-center justify-between px-4 py-3 border-b border-border/50"
+      class="flex items-center gap-3 px-4 py-3 border-b border-border/50"
     >
-      <h2 class="font-semibold text-text-primary">
+      <h2 class="font-semibold text-text-primary whitespace-nowrap">
         {labels.consignmentUnsettled}
       </h2>
-      {#if canSettle}
-        <Button
-          variant="secondary"
-          size="sm"
-          onclick={openCreate}
-          disabled={!preview || (preview.items?.length ?? 0) === 0}
-        >
-          <Wallet class="w-4 h-4" />
-          {labels.consignmentCreateSettlement}
-        </Button>
+      {#if !previewLoading && (preview?.items?.length ?? 0) > 0}
+        <SearchBar
+          bind:value={previewSearch}
+          placeholder="Search product..."
+          class="flex-1 max-w-xs"
+        />
       {/if}
+      <div class="ml-auto whitespace-nowrap">
+        {#if canSettle}
+          <Button
+            variant="secondary"
+            size="sm"
+            onclick={openCreate}
+            disabled={!preview || (preview.items?.length ?? 0) === 0}
+          >
+            <Wallet class="w-4 h-4" />
+            {labels.consignmentCreateSettlement}
+          </Button>
+        {/if}
+      </div>
     </div>
 
     {#if previewLoading}
@@ -248,7 +228,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each preview.items as item, i (i)}
+            {#each filteredPreviewItems as item, i (i)}
               <tr class="border-b border-border/40">
                 <td class="px-4 py-3 font-medium text-text-primary"
                   >{item.product_name}</td
@@ -296,11 +276,39 @@
   </div>
 
   <div class="card">
-    <div class="px-4 py-3 border-b border-border/50">
-      <h2 class="font-semibold text-text-primary">
+    <div
+      class="flex items-center gap-3 px-4 py-3 border-b border-border/50"
+    >
+      <h2 class="font-semibold text-text-primary whitespace-nowrap">
         {labels.consignmentSettlementHistory}
       </h2>
+      {#if !loading && settlements.length > 0}
+        <SearchBar
+          bind:value={historySearch}
+          placeholder="Search product..."
+          class="flex-1 max-w-xs"
+        />
+      {/if}
     </div>
+    {#if !loading && settlements.length > 0}
+      <div class="flex gap-2 px-4 pt-3">
+        <Button
+          variant={historyTab === "all" ? "secondary" : "ghost"}
+          size="sm"
+          onclick={() => (historyTab = "all")}
+        >All</Button>
+        <Button
+          variant={historyTab === "pending" ? "secondary" : "ghost"}
+          size="sm"
+          onclick={() => (historyTab = "pending")}
+        >Pending</Button>
+        <Button
+          variant={historyTab === "paid" ? "secondary" : "ghost"}
+          size="sm"
+          onclick={() => (historyTab = "paid")}
+        >Paid</Button>
+      </div>
+    {/if}
     {#if loading}
       <div class="p-8 text-center text-sm text-text-secondary">
         {labels.loading}
@@ -408,79 +416,17 @@
   {/snippet}
 </Modal>
 
-<Modal
-  bind:open={showPayoutModal}
-  title={labels.consignmentRecordPayment}
-  size="md"
->
-  <div class="space-y-4">
-    <div
-      class="rounded-xl bg-surface-subtle/60 border border-border-default px-4 py-3 text-sm flex justify-between"
-    >
-      <span class="text-text-secondary">{labels.consignmentOutstanding}</span>
-      <span class="font-semibold text-text-primary"
-        >{formatCurrency(payoutSettlement?.total_payable)}</span
-      >
-    </div>
-    <label
-      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-    >
-      <span
-        >{labels.consignmentPaymentMethod}
-        <span class="text-danger">*</span></span
-      >
-      <SelectSearch
-        bind:value={payoutForm.payment_method_id}
-        options={paymentMethods}
-        placeholder={labels.consignmentSelectPaymentMethod}
-        searchPlaceholder={labels.consignmentSearchMethod}
-        notFoundText={labels.consignmentNotFound}
-      />
-    </label>
-    <label
-      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-    >
-      <span>{labels.consignmentAmount} <span class="text-danger">*</span></span>
-      <FormattedNumberInput
-        bind:value={payoutForm.amount}
-        class="h-9 text-sm"
-      />
-    </label>
-    <label
-      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-    >
-      <span>{labels.consignmentReference}</span>
-      <Input
-        type="text"
-        bind:value={payoutForm.reference_number}
-        placeholder={labels.consignmentReferencePlaceholder}
-        class="h-9 text-sm"
-      />
-    </label>
-    <label
-      class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary"
-    >
-      <span>{labels.notes}</span>
-      <Input
-        tag="textarea"
-        bind:value={payoutForm.notes}
-        rows={2}
-        placeholder={labels.consignmentNotesPlaceholder}
-        class="text-sm"
-      />
-    </label>
-  </div>
-  {#snippet footer()}
-    <div class="flex justify-end gap-3 w-full">
-      <Button variant="secondary" onclick={() => (showPayoutModal = false)}
-        >{labels.cancel}</Button
-      >
-      <Button onclick={submitPayout} disabled={paying}>
-        {paying ? labels.saving : labels.consignmentPay}
-      </Button>
-    </div>
-  {/snippet}
-</Modal>
+<PayoutModal
+  bind:show={showPayoutModal}
+  settlement={payoutSettlement}
+  onclose={() => (showPayoutModal = false)}
+  onpaid={async () => {
+    showPayoutModal = false;
+    await load();
+    await loadPreview();
+    onsettled?.();
+  }}
+/>
 
 <Modal
   bind:open={showDetailModal}

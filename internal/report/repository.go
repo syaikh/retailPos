@@ -369,6 +369,21 @@ func (r *Repository) GetLiveDashboardStats(ctx context.Context, storeID *int) (t
 	return
 }
 
+func (r *Repository) GetInventoryStats(ctx context.Context) (outOfStockCount, categoriesCount int, err error) {
+	err = r.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM product_stock
+		WHERE quantity = 0 AND warehouse_id IS NULL AND store_id IS NULL AND location_id IS NULL
+	`).Scan(&outOfStockCount)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get out-of-stock count: %w", err)
+	}
+	err = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM categories`).Scan(&categoriesCount)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get categories count: %w", err)
+	}
+	return
+}
+
 func (r *Repository) GetAvailableYears(ctx context.Context, storeID *int) ([]int, error) {
 	// Read from mv_daily_sales (Jakarta dates) instead of scanning the raw
 	// sales table; the view holds the same completed-sale rows grouped by

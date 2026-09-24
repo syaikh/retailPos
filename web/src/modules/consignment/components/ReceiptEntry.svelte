@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { toast } from "$shared/stores/toast.svelte";
   import { getApiErrorMessage } from "$shared/utils/error-utils";
   import {
@@ -10,6 +9,7 @@
     SelectSearch,
     EmptyState,
     Pagination,
+    SearchBar,
   } from "$shared/ui";
   import { Plus, Trash2, Truck, Pencil, Copy, Check } from "lucide-svelte";
   import { SvelteSet } from "svelte/reactivity";
@@ -46,6 +46,7 @@
   let submitting = $state(false);
   let lines = $state<Line[]>([]);
   let entryNotes = $state("");
+  let filterProductSearch = $state("");
   let termByProduct = $state<
     Record<
       number,
@@ -77,8 +78,22 @@
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
+  let filterProductId = $state<number | undefined>(undefined);
+
+  const filteredReceipts = $derived.by(() => {
+    if (!filterProductSearch.trim()) return receipts;
+    const q = filterProductSearch.toLowerCase();
+    return receipts.filter((r) =>
+      (r.items || []).some(
+        (item) =>
+          (item.product_name && item.product_name.toLowerCase().includes(q)) ||
+          (item.product_sku && item.product_sku.toLowerCase().includes(q)),
+      ),
+    );
+  });
+
   const pagedReceipts = $derived(
-    receipts.slice(pageOffset, pageOffset + pageLimit),
+    filteredReceipts.slice(pageOffset, pageOffset + pageLimit),
   );
 
   const EDIT_WINDOW_DAYS = 7;
@@ -93,7 +108,10 @@
   async function load() {
     loading = true;
     try {
-      receipts = await listReceipts(arrangement.supplier_id);
+      receipts = await listReceipts(
+        arrangement.supplier_id,
+        filterProductId,
+      );
     } catch {
       receipts = [];
     } finally {
@@ -271,7 +289,20 @@
     });
   }
 
-  onMount(() => {
+  $effect(() => {
+    const q = filterProductSearch.trim().toLowerCase();
+    if (!q) {
+      filterProductId = undefined;
+    } else {
+      const match = productOptions.find(
+        (opt) => opt.label.toLowerCase() === q,
+      );
+      filterProductId = match?.value;
+    }
+  });
+
+  $effect(() => {
+    void filterProductId;
     load();
   });
 
@@ -284,28 +315,38 @@
 <div class="space-y-4">
   <div class="card">
     <div
-      class="flex items-center justify-between px-4 py-3 border-b border-border/50"
+      class="flex items-center gap-3 px-4 py-3 border-b border-border/50"
     >
-      <h2 class="font-semibold text-text-primary">
+      <h2 class="font-semibold text-text-primary whitespace-nowrap">
         {labels.consignmentReceiptHistory}
       </h2>
-      {#if canCreate}
-        <Button variant="secondary" size="sm" onclick={openEntry}>
-          <Plus class="w-4 h-4" />
-          {labels.consignmentRecordReceipt}
-        </Button>
+      {#if !loading && receipts.length > 0}
+        <SearchBar
+          bind:value={filterProductSearch}
+          placeholder={labels.consignmentFilterByProduct}
+          oninput={() => { pageOffset = 0; }}
+          class="flex-1 max-w-xs"
+        />
       {/if}
+      <div class="ml-auto whitespace-nowrap">
+        {#if canCreate}
+          <Button variant="secondary" size="sm" onclick={openEntry}>
+            <Plus class="w-4 h-4" />
+            {labels.consignmentRecordReceipt}
+          </Button>
+        {/if}
+      </div>
     </div>
 
     {#if loading}
       <div class="p-8 text-center text-sm text-text-secondary">
         {labels.loading}
       </div>
-    {:else if receipts.length === 0}
+    {:else if filteredReceipts.length === 0}
       <EmptyState
         icon={Truck}
-        title={labels.consignmentNoReceipts}
-        subtitle={labels.consignmentNoReceiptsSubtitle}
+        title={filterProductSearch ? labels.consignmentNoMatchingReceipts : labels.consignmentNoReceipts}
+        subtitle={filterProductSearch ? labels.consignmentNoMatchingReceiptsSubtitle : labels.consignmentNoReceiptsSubtitle}
       />
     {:else}
       <div class="overflow-x-auto">
@@ -357,7 +398,7 @@
       </div>
       <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
         <Pagination
-          total={receipts.length}
+          total={filteredReceipts.length}
           limit={pageLimit}
           offset={pageOffset}
           onPageChange={handlePageChange}

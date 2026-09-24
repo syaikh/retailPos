@@ -20,6 +20,7 @@ import (
 
 type Service interface {
 	GetDashboardStats(ctx context.Context, storeID int) (*DashboardStats, error)
+	GetInventoryStats(ctx context.Context) (outOfStockCount, categoriesCount int, err error)
 	GetLiveDashboardStats(ctx context.Context, storeID int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error)
 	GetHourlySales(ctx context.Context, storeID int, date time.Time) ([]ChartDataPoint, error)
 	GetDailySales(ctx context.Context, storeID int, start, end time.Time) ([]ChartDataPoint, error)
@@ -97,12 +98,20 @@ func (h *Handler) GetLiveDashboardStats(c *gin.Context) {
 		return
 	}
 
+	outOfStockCount, categoriesCount, err := h.svc.GetInventoryStats(ctx)
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
-			"todays_revenue":  todaysRevenue,
-			"todays_sales":    todaysSales,
-			"total_products":  totalProducts,
-			"low_stock_count": lowStockCount,
+			"todays_revenue":    todaysRevenue,
+			"todays_sales":      todaysSales,
+			"total_products":    totalProducts,
+			"low_stock_count":   lowStockCount,
+			"out_of_stock_count": outOfStockCount,
+			"categories_count":  categoriesCount,
 		},
 	})
 }

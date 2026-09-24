@@ -13,6 +13,7 @@ type Repo interface {
 	GetDashboardStats(ctx context.Context, storeID *int, jakartaLoc *time.Location) (*DashboardStats, error)
 	GetDualChartData(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (current, previous []ChartDataPoint, err error)
 	GetHourlySales(ctx context.Context, date time.Time, storeID *int) ([]ChartDataPoint, error)
+	GetInventoryStats(ctx context.Context) (outOfStockCount, categoriesCount int, err error)
 	GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error)
 	GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (*PeriodComparison, error)
 	GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error)
@@ -45,6 +46,10 @@ func (s *service) GetDashboardStats(ctx context.Context, storeID int) (*Dashboar
 
 func (s *service) GetLiveDashboardStats(ctx context.Context, storeID int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error) {
 	return s.repo.GetLiveDashboardStats(ctx, storeIDPtr(storeID))
+}
+
+func (s *service) GetInventoryStats(ctx context.Context) (outOfStockCount, categoriesCount int, err error) {
+	return s.repo.GetInventoryStats(ctx)
 }
 
 func (s *service) GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (*PeriodComparison, error) {

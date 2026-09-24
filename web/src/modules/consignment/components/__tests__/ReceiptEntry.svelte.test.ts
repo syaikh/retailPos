@@ -54,4 +54,30 @@ describe("ReceiptEntry.svelte source-structure guards", () => {
   it("uses 2xl modal size for receipt entry", () => {
     expect(src).toContain('size="2xl"');
   });
+
+  it("has filterProductSearch state for product filtering", () => {
+    expect(src).toContain("filterProductSearch");
+    expect(src).toContain("$state");
+  });
+
+  it("has filteredReceipts derived that filters by product name or SKU", () => {
+    expect(src).toContain("filteredReceipts");
+    expect(src).toContain("$derived");
+    expect(src).toContain("product_name");
+    expect(src).toContain("product_sku");
+  });
+
+  it("uses SearchBar component for filter input", () => {
+    expect(src).toContain("SearchBar");
+    expect(src).toContain("consignmentFilterByProduct");
+  });
+
+  it("shows different empty state messages when filter is active", () => {
+    expect(src).toContain("consignmentNoMatchingReceipts");
+    expect(src).toContain("consignmentNoMatchingReceiptsSubtitle");
+  });
+
+  it("resets pagination when filter changes", () => {
+    expect(src).toContain('pageOffset = 0');
+  });
 });

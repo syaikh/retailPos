@@ -505,7 +505,7 @@ func TestService_ListWithNilStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Store-scoped user sees their receipts.
-		scoped, err := svc.ListReceipts(ctx, sup, &store)
+		scoped, err := svc.ListReceipts(ctx, sup, &store, nil)
 		require.NoError(t, err)
 		require.Len(t, scoped, 1)
 		require.NotEmpty(t, scoped[0].SupplierName, "SupplierName should be hydrated on list")
@@ -514,7 +514,7 @@ func TestService_ListWithNilStore(t *testing.T) {
 		require.NotEmpty(t, scoped[0].Items[0].ProductSKU, "ProductSKU should be hydrated on receipt items")
 
 		// Admin (nil store) also sees them.
-		admin, err := svc.ListReceipts(ctx, sup, nil)
+		admin, err := svc.ListReceipts(ctx, sup, nil, nil)
 		require.NoError(t, err)
 		require.Len(t, admin, 1)
 		require.NotEmpty(t, admin[0].SupplierName, "SupplierName should be hydrated on admin list")

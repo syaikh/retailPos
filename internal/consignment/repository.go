@@ -744,7 +744,7 @@ func (r *Repository) getReceiptItems(ctx context.Context, q queryer, receiptID i
 	return result, rows.Err()
 }
 
-func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int, storeID *int) ([]Receipt, error) {
+func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int, storeID *int, productID *int) ([]Receipt, error) {
 	var conds []string
 	var args []any
 	args = append(args, supplierID)
@@ -752,6 +752,10 @@ func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int
 	if storeID != nil {
 		args = append(args, *storeID)
 		conds = append(conds, fmt.Sprintf("r.store_id = $%d", len(args)))
+	}
+	if productID != nil {
+		args = append(args, *productID)
+		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM consignment_receipt_items cri WHERE cri.consignment_receipt_id = r.id AND cri.product_id = $%d)", len(args)))
 	}
 	where := " WHERE " + strings.Join(conds, " AND ")
 
@@ -1284,16 +1288,25 @@ func (r *Repository) getSettlementItems(ctx context.Context, q queryer, settleme
 	return result, rows.Err()
 }
 
-func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID int, storeID *int) ([]Settlement, error) {
+func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID *int, storeID *int, status *string) ([]Settlement, error) {
 	var conds []string
 	var args []any
-	args = append(args, supplierID)
-	conds = append(conds, fmt.Sprintf("st.supplier_id = $%d", len(args)))
+	if supplierID != nil {
+		args = append(args, *supplierID)
+		conds = append(conds, fmt.Sprintf("st.supplier_id = $%d", len(args)))
+	}
 	if storeID != nil {
 		args = append(args, *storeID)
 		conds = append(conds, fmt.Sprintf("st.store_id = $%d", len(args)))
 	}
-	where := " WHERE " + strings.Join(conds, " AND ")
+	if status != nil {
+		args = append(args, *status)
+		conds = append(conds, fmt.Sprintf("st.status = $%d", len(args)))
+	}
+	where := ""
+	if len(conds) > 0 {
+		where = " WHERE " + strings.Join(conds, " AND ")
+	}
 
 	rows, err := q.Query(ctx, `
 		SELECT st.id, st.settlement_number, st.supplier_id, st.store_id,

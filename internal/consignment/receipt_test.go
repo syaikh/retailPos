@@ -665,3 +665,95 @@ func TestService_EditReceipt(t *testing.T) {
 		require.False(t, owned)
 	})
 }
+
+func TestService_ListReceipts_ProductFilter(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	t.Run("nil productID returns all receipts", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "LIST-FILT-ALL")
+		svc, sup, store := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+
+		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		recs, err := svc.ListReceipts(ctx, sup, &store, nil)
+		require.NoError(t, err)
+		require.Len(t, recs, 1)
+	})
+
+	t.Run("matching productID returns only receipts with that product", func(t *testing.T) {
+		productA := insertTestProduct(ctx, t, "LIST-FILT-A")
+		productB := insertTestProduct(ctx, t, "LIST-FILT-B")
+		svc, sup, store := setupArrangement(t, productA, productB)
+		userID := insertTestUser(ctx, t)
+
+		// Receipt with product A only.
+		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: productA, AcceptedQty: 3}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		// Receipt with product B only.
+		_, err = svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: productB, AcceptedQty: 7}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		// Filter by product A.
+		pidA := productA
+		recsA, err := svc.ListReceipts(ctx, sup, &store, &pidA)
+		require.NoError(t, err)
+		require.Len(t, recsA, 1, "should return only receipt containing product A")
+		require.Len(t, recsA[0].Items, 1)
+		require.Equal(t, productA, recsA[0].Items[0].ProductID)
+
+		// Filter by product B.
+		pidB := productB
+		recsB, err := svc.ListReceipts(ctx, sup, &store, &pidB)
+		require.NoError(t, err)
+		require.Len(t, recsB, 1, "should return only receipt containing product B")
+		require.Len(t, recsB[0].Items, 1)
+		require.Equal(t, productB, recsB[0].Items[0].ProductID)
+	})
+
+	t.Run("non-matching productID returns empty", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "LIST-FILT-NOMATCH")
+		svc, sup, store := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+
+		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		nonExistentPID := 999999
+		recs, err := svc.ListReceipts(ctx, sup, &store, &nonExistentPID)
+		require.NoError(t, err)
+		require.Empty(t, recs, "should return no receipts for non-existent product")
+	})
+
+	t.Run("productID 0 is treated as nil", func(t *testing.T) {
+		product := insertTestProduct(ctx, t, "LIST-FILT-ZERO")
+		svc, sup, store := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+
+		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		zeroPID := 0
+		recs, err := svc.ListReceipts(ctx, sup, &store, &zeroPID)
+		require.NoError(t, err)
+		require.Len(t, recs, 1, "productID 0 should be treated as nil (no filter)")
+	})
+}

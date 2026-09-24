@@ -1825,6 +1825,10 @@ export const en: Labels = {
   consignmentNoReceipts: "No receipts yet",
   consignmentNoReceiptsSubtitle:
     "Record consignment goods received after inspection.",
+  consignmentFilterByProduct: "Filter by product name or SKU...",
+  consignmentNoMatchingReceipts: "No matching receipts",
+  consignmentNoMatchingReceiptsSubtitle:
+    "No receipts contain the searched product.",
   consignmentReceiptNo: "Receipt No.",
   consignmentItems: "Items",
   consignmentTotalValue: "Total Value",
@@ -1967,6 +1971,12 @@ export const en: Labels = {
     "This will create a return document for all remaining consignment stock. The arrangement can be ended after this.",
   consignmentBulkReturnSuccess: "All remaining stock returned successfully",
   consignmentBulkReturnError: "Failed to return stock",
+  consignmentTabAll: "All",
+  consignmentTabPending: "Pending",
+  consignmentTabPaid: "Paid",
+  consignmentPendingSettlements: "Pending Settlements",
+  consignmentNoPendingSettlements: "No pending settlements",
+  consignmentNoPendingSettlementsSubtitle: "All settlements have been paid.",
 
   // ===== App Settings =====
   appSettings: "Application Settings",

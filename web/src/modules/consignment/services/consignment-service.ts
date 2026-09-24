@@ -124,9 +124,14 @@ export async function searchAvailableProducts(
   };
 }
 
-export async function listReceipts(supplierId: number): Promise<Receipt[]> {
+export async function listReceipts(
+  supplierId: number,
+  productId?: number,
+): Promise<Receipt[]> {
+  const params = new URLSearchParams({ supplier_id: String(supplierId) });
+  if (productId) params.set("product_id", String(productId));
   const res = await apiClient.get(
-    `/consignment/receipts?supplier_id=${supplierId}`,
+    `/consignment/receipts?${params.toString()}`,
   );
   return res.data.data || [];
 }
@@ -267,10 +272,15 @@ export async function createSettlement(
 }
 
 export async function listSettlements(
-  supplierId: number,
+  supplierId?: number,
+  status?: string,
 ): Promise<Settlement[]> {
+  const params = new URLSearchParams();
+  if (supplierId) params.set("supplier_id", String(supplierId));
+  if (status) params.set("status", status);
+  const qs = params.toString();
   const res = await apiClient.get(
-    `/consignment/settlements?supplier_id=${supplierId}`,
+    `/consignment/settlements${qs ? `?${qs}` : ""}`,
   );
   return res.data.data || [];
 }

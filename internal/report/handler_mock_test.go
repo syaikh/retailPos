@@ -26,6 +26,7 @@ func init() {
 
 type mockReportService struct {
 	getDashboardStatsFn     func(ctx context.Context, storeID int) (*DashboardStats, error)
+	getInventoryStatsFn     func(ctx context.Context) (int, int, error)
 	getLiveDashboardStatsFn func(ctx context.Context, storeID int) (int, int, int, int, error)
 	getHourlySalesFn        func(ctx context.Context, storeID int, date time.Time) ([]ChartDataPoint, error)
 	getDailySalesFn         func(ctx context.Context, storeID int, start, end time.Time) ([]ChartDataPoint, error)
@@ -40,6 +41,9 @@ type mockReportService struct {
 
 func (m *mockReportService) GetDashboardStats(ctx context.Context, storeID int) (*DashboardStats, error) {
 	return m.getDashboardStatsFn(ctx, storeID)
+}
+func (m *mockReportService) GetInventoryStats(ctx context.Context) (int, int, error) {
+	return m.getInventoryStatsFn(ctx)
 }
 func (m *mockReportService) GetLiveDashboardStats(ctx context.Context, storeID int) (int, int, int, int, error) {
 	return m.getLiveDashboardStatsFn(ctx, storeID)
@@ -184,6 +188,9 @@ func TestReportHandler_GetLiveDashboardStats_Success(t *testing.T) {
 		getLiveDashboardStatsFn: func(ctx context.Context, storeID int) (int, int, int, int, error) {
 			return 250000, 15, 80, 5, nil
 		},
+		getInventoryStatsFn: func(ctx context.Context) (int, int, error) {
+			return 3, 12, nil
+		},
 	}
 	r := setupReportHandler(svc)
 	w := httptest.NewRecorder()
@@ -198,12 +205,17 @@ func TestReportHandler_GetLiveDashboardStats_Success(t *testing.T) {
 	assert.Equal(t, float64(15), data["todays_sales"])
 	assert.Equal(t, float64(80), data["total_products"])
 	assert.Equal(t, float64(5), data["low_stock_count"])
+	assert.Equal(t, float64(3), data["out_of_stock_count"])
+	assert.Equal(t, float64(12), data["categories_count"])
 }
 
 func TestReportHandler_GetLiveDashboardStats_Error(t *testing.T) {
 	svc := &mockReportService{
 		getLiveDashboardStatsFn: func(ctx context.Context, storeID int) (int, int, int, int, error) {
 			return 0, 0, 0, 0, assert.AnError
+		},
+		getInventoryStatsFn: func(ctx context.Context) (int, int, error) {
+			return 0, 0, nil
 		},
 	}
 	r := setupReportHandler(svc)

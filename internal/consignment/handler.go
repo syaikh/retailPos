@@ -282,7 +282,11 @@ func (h *Handler) ListReceipts(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "supplier_id required"})
 		return
 	}
-	receipts, err := h.svc.ListReceipts(c.Request.Context(), supplierID, shared.GetStoreID(c))
+	var productID *int
+	if pid := queryInt(c, "product_id"); pid > 0 {
+		productID = &pid
+	}
+	receipts, err := h.svc.ListReceipts(c.Request.Context(), supplierID, shared.GetStoreID(c), productID)
 	if err != nil {
 		writeError(c, err)
 		return
@@ -431,12 +435,15 @@ func (h *Handler) GetSettlement(c *gin.Context) {
 }
 
 func (h *Handler) ListSettlements(c *gin.Context) {
-	supplierID := queryInt(c, "supplier_id")
-	if supplierID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "supplier_id required"})
-		return
+	var supplierID *int
+	if sid := queryInt(c, "supplier_id"); sid > 0 {
+		supplierID = &sid
 	}
-	settlements, err := h.svc.ListSettlements(c.Request.Context(), supplierID, shared.GetStoreID(c))
+	var status *string
+	if s := c.Query("status"); s != "" {
+		status = &s
+	}
+	settlements, err := h.svc.ListSettlements(c.Request.Context(), supplierID, shared.GetStoreID(c), status)
 	if err != nil {
 		writeError(c, err)
 		return

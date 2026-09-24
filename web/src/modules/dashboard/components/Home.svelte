@@ -1,8 +1,8 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import { goto } from "$app/router";
   import { apiFetch } from "$shared/api/http-client";
-  import { StatCard } from "$shared/ui";
+  import { StatCard, RpIcon } from "$shared/ui";
   import {
     ShoppingCart,
     Package,
@@ -10,22 +10,51 @@
     Users,
     AlertTriangle,
     ArrowRight,
+    HandCoins,
+    Tags,
   } from "lucide-svelte";
-  import { RpIcon } from "$shared/ui";
   import { useWebSocket } from "$shared/api/websocket";
   import { labels } from "$shared/i18n";
+  import { useAuthStore } from "$modules/auth";
+  import PendingSettlementsModal from "$modules/consignment/components/PendingSettlementsModal.svelte";
+  import type { Component } from "svelte";
+
+  const RpIconComp = RpIcon as unknown as Component;
+  const ShoppingCartComp = ShoppingCart as unknown as Component;
+  const PackageComp = Package as unknown as Component;
+  const BarChart3Comp = BarChart3 as unknown as Component;
+  const UsersComp = Users as unknown as Component;
+  const AlertTriangleComp = AlertTriangle as unknown as Component;
+  const HandCoinsComp = HandCoins as unknown as Component;
+  const TagsComp = Tags as unknown as Component;
+
+  const auth = useAuthStore();
 
   let todaysRevenue = $state(0);
   let todaysSales = $state(0);
   let totalProducts = $state(0);
   let lowStockCount = $state(0);
+  let outOfStockCount = $state(0);
+  let categoriesCount = $state(0);
   let loading = $state(true);
   let wsConnected = $state(false);
+  let showPendingSettlements = $state(false);
 
   const ws = useWebSocket();
   const revSubText = $derived(
     todaysRevenue > 0 ? labels.invoicedToday : labels.noSalesYetToday,
   );
+
+  function hasPermission(perm: string): boolean {
+    const user = auth.user;
+    if (!user) return false;
+    if (user.role === "superadmin") return true;
+    return user.permissions?.includes(perm) ?? false;
+  }
+
+  function hasAnyPermission(perms: string[]): boolean {
+    return perms.some((p) => hasPermission(p));
+  }
 
   async function fetchLiveStats() {
     try {
@@ -37,6 +66,8 @@
           todaysSales = data.data.todays_sales || 0;
           totalProducts = data.data.total_products || 0;
           lowStockCount = data.data.low_stock_count || 0;
+          outOfStockCount = data.data.out_of_stock_count || 0;
+          categoriesCount = data.data.categories_count || 0;
         }
       }
     } catch (_err) {
@@ -52,7 +83,7 @@
       ws.status.subscribe((status) => {
         wsConnected = status === "connected";
       }),
-      ws.on("sale_created", (data) => {
+      ws.on("sale_created", (data: { total?: number }) => {
         if (data && data.total != null) {
           todaysRevenue += data.total;
           todaysSales += 1;
@@ -64,44 +95,76 @@
     };
   });
 
-  const modules = $derived([
-    {
-      label: labels.pointOfSale,
-      desc: labels.posDesc,
-      href: "/pos",
-      icon: ShoppingCart,
-      iconBg: "bg-primary-subtle",
-      iconColor: "text-primary-light",
-      gradient: "from-primary/10 to-accent/5",
-    },
-    {
-      label: labels.inventory,
-      desc: labels.inventoryDesc,
-      href: "/inventory/products",
-      icon: Package,
-      iconBg: "bg-success-subtle",
-      iconColor: "text-success-light",
-      gradient: "from-success/10 to-emerald-600/5",
-    },
-    {
-      label: labels.reports,
-      desc: labels.reportsDesc,
-      href: "/reports",
-      icon: BarChart3,
-      iconBg: "bg-info-subtle",
-      iconColor: "text-info-light",
-      gradient: "from-info/10 to-sky-600/5",
-    },
-    {
-      label: labels.administration,
-      desc: labels.administrationDesc,
-      href: "/admin",
-      icon: Users,
-      iconBg: "bg-warning-subtle",
-      iconColor: "text-warning-light",
-      gradient: "from-warning/10 to-amber-600/5",
-    },
-  ]);
+  const modules = $derived(
+    [
+      {
+        label: labels.pointOfSale,
+        desc: labels.posDesc,
+        href: "/pos",
+        icon: ShoppingCartComp,
+        iconBg: "bg-primary-subtle",
+        iconColor: "text-primary-light",
+        gradient: "from-primary/10 to-accent/5",
+        required: ["sale.create"],
+      },
+      {
+        label: labels.inventory,
+        desc: labels.inventoryDesc,
+        href: "/inventory/products",
+        icon: PackageComp,
+        iconBg: "bg-success-subtle",
+        iconColor: "text-success-light",
+        gradient: "from-success/10 to-emerald-600/5",
+        required: ["product.view"],
+      },
+      {
+        label: labels.reports,
+        desc: labels.reportsDesc,
+        href: "/reports",
+        icon: BarChart3Comp,
+        iconBg: "bg-info-subtle",
+        iconColor: "text-info-light",
+        gradient: "from-info/10 to-sky-600/5",
+        required: ["report.view"],
+      },
+      {
+        label: labels.administration,
+        desc: labels.administrationDesc,
+        href: "/admin",
+        icon: UsersComp,
+        iconBg: "bg-warning-subtle",
+        iconColor: "text-warning-light",
+        gradient: "from-warning/10 to-amber-600/5",
+        required: ["user.view", "role.view", "store.view"],
+      },
+    ].filter((m) => hasAnyPermission(m.required)),
+  );
+
+  const financeQuickAccess = $derived(
+    hasPermission("consignment.pay")
+      ? {
+          label: "Pending Settlements",
+          desc: "Settle supplier payments",
+          icon: HandCoinsComp,
+          iconBg: "bg-warning-subtle",
+          iconColor: "text-warning-light",
+          gradient: "from-warning/10 to-amber-600/5",
+        }
+      : null,
+  );
+
+  const visibleStatCards = $derived.by(() => {
+    const user = auth.user;
+    const role = typeof user?.role === "string" ? user.role : user?.role?.name;
+
+    const showCategories = role === "superadmin" || role === "manager";
+    const showOutOfStock = role === "superadmin" || role === "manager" || role === "supervisor";
+
+    return {
+      showCategories,
+      showOutOfStock,
+    };
+  });
 </script>
 
 <div class="space-y-8">
@@ -136,7 +199,7 @@
           label={labels.todayRevenue}
           value={loading ? "—" : todaysRevenue?.toLocaleString("id-ID") || 0}
           sub={revSubText}
-          icon={RpIcon}
+          icon={RpIconComp}
           iconBg="bg-primary-subtle"
           iconColor="text-primary-light"
           {loading}
@@ -149,36 +212,40 @@
           sub={todaysSales > 0
             ? labels.completedToday
             : labels.noTransactionsToday}
-          icon={ShoppingCart}
+          icon={ShoppingCartComp}
           iconBg="bg-success-subtle"
           iconColor="text-success-light"
           {loading}
         />
       </div>
-      <div class="animate-slide-up" style="animation-delay: 300ms;">
-        <StatCard
-          label={labels.totalProducts}
-          value={loading ? "—" : totalProducts?.toLocaleString("id-ID") || 0}
-          sub={labels.unitsInCatalog}
-          icon={Package}
-          iconBg="bg-info-subtle"
-          iconColor="text-info-light"
-          {loading}
-        />
-      </div>
-      <div class="animate-slide-up" style="animation-delay: 400ms;">
-        <StatCard
-          label={labels.lowStockAlerts}
-          value={loading ? "—" : lowStockCount?.toLocaleString("id-ID") || 0}
-          sub={lowStockCount > 0
-            ? labels.actionRequired
-            : labels.allStockHealthy}
-          icon={AlertTriangle}
-          iconBg="bg-warning-subtle"
-          iconColor="text-warning-light"
-          {loading}
-        />
-      </div>
+      {#if visibleStatCards.showCategories}
+        <div class="animate-slide-up" style="animation-delay: 300ms;">
+          <StatCard
+            label="Categories"
+            value={loading ? "—" : categoriesCount?.toLocaleString("id-ID") || 0}
+            sub="Active product categories"
+            icon={TagsComp}
+            iconBg="bg-info-subtle"
+            iconColor="text-info-light"
+            {loading}
+          />
+        </div>
+      {/if}
+      {#if visibleStatCards.showOutOfStock}
+        <div class="animate-slide-up" style="animation-delay: 350ms;">
+          <StatCard
+            label={labels.lowStockAlerts}
+            value={loading ? "—" : outOfStockCount?.toLocaleString("id-ID") || 0}
+            sub={outOfStockCount > 0
+              ? labels.actionRequired
+              : labels.allStockHealthy}
+            icon={AlertTriangleComp}
+            iconBg="bg-warning-subtle"
+            iconColor="text-warning-light"
+            {loading}
+          />
+        </div>
+      {/if}
     </div>
   </div>
 
@@ -189,12 +256,34 @@
       {labels.quickAccess}
     </h2>
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      {#if financeQuickAccess}
+        <button
+          type="button"
+          onclick={() => (showPendingSettlements = true)}
+          class="card-glass hover:-translate-y-1 transition-all p-5 text-left group bg-linear-to-br {financeQuickAccess.gradient} border-border cursor-pointer animate-slide-up"
+          style="animation-delay: 0ms"
+        >
+          <div class="flex items-start justify-between mb-4">
+            <div
+              class="w-11 h-11 rounded-xl {financeQuickAccess.iconBg} flex items-center justify-center"
+            >
+              <financeQuickAccess.icon size={22} class={financeQuickAccess.iconColor} />
+            </div>
+            <ArrowRight
+              size={16}
+              class="text-text-muted group-hover:text-text-primary group-hover:translate-x-0.5 transition-all"
+            />
+          </div>
+          <h3 class="font-semibold text-text-primary mb-1">{financeQuickAccess.label}</h3>
+          <p class="text-xs text-text-muted leading-snug">{financeQuickAccess.desc}</p>
+        </button>
+      {/if}
       {#each modules as mod, index (index)}
         <button
           type="button"
           onclick={() => goto(mod.href)}
           class="card-glass hover:-translate-y-1 transition-all p-5 text-left group bg-linear-to-br {mod.gradient} border-border cursor-pointer animate-slide-up"
-          style="animation-delay: {index * 100 + 500}ms"
+          style="animation-delay: {index * 100 + 100}ms"
         >
           <div class="flex items-start justify-between mb-4">
             <div
@@ -214,3 +303,5 @@
     </div>
   </div>
 </div>
+
+<PendingSettlementsModal bind:show={showPendingSettlements} />
