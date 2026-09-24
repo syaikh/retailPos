@@ -208,6 +208,8 @@
       toast.success(labels.consignmentTermAdded);
       editingTerm = null;
       clearSearchState();
+      filterQuery = "";
+      pageOffset = 0;
       onsaved?.();
     } catch (e: unknown) {
       toast.error(getApiErrorMessage(e, labels.consignmentTermsSaveError));
