@@ -54,7 +54,7 @@
       const methods = await listPaymentMethods();
       paymentMethods = methods.map((m) => ({
         value: m.id,
-        label: m.name || m.code,
+        label: m.code ? `${m.name} (${m.code})` : m.name,
       }));
     } catch {
       paymentMethods = [];
