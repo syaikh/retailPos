@@ -65,4 +65,39 @@ describe("TermsEditor.svelte source-structure guards", () => {
   it("has showCopied state for tracking copied SKUs", () => {
     expect(src).toContain("showCopied");
   });
+
+  it("filters the terms table by product name or SKU", () => {
+    expect(src).toContain("const filteredTerms = $derived(");
+    expect(src).toContain("filterQuery.trim()");
+    expect(src).toContain("t.product_name?.toLowerCase().includes(q)");
+    expect(src).toContain("t.product_sku?.toLowerCase().includes(q)");
+  });
+
+  it("paginates over the filtered terms, not the raw list", () => {
+    expect(src).toContain(
+      "filteredTerms.slice(pageOffset, pageOffset + pageLimit)",
+    );
+    expect(src).toContain("total={filteredTerms.length}");
+  });
+
+  it("uses SearchBar component for the terms filter input", () => {
+    expect(src).toContain("SearchBar");
+    expect(src).toContain("placeholder={labels.consignmentFilterByProduct}");
+    expect(src).toContain("bind:value={filterQuery}");
+    expect(src).toContain("oninput={handleFilterInput}");
+    // Only shown once terms are loaded and at least one term exists.
+    expect(src).toContain("{#if !loading && terms.length > 0}");
+  });
+
+  it("resets pagination to the first page when the filter input changes", () => {
+    expect(src).toContain("function handleFilterInput() {");
+    expect(src).toContain("pageOffset = 0");
+  });
+
+  it("shows a no-results empty state when the filter matches nothing", () => {
+    expect(src).toContain("filteredTerms.length === 0 && !editingTerm");
+    expect(src).toContain("icon={Search}");
+    expect(src).toContain("labels.noResultsFor");
+    expect(src).toContain("filterQuery.trim(),");
+  });
 });

@@ -7,8 +7,9 @@
     EmptyState,
     Pagination,
     FormattedNumberInput,
+    SearchBar,
   } from "$shared/ui";
-  import { Plus, Trash2, Loader2, Check, Copy, X } from "lucide-svelte";
+  import { Plus, Trash2, Loader2, Check, Copy, X, Search } from "lucide-svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { labels } from "$shared/i18n";
   import {
@@ -59,7 +60,21 @@
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
-  const pagedTerms = $derived(terms.slice(pageOffset, pageOffset + pageLimit));
+  let filterQuery = $state("");
+  const filteredTerms = $derived(
+    filterQuery.trim()
+      ? terms.filter((t) => {
+          const q = filterQuery.trim().toLowerCase();
+          return (
+            t.product_name?.toLowerCase().includes(q) ||
+            t.product_sku?.toLowerCase().includes(q)
+          );
+        })
+      : terms,
+  );
+  const pagedTerms = $derived(
+    filteredTerms.slice(pageOffset, pageOffset + pageLimit),
+  );
 
   async function load() {
     loading = true;
@@ -248,6 +263,10 @@
     pageLimit = newLimit;
   }
 
+  function handleFilterInput() {
+    pageOffset = 0;
+  }
+
   onMount(() => {
     load();
   });
@@ -255,17 +274,27 @@
 
 <div class="card">
   <div
-    class="flex items-center justify-between px-4 py-3 border-b border-border/50"
+    class="flex items-center gap-3 px-4 py-3 border-b border-border/50"
   >
-    <h2 class="font-semibold text-text-primary">
+    <h2 class="font-semibold text-text-primary whitespace-nowrap">
       {labels.consignmentTermsHeader}
     </h2>
-    {#if canUpdate}
-      <Button variant="secondary" size="sm" onclick={startAddTerm}>
-        <Plus class="w-4 h-4" />
-        {labels.consignmentAddProduct}
-      </Button>
+    {#if !loading && terms.length > 0}
+      <SearchBar
+        bind:value={filterQuery}
+        placeholder={labels.consignmentFilterByProduct}
+        oninput={handleFilterInput}
+        class="flex-1 max-w-xs"
+      />
     {/if}
+    <div class="ml-auto whitespace-nowrap">
+      {#if canUpdate}
+        <Button variant="secondary" size="sm" onclick={startAddTerm}>
+          <Plus class="w-4 h-4" />
+          {labels.consignmentAddProduct}
+        </Button>
+      {/if}
+    </div>
   </div>
 
   {#if loading}
@@ -277,6 +306,14 @@
       icon={Plus}
       title={labels.consignmentNoTerms}
       subtitle={labels.consignmentNoTermsSubtitle}
+    />
+  {:else if filteredTerms.length === 0 && !editingTerm}
+    <EmptyState
+      icon={Search}
+      title={labels.noResultsFor.replace(
+        "{query}",
+        filterQuery.trim(),
+      )}
     />
   {:else}
     <div class="overflow-x-auto">
@@ -497,7 +534,7 @@
     {/if}
     <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
       <Pagination
-        total={terms.length}
+        total={filteredTerms.length}
         limit={pageLimit}
         offset={pageOffset}
         onPageChange={handlePageChange}
