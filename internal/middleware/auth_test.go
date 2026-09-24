@@ -476,6 +476,15 @@ func TestRequireStoreID(t *testing.T) {
 			wantCode: http.StatusOK,
 		},
 		{
+			// AuthMiddleware stores a typed *int even when the claim is nil;
+			// a bare == nil check on any would let this through.
+			name:     "manager with typed-nil store returns 403",
+			role:     "manager",
+			storeID:  (*int)(nil),
+			setStore: true,
+			wantCode: http.StatusForbidden,
+		},
+		{
 			name:     "cashier with store passes",
 			role:     "cashier",
 			storeID:  intPtr(1),

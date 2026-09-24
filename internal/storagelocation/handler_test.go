@@ -3,6 +3,7 @@ package storagelocation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -273,14 +274,14 @@ func TestHandler_ErrorBranches(t *testing.T) {
 		req, _ := http.NewRequest("PUT", "/storage-locations/999999999", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("delete not found", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("DELETE", "/storage-locations/999999999", nil)
 		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("bulk update bad json", func(t *testing.T) {
@@ -452,6 +453,32 @@ func TestHandler_StoreBoundary403(t *testing.T) {
 		ownID = resp.Data.ID
 	})
 
+	t.Run("create with both scopes returns 400", func(t *testing.T) {
+		body := fmt.Sprintf(`{"code":"H403-DUAL","name":"Dual","store_id":%d,"warehouse_id":%d}`, storeA, whA)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/storage-locations", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "only one of warehouse_id or store_id may be set")
+	})
+
+	t.Run("update with both scopes returns 400 and leaves the row untouched", func(t *testing.T) {
+		body := fmt.Sprintf(`{"name":"Own Dual Edit","store_id":%d,"warehouse_id":%d}`, storeA, whA)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", fmt.Sprintf("/storage-locations/%d", ownID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "only one of warehouse_id or store_id may be set")
+
+		got, err := repo.GetByID(context.Background(), ownID)
+		require.NoError(t, err)
+		assert.Equal(t, "Own Store Loc", got.Name, "rejected update must not write")
+		assert.Equal(t, storeA, *got.StoreID, "scope must be unchanged")
+		assert.Nil(t, got.WarehouseID, "scope must be unchanged")
+	})
+
 	t.Run("get foreign id returns 403", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", fmt.Sprintf("/storage-locations/%d", locB.ID), nil)
@@ -534,4 +561,103 @@ func TestHandler_StoreBoundary403(t *testing.T) {
 		assert.Contains(t, ids, locViaWhA.ID, "own warehouse-linked row must appear")
 		assert.NotContains(t, ids, locB.ID, "foreign row must not appear in store-scoped list")
 	})
+
+	t.Run("update switching own scope store to warehouse and back", func(t *testing.T) {
+		// Switch the store-scoped row to the own warehouse (the edit modal's
+		// warehouse↔store toggle sends only the selected scope field).
+		body := fmt.Sprintf(`{"warehouse_id":%d}`, whA)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", fmt.Sprintf("/storage-locations/%d", ownID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var resp struct {
+			Data StorageLocation `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		require.NotNil(t, resp.Data.WarehouseID)
+		assert.Equal(t, whA, *resp.Data.WarehouseID)
+		assert.Nil(t, resp.Data.StoreID, "scope switch must clear the other field")
+
+		// A switch to a foreign warehouse is rejected and the scope stays put.
+		foreignBody := fmt.Sprintf(`{"warehouse_id":%d}`, whB)
+		w2 := httptest.NewRecorder()
+		req2, _ := http.NewRequest("PUT", fmt.Sprintf("/storage-locations/%d", ownID), strings.NewReader(foreignBody))
+		req2.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w2, req2)
+		assert.Equal(t, http.StatusForbidden, w2.Code)
+
+		// Restore the store scope so later assertions see the original shape.
+		restore := fmt.Sprintf(`{"store_id":%d}`, storeA)
+		w3 := httptest.NewRecorder()
+		req3, _ := http.NewRequest("PUT", fmt.Sprintf("/storage-locations/%d", ownID), strings.NewReader(restore))
+		req3.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w3, req3)
+		assert.Equal(t, http.StatusOK, w3.Code)
+
+		got, err := repo.GetByID(context.Background(), ownID)
+		require.NoError(t, err)
+		require.NotNil(t, got.StoreID)
+		assert.Equal(t, storeA, *got.StoreID)
+		assert.Nil(t, got.WarehouseID)
+	})
+}
+
+func TestHandler_GetByID_DBErrorReturns500(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mock, repo, _ := newMockRepo(t)
+	mock.ExpectQuery("SELECT sl.id").WithArgs(1).WillReturnError(errors.New("db down"))
+
+	h := NewHandler(NewService(repo), nil)
+	r := gin.New()
+	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/storage-locations/1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code,
+		"a repository failure must surface as 500, not be masked as 404")
+	assert.Contains(t, w.Body.String(), "internal server error")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestHandler_Update_DBErrorReturns500(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mock, repo, _ := newMockRepo(t)
+	mock.ExpectQuery("SELECT sl.id").WithArgs(1).WillReturnError(errors.New("db down"))
+
+	h := NewHandler(NewService(repo), nil)
+	r := gin.New()
+	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/storage-locations/1", strings.NewReader(`{"name":"X"}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code,
+		"a repository failure during update must surface as 500, not as 400/404")
+	assert.Contains(t, w.Body.String(), "internal server error")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestHandler_Delete_DBErrorReturns500(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mock, repo, _ := newMockRepo(t)
+	mock.ExpectQuery("SELECT sl.id").WithArgs(1).WillReturnError(errors.New("db down"))
+
+	h := NewHandler(NewService(repo), nil)
+	r := gin.New()
+	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", "/storage-locations/1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code,
+		"a repository failure during delete must surface as 500, not as 400/404")
+	assert.Contains(t, w.Body.String(), "internal server error")
+	require.NoError(t, mock.ExpectationsWereMet())
 }

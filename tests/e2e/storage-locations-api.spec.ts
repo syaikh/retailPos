@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect, API_BASE } from './fixtures';
 import { apiAs, loginDriver, type ApiDriver } from './api-driver';
 import { TestDataTracker, execSQL, querySQL } from './db-helper';
 
@@ -221,6 +221,77 @@ test.describe('Storage locations store boundary (API)', () => {
     expect(ownWH.body.data.warehouse_id).toBe(whA);
   });
 
+  test('create with both store_id and warehouse_id → 400 (single-scope rule)', async () => {
+    const asSuper = await superadmin.post('/api/storage-locations', {
+      code: `DUL${suffix}`,
+      name: 'Dual Scope Loc',
+      store_id: storeA.id,
+      warehouse_id: whA,
+    });
+    expect(asSuper.status, JSON.stringify(asSuper.body)).toBe(400);
+    expect(String(asSuper.body.error)).toContain('only one of warehouse_id or store_id');
+
+    const asManager = await driverA.post('/api/storage-locations', {
+      code: `DLM${suffix}`,
+      name: 'Dual Scope Manager',
+      store_id: storeA.id,
+      warehouse_id: whA,
+    });
+    expect(asManager.status, JSON.stringify(asManager.body)).toBe(400);
+  });
+
+  test('update with both store_id and warehouse_id → 400 (single-scope rule)', async () => {
+    const res = await driverA.put(`/api/storage-locations/${locA.id}`, {
+      name: locA.name,
+      store_id: storeA.id,
+      warehouse_id: whA,
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(400);
+    expect(String(res.body.error)).toContain('only one of warehouse_id or store_id');
+
+    const check = await superadmin.get(`/api/storage-locations/${locA.id}`);
+    expect(check.status).toBe(200);
+    expect(check.body.data.name).toBe(locA.name);
+    expect(check.body.data.store_id).toBe(storeA.id);
+    expect(check.body.data.warehouse_id ?? null).toBeNull();
+  });
+
+  test('GET /api/warehouses without a token → 401 (no longer on the public router)', async ({
+    request,
+  }) => {
+    const res = await request.get(`${API_BASE}/api/warehouses`);
+    expect(res.status()).toBe(401);
+  });
+
+  test('scope pickers only offer own store and its warehouses', async () => {
+    // GET /api/warehouses and /api/stores/active feed the scope pickers in
+    // the create/edit modals — they must be store-scoped so the UI never
+    // offers an option the server will 403 on submit.
+    const whRes = await driverA.get('/api/warehouses');
+    expect(whRes.status, JSON.stringify(whRes.body)).toBe(200);
+    const whIds = (whRes.body.data || []).map((w: { id: number }) => w.id);
+    expect(whIds).toContain(whA);
+    expect(whIds).not.toContain(whB);
+    expect(whIds).not.toContain(centralWh);
+
+    const storesRes = await driverA.get('/api/stores/active');
+    expect(storesRes.status, JSON.stringify(storesRes.body)).toBe(200);
+    const storeIds = (storesRes.body.data || []).map((s: { id: number }) => s.id);
+    expect(storeIds).toContain(storeA.id);
+    expect(storeIds).not.toContain(storeB.id);
+
+    // Superadmin sees everything, including the central warehouse.
+    const superWh = await superadmin.get('/api/warehouses');
+    expect(superWh.status).toBe(200);
+    const superWhIds = (superWh.body.data || []).map((w: { id: number }) => w.id);
+    expect(superWhIds).toEqual(expect.arrayContaining([whA, whB, centralWh]));
+
+    const superStores = await superadmin.get('/api/stores/active');
+    expect(superStores.status).toBe(200);
+    const superStoreIds = (superStores.body.data || []).map((s: { id: number }) => s.id);
+    expect(superStoreIds).toEqual(expect.arrayContaining([storeA.id, storeB.id]));
+  });
+
   test('update own row → 200', async () => {
     const upd = await driverA.put(`/api/storage-locations/${locA.id}`, {
       name: 'E2E Loc A Renamed',
@@ -295,5 +366,44 @@ test.describe('Storage locations store boundary (API)', () => {
       is_active: true,
     });
     expect(restore.status).toBe(200);
+  });
+
+  test('store detail endpoint is store-scoped', async () => {
+    const own = await driverA.get(`/api/stores/${storeA.id}`);
+    expect(own.status, JSON.stringify(own.body)).toBe(200);
+    expect(own.body.data.id).toBe(storeA.id);
+
+    const foreign = await driverA.get(`/api/stores/${storeB.id}`);
+    expect(foreign.status, JSON.stringify(foreign.body)).toBe(403);
+
+    const superGet = await superadmin.get(`/api/stores/${storeB.id}`);
+    expect(superGet.status).toBe(200);
+    expect(superGet.body.data.id).toBe(storeB.id);
+  });
+
+  test('update switching scope replaces it as a unit', async () => {
+    // store → own warehouse (the edit modal's scope toggle sends one field).
+    const toWh = await driverA.put(`/api/storage-locations/${locA.id}`, {
+      warehouse_id: whA,
+    });
+    expect(toWh.status, JSON.stringify(toWh.body)).toBe(200);
+    expect(toWh.body.data.warehouse_id).toBe(whA);
+    expect(toWh.body.data.store_id ?? null).toBeNull();
+
+    // A switch to a foreign warehouse is rejected; scope stays put.
+    const toForeign = await driverA.put(`/api/storage-locations/${locA.id}`, {
+      warehouse_id: whB,
+    });
+    expect(toForeign.status, JSON.stringify(toForeign.body)).toBe(403);
+    const check = await superadmin.get(`/api/storage-locations/${locA.id}`);
+    expect(check.body.data.warehouse_id).toBe(whA);
+
+    // Restore the store scope for any later runs.
+    const back = await driverA.put(`/api/storage-locations/${locA.id}`, {
+      store_id: storeA.id,
+    });
+    expect(back.status, JSON.stringify(back.body)).toBe(200);
+    expect(back.body.data.store_id).toBe(storeA.id);
+    expect(back.body.data.warehouse_id ?? null).toBeNull();
   });
 });

@@ -53,6 +53,7 @@ func TestService_GetByID_NotFound(t *testing.T) {
 
 	_, err := svc.GetByID(ctx, 999999, nil)
 	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrNotFound)
 }
 
 func TestService_Create_Success(t *testing.T) {
@@ -181,6 +182,7 @@ func TestService_Update_NotFound(t *testing.T) {
 	code := "X"
 	_, err := svc.Update(ctx, 999999, UpdateRequest{Code: &code}, nil)
 	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrNotFound)
 	assert.Contains(t, err.Error(), "not found")
 }
 
@@ -231,6 +233,7 @@ func TestService_Delete_NotFound(t *testing.T) {
 
 	err := svc.Delete(ctx, 999999, nil)
 	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrNotFound)
 	assert.Contains(t, err.Error(), "not found")
 }
 
@@ -372,6 +375,61 @@ func TestService_StoreBoundary(t *testing.T) {
 		assert.Equal(t, storeA, *created.StoreID)
 	})
 
+	t.Run("Create with both store and warehouse rejected", func(t *testing.T) {
+		_, err := svc.Create(ctx, CreateRequest{Code: "BOUND-DUAL", Name: "Dual", StoreID: &storeA, WarehouseID: &whA}, &storeA)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "only one of warehouse_id or store_id may be set")
+	})
+
+	t.Run("Update switching store scope to warehouse succeeds", func(t *testing.T) {
+		created, err := svc.Create(ctx, CreateRequest{Code: "BOUND-UPD", Name: "Upd", StoreID: &storeA}, &storeA)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = repo.Delete(ctx, created.ID) })
+
+		updated, err := svc.Update(ctx, created.ID, UpdateRequest{WarehouseID: &whA}, &storeA)
+		require.NoError(t, err)
+		assert.Equal(t, whA, *updated.WarehouseID, "scope is replaced as a unit")
+		assert.Nil(t, updated.StoreID, "switching scope clears the other field")
+
+		got, err := repo.GetByID(ctx, created.ID)
+		require.NoError(t, err)
+		assert.Equal(t, whA, *got.WarehouseID)
+		assert.Nil(t, got.StoreID)
+	})
+
+	t.Run("Update carrying both scope fields rejected", func(t *testing.T) {
+		created, err := svc.Create(ctx, CreateRequest{Code: "BOUND-BOTH", Name: "Both", StoreID: &storeA}, &storeA)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = repo.Delete(ctx, created.ID) })
+
+		_, err = svc.Update(ctx, created.ID, UpdateRequest{WarehouseID: &whA, StoreID: &storeA}, &storeA)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "only one of warehouse_id or store_id may be set")
+
+		got, err := repo.GetByID(ctx, created.ID)
+		require.NoError(t, err)
+		assert.Equal(t, storeA, *got.StoreID, "scope must be unchanged after rejected update")
+		assert.Nil(t, got.WarehouseID, "scope must be unchanged after rejected update")
+	})
+
+	t.Run("name-only edit allowed on legacy dual row", func(t *testing.T) {
+		legacy := &StorageLocation{Code: "BOUND-LEGACY", Name: "Legacy Dual", StoreID: &storeA, WarehouseID: &whA, IsActive: true}
+		require.NoError(t, repo.Create(ctx, legacy))
+		t.Cleanup(func() { _ = repo.Delete(ctx, legacy.ID) })
+
+		newName := "Legacy Renamed"
+		updated, err := svc.Update(ctx, legacy.ID, UpdateRequest{Name: &newName}, &storeA)
+		require.NoError(t, err)
+		assert.Equal(t, newName, updated.Name)
+
+		// A scope field replaces the whole scope, so a legacy dual row can be
+		// resolved to a single scope instead of permanently rejecting edits.
+		updated, err = svc.Update(ctx, legacy.ID, UpdateRequest{StoreID: &storeA}, &storeA)
+		require.NoError(t, err)
+		assert.Equal(t, storeA, *updated.StoreID)
+		assert.Nil(t, updated.WarehouseID, "scope replace clears the legacy warehouse")
+	})
+
 	t.Run("Update moving to foreign warehouse forbidden", func(t *testing.T) {
 		newName := "Renamed"
 		_, err := svc.Update(ctx, locA.ID, UpdateRequest{Name: &newName, WarehouseID: &whB}, &storeA)
@@ -379,6 +437,14 @@ func TestService_StoreBoundary(t *testing.T) {
 		got, err := repo.GetByID(ctx, locA.ID)
 		require.NoError(t, err)
 		assert.Equal(t, locA.Name, got.Name)
+	})
+
+	t.Run("Update switching to central warehouse forbidden for store caller", func(t *testing.T) {
+		_, err := svc.Update(ctx, locA.ID, UpdateRequest{WarehouseID: &centralWH}, &storeA)
+		assert.ErrorIs(t, err, ErrStoreForbidden)
+		got, err := repo.GetByID(ctx, locA.ID)
+		require.NoError(t, err)
+		assert.Equal(t, whA, *got.WarehouseID, "rejected scope switch must not write")
 	})
 
 	t.Run("Update own row succeeds", func(t *testing.T) {

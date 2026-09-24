@@ -14,6 +14,12 @@ The correct pattern already exists: `checkRackStore` (`internal/inventory/locati
 4. Strict bulk: any foreign ID → 403, **no partial write**.
 5. E2E simulation included, with a UI list-scoping test.
 
+## Post-review amendments (current behavior)
+
+1. **Update scope is replace-as-a-unit, not merge.** Supplying exactly one of `warehouse_id`/`store_id` replaces the whole scope (clears the other); both → 400; neither → keeps the row's scope (legacy dual-scoped rows stay name-editable). This matches the edit modal's scope toggle, which submits only the selected field. Reads keep store-wins resolution for legacy dual rows (`repository.go:58`); dual-scope writes are rejected everywhere.
+2. **Error classification** (`handler.go:writeError`): `ErrStoreForbidden` → 403, `ErrNotFound` → 404 (missing row on GET/PUT/DELETE — was 400), `ErrInternal` (`wrapInternal` around every repository failure) → 500 (DB outages never surface as 400/404), binding/validation → 400.
+3. **Endpoint scoping (review item 5).** `/api/warehouses` requires auth (401 unauthenticated); `/api/stores` and `/api/stores/active` are JWT-store-scoped; `store` `GetByID`/`Update`/`Delete` guarded by `requireOwnStore` (403 cross-store, superadmin bypass). All four `store` handlers classify service errors via `writeError`: missing → 404, repository failure (`ErrInternal`/`wrapRepoErr`) → 500, validation → 400. The stores `ExportData` adapter derives the scope from `middleware.StoreIDFromContext(ctx)` (same pattern as product export), so a scoped export can never leak other stores.
+
 ## Key constraint
 
 `archtest` limits `storagelocation` SQL to only `storage_locations` (`internal/archtest/archtest_test.go:207-209`). The List filter **cannot** subquery `warehouses`; all warehouse→store resolution goes through the `ExistenceProvider` port owned by `internal/store`.
@@ -50,14 +56,14 @@ The correct pattern already exists: `checkRackStore` (`internal/inventory/locati
 3. Add `storeID *int` param to `GetByID / Create / Update / Delete / BulkUpdate / BulkDelete`:
    - **GetByID/Delete**: load → `ensureStoreScope`.
    - **Create**: after existence check, body `store_id` must equal caller; `warehouse_id` must resolve to caller → else 403.
-   - **Update**: scope-check existing row **and** final merged `warehouse_id`/`store_id`.
+   - **Update**: scope-check existing row **and** the replacement scope (see amendment 1 below).
    - **Bulk (strict)**: `GetByIDs` → scope-check each existing row → any foreign → `ErrStoreForbidden`; nonexistent IDs remain no-ops.
 4. Delete `Service.GetAllActive`.
 
 ## Step 5 — Handler (`internal/storagelocation/handler.go`)
 
 - Pass `shared.GetStoreID(c)` to all six service calls.
-- `errors.Is(err, ErrStoreForbidden)` → `403` in every error path (add branch **before** GetByID's 404 and before Create/Update/Delete/Bulk's 400).
+- `errors.Is(err, ErrStoreForbidden)` → `403` in every error path (add branch **before** GetByID's 404 and before Create/Update/Delete/Bulk's 400). See amendments 2–3 below for the current error classification.
 
 ## Step 6 — Go tests (`internal/storagelocation/`)
 

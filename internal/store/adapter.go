@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"retail-pos-system/internal/middleware"
 	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
@@ -97,7 +98,8 @@ func (r *storeRepoAdapter) Update(ctx context.Context, entities []interface{}) (
 }
 
 func (r *storeRepoAdapter) ExportData(ctx context.Context, _ importexportshared.ModuleSchema) ([]map[string]interface{}, error) {
-	stores, _, err := r.repo.GetAll(ctx, 10000, 0, "", nil)
+	storeID := middleware.StoreIDFromContext(ctx)
+	stores, _, err := r.repo.GetAll(ctx, 10000, 0, "", nil, storeID)
 	if err != nil {
 		return nil, err
 	}

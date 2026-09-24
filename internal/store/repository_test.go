@@ -58,21 +58,21 @@ func TestStoreRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("Get all with pagination", func(t *testing.T) {
-		stores, total, err := repo.GetAll(ctx, 10, 0, "", nil)
+		stores, total, err := repo.GetAll(ctx, 10, 0, "", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(stores), 1)
 	})
 
 	t.Run("Get all with search", func(t *testing.T) {
-		stores, total, err := repo.GetAll(ctx, 10, 0, "Test Store", nil)
+		stores, total, err := repo.GetAll(ctx, 10, 0, "Test Store", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(stores), 1)
 	})
 
 	t.Run("Get all active", func(t *testing.T) {
-		stores, err := repo.GetAllActive(ctx)
+		stores, err := repo.GetAllActive(ctx, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(stores), 1)
 	})
@@ -142,7 +142,7 @@ func TestStoreRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		ff := false
-		stores, total, err := repo.GetAll(ctx, 10, 0, "", &ff)
+		stores, total, err := repo.GetAll(ctx, 10, 0, "", &ff, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, st := range stores {
@@ -152,7 +152,7 @@ func TestStoreRepository_CRUD(t *testing.T) {
 
 	t.Run("GetAll with is_active true", func(t *testing.T) {
 		tf := true
-		stores, _, err := repo.GetAll(ctx, 10, 0, "", &tf)
+		stores, _, err := repo.GetAll(ctx, 10, 0, "", &tf, nil)
 		require.NoError(t, err)
 		for _, st := range stores {
 			assert.True(t, st.IsActive)
@@ -165,14 +165,14 @@ func TestStoreRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		tf := true
-		stores, total, err := repo.GetAll(ctx, 10, 0, "DualFilter", &tf)
+		stores, total, err := repo.GetAll(ctx, 10, 0, "DualFilter", &tf, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Equal(t, "Repo DualFilter", stores[0].Name)
 	})
 
 	t.Run("GetAll empty result", func(t *testing.T) {
-		stores, total, err := repo.GetAll(ctx, 10, 0, "ZZZNonexistentXYZ", nil)
+		stores, total, err := repo.GetAll(ctx, 10, 0, "ZZZNonexistentXYZ", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.NotNil(t, stores)
@@ -180,7 +180,7 @@ func TestStoreRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("GetAllActive", func(t *testing.T) {
-		stores, err := repo.GetAllActive(ctx)
+		stores, err := repo.GetAllActive(ctx, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, stores)
 	})
@@ -253,5 +253,74 @@ func TestStoreRepository_WarehouseQueries(t *testing.T) {
 			}
 		}
 		assert.True(t, found)
+	})
+}
+
+func TestStoreRepository_StoreScopeFilter(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	own := &Store{Name: "SCOPE Own Alpha", IsActive: true}
+	require.NoError(t, repo.Create(ctx, own))
+	other := &Store{Name: "SCOPE Other Beta", IsActive: true}
+	require.NoError(t, repo.Create(ctx, other))
+	inactive := &Store{Name: "SCOPE Inactive Gamma", IsActive: false}
+	require.NoError(t, repo.Create(ctx, inactive))
+
+	t.Run("GetAll with storeID returns only the caller store", func(t *testing.T) {
+		stores, total, err := repo.GetAll(ctx, 50, 0, "", nil, &own.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		require.Len(t, stores, 1)
+		assert.Equal(t, own.ID, stores[0].ID)
+	})
+
+	t.Run("GetAll storeID filter applies on top of search", func(t *testing.T) {
+		stores, total, err := repo.GetAll(ctx, 50, 0, "SCOPE Other", nil, &own.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, total, "foreign store must not leak through search")
+		assert.Empty(t, stores)
+
+		stores, total, err = repo.GetAll(ctx, 50, 0, "SCOPE Other", nil, &other.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		require.Len(t, stores, 1)
+		assert.Equal(t, other.ID, stores[0].ID)
+	})
+
+	t.Run("GetAll combines storeID, search and isActive filters", func(t *testing.T) {
+		ff := false
+		stores, total, err := repo.GetAll(ctx, 50, 0, "SCOPE Inactive", &ff, &inactive.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		require.Len(t, stores, 1)
+		assert.Equal(t, inactive.ID, stores[0].ID)
+		assert.False(t, stores[0].IsActive)
+	})
+
+	t.Run("GetAllActive with storeID returns only the caller active store", func(t *testing.T) {
+		stores, err := repo.GetAllActive(ctx, &own.ID)
+		require.NoError(t, err)
+		require.Len(t, stores, 1)
+		assert.Equal(t, own.ID, stores[0].ID)
+	})
+
+	t.Run("GetAllActive with an inactive storeID returns nothing", func(t *testing.T) {
+		stores, err := repo.GetAllActive(ctx, &inactive.ID)
+		require.NoError(t, err)
+		assert.Empty(t, stores)
+	})
+
+	t.Run("GetAllActive without storeID returns every active store", func(t *testing.T) {
+		stores, err := repo.GetAllActive(ctx, nil)
+		require.NoError(t, err)
+		ids := make([]int, 0, len(stores))
+		for _, s := range stores {
+			ids = append(ids, s.ID)
+		}
+		assert.Contains(t, ids, own.ID)
+		assert.Contains(t, ids, other.ID)
+		assert.NotContains(t, ids, inactive.ID)
 	})
 }

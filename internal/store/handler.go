@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -23,6 +24,10 @@ func NewHandler(svc *Service, auditSvc audit.Creator) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	// Warehouses were previously public; scoping requires the caller's
+	// identity, so the route now lives behind auth (store-boundary filter:
+	// store-scoped callers only see their own store's warehouses).
+	r.GET("/warehouses", auth, h.ListWarehouses)
 	sg := r.Group("/stores")
 	sg.GET("", auth, perm(permissions.StoreView), h.List)
 	sg.GET("/active", auth, perm(permissions.StoreView), h.ListActive)
@@ -32,20 +37,42 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	sg.DELETE("/:id", auth, perm(permissions.StoreDelete), h.Delete)
 }
 
-func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
-	r.GET("/warehouses", h.ListWarehouses)
+// requireOwnStore blocks a store-scoped caller from reading or mutating a
+// different store, mirroring the list scoping (superadmin's nil store bypasses).
+// It writes the 403 response itself and returns false when the request must stop.
+func requireOwnStore(c *gin.Context, id int) bool {
+	if sid := shared.GetStoreID(c); sid != nil && *sid != id {
+		c.JSON(http.StatusForbidden, gin.H{"error": "store is outside your scope"})
+		return false
+	}
+	return true
+}
+
+// writeError maps store service errors to HTTP responses: 404 for
+// ErrNotFound, 500 for repository failures (ErrInternal), 400 for
+// validation errors.
+func writeError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, ErrNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "store not found"})
+	case errors.Is(err, ErrInternal):
+		shared.InternalError(c, err)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
 }
 
 // ListWarehouses godoc
 // @Summary List warehouses
-// @Description Get all active warehouses
+// @Description Get active warehouses, scoped to the caller's store (superadmin sees all, including central warehouses)
 // @Tags Stores
 // @Accept json
 // @Produce json
+// @Security BearerAuth
 // @Success 200 {object} map[string]interface{}
 // @Router /warehouses [get]
 func (h *Handler) ListWarehouses(c *gin.Context) {
-	warehouses, err := h.svc.GetAllWarehouses(c.Request.Context())
+	warehouses, err := h.svc.GetAllWarehouses(c.Request.Context(), shared.GetStoreID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch warehouses"})
 		return
@@ -79,7 +106,7 @@ func (h *Handler) List(c *gin.Context) {
 		isActive = &b
 	}
 
-	stores, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, isActive)
+	stores, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, isActive, shared.GetStoreID(c))
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -97,7 +124,7 @@ func (h *Handler) List(c *gin.Context) {
 // @Success      200  {object}  map[string]interface{}
 // @Router       /stores/active [get]
 func (h *Handler) ListActive(c *gin.Context) {
-	stores, err := h.svc.GetAllActive(c.Request.Context())
+	stores, err := h.svc.GetAllActive(c.Request.Context(), shared.GetStoreID(c))
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -121,10 +148,13 @@ func (h *Handler) GetByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+	if !requireOwnStore(c, id) {
+		return
+	}
 
 	store, err := h.svc.GetByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "store not found"})
+		writeError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": store})
@@ -149,7 +179,7 @@ func (h *Handler) Create(c *gin.Context) {
 
 	st, err := h.svc.Create(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeError(c, err)
 		return
 	}
 
@@ -189,6 +219,9 @@ func (h *Handler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+	if !requireOwnStore(c, id) {
+		return
+	}
 
 	var oldStore *Store
 	if h.auditSvc != nil {
@@ -203,7 +236,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	st, err := h.svc.Update(c.Request.Context(), id, req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeError(c, err)
 		return
 	}
 
@@ -245,9 +278,12 @@ func (h *Handler) Delete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+	if !requireOwnStore(c, id) {
+		return
+	}
 
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeError(c, err)
 		return
 	}
 

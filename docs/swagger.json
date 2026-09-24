@@ -185,7 +185,7 @@
                     },
                     {
                         "type": "string",
-                        "description": "Search name",
+                        "description": "Search name or description",
                         "name": "search",
                         "in": "query"
                     },
@@ -230,13 +230,91 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/customergroup.CustomerGroupCreateRequest"
+                            "$ref": "#/definitions/customergroup.CreateRequest"
                         }
                     }
                 ],
                 "responses": {
                     "201": {
                         "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/customer-groups/bulk": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Activate or deactivate multiple customer groups",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Customer Groups"
+                ],
+                "summary": "Bulk update customer groups",
+                "parameters": [
+                    {
+                        "description": "Bulk update payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete multiple customer groups",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Customer Groups"
+                ],
+                "summary": "Bulk delete customer groups",
+                "parameters": [
+                    {
+                        "description": "Bulk delete payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -313,7 +391,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/customergroup.CustomerGroupUpdateRequest"
+                            "$ref": "#/definitions/customergroup.UpdateRequest"
                         }
                     }
                 ],
@@ -502,6 +580,548 @@
                 }
             }
         },
+        "/inventory/locations": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rack stock rows (product per storage location). Filter by product_id and/or location_id.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Inventory"
+                ],
+                "summary": "List rack-level stock",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Product ID",
+                        "name": "product_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Storage location ID",
+                        "name": "location_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/inventory.LocationStockItem"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sets how much of a product sits in a storage location (upsert). Does not change global stock.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Inventory"
+                ],
+                "summary": "Record rack stock for a product",
+                "parameters": [
+                    {
+                        "description": "{product_id, location_id, quantity}",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/inventory/locations/transfer": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Moves quantity of a product from one storage location to another. Global stock is unchanged.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Inventory"
+                ],
+                "summary": "Transfer stock between racks",
+                "parameters": [
+                    {
+                        "description": "{product_id, from_location_id, to_location_id, quantity}",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pos/cart": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cart"
+                ],
+                "summary": "Get the open cart for the current cashier",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cart"
+                ],
+                "summary": "Get or create the open cart for the current cashier",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pos/cart/held": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cart"
+                ],
+                "summary": "List held carts for the current cashier",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pos/cart/items": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cart"
+                ],
+                "summary": "Add an item to the open cart",
+                "parameters": [
+                    {
+                        "description": "Item payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/sale.AddCartItemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pos/cart/items/{itemId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "cart"
+                ],
+                "summary": "Remove an item from the open cart",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Cart Item ID",
+                        "name": "itemId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cart"
+                ],
+                "summary": "Update the quantity of a cart item",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Cart Item ID",
+                        "name": "itemId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Quantity payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/sale.UpdateCartItemQuantityRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pos/cart/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cart"
+                ],
+                "summary": "Get a cart by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Cart ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pos/cart/{id}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cart"
+                ],
+                "summary": "Cancel (discard) a held cart session",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Cart ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pos/cart/{id}/checkout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cart"
+                ],
+                "summary": "Checkout a cart, converting it into a completed sale",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Cart ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Payments payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pos/cart/{id}/customer": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cart"
+                ],
+                "summary": "Set the customer on a cart",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Cart ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Customer payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/sale.UpdateCartCustomerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pos/cart/{id}/hold": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cart"
+                ],
+                "summary": "Hold the cart, parking it for later recall",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Cart ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pos/cart/{id}/resume": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cart"
+                ],
+                "summary": "Resume a held cart",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Cart ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/pricing-rules": {
             "get": {
                 "security": [
@@ -588,6 +1208,12 @@
                         "description": "Filter by active status",
                         "name": "is_active",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by approval status (draft|pending|approved|rejected)",
+                        "name": "status",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -624,13 +1250,53 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/pricing.PricingRule"
+                            "$ref": "#/definitions/pricing.Rule"
                         }
                     }
                 ],
                 "responses": {
                     "201": {
                         "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pricing-rules/check-conflicts": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Check if a proposed rule would conflict with existing active rules",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Pricing"
+                ],
+                "summary": "Check for conflicting pricing rules",
+                "parameters": [
+                    {
+                        "description": "Rule to check",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pricing.checkConflictsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -707,7 +1373,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/pricing.PricingRule"
+                            "$ref": "#/definitions/pricing.Rule"
                         }
                     }
                 ],
@@ -738,6 +1404,120 @@
                     "Pricing"
                 ],
                 "summary": "Delete a pricing rule",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Rule ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pricing-rules/{id}/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Transition a pending rule to approved status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Pricing"
+                ],
+                "summary": "Approve a pricing rule",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Rule ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pricing-rules/{id}/reject": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Transition a pending rule to rejected status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Pricing"
+                ],
+                "summary": "Reject a pricing rule",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Rule ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/pricing-rules/{id}/submit": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Transition a draft rule to pending status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Pricing"
+                ],
+                "summary": "Submit rule for approval",
                 "parameters": [
                     {
                         "type": "integer",
@@ -917,6 +1697,30 @@
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/products/options": {
+            "get": {
+                "description": "Get id, sku, and name for all active products",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "products"
+                ],
+                "summary": "List active product options",
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1167,7 +1971,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a new sale with items. Invoice number is auto-generated if omitted.",
+                "description": "Create a new sale with items. Prices, discounts, tax, store, and",
                 "consumes": [
                     "application/json"
                 ],
@@ -1288,6 +2092,202 @@
                 }
             }
         },
+        "/sales/lookup": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Search transactions across all cashiers. Unlike /sales (which",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sales"
+                ],
+                "summary": "Cross-cashier transaction lookup (redacted summary)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by invoice number, receipt number, or customer name",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by payment methods (comma-separated codes)",
+                        "name": "payment_methods",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Minimum total amount",
+                        "name": "min_total",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum total amount",
+                        "name": "max_total",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "created_at",
+                        "description": "Sort field (created_at, total_amount, invoice_number, payment_method, status)",
+                        "name": "sort_by",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "DESC",
+                        "description": "Sort direction (ASC or DESC)",
+                        "name": "sort_dir",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD, Jakarta time)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD, Jakarta time)",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sales/lookup/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Fetch a single transaction's itemized detail for receipt reprint.",
+                "tags": [
+                    "sales"
+                ],
+                "summary": "Cross-cashier transaction detail (redacted itemized, for reprint)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Sale ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sales/parked/:id/complete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Manager scoped-completion path (P2-6 D4): completes the recalled",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sales"
+                ],
+                "summary": "Complete a recalled parked sale",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Parked sale ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Sale payload (no pricing fields)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/sales/{id}": {
             "get": {
                 "security": [
@@ -1332,6 +2332,298 @@
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-locations": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a paginated list of storage locations",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Locations"
+                ],
+                "summary": "List storage locations",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search name or code",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by active status",
+                        "name": "is_active",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new storage location",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Locations"
+                ],
+                "summary": "Create a storage location",
+                "parameters": [
+                    {
+                        "description": "Storage Location data",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/storagelocation.CreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-locations/bulk": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Activate or deactivate multiple storage locations",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Locations"
+                ],
+                "summary": "Bulk update storage locations",
+                "parameters": [
+                    {
+                        "description": "Bulk update payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete multiple storage locations",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Locations"
+                ],
+                "summary": "Bulk delete storage locations",
+                "parameters": [
+                    {
+                        "description": "Bulk delete payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-locations/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a single storage location by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Locations"
+                ],
+                "summary": "Get storage location by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Storage Location ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update an existing storage location",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Locations"
+                ],
+                "summary": "Update a storage location",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Storage Location ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update data",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/storagelocation.UpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a storage location by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Locations"
+                ],
+                "summary": "Delete a storage location",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Storage Location ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1420,7 +2712,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/store.StoreCreateRequest"
+                            "$ref": "#/definitions/store.CreateRequest"
                         }
                     }
                 ],
@@ -1532,7 +2824,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/store.StoreUpdateRequest"
+                            "$ref": "#/definitions/store.UpdateRequest"
                         }
                     }
                 ],
@@ -1622,6 +2914,12 @@
                         "description": "Filter by active status (true/false)",
                         "name": "is_active",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by consignment status (true/false)",
+                        "name": "is_consignment",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1667,6 +2965,74 @@
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/suppliers/bulk": {
+            "put": {
+                "description": "Bulk update supplier active status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "suppliers"
+                ],
+                "summary": "Bulk update suppliers",
+                "parameters": [
+                    {
+                        "description": "Bulk update payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Soft delete multiple suppliers",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "suppliers"
+                ],
+                "summary": "Bulk delete suppliers",
+                "parameters": [
+                    {
+                        "description": "Bulk delete payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1879,15 +3245,47 @@
                     }
                 }
             }
+        },
+        "/warehouses": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get active warehouses, scoped to the caller's store (superadmin sees all, including central warehouses)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Stores"
+                ],
+                "summary": "List warehouses",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
-        "customergroup.CustomerGroupCreateRequest": {
+        "customergroup.CreateRequest": {
             "type": "object",
             "required": [
                 "name"
             ],
             "properties": {
+                "color": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },
@@ -1897,9 +3295,12 @@
                 }
             }
         },
-        "customergroup.CustomerGroupUpdateRequest": {
+        "customergroup.UpdateRequest": {
             "type": "object",
             "properties": {
+                "color": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },
@@ -1912,7 +3313,33 @@
                 }
             }
         },
-        "pricing.PricingMethod": {
+        "inventory.LocationStockItem": {
+            "type": "object",
+            "properties": {
+                "location_code": {
+                    "type": "string"
+                },
+                "location_id": {
+                    "type": "integer"
+                },
+                "location_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "product_id": {
+                    "type": "integer"
+                },
+                "quantity": {
+                    "type": "integer"
+                },
+                "sku": {
+                    "type": "string"
+                }
+            }
+        },
+        "pricing.Method": {
             "type": "string",
             "enum": [
                 "fixed_price",
@@ -1927,8 +3354,30 @@
                 "PricingMethodMarkupPct"
             ]
         },
-        "pricing.PricingRule": {
+        "pricing.ResolveItem": {
             "type": "object",
+            "properties": {
+                "customer_group_id": {
+                    "type": "integer"
+                },
+                "product_id": {
+                    "type": "integer"
+                },
+                "quantity": {
+                    "type": "integer"
+                },
+                "store_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "pricing.Rule": {
+            "type": "object",
+            "required": [
+                "name",
+                "pricing_method",
+                "pricing_type"
+            ],
             "properties": {
                 "allow_combine": {
                     "type": "boolean"
@@ -1961,19 +3410,39 @@
                     "type": "integer"
                 },
                 "minimum_quantity": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 },
                 "name": {
                     "type": "string"
                 },
                 "pricing_method": {
-                    "$ref": "#/definitions/pricing.PricingMethod"
+                    "enum": [
+                        "fixed_price",
+                        "discount_percent",
+                        "discount_amount",
+                        "markup_percent"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/pricing.Method"
+                        }
+                    ]
                 },
                 "pricing_type": {
-                    "$ref": "#/definitions/pricing.PricingType"
+                    "enum": [
+                        "special_price",
+                        "promotion"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/pricing.Type"
+                        }
+                    ]
                 },
                 "pricing_value": {
-                    "type": "number"
+                    "type": "number",
+                    "minimum": 0
                 },
                 "priority": {
                     "type": "integer"
@@ -1991,6 +3460,9 @@
                     "description": "Scope fields populated on read (not stored in pricing_rules)",
                     "type": "string"
                 },
+                "status": {
+                    "$ref": "#/definitions/pricing.RuleStatus"
+                },
                 "store_id": {
                     "type": "integer"
                 },
@@ -2005,15 +3477,30 @@
                 }
             }
         },
-        "pricing.PricingType": {
+        "pricing.RuleStatus": {
             "type": "string",
             "enum": [
-                "default",
+                "draft",
+                "pending",
+                "approved",
+                "rejected"
+            ],
+            "x-enum-varnames": [
+                "StatusDraft",
+                "StatusPending",
+                "StatusApproved",
+                "StatusRejected"
+            ]
+        },
+        "pricing.Type": {
+            "type": "string",
+            "enum": [
+                "normal",
                 "special_price",
                 "promotion"
             ],
             "x-enum-comments": {
-                "PricingTypeDefault": "fallback only — not creatable"
+                "PricingTypeNormal": "fallback only — not creatable"
             },
             "x-enum-descriptions": [
                 "fallback only — not creatable",
@@ -2021,24 +3508,46 @@
                 ""
             ],
             "x-enum-varnames": [
-                "PricingTypeDefault",
+                "PricingTypeNormal",
                 "PricingTypeSpecialPrice",
                 "PricingTypePromotion"
             ]
         },
-        "pricing.ResolveItem": {
+        "pricing.checkConflictsRequest": {
             "type": "object",
+            "required": [
+                "pricing_method",
+                "pricing_type"
+            ],
             "properties": {
-                "customer_group_id": {
+                "brand_id": {
+                    "type": "integer"
+                },
+                "category_id": {
+                    "type": "integer"
+                },
+                "exclude_id": {
+                    "type": "integer"
+                },
+                "maximum_quantity": {
+                    "type": "integer"
+                },
+                "minimum_quantity": {
+                    "type": "integer"
+                },
+                "pricing_method": {
+                    "$ref": "#/definitions/pricing.Method"
+                },
+                "pricing_type": {
+                    "$ref": "#/definitions/pricing.Type"
+                },
+                "pricing_value": {
+                    "type": "number"
+                },
+                "priority": {
                     "type": "integer"
                 },
                 "product_id": {
-                    "type": "integer"
-                },
-                "quantity": {
-                    "type": "integer"
-                },
-                "store_id": {
                     "type": "integer"
                 }
             }
@@ -2094,6 +3603,9 @@
                 "name": {
                     "type": "string"
                 },
+                "ownership_type": {
+                    "type": "string"
+                },
                 "price": {
                     "type": "integer"
                 },
@@ -2108,6 +3620,12 @@
                 },
                 "store_id": {
                     "type": "integer"
+                },
+                "supplier_id": {
+                    "type": "integer"
+                },
+                "supplier_name": {
+                    "type": "string"
                 },
                 "tax_class_id": {
                     "type": "integer"
@@ -2129,7 +3647,106 @@
                 }
             }
         },
-        "store.StoreCreateRequest": {
+        "sale.AddCartItemRequest": {
+            "type": "object",
+            "required": [
+                "product_id",
+                "quantity"
+            ],
+            "properties": {
+                "customer_group_id": {
+                    "type": "integer"
+                },
+                "customer_id": {
+                    "type": "integer"
+                },
+                "product_id": {
+                    "type": "integer"
+                },
+                "quantity": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "shift_id": {
+                    "type": "integer"
+                },
+                "store_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "sale.UpdateCartCustomerRequest": {
+            "type": "object",
+            "properties": {
+                "customer_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "sale.UpdateCartItemQuantityRequest": {
+            "type": "object",
+            "required": [
+                "quantity"
+            ],
+            "properties": {
+                "quantity": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "storagelocation.CreateRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "name"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "store_id": {
+                    "type": "integer"
+                },
+                "warehouse_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "storagelocation.UpdateRequest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "store_id": {
+                    "type": "integer"
+                },
+                "warehouse_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "store.CreateRequest": {
             "type": "object",
             "required": [
                 "name"
@@ -2147,7 +3764,7 @@
                 }
             }
         },
-        "store.StoreUpdateRequest": {
+        "store.UpdateRequest": {
             "type": "object",
             "properties": {
                 "address": {
@@ -2178,7 +3795,8 @@
                     "type": "boolean"
                 },
                 "lead_time_days": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "notes": {
                     "type": "string"
@@ -2206,7 +3824,8 @@
                     "type": "string"
                 },
                 "unit_cost": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "updated_at": {
                     "type": "string"
@@ -2215,6 +3834,10 @@
         },
         "supplier.Supplier": {
             "type": "object",
+            "required": [
+                "code",
+                "name"
+            ],
             "properties": {
                 "address": {
                     "type": "string"
@@ -2238,6 +3861,9 @@
                     "type": "integer"
                 },
                 "is_active": {
+                    "type": "boolean"
+                },
+                "is_consignment": {
                     "type": "boolean"
                 },
                 "name": {

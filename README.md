@@ -251,7 +251,7 @@ Swagger annotations are on key endpoints. To generate the spec:
 
 ```bash
 go install github.com/swaggo/swag/cmd/swag@latest
-swag init -g cmd/server/main.go -o docs/swagger
+swag init -g docs/swagger.go -o docs
 ```
 
 Spec is accessible at `/swagger/*any` while the server is running.

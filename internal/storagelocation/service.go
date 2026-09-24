@@ -2,9 +2,17 @@ package storagelocation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+// wrapInternal marks a persistence failure with ErrInternal so handlers can
+// map it to HTTP 500 instead of conflating it with validation failures (which
+// surface as plain errors and map to HTTP 400).
+func wrapInternal(err error) error {
+	return fmt.Errorf("%w: %w", ErrInternal, err)
+}
 
 type Repo interface {
 	GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]StorageLocation, int, error)
@@ -51,7 +59,7 @@ func (s *Service) ensureStoreScope(ctx context.Context, row *StorageLocation, st
 	if row.WarehouseID != nil {
 		warehouseStoreID, err := s.repo.WarehouseStoreID(ctx, *row.WarehouseID)
 		if err != nil {
-			return err
+			return wrapInternal(err)
 		}
 		if warehouseStoreID != nil && *warehouseStoreID == *storeID {
 			return nil
@@ -61,7 +69,7 @@ func (s *Service) ensureStoreScope(ctx context.Context, row *StorageLocation, st
 }
 
 // ensureScopeForRequest checks the scope values a create/update request
-// targets (before/after merge) against the caller's store.
+// targets against the caller's store.
 func (s *Service) ensureScopeForRequest(ctx context.Context, warehouseID, storeID *int, callerStoreID *int) error {
 	if callerStoreID == nil {
 		return nil
@@ -72,7 +80,7 @@ func (s *Service) ensureScopeForRequest(ctx context.Context, warehouseID, storeI
 	if warehouseID != nil {
 		warehouseStoreID, err := s.repo.WarehouseStoreID(ctx, *warehouseID)
 		if err != nil {
-			return err
+			return wrapInternal(err)
 		}
 		if warehouseStoreID == nil || *warehouseStoreID != *callerStoreID {
 			return ErrStoreForbidden
@@ -87,6 +95,9 @@ func (s *Service) ensureScopeForRequest(ctx context.Context, warehouseID, storeI
 func (s *Service) GetByID(ctx context.Context, id int, storeID *int) (*StorageLocation, error) {
 	row, err := s.repo.GetByID(ctx, id)
 	if err != nil {
+		if !errors.Is(err, ErrNotFound) {
+			err = wrapInternal(err)
+		}
 		return nil, err
 	}
 	if err := s.ensureStoreScope(ctx, row, storeID); err != nil {
@@ -107,6 +118,9 @@ func (s *Service) Create(ctx context.Context, req CreateRequest, storeID *int) (
 	if req.WarehouseID == nil && req.StoreID == nil {
 		return nil, fmt.Errorf("warehouse_id or store_id is required")
 	}
+	if req.WarehouseID != nil && req.StoreID != nil {
+		return nil, fmt.Errorf("only one of warehouse_id or store_id may be set")
+	}
 
 	if err := s.validateScope(ctx, req.WarehouseID, req.StoreID); err != nil {
 		return nil, err
@@ -117,7 +131,7 @@ func (s *Service) Create(ctx context.Context, req CreateRequest, storeID *int) (
 
 	exists, err := s.repo.CodeExists(ctx, code, 0)
 	if err != nil {
-		return nil, err
+		return nil, wrapInternal(err)
 	}
 	if exists {
 		return nil, fmt.Errorf("storage location code already exists")
@@ -132,7 +146,7 @@ func (s *Service) Create(ctx context.Context, req CreateRequest, storeID *int) (
 		IsActive:    true,
 	}
 	if err := s.repo.Create(ctx, sl); err != nil {
-		return nil, err
+		return nil, wrapInternal(err)
 	}
 	return s.GetByID(ctx, sl.ID, storeID)
 }
@@ -140,7 +154,10 @@ func (s *Service) Create(ctx context.Context, req CreateRequest, storeID *int) (
 func (s *Service) Update(ctx context.Context, id int, req UpdateRequest, storeID *int) (*StorageLocation, error) {
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("storage location not found")
+		if !errors.Is(err, ErrNotFound) {
+			err = wrapInternal(err)
+		}
+		return nil, err
 	}
 	if err := s.ensureStoreScope(ctx, existing, storeID); err != nil {
 		return nil, err
@@ -153,7 +170,7 @@ func (s *Service) Update(ctx context.Context, id int, req UpdateRequest, storeID
 		}
 		exists, err := s.repo.CodeExists(ctx, code, id)
 		if err != nil {
-			return nil, err
+			return nil, wrapInternal(err)
 		}
 		if exists {
 			return nil, fmt.Errorf("storage location code already exists")
@@ -169,20 +186,31 @@ func (s *Service) Update(ctx context.Context, id int, req UpdateRequest, storeID
 	}
 	warehouseID := existing.WarehouseID
 	newStoreID := existing.StoreID
-	if req.WarehouseID != nil {
+	scopeTouched := req.WarehouseID != nil || req.StoreID != nil
+	if scopeTouched {
+		// Scope is replaced as a unit: providing one scope field switches the
+		// whole scope (clearing the other), which is what the edit modal's
+		// warehouse↔store toggle submits. A request carrying both fields is
+		// rejected below; a request carrying neither keeps the row's scope, so
+		// a name-only edit on a legacy dual row stays untouched. Row ownership
+		// was already checked above, and the replacement scope is validated
+		// against the caller's store below.
 		warehouseID = req.WarehouseID
-	}
-	if req.StoreID != nil {
 		newStoreID = req.StoreID
 	}
 	if warehouseID == nil && newStoreID == nil {
 		return nil, fmt.Errorf("warehouse_id or store_id is required")
 	}
-	if err := s.validateScope(ctx, warehouseID, newStoreID); err != nil {
-		return nil, err
-	}
-	if err := s.ensureScopeForRequest(ctx, warehouseID, newStoreID, storeID); err != nil {
-		return nil, err
+	if scopeTouched {
+		if warehouseID != nil && newStoreID != nil {
+			return nil, fmt.Errorf("only one of warehouse_id or store_id may be set")
+		}
+		if err := s.validateScope(ctx, warehouseID, newStoreID); err != nil {
+			return nil, err
+		}
+		if err := s.ensureScopeForRequest(ctx, warehouseID, newStoreID, storeID); err != nil {
+			return nil, err
+		}
 	}
 	existing.WarehouseID = warehouseID
 	existing.StoreID = newStoreID
@@ -194,7 +222,7 @@ func (s *Service) Update(ctx context.Context, id int, req UpdateRequest, storeID
 	}
 
 	if err := s.repo.Update(ctx, existing); err != nil {
-		return nil, err
+		return nil, wrapInternal(err)
 	}
 	return s.GetByID(ctx, id, storeID)
 }
@@ -202,12 +230,18 @@ func (s *Service) Update(ctx context.Context, id int, req UpdateRequest, storeID
 func (s *Service) Delete(ctx context.Context, id int, storeID *int) error {
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("storage location not found")
+		if !errors.Is(err, ErrNotFound) {
+			err = wrapInternal(err)
+		}
+		return err
 	}
 	if err := s.ensureStoreScope(ctx, existing, storeID); err != nil {
 		return err
 	}
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return wrapInternal(err)
+	}
+	return nil
 }
 
 func (s *Service) BulkUpdate(ctx context.Context, ids []int, isActive bool, storeID *int) (int, error) {
@@ -217,7 +251,11 @@ func (s *Service) BulkUpdate(ctx context.Context, ids []int, isActive bool, stor
 	if err := s.ensureBulkScope(ctx, ids, storeID); err != nil {
 		return 0, err
 	}
-	return s.repo.BulkUpdate(ctx, ids, isActive)
+	updated, err := s.repo.BulkUpdate(ctx, ids, isActive)
+	if err != nil {
+		return 0, wrapInternal(err)
+	}
+	return updated, nil
 }
 
 func (s *Service) BulkDelete(ctx context.Context, ids []int, storeID *int) (int, error) {
@@ -227,7 +265,11 @@ func (s *Service) BulkDelete(ctx context.Context, ids []int, storeID *int) (int,
 	if err := s.ensureBulkScope(ctx, ids, storeID); err != nil {
 		return 0, err
 	}
-	return s.repo.BulkDelete(ctx, ids)
+	deleted, err := s.repo.BulkDelete(ctx, ids)
+	if err != nil {
+		return 0, wrapInternal(err)
+	}
+	return deleted, nil
 }
 
 // ensureBulkScope applies the store boundary to every id that exists. One
@@ -240,7 +282,7 @@ func (s *Service) ensureBulkScope(ctx context.Context, ids []int, storeID *int) 
 	}
 	rows, err := s.repo.GetByIDs(ctx, ids)
 	if err != nil {
-		return err
+		return wrapInternal(err)
 	}
 	for i := range rows {
 		if err := s.ensureStoreScope(ctx, &rows[i], storeID); err != nil {
@@ -254,7 +296,7 @@ func (s *Service) validateScope(ctx context.Context, warehouseID, storeID *int) 
 	if warehouseID != nil {
 		exists, err := s.repo.WarehouseExists(ctx, *warehouseID)
 		if err != nil {
-			return err
+			return wrapInternal(err)
 		}
 		if !exists {
 			return fmt.Errorf("warehouse not found")
@@ -263,7 +305,7 @@ func (s *Service) validateScope(ctx context.Context, warehouseID, storeID *int) 
 	if storeID != nil {
 		exists, err := s.repo.StoreExists(ctx, *storeID)
 		if err != nil {
-			return err
+			return wrapInternal(err)
 		}
 		if !exists {
 			return fmt.Errorf("store not found")

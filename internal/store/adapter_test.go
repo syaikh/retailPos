@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/middleware"
 )
 
 func TestAdapter_NewAdapter(t *testing.T) {
@@ -227,6 +229,22 @@ func TestAdapter_ExportData(t *testing.T) {
 	data, err := r.ExportData(context.Background(), Schema)
 	require.NoError(t, err)
 	assert.NotNil(t, data)
+}
+
+func TestAdapter_ExportData_StoreScoped(t *testing.T) {
+	skipIfNoDB(t)
+	repo := NewRepository(dbPool)
+	a := NewAdapter(repo)
+	r := a.Repository()
+
+	s := &Store{Name: "Export Scoped Store", IsActive: true}
+	require.NoError(t, repo.Create(context.Background(), s))
+
+	ctx := middleware.ContextWithStoreID(context.Background(), &s.ID)
+	data, err := r.ExportData(ctx, Schema)
+	require.NoError(t, err)
+	require.Len(t, data, 1, "a store-scoped export must contain only the caller's store")
+	assert.Equal(t, "Export Scoped Store", data[0]["Name"])
 }
 
 func TestAdapter_LoadReferences(t *testing.T) {

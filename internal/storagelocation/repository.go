@@ -55,10 +55,11 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 		if err != nil {
 			return nil, 0, err
 		}
-		// Store-boundary filter: rows owned directly by the caller's store, or
-		// warehouse-scoped rows whose warehouse belongs to the caller's store.
-		// Warehouses with no store (central/unassigned) are superadmin-only.
-		where += fmt.Sprintf(" AND (sl.store_id = $%d OR sl.warehouse_id = ANY($%d))", argIdx, argIdx+1)
+		// Store-boundary filter (store-wins): rows owned directly by the
+		// caller's store — including legacy rows that also carry a warehouse
+		// — or warehouse-scoped rows with no store whose warehouse belongs to
+		// the caller's store. Central warehouses are superadmin-only.
+		where += fmt.Sprintf(" AND (sl.store_id = $%d OR (sl.store_id IS NULL AND sl.warehouse_id = ANY($%d)))", argIdx, argIdx+1)
 		args = append(args, *storeID, warehouseIDs)
 		argIdx += 2
 	}
@@ -111,7 +112,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*StorageLocation, err
 	sl, err := r.scanLocation(r.db.QueryRow(ctx, query, id))
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("storage location not found")
+			return nil, ErrNotFound
 		}
 		return nil, err
 	}
@@ -123,7 +124,7 @@ func (r *Repository) GetByCode(ctx context.Context, code string) (*StorageLocati
 	sl, err := r.scanLocation(r.db.QueryRow(ctx, query, code))
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("storage location not found")
+			return nil, ErrNotFound
 		}
 		return nil, err
 	}

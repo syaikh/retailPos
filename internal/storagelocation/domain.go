@@ -8,6 +8,16 @@ import "errors"
 // never triggers it.
 var ErrStoreForbidden = errors.New("storage location is not in your store")
 
+// ErrNotFound is the sentinel for a missing storage location. Handlers map it
+// to HTTP 404 so genuine not-found responses are distinguishable from DB or
+// provider failures (which surface as 500).
+var ErrNotFound = errors.New("storage location not found")
+
+// ErrInternal wraps unexpected persistence failures (DB outages, driver
+// errors). Handlers map it to HTTP 500 so they are not conflated with
+// validation failures, which surface as plain errors and map to HTTP 400.
+var ErrInternal = errors.New("internal storage location error")
+
 type StorageLocation struct {
 	ID          int    `json:"id"`
 	Code        string `json:"code"`

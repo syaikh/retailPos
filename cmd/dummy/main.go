@@ -776,6 +776,18 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		log.Printf("Warning: failed to resync users_id_seq: %v", err)
 	}
 
+	// Store-boundary safety: non-superadmin system users must carry a
+	// store_id. RequireStoreID 403s store-less non-superadmins on every
+	// protected route, so a missing store would lock these accounts out.
+	if _, err := conn.ExecContext(ctx, `
+		UPDATE users u
+		SET store_id = (SELECT s.id FROM stores s WHERE s.is_active = true ORDER BY s.id LIMIT 1)
+		WHERE u.store_id IS NULL
+		  AND u.username IN ('manager', 'supervisor', 'cashier', 'inventory_staff', 'finance')
+		  AND EXISTS (SELECT 1 FROM stores s WHERE s.is_active = true)`); err != nil {
+		log.Printf("Warning: failed to backfill store_id for system users: %v", err)
+	}
+
 	return nil
 }
 
@@ -1043,10 +1055,14 @@ func ensureStorageLocations(ctx context.Context, db *sql.DB, storageZones, stora
 		return
 	}
 
-	// Get warehouse IDs
+	// Seed both scope shapes, each with exactly one scope: warehouse-scoped
+	// rows (warehouse_id only — ownership resolves via warehouses.store_id)
+	// and store-scoped rows (store_id only). Rows with both set are rejected
+	// by the API's single-scope rule and would break the store boundary.
 	warehouseIDs := getIDs(ctx, db, "warehouses")
-	if len(warehouseIDs) == 0 {
-		fmt.Println("   ⚠️  No warehouses found, skipping storage location creation")
+	storeIDs := getIDs(ctx, db, "stores")
+	if len(warehouseIDs) == 0 && len(storeIDs) == 0 {
+		fmt.Println("   ⚠️  No warehouses or stores found, skipping storage location creation")
 		return
 	}
 
@@ -1056,7 +1072,7 @@ func ensureStorageLocations(ctx context.Context, db *sql.DB, storageZones, stora
 		zones[i] = string(rune('A' + i))
 	}
 
-	stmt, err := db.PrepareContext(ctx, `
+	whStmt, err := db.PrepareContext(ctx, `
 		INSERT INTO storage_locations (code, name, warehouse_id, notes, is_active, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, true, NOW(), NOW())
 		ON CONFLICT (code) DO NOTHING`)
@@ -1064,27 +1080,52 @@ func ensureStorageLocations(ctx context.Context, db *sql.DB, storageZones, stora
 		fmt.Printf("Warning: failed to prepare storage location stmt: %v\n", err)
 		return
 	}
-	defer func() { _ = stmt.Close() }()
+	defer func() { _ = whStmt.Close() }()
 
-	totalCreated := 0
+	storeStmt, err := db.PrepareContext(ctx, `
+		INSERT INTO storage_locations (code, name, store_id, notes, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, true, NOW(), NOW())
+		ON CONFLICT (code) DO NOTHING`)
+	if err != nil {
+		fmt.Printf("Warning: failed to prepare store-scoped location stmt: %v\n", err)
+		return
+	}
+	defer func() { _ = storeStmt.Close() }()
+
+	warehouseCreated := 0
 	for _, whID := range warehouseIDs {
-		created := 0
 		for _, zone := range zones {
 			for rack := 1; rack <= storageRacks; rack++ {
 				code := fmt.Sprintf("WH%d-%s%02d", whID, zone, rack)
 				name := fmt.Sprintf("Rak %s-%02d", zone, rack)
 				notes := fmt.Sprintf("Zone %s, Rack %d", zone, rack)
-				if _, err := stmt.ExecContext(ctx, code, name, whID, notes); err != nil {
+				if _, err := whStmt.ExecContext(ctx, code, name, whID, notes); err != nil {
 					fmt.Printf("Warning: failed to insert storage location %s: %v\n", code, err)
 					continue
 				}
-				created++
+				warehouseCreated++
 			}
 		}
-		totalCreated += created
 	}
-	fmt.Printf("   🎲 Created %d storage locations across %d warehouses (%d zones × %d racks)\n",
-		totalCreated, len(warehouseIDs), storageZones, storageRacks)
+
+	storeCreated := 0
+	for _, storeID := range storeIDs {
+		for _, zone := range zones {
+			for rack := 1; rack <= storageRacks; rack++ {
+				code := fmt.Sprintf("ST%d-%s%02d", storeID, zone, rack)
+				name := fmt.Sprintf("Rak Toko %s-%02d", zone, rack)
+				notes := fmt.Sprintf("Store zone %s, Rack %d", zone, rack)
+				if _, err := storeStmt.ExecContext(ctx, code, name, storeID, notes); err != nil {
+					fmt.Printf("Warning: failed to insert store location %s: %v\n", code, err)
+					continue
+				}
+				storeCreated++
+			}
+		}
+	}
+
+	fmt.Printf("   🎲 Created %d storage locations (%d warehouse-scoped across %d warehouses, %d store-scoped across %d stores; %d zones × %d racks)\n",
+		warehouseCreated+storeCreated, warehouseCreated, len(warehouseIDs), storeCreated, len(storeIDs), storageZones, storageRacks)
 }
 
 func backfillRackStock(ctx context.Context, db *sql.DB) {

@@ -1,7 +1,9 @@
 basePath: /api
 definitions:
-  customergroup.CustomerGroupCreateRequest:
+  customergroup.CreateRequest:
     properties:
+      color:
+        type: string
       description:
         type: string
       name:
@@ -10,8 +12,10 @@ definitions:
     required:
     - name
     type: object
-  customergroup.CustomerGroupUpdateRequest:
+  customergroup.UpdateRequest:
     properties:
+      color:
+        type: string
       description:
         type: string
       is_active:
@@ -20,7 +24,24 @@ definitions:
         maxLength: 100
         type: string
     type: object
-  pricing.PricingMethod:
+  inventory.LocationStockItem:
+    properties:
+      location_code:
+        type: string
+      location_id:
+        type: integer
+      location_name:
+        type: string
+      name:
+        type: string
+      product_id:
+        type: integer
+      quantity:
+        type: integer
+      sku:
+        type: string
+    type: object
+  pricing.Method:
     enum:
     - fixed_price
     - discount_percent
@@ -32,7 +53,18 @@ definitions:
     - PricingMethodDiscountPct
     - PricingMethodDiscountAmt
     - PricingMethodMarkupPct
-  pricing.PricingRule:
+  pricing.ResolveItem:
+    properties:
+      customer_group_id:
+        type: integer
+      product_id:
+        type: integer
+      quantity:
+        type: integer
+      store_id:
+        type: integer
+    type: object
+  pricing.Rule:
     properties:
       allow_combine:
         type: boolean
@@ -55,14 +87,26 @@ definitions:
       maximum_quantity:
         type: integer
       minimum_quantity:
+        minimum: 1
         type: integer
       name:
         type: string
       pricing_method:
-        $ref: '#/definitions/pricing.PricingMethod'
+        allOf:
+        - $ref: '#/definitions/pricing.Method'
+        enum:
+        - fixed_price
+        - discount_percent
+        - discount_amount
+        - markup_percent
       pricing_type:
-        $ref: '#/definitions/pricing.PricingType'
+        allOf:
+        - $ref: '#/definitions/pricing.Type'
+        enum:
+        - special_price
+        - promotion
       pricing_value:
+        minimum: 0
         type: number
       priority:
         type: integer
@@ -75,6 +119,8 @@ definitions:
       scope_type:
         description: Scope fields populated on read (not stored in pricing_rules)
         type: string
+      status:
+        $ref: '#/definitions/pricing.RuleStatus'
       store_id:
         type: integer
       time_from:
@@ -83,33 +129,64 @@ definitions:
         type: string
       updated_at:
         type: string
+    required:
+    - name
+    - pricing_method
+    - pricing_type
     type: object
-  pricing.PricingType:
+  pricing.RuleStatus:
     enum:
-    - default
+    - draft
+    - pending
+    - approved
+    - rejected
+    type: string
+    x-enum-varnames:
+    - StatusDraft
+    - StatusPending
+    - StatusApproved
+    - StatusRejected
+  pricing.Type:
+    enum:
+    - normal
     - special_price
     - promotion
     type: string
     x-enum-comments:
-      PricingTypeDefault: fallback only — not creatable
+      PricingTypeNormal: fallback only — not creatable
     x-enum-descriptions:
     - fallback only — not creatable
     - ""
     - ""
     x-enum-varnames:
-    - PricingTypeDefault
+    - PricingTypeNormal
     - PricingTypeSpecialPrice
     - PricingTypePromotion
-  pricing.ResolveItem:
+  pricing.checkConflictsRequest:
     properties:
-      customer_group_id:
+      brand_id:
+        type: integer
+      category_id:
+        type: integer
+      exclude_id:
+        type: integer
+      maximum_quantity:
+        type: integer
+      minimum_quantity:
+        type: integer
+      pricing_method:
+        $ref: '#/definitions/pricing.Method'
+      pricing_type:
+        $ref: '#/definitions/pricing.Type'
+      pricing_value:
+        type: number
+      priority:
         type: integer
       product_id:
         type: integer
-      quantity:
-        type: integer
-      store_id:
-        type: integer
+    required:
+    - pricing_method
+    - pricing_type
     type: object
   pricing.resolveRequest:
     properties:
@@ -145,6 +222,8 @@ definitions:
         type: integer
       name:
         type: string
+      ownership_type:
+        type: string
       price:
         type: integer
       sku:
@@ -155,6 +234,10 @@ definitions:
         type: integer
       store_id:
         type: integer
+      supplier_id:
+        type: integer
+      supplier_name:
+        type: string
       tax_class_id:
         type: integer
       tax_rate:
@@ -168,7 +251,74 @@ definitions:
       weight_grams:
         type: integer
     type: object
-  store.StoreCreateRequest:
+  sale.AddCartItemRequest:
+    properties:
+      customer_group_id:
+        type: integer
+      customer_id:
+        type: integer
+      product_id:
+        type: integer
+      quantity:
+        minimum: 1
+        type: integer
+      shift_id:
+        type: integer
+      store_id:
+        type: integer
+    required:
+    - product_id
+    - quantity
+    type: object
+  sale.UpdateCartCustomerRequest:
+    properties:
+      customer_id:
+        type: integer
+    type: object
+  sale.UpdateCartItemQuantityRequest:
+    properties:
+      quantity:
+        minimum: 1
+        type: integer
+    required:
+    - quantity
+    type: object
+  storagelocation.CreateRequest:
+    properties:
+      code:
+        maxLength: 50
+        type: string
+      name:
+        maxLength: 100
+        type: string
+      notes:
+        type: string
+      store_id:
+        type: integer
+      warehouse_id:
+        type: integer
+    required:
+    - code
+    - name
+    type: object
+  storagelocation.UpdateRequest:
+    properties:
+      code:
+        maxLength: 50
+        type: string
+      is_active:
+        type: boolean
+      name:
+        maxLength: 100
+        type: string
+      notes:
+        type: string
+      store_id:
+        type: integer
+      warehouse_id:
+        type: integer
+    type: object
+  store.CreateRequest:
     properties:
       address:
         type: string
@@ -180,7 +330,7 @@ definitions:
     required:
     - name
     type: object
-  store.StoreUpdateRequest:
+  store.UpdateRequest:
     properties:
       address:
         type: string
@@ -201,6 +351,7 @@ definitions:
       is_preferred:
         type: boolean
       lead_time_days:
+        minimum: 0
         type: integer
       notes:
         type: string
@@ -220,6 +371,7 @@ definitions:
       supplier_sku:
         type: string
       unit_cost:
+        minimum: 0
         type: integer
       updated_at:
         type: string
@@ -242,6 +394,8 @@ definitions:
         type: integer
       is_active:
         type: boolean
+      is_consignment:
+        type: boolean
       name:
         type: string
       notes:
@@ -252,6 +406,9 @@ definitions:
         type: integer
       updated_at:
         type: string
+    required:
+    - code
+    - name
     type: object
   user.LoginRequest:
     properties:
@@ -377,7 +534,7 @@ paths:
         in: query
         name: offset
         type: integer
-      - description: Search name
+      - description: Search name or description
         in: query
         name: search
         type: string
@@ -408,7 +565,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/customergroup.CustomerGroupCreateRequest'
+          $ref: '#/definitions/customergroup.CreateRequest'
       produces:
       - application/json
       responses:
@@ -484,7 +641,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/customergroup.CustomerGroupUpdateRequest'
+          $ref: '#/definitions/customergroup.UpdateRequest'
       produces:
       - application/json
       responses:
@@ -496,6 +653,55 @@ paths:
       security:
       - BearerAuth: []
       summary: Update a customer group
+      tags:
+      - Customer Groups
+  /customer-groups/bulk:
+    delete:
+      consumes:
+      - application/json
+      description: Delete multiple customer groups
+      parameters:
+      - description: Bulk delete payload
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Bulk delete customer groups
+      tags:
+      - Customer Groups
+    put:
+      consumes:
+      - application/json
+      description: Activate or deactivate multiple customer groups
+      parameters:
+      - description: Bulk update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Bulk update customer groups
       tags:
       - Customer Groups
   /dashboard/chart:
@@ -588,6 +794,346 @@ paths:
       summary: Get dashboard statistics
       tags:
       - reports
+  /inventory/locations:
+    get:
+      consumes:
+      - application/json
+      description: Rack stock rows (product per storage location). Filter by product_id
+        and/or location_id.
+      parameters:
+      - description: Product ID
+        in: query
+        name: product_id
+        type: integer
+      - description: Storage location ID
+        in: query
+        name: location_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/inventory.LocationStockItem'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List rack-level stock
+      tags:
+      - Inventory
+    post:
+      consumes:
+      - application/json
+      description: Sets how much of a product sits in a storage location (upsert).
+        Does not change global stock.
+      parameters:
+      - description: '{product_id, location_id, quantity}'
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Record rack stock for a product
+      tags:
+      - Inventory
+  /inventory/locations/transfer:
+    post:
+      consumes:
+      - application/json
+      description: Moves quantity of a product from one storage location to another.
+        Global stock is unchanged.
+      parameters:
+      - description: '{product_id, from_location_id, to_location_id, quantity}'
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Transfer stock between racks
+      tags:
+      - Inventory
+  /pos/cart:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get the open cart for the current cashier
+      tags:
+      - cart
+    post:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get or create the open cart for the current cashier
+      tags:
+      - cart
+  /pos/cart/{id}:
+    get:
+      parameters:
+      - description: Cart ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get a cart by ID
+      tags:
+      - cart
+  /pos/cart/{id}/cancel:
+    post:
+      parameters:
+      - description: Cart ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cancel (discard) a held cart session
+      tags:
+      - cart
+  /pos/cart/{id}/checkout:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Cart ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Payments payload
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Checkout a cart, converting it into a completed sale
+      tags:
+      - cart
+  /pos/cart/{id}/customer:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Cart ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Customer payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/sale.UpdateCartCustomerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Set the customer on a cart
+      tags:
+      - cart
+  /pos/cart/{id}/hold:
+    post:
+      parameters:
+      - description: Cart ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Hold the cart, parking it for later recall
+      tags:
+      - cart
+  /pos/cart/{id}/resume:
+    post:
+      parameters:
+      - description: Cart ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Resume a held cart
+      tags:
+      - cart
+  /pos/cart/held:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List held carts for the current cashier
+      tags:
+      - cart
+  /pos/cart/items:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Item payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/sale.AddCartItemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Add an item to the open cart
+      tags:
+      - cart
+  /pos/cart/items/{itemId}:
+    delete:
+      parameters:
+      - description: Cart Item ID
+        in: path
+        name: itemId
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Remove an item from the open cart
+      tags:
+      - cart
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Cart Item ID
+        in: path
+        name: itemId
+        required: true
+        type: integer
+      - description: Quantity payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/sale.UpdateCartItemQuantityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update the quantity of a cart item
+      tags:
+      - cart
   /pricing-rules:
     get:
       consumes:
@@ -640,6 +1186,10 @@ paths:
         in: query
         name: is_active
         type: boolean
+      - description: Filter by approval status (draft|pending|approved|rejected)
+        in: query
+        name: status
+        type: string
       produces:
       - application/json
       responses:
@@ -664,7 +1214,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/pricing.PricingRule'
+          $ref: '#/definitions/pricing.Rule'
       produces:
       - application/json
       responses:
@@ -740,7 +1290,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/pricing.PricingRule'
+          $ref: '#/definitions/pricing.Rule'
       produces:
       - application/json
       responses:
@@ -752,6 +1302,103 @@ paths:
       security:
       - BearerAuth: []
       summary: Update a pricing rule
+      tags:
+      - Pricing
+  /pricing-rules/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Transition a pending rule to approved status
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Approve a pricing rule
+      tags:
+      - Pricing
+  /pricing-rules/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Transition a pending rule to rejected status
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reject a pricing rule
+      tags:
+      - Pricing
+  /pricing-rules/{id}/submit:
+    post:
+      consumes:
+      - application/json
+      description: Transition a draft rule to pending status
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Submit rule for approval
+      tags:
+      - Pricing
+  /pricing-rules/check-conflicts:
+    post:
+      consumes:
+      - application/json
+      description: Check if a proposed rule would conflict with existing active rules
+      parameters:
+      - description: Rule to check
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/pricing.checkConflictsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Check for conflicting pricing rules
       tags:
       - Pricing
   /pricing/resolve:
@@ -927,6 +1574,22 @@ paths:
       summary: Update a product
       tags:
       - products
+  /products/options:
+    get:
+      consumes:
+      - application/json
+      description: Get id, sku, and name for all active products
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List active product options
+      tags:
+      - products
   /products/search:
     get:
       consumes:
@@ -1023,8 +1686,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a new sale with items. Invoice number is auto-generated
-        if omitted.
+      description: Create a new sale with items. Prices, discounts, tax, store, and
       parameters:
       - description: Sale payload
         in: body
@@ -1137,6 +1799,322 @@ paths:
       summary: Export sales data
       tags:
       - sales
+  /sales/lookup:
+    get:
+      consumes:
+      - application/json
+      description: Search transactions across all cashiers. Unlike /sales (which
+      parameters:
+      - default: 50
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      - description: Search by invoice number, receipt number, or customer name
+        in: query
+        name: search
+        type: string
+      - description: Filter by payment methods (comma-separated codes)
+        in: query
+        name: payment_methods
+        type: string
+      - description: Minimum total amount
+        in: query
+        name: min_total
+        type: integer
+      - description: Maximum total amount
+        in: query
+        name: max_total
+        type: integer
+      - default: created_at
+        description: Sort field (created_at, total_amount, invoice_number, payment_method,
+          status)
+        in: query
+        name: sort_by
+        type: string
+      - default: DESC
+        description: Sort direction (ASC or DESC)
+        in: query
+        name: sort_dir
+        type: string
+      - description: Start date (YYYY-MM-DD, Jakarta time)
+        in: query
+        name: start_date
+        type: string
+      - description: End date (YYYY-MM-DD, Jakarta time)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cross-cashier transaction lookup (redacted summary)
+      tags:
+      - sales
+  /sales/lookup/{id}:
+    get:
+      description: Fetch a single transaction's itemized detail for receipt reprint.
+      parameters:
+      - description: Sale ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cross-cashier transaction detail (redacted itemized, for reprint)
+      tags:
+      - sales
+  /sales/parked/:id/complete:
+    post:
+      consumes:
+      - application/json
+      description: 'Manager scoped-completion path (P2-6 D4): completes the recalled'
+      parameters:
+      - description: Parked sale ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Sale payload (no pricing fields)
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Complete a recalled parked sale
+      tags:
+      - sales
+  /storage-locations:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of storage locations
+      parameters:
+      - default: 20
+        description: Page size
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      - description: Search name or code
+        in: query
+        name: search
+        type: string
+      - description: Filter by active status
+        in: query
+        name: is_active
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List storage locations
+      tags:
+      - Storage Locations
+    post:
+      consumes:
+      - application/json
+      description: Create a new storage location
+      parameters:
+      - description: Storage Location data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/storagelocation.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a storage location
+      tags:
+      - Storage Locations
+  /storage-locations/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a storage location by ID
+      parameters:
+      - description: Storage Location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a storage location
+      tags:
+      - Storage Locations
+    get:
+      consumes:
+      - application/json
+      description: Get a single storage location by its ID
+      parameters:
+      - description: Storage Location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get storage location by ID
+      tags:
+      - Storage Locations
+    put:
+      consumes:
+      - application/json
+      description: Update an existing storage location
+      parameters:
+      - description: Storage Location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Update data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/storagelocation.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a storage location
+      tags:
+      - Storage Locations
+  /storage-locations/bulk:
+    delete:
+      consumes:
+      - application/json
+      description: Delete multiple storage locations
+      parameters:
+      - description: Bulk delete payload
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Bulk delete storage locations
+      tags:
+      - Storage Locations
+    put:
+      consumes:
+      - application/json
+      description: Activate or deactivate multiple storage locations
+      parameters:
+      - description: Bulk update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Bulk update storage locations
+      tags:
+      - Storage Locations
   /stores:
     get:
       consumes:
@@ -1184,7 +2162,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/store.StoreCreateRequest'
+          $ref: '#/definitions/store.CreateRequest'
       produces:
       - application/json
       responses:
@@ -1260,7 +2238,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/store.StoreUpdateRequest'
+          $ref: '#/definitions/store.UpdateRequest'
       produces:
       - application/json
       responses:
@@ -1315,6 +2293,10 @@ paths:
       - description: Filter by active status (true/false)
         in: query
         name: is_active
+        type: string
+      - description: Filter by consignment status (true/false)
+        in: query
+        name: is_consignment
         type: string
       produces:
       - application/json
@@ -1493,6 +2475,70 @@ paths:
       summary: Link a product to a supplier
       tags:
       - suppliers
+  /suppliers/bulk:
+    delete:
+      consumes:
+      - application/json
+      description: Soft delete multiple suppliers
+      parameters:
+      - description: Bulk delete payload
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Bulk delete suppliers
+      tags:
+      - suppliers
+    put:
+      consumes:
+      - application/json
+      description: Bulk update supplier active status
+      parameters:
+      - description: Bulk update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Bulk update suppliers
+      tags:
+      - suppliers
+  /warehouses:
+    get:
+      consumes:
+      - application/json
+      description: Get active warehouses, scoped to the caller's store (superadmin
+        sees all, including central warehouses)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List warehouses
+      tags:
+      - Stores
 securityDefinitions:
   BearerAuth:
     in: header

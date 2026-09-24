@@ -1,5 +1,14 @@
 package store
 
+import "errors"
+
+// ErrNotFound is the sentinel for a missing store. Handlers map it to 404.
+var ErrNotFound = errors.New("store not found")
+
+// ErrInternal wraps unexpected persistence failures (DB outages, driver
+// errors). Handlers map it to 500 so an outage is never reported as 400/404.
+var ErrInternal = errors.New("internal store error")
+
 type Store struct {
 	ID        int    `json:"id"`
 	Name      string `json:"name"`

@@ -21,7 +21,7 @@ func TestService_GetAll(t *testing.T) {
 	s := &Store{Name: "Svc List Store", Address: "Addr", Phone: "111", IsActive: true}
 	require.NoError(t, repo.Create(ctx, s))
 
-	stores, total, err := svc.GetAll(ctx, 10, 0, "", nil)
+	stores, total, err := svc.GetAll(ctx, 10, 0, "", nil, nil)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, total, 1)
 	assert.GreaterOrEqual(t, len(stores), 1)
@@ -36,7 +36,7 @@ func TestService_GetAll_Search(t *testing.T) {
 
 	require.NoError(t, repo.Create(ctx, &Store{Name: "UniqueAlphaStore", IsActive: true}))
 
-	stores, total, err := svc.GetAll(ctx, 10, 0, "UniqueAlpha", nil)
+	stores, total, err := svc.GetAll(ctx, 10, 0, "UniqueAlpha", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	assert.Equal(t, "UniqueAlphaStore", stores[0].Name)
@@ -53,14 +53,14 @@ func TestService_GetAll_IsActiveFilter(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, &Store{Name: "Inactive Filtered", IsActive: false}))
 
 	tf := true
-	stores, _, err := svc.GetAll(ctx, 10, 0, "", &tf)
+	stores, _, err := svc.GetAll(ctx, 10, 0, "", &tf, nil)
 	require.NoError(t, err)
 	for _, s := range stores {
 		assert.True(t, s.IsActive)
 	}
 
 	ff := false
-	stores2, _, err := svc.GetAll(ctx, 10, 0, "", &ff)
+	stores2, _, err := svc.GetAll(ctx, 10, 0, "", &ff, nil)
 	require.NoError(t, err)
 	for _, s := range stores2 {
 		assert.False(t, s.IsActive)
@@ -101,7 +101,7 @@ func TestService_GetAllActive(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, &Store{Name: "Svc Active A", IsActive: true}))
 	require.NoError(t, repo.Create(ctx, &Store{Name: "Svc Inactive B", IsActive: false}))
 
-	stores, err := svc.GetAllActive(ctx)
+	stores, err := svc.GetAllActive(ctx, nil)
 	require.NoError(t, err)
 	for _, s := range stores {
 		assert.True(t, s.IsActive)
@@ -180,6 +180,7 @@ func TestService_Update_NotFound(t *testing.T) {
 	newName := "nope"
 	_, err := svc.Update(ctx, 999999, UpdateRequest{Name: &newName})
 	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrNotFound)
 	assert.Contains(t, err.Error(), "store not found")
 }
 
@@ -223,6 +224,7 @@ func TestService_Delete_NotFound(t *testing.T) {
 
 	err := svc.Delete(ctx, 999999)
 	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrNotFound)
 	assert.Contains(t, err.Error(), "store not found")
 }
 
@@ -306,7 +308,7 @@ func TestService_GetAll_Empty(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	stores, total, err := svc.GetAll(ctx, 10, 0, "", nil)
+	stores, total, err := svc.GetAll(ctx, 10, 0, "", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 0, total)
 	assert.NotNil(t, stores)
@@ -336,8 +338,26 @@ func TestService_Warehouses(t *testing.T) {
 	})
 
 	t.Run("Get all", func(t *testing.T) {
-		whs, err := svc.GetAllWarehouses(ctx)
+		whs, err := svc.GetAllWarehouses(ctx, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, whs)
 	})
+}
+
+func TestService_RepoFailure_MapsToInternal(t *testing.T) {
+	svc := NewService(failingRepo{})
+	ctx := context.Background()
+	newName := "x"
+
+	_, err := svc.Update(ctx, 1, UpdateRequest{Name: &newName})
+	assert.ErrorIs(t, err, ErrInternal)
+	assert.NotErrorIs(t, err, ErrNotFound, "an outage must never read as not-found")
+
+	err = svc.Delete(ctx, 1)
+	assert.ErrorIs(t, err, ErrInternal)
+	assert.NotErrorIs(t, err, ErrNotFound)
+
+	_, err = svc.GetByID(ctx, 1)
+	assert.ErrorIs(t, err, ErrInternal)
+	assert.NotErrorIs(t, err, ErrNotFound)
 }

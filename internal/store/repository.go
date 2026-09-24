@@ -20,11 +20,18 @@ func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
 
-func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Store, int, error) {
+func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Store, int, error) {
 	where := "1=1"
 	args := []interface{}{}
 	argIdx := 1
 
+	// Store-boundary filter: a store-scoped caller only sees their own store;
+	// a nil storeID (superadmin) sees every store.
+	if storeID != nil {
+		where += fmt.Sprintf(" AND id = $%d", argIdx)
+		args = append(args, *storeID)
+		argIdx++
+	}
 	if search != "" {
 		where += fmt.Sprintf(" AND LOWER(name) LIKE LOWER($%d)", argIdx)
 		args = append(args, "%"+strings.ToLower(search)+"%")
@@ -124,11 +131,17 @@ func (r *Repository) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *Repository) GetAllActive(ctx context.Context) ([]Store, error) {
+func (r *Repository) GetAllActive(ctx context.Context, storeID *int) ([]Store, error) {
+	where := "is_active = true"
+	args := []interface{}{}
+	if storeID != nil {
+		where += " AND id = $1"
+		args = append(args, *storeID)
+	}
 	rows, err := r.db.Query(ctx, `
 		SELECT id, name, COALESCE(address, ''), COALESCE(phone, ''), is_active, created_at
-		FROM stores WHERE is_active = true
-		ORDER BY name ASC`)
+		FROM stores WHERE `+where+`
+		ORDER BY name ASC`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active stores: %w", err)
 	}

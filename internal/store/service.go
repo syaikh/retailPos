@@ -2,14 +2,17 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type Repo interface {
-	GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Store, int, error)
+	GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Store, int, error)
 	GetByID(ctx context.Context, id int) (*Store, error)
-	GetAllActive(ctx context.Context) ([]Store, error)
+	GetAllActive(ctx context.Context, storeID *int) ([]Store, error)
 	GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error)
 	GetAllWarehouses(ctx context.Context, storeID *int) ([]Warehouse, error)
 	Create(ctx context.Context, s *Store) error
@@ -25,16 +28,30 @@ func NewService(repo Repo) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Store, int, error) {
-	return s.repo.GetAll(ctx, limit, offset, search, isActive)
+// wrapRepoErr classifies repository failures: a missing row becomes
+// ErrNotFound; anything else is wrapped in ErrInternal so handlers map
+// database outages to 500 rather than misreporting them as 400/404.
+func wrapRepoErr(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	return fmt.Errorf("%w: %w", ErrInternal, err)
+}
+
+func (s *Service) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Store, int, error) {
+	return s.repo.GetAll(ctx, limit, offset, search, isActive, storeID)
 }
 
 func (s *Service) GetByID(ctx context.Context, id int) (*Store, error) {
-	return s.repo.GetByID(ctx, id)
+	st, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, wrapRepoErr(err)
+	}
+	return st, nil
 }
 
-func (s *Service) GetAllActive(ctx context.Context) ([]Store, error) {
-	return s.repo.GetAllActive(ctx)
+func (s *Service) GetAllActive(ctx context.Context, storeID *int) ([]Store, error) {
+	return s.repo.GetAllActive(ctx, storeID)
 }
 
 func (s *Service) Create(ctx context.Context, req CreateRequest) (*Store, error) {
@@ -50,15 +67,19 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (*Store, error)
 		IsActive: true,
 	}
 	if err := s.repo.Create(ctx, st); err != nil {
-		return nil, err
+		return nil, wrapRepoErr(err)
 	}
-	return s.repo.GetByID(ctx, st.ID)
+	created, err := s.repo.GetByID(ctx, st.ID)
+	if err != nil {
+		return nil, wrapRepoErr(err)
+	}
+	return created, nil
 }
 
 func (s *Service) Update(ctx context.Context, id int, req UpdateRequest) (*Store, error) {
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("store not found")
+		return nil, wrapRepoErr(err)
 	}
 
 	if req.Name != nil {
@@ -79,22 +100,29 @@ func (s *Service) Update(ctx context.Context, id int, req UpdateRequest) (*Store
 	}
 
 	if err := s.repo.Update(ctx, existing); err != nil {
-		return nil, err
+		return nil, wrapRepoErr(err)
 	}
-	return s.repo.GetByID(ctx, id)
+	updated, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, wrapRepoErr(err)
+	}
+	return updated, nil
 }
 
 func (s *Service) Delete(ctx context.Context, id int) error {
 	if _, err := s.repo.GetByID(ctx, id); err != nil {
-		return fmt.Errorf("store not found")
+		return wrapRepoErr(err)
 	}
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return wrapRepoErr(err)
+	}
+	return nil
 }
 
 func (s *Service) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) {
 	return s.repo.GetWarehouseByID(ctx, id)
 }
 
-func (s *Service) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) {
-	return s.repo.GetAllWarehouses(ctx, nil)
+func (s *Service) GetAllWarehouses(ctx context.Context, storeID *int) ([]Warehouse, error) {
+	return s.repo.GetAllWarehouses(ctx, storeID)
 }

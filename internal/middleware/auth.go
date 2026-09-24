@@ -152,7 +152,11 @@ func RequireStoreID() gin.HandlerFunc {
 		}
 
 		storeID, _ := c.Get("storeID")
-		if storeID == nil {
+		// Type-assert: AuthMiddleware sets a typed (*int)(nil) for store-less
+		// users, and a plain == nil check on any would miss it — letting
+		// store-less non-superadmins through as if they had superadmin scope.
+		sid, ok := storeID.(*int)
+		if !ok || sid == nil {
 			c.AbortWithStatusJSON(http.StatusForbidden, shared.NewError(shared.ErrForbidden, "store not configured for this user"))
 			return
 		}

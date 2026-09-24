@@ -210,6 +210,7 @@ func TestStorageLocationRepository_GetByID_NotFound(t *testing.T) {
 
 	_, err := repo.GetByID(ctx, 999999)
 	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrNotFound)
 }
 
 func TestStorageLocationRepository_ScopeChecks(t *testing.T) {
@@ -320,7 +321,10 @@ func TestStorageLocationRepository_GetAllStoreScope(t *testing.T) {
 	locViaWH := &StorageLocation{Code: "LIST-A-VIAWH", Name: "Via WH A", WarehouseID: &whA, IsActive: true}
 	locB := &StorageLocation{Code: "LIST-B-1", Name: "Loc B", StoreID: &storeB, IsActive: true}
 	locCentral := &StorageLocation{Code: "LIST-CENTRAL-1", Name: "Central", WarehouseID: &centralWH, IsActive: true}
-	for _, sl := range []*StorageLocation{locDirect, locViaWH, locB, locCentral} {
+	// Legacy dual-scope row (store B owns it; warehouse belongs to store A).
+	// Store-wins: visible to store B, hidden from store A.
+	locDual := &StorageLocation{Code: "LIST-DUAL", Name: "Dual B+WH-A", StoreID: &storeB, WarehouseID: &whA, IsActive: true}
+	for _, sl := range []*StorageLocation{locDirect, locViaWH, locB, locCentral, locDual} {
 		require.NoError(t, repo.Create(ctx, sl))
 		t.Cleanup(func() { _ = repo.Delete(ctx, sl.ID) })
 	}
@@ -335,6 +339,16 @@ func TestStorageLocationRepository_GetAllStoreScope(t *testing.T) {
 	assert.Contains(t, codes, "LIST-A-VIAWH")
 	assert.NotContains(t, codes, "LIST-B-1")
 	assert.NotContains(t, codes, "LIST-CENTRAL-1")
+	assert.NotContains(t, codes, "LIST-DUAL", "store-wins: dual row belongs to store B, not store A")
+
+	locationsB, _, err := repo.GetAll(ctx, 50, 0, "", nil, &storeB)
+	require.NoError(t, err)
+	codesB := make([]string, 0, len(locationsB))
+	for _, l := range locationsB {
+		codesB = append(codesB, l.Code)
+	}
+	assert.Contains(t, codesB, "LIST-DUAL", "store-wins: dual row visible to its own store")
+	assert.NotContains(t, codesB, "LIST-A-VIAWH")
 
 	all, _, err := repo.GetAll(ctx, 50, 0, "", nil, nil)
 	require.NoError(t, err)
@@ -345,4 +359,5 @@ func TestStorageLocationRepository_GetAllStoreScope(t *testing.T) {
 	assert.Contains(t, allCodes, "LIST-A-DIRECT")
 	assert.Contains(t, allCodes, "LIST-B-1")
 	assert.Contains(t, allCodes, "LIST-CENTRAL-1")
+	assert.Contains(t, allCodes, "LIST-DUAL")
 }
