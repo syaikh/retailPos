@@ -336,6 +336,66 @@ describe("consignment-service", () => {
     });
   });
 
+  describe("listSettlements", () => {
+    it("fetches settlements without filters", async () => {
+      const settlements = [
+        { id: 1, settlement_number: "STL-001", status: "pending_payment" },
+      ];
+      mockGet.mockResolvedValueOnce({ data: { data: settlements } });
+
+      const { listSettlements } = await import("../consignment-service");
+      const result = await listSettlements();
+
+      expect(result).toEqual(settlements);
+      expect(mockGet).toHaveBeenCalledWith("/consignment/settlements");
+    });
+
+    it("fetches settlements with supplierId", async () => {
+      const settlements = [
+        { id: 1, settlement_number: "STL-001", status: "paid" },
+      ];
+      mockGet.mockResolvedValueOnce({ data: { data: settlements } });
+
+      const { listSettlements } = await import("../consignment-service");
+      const result = await listSettlements(5);
+
+      expect(result).toEqual(settlements);
+      expect(mockGet).toHaveBeenCalledWith(
+        "/consignment/settlements?supplier_id=5",
+      );
+    });
+
+    it("fetches settlements with status filter", async () => {
+      const settlements = [
+        { id: 1, settlement_number: "STL-001", status: "pending_payment" },
+      ];
+      mockGet.mockResolvedValueOnce({ data: { data: settlements } });
+
+      const { listSettlements } = await import("../consignment-service");
+      const result = await listSettlements(undefined, "pending_payment");
+
+      expect(result).toEqual(settlements);
+      expect(mockGet).toHaveBeenCalledWith(
+        "/consignment/settlements?status=pending_payment",
+      );
+    });
+
+    it("fetches settlements with both supplierId and status", async () => {
+      const settlements = [
+        { id: 1, settlement_number: "STL-001", status: "paid" },
+      ];
+      mockGet.mockResolvedValueOnce({ data: { data: settlements } });
+
+      const { listSettlements } = await import("../consignment-service");
+      const result = await listSettlements(5, "paid");
+
+      expect(result).toEqual(settlements);
+      expect(mockGet).toHaveBeenCalledWith(
+        "/consignment/settlements?supplier_id=5&status=paid",
+      );
+    });
+  });
+
   describe("listReceipts", () => {
     it("fetches receipts without productId", async () => {
       const receipts = [

@@ -43,7 +43,10 @@ func (m *mockReportService) GetDashboardStats(ctx context.Context, storeID int) 
 	return m.getDashboardStatsFn(ctx, storeID)
 }
 func (m *mockReportService) GetInventoryStats(ctx context.Context) (int, int, error) {
-	return m.getInventoryStatsFn(ctx)
+	if m.getInventoryStatsFn != nil {
+		return m.getInventoryStatsFn(ctx)
+	}
+	return 0, 0, nil
 }
 func (m *mockReportService) GetLiveDashboardStats(ctx context.Context, storeID int) (int, int, int, int, error) {
 	return m.getLiveDashboardStatsFn(ctx, storeID)
@@ -216,6 +219,22 @@ func TestReportHandler_GetLiveDashboardStats_Error(t *testing.T) {
 		},
 		getInventoryStatsFn: func(ctx context.Context) (int, int, error) {
 			return 0, 0, nil
+		},
+	}
+	r := setupReportHandler(svc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/dashboard/live", nil)
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestReportHandler_GetLiveDashboardStats_InventoryStatsError(t *testing.T) {
+	svc := &mockReportService{
+		getLiveDashboardStatsFn: func(ctx context.Context, storeID int) (int, int, int, int, error) {
+			return 250000, 15, 80, 5, nil
+		},
+		getInventoryStatsFn: func(ctx context.Context) (int, int, error) {
+			return 0, 0, assert.AnError
 		},
 	}
 	r := setupReportHandler(svc)
@@ -655,6 +674,9 @@ func TestReportHandler_Live_WithStoreID(t *testing.T) {
 		getLiveDashboardStatsFn: func(ctx context.Context, storeID int) (int, int, int, int, error) {
 			capturedStoreID = storeID
 			return 0, 0, 0, 0, nil
+		},
+		getInventoryStatsFn: func(ctx context.Context) (int, int, error) {
+			return 0, 0, nil
 		},
 	}
 	gin.SetMode(gin.TestMode)

@@ -14,20 +14,13 @@ function getSource(): string {
 describe("SettlementPage.svelte source-structure guards", () => {
   const src = getSource();
 
-  it("imports FormattedNumberInput instead of NumberInput for payout amount", () => {
-    expect(src).toContain("FormattedNumberInput");
-    expect(src).not.toMatch(
-      /import.*\bNumberInput\b.*from.*["'].*\$shared\/ui["']/,
-    );
+  it("delegates payout to PayoutModal component", () => {
+    expect(src).toContain("PayoutModal");
+    expect(src).toContain('bind:show={showPayoutModal}');
   });
 
   it("uses getApiErrorMessage for error extraction", () => {
     expect(src).toContain("getApiErrorMessage");
-  });
-
-  it("uses FormattedNumberInput for payout amount field", () => {
-    expect(src).toContain("<FormattedNumberInput");
-    expect(src).toContain("bind:value={payoutForm.amount}");
   });
 
   it("imports getSettlement for detail modal", () => {
@@ -49,5 +42,30 @@ describe("SettlementPage.svelte source-structure guards", () => {
     expect(src).toContain('role="button"');
     expect(src).toContain('tabindex="0"');
     expect(src).toContain("onkeydown");
+  });
+
+  it("has historyTab state for filtering by status", () => {
+    expect(src).toContain("historyTab");
+    expect(src).toContain('"all" | "pending" | "paid"');
+  });
+
+  it("has filteredSettlements derived that filters by tab and search", () => {
+    expect(src).toContain("filteredSettlements");
+    expect(src).toContain("$derived");
+    expect(src).toContain("pending_payment");
+    expect(src).toContain("historySearch");
+  });
+
+  it("has filteredPreviewItems derived for search in preview", () => {
+    expect(src).toContain("filteredPreviewItems");
+    expect(src).toContain("previewSearch");
+  });
+
+  it("uses SearchBar for settlement history filter", () => {
+    expect(src).toContain("SearchBar");
+  });
+
+  it("accepts initialTab prop", () => {
+    expect(src).toContain("initialTab");
   });
 });
