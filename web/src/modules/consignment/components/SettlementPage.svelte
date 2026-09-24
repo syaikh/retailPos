@@ -52,7 +52,7 @@
   let detailSettlement = $state<Settlement | null>(null);
   let loadingDetail = $state(false);
 
-  let historyTab = $state<"all" | "pending" | "paid">($state.snapshot(initialTab) as "all" | "pending" | "paid");
+  let historyTab = $state<"all" | "pending" | "paid">(initialTab);
   let historySearch = $state("");
   let previewSearch = $state("");
 

@@ -1,8 +1,6 @@
 <script lang="ts">
-  import { toast } from "$shared/stores/toast.svelte";
-  import { getApiErrorMessage } from "$shared/utils/error-utils";
   import { Button, Modal, EmptyState } from "$shared/ui";
-  import { t } from "$shared/i18n";
+  import { labels } from "$shared/i18n";
   import { listSettlements } from "../services/consignment-service";
   import type { Settlement } from "../types";
   import { formatCurrency } from "../lib/format";
@@ -42,20 +40,20 @@
   }
 
   function formatStatus(status: string) {
-    if (status === "pending_payment") return "Pending Payment";
-    if (status === "paid") return "Paid";
+    if (status === "pending_payment") return labels.settlementStatusPendingPayment;
+    if (status === "paid") return labels.settlementStatusPaid;
     return status;
   }
 </script>
 
-<Modal bind:open={show} title="Pending Settlements" size="lg">
+<Modal bind:open={show} title={labels.consignmentPendingSettlements} size="lg">
   <div class="space-y-3">
     {#if loading}
-      <div class="p-8 text-center text-sm text-text-secondary">Loading...</div>
+      <div class="p-8 text-center text-sm text-text-secondary">{labels.loading}</div>
     {:else if settlements.length === 0}
       <EmptyState
-        title="No pending settlements"
-        subtitle="All settlements have been paid."
+        title={labels.consignmentNoPendingSettlements}
+        subtitle={labels.consignmentNoPendingSettlementsSubtitle}
       />
     {:else}
       <div class="overflow-x-auto">
@@ -64,10 +62,10 @@
             <tr
               class="text-left text-xs uppercase tracking-wider text-text-secondary border-b border-border/50"
             >
-              <th class="px-4 py-3">Settlement No</th>
-              <th class="px-4 py-3 text-right">Amount</th>
-              <th class="px-4 py-3">Status</th>
-              <th class="px-4 py-3 text-right">Action</th>
+              <th class="px-4 py-3">{labels.consignmentSettlementNo}</th>
+              <th class="px-4 py-3 text-right">{labels.consignmentTotal}</th>
+              <th class="px-4 py-3">{labels.consignmentStatus}</th>
+              <th class="px-4 py-3 text-right">{labels.actions}</th>
             </tr>
           </thead>
           <tbody>
@@ -86,7 +84,7 @@
                 </td>
                 <td class="px-4 py-3 text-right">
                   <Button size="sm" onclick={() => openPayout(st)}>
-                    Pay
+                    {labels.consignmentPay}
                   </Button>
                 </td>
               </tr>
@@ -98,7 +96,7 @@
   </div>
   {#snippet footer()}
     <div class="flex justify-end w-full">
-      <Button variant="secondary" onclick={() => (show = false)}>Close</Button>
+      <Button variant="secondary" onclick={() => (show = false)}>{labels.close}</Button>
     </div>
   {/snippet}
 </Modal>

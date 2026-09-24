@@ -71,7 +71,7 @@ describe("PayoutModal.svelte source-structure guards", () => {
     expect(src).toContain("onpaid()");
   });
 
-  it("shows Saving... text while paying is true", () => {
-    expect(src).toContain("Saving...");
+  it("shows saving text while paying is true", () => {
+    expect(src).toContain("labels.saving");
   });
 });

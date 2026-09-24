@@ -234,11 +234,11 @@
       {#if visibleStatCards.showOutOfStock}
         <div class="animate-slide-up" style="animation-delay: 350ms;">
           <StatCard
-            label={labels.lowStockAlerts}
+            label={labels.outOfStock}
             value={loading ? "—" : outOfStockCount?.toLocaleString("id-ID") || 0}
             sub={outOfStockCount > 0
               ? labels.actionRequired
-              : labels.allStockHealthy}
+              : labels.allItemsInStock}
             icon={AlertTriangleComp}
             iconBg="bg-warning-subtle"
             iconColor="text-warning-light"
