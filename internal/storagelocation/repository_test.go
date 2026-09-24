@@ -43,6 +43,16 @@ func createTestWarehouse(t *testing.T, code string) int {
 	return id
 }
 
+func createTestWarehouseForStore(t *testing.T, code string, storeID int) int {
+	t.Helper()
+	var id int
+	err := dbPool.QueryRow(context.Background(),
+		`INSERT INTO warehouses (name, code, store_id) VALUES ($1, $2, $3) RETURNING id`,
+		"Test Warehouse "+code, code, storeID).Scan(&id)
+	require.NoError(t, err)
+	return id
+}
+
 func createTestStore(t *testing.T, name string) int {
 	t.Helper()
 	var id int
@@ -100,12 +110,6 @@ func TestStorageLocationRepository_CRUD(t *testing.T) {
 		for _, l := range locations {
 			assert.True(t, l.IsActive)
 		}
-	})
-
-	t.Run("Get all active", func(t *testing.T) {
-		locations, err := repo.GetAllActive(ctx)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(locations), 1)
 	})
 
 	t.Run("CodeExists", func(t *testing.T) {
@@ -238,4 +242,107 @@ func TestStorageLocationRepository_ScopeChecks(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, exists)
 	})
+
+	t.Run("WarehouseStoreID resolves linked warehouse", func(t *testing.T) {
+		storeID := createTestStore(t, "SC-WHSTORE")
+		whID := createTestWarehouseForStore(t, "SC-WH-LINKED", storeID)
+		got, err := repo.WarehouseStoreID(ctx, whID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, storeID, *got)
+	})
+
+	t.Run("WarehouseStoreID nil for central warehouse", func(t *testing.T) {
+		whID := createTestWarehouse(t, "SC-WH-CENTRAL")
+		got, err := repo.WarehouseStoreID(ctx, whID)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+
+	t.Run("WarehouseStoreID nil for missing warehouse", func(t *testing.T) {
+		got, err := repo.WarehouseStoreID(ctx, 999999)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+
+	t.Run("WarehouseIDsByStoreID returns linked ids", func(t *testing.T) {
+		storeID := createTestStore(t, "SC-WHLIST")
+		wh1 := createTestWarehouseForStore(t, "SC-WHL-1", storeID)
+		wh2 := createTestWarehouseForStore(t, "SC-WHL-2", storeID)
+		ids, err := repo.WarehouseIDsByStoreID(ctx, storeID)
+		require.NoError(t, err)
+		assert.Contains(t, ids, wh1)
+		assert.Contains(t, ids, wh2)
+	})
+
+	t.Run("WarehouseIDsByStoreID empty for unknown store", func(t *testing.T) {
+		ids, err := repo.WarehouseIDsByStoreID(ctx, 999999)
+		require.NoError(t, err)
+		assert.Empty(t, ids)
+	})
+}
+
+func TestStorageLocationRepository_GetByIDs(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := newTestRepository()
+	ctx := context.Background()
+
+	whID := createTestWarehouse(t, "GETBYIDS-WH")
+	sl1 := &StorageLocation{Code: "GBI-1", Name: "GetByIDs 1", WarehouseID: &whID, IsActive: true}
+	sl2 := &StorageLocation{Code: "GBI-2", Name: "GetByIDs 2", WarehouseID: &whID, IsActive: true}
+	require.NoError(t, repo.Create(ctx, sl1))
+	require.NoError(t, repo.Create(ctx, sl2))
+	t.Cleanup(func() { _ = repo.Delete(ctx, sl1.ID) })
+	t.Cleanup(func() { _ = repo.Delete(ctx, sl2.ID) })
+
+	got, err := repo.GetByIDs(ctx, []int{sl1.ID, sl2.ID, 999999})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, sl1.ID, got[0].ID)
+	assert.Equal(t, sl2.ID, got[1].ID)
+
+	empty, err := repo.GetByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+}
+
+func TestStorageLocationRepository_GetAllStoreScope(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := newTestRepository()
+	ctx := context.Background()
+
+	storeA := createTestStore(t, "LIST-A")
+	storeB := createTestStore(t, "LIST-B")
+	whA := createTestWarehouseForStore(t, "LIST-A-WH", storeA)
+	centralWH := createTestWarehouse(t, "LIST-CENTRAL")
+
+	locDirect := &StorageLocation{Code: "LIST-A-DIRECT", Name: "Direct A", StoreID: &storeA, IsActive: true}
+	locViaWH := &StorageLocation{Code: "LIST-A-VIAWH", Name: "Via WH A", WarehouseID: &whA, IsActive: true}
+	locB := &StorageLocation{Code: "LIST-B-1", Name: "Loc B", StoreID: &storeB, IsActive: true}
+	locCentral := &StorageLocation{Code: "LIST-CENTRAL-1", Name: "Central", WarehouseID: &centralWH, IsActive: true}
+	for _, sl := range []*StorageLocation{locDirect, locViaWH, locB, locCentral} {
+		require.NoError(t, repo.Create(ctx, sl))
+		t.Cleanup(func() { _ = repo.Delete(ctx, sl.ID) })
+	}
+
+	locations, _, err := repo.GetAll(ctx, 50, 0, "", nil, &storeA)
+	require.NoError(t, err)
+	codes := make([]string, 0, len(locations))
+	for _, l := range locations {
+		codes = append(codes, l.Code)
+	}
+	assert.Contains(t, codes, "LIST-A-DIRECT")
+	assert.Contains(t, codes, "LIST-A-VIAWH")
+	assert.NotContains(t, codes, "LIST-B-1")
+	assert.NotContains(t, codes, "LIST-CENTRAL-1")
+
+	all, _, err := repo.GetAll(ctx, 50, 0, "", nil, nil)
+	require.NoError(t, err)
+	allCodes := make([]string, 0, len(all))
+	for _, l := range all {
+		allCodes = append(allCodes, l.Code)
+	}
+	assert.Contains(t, allCodes, "LIST-A-DIRECT")
+	assert.Contains(t, allCodes, "LIST-B-1")
+	assert.Contains(t, allCodes, "LIST-CENTRAL-1")
 }

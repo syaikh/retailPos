@@ -51,9 +51,16 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 	argIdx := 1
 
 	if storeID != nil {
-		where += fmt.Sprintf(" AND (sl.store_id IS NULL OR sl.store_id = $%d)", argIdx)
-		args = append(args, *storeID)
-		argIdx++
+		warehouseIDs, err := r.WarehouseIDsByStoreID(ctx, *storeID)
+		if err != nil {
+			return nil, 0, err
+		}
+		// Store-boundary filter: rows owned directly by the caller's store, or
+		// warehouse-scoped rows whose warehouse belongs to the caller's store.
+		// Warehouses with no store (central/unassigned) are superadmin-only.
+		where += fmt.Sprintf(" AND (sl.store_id = $%d OR sl.warehouse_id = ANY($%d))", argIdx, argIdx+1)
+		args = append(args, *storeID, warehouseIDs)
+		argIdx += 2
 	}
 	if search != "" {
 		where += fmt.Sprintf(" AND (LOWER(sl.name) LIKE LOWER($%d) OR LOWER(sl.code) LIKE LOWER($%d))", argIdx, argIdx)
@@ -159,11 +166,28 @@ func (r *Repository) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *Repository) GetAllActive(ctx context.Context) ([]StorageLocation, error) {
-	query := fmt.Sprintf(`SELECT %s %s WHERE sl.is_active = true ORDER BY sl.code ASC`, selectColumns, baseFrom)
-	rows, err := r.db.Query(ctx, query)
+func (r *Repository) WarehouseStoreID(ctx context.Context, id int) (*int, error) {
+	if r.storeExistenceProvider == nil {
+		return nil, errors.New("storagelocation repository: store existence provider not wired; call SetStoreExistenceProvider")
+	}
+	return r.storeExistenceProvider.WarehouseStoreID(ctx, r.db, id)
+}
+
+func (r *Repository) WarehouseIDsByStoreID(ctx context.Context, storeID int) ([]int, error) {
+	if r.storeExistenceProvider == nil {
+		return nil, errors.New("storagelocation repository: store existence provider not wired; call SetStoreExistenceProvider")
+	}
+	return r.storeExistenceProvider.WarehouseIDsByStoreID(ctx, r.db, storeID)
+}
+
+func (r *Repository) GetByIDs(ctx context.Context, ids []int) ([]StorageLocation, error) {
+	if len(ids) == 0 {
+		return []StorageLocation{}, nil
+	}
+	query := fmt.Sprintf(`SELECT %s %s WHERE sl.id = ANY($1) ORDER BY sl.id ASC`, selectColumns, baseFrom)
+	rows, err := r.db.Query(ctx, query, ids)
 	if err != nil {
-		return nil, fmt.Errorf("list active storage locations: %w", err)
+		return nil, fmt.Errorf("list storage locations by ids: %w", err)
 	}
 	defer rows.Close()
 

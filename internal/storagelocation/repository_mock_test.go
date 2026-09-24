@@ -85,11 +85,40 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		assert.ErrorContains(t, err, "delete storage location")
 	})
 
-	t.Run("getallactive error", func(t *testing.T) {
+	t.Run("getbyids error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectQuery("SELECT sl.id").WillReturnError(boom)
-		_, err := repo.GetAllActive(ctx)
-		assert.ErrorContains(t, err, "list active storage locations")
+		_, err := repo.GetByIDs(ctx, []int{1})
+		assert.ErrorContains(t, err, "list storage locations by ids")
+	})
+
+	t.Run("getbyids scan error", func(t *testing.T) {
+		mock, repo, ctx := newMockRepo(t)
+		mock.ExpectQuery("SELECT sl.id").WithArgs([]int{1}).WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(1))
+		_, err := repo.GetByIDs(ctx, []int{1})
+		assert.Error(t, err)
+	})
+
+	t.Run("warehousestoreid error", func(t *testing.T) {
+		mock, repo, ctx := newMockRepo(t)
+		mock.ExpectQuery("SELECT store_id FROM warehouses").WithArgs(1).WillReturnError(boom)
+		_, err := repo.WarehouseStoreID(ctx, 1)
+		assert.ErrorContains(t, err, "resolve warehouse store id")
+	})
+
+	t.Run("warehouseidsbystoreid error", func(t *testing.T) {
+		mock, repo, ctx := newMockRepo(t)
+		mock.ExpectQuery("SELECT id FROM warehouses").WithArgs(1).WillReturnError(boom)
+		_, err := repo.WarehouseIDsByStoreID(ctx, 1)
+		assert.ErrorContains(t, err, "list warehouse ids by store")
+	})
+
+	t.Run("getall scoped warehouse ids error", func(t *testing.T) {
+		mock, repo, ctx := newMockRepo(t)
+		mock.ExpectQuery("SELECT id FROM warehouses").WithArgs(1).WillReturnError(boom)
+		storeID := 1
+		_, _, err := repo.GetAll(ctx, 10, 0, "", nil, &storeID)
+		assert.ErrorContains(t, err, "list warehouse ids by store")
 	})
 
 	t.Run("codeexists error", func(t *testing.T) {

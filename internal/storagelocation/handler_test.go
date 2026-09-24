@@ -43,6 +43,30 @@ func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 	}
 }
 
+func testAuthMiddlewareWithStore(storeID int) gin.HandlerFunc {
+	sid := storeID
+	return func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "teststoreuser")
+		c.Set("roleID", 2)
+		c.Set("role", "manager")
+		c.Set("permissions", []string{"storage_location.create", "storage_location.update", "storage_location.delete", "storage_location.view"})
+		c.Set("storeID", &sid)
+		c.Next()
+	}
+}
+
+func setupRouterWithStore(storeID int) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	repo := newTestRepository()
+	svc := NewService(repo)
+	h := NewHandler(svc, nil)
+
+	r := gin.New()
+	h.RegisterRoutes(r.Group("/"), testAuthMiddlewareWithStore(storeID), testPermMiddleware)
+	return r
+}
+
 func setupRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	repo := newTestRepository()
@@ -362,4 +386,152 @@ func TestHandler_AuditBranches(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestHandler_StoreBoundary403(t *testing.T) {
+	skipIfNoDB(t)
+	_ = shared.TruncateTestData(dbPool)
+	storeA := createTestStore(t, "HANDLER-A")
+	storeB := createTestStore(t, "HANDLER-B")
+	whA := createTestWarehouseForStore(t, "HANDLER-A-WH", storeA)
+	whB := createTestWarehouseForStore(t, "HANDLER-B-WH", storeB)
+	centralWH := createTestWarehouse(t, "HANDLER-CENTRAL")
+
+	repo := newTestRepository()
+	locB := &StorageLocation{Code: "H403-FOREIGN", Name: "Foreign Loc", StoreID: &storeB, IsActive: true}
+	require.NoError(t, repo.Create(context.Background(), locB))
+	t.Cleanup(func() { _ = repo.Delete(context.Background(), locB.ID) })
+
+	locViaWhA := &StorageLocation{Code: "H403-VIAWH", Name: "Via WH A", WarehouseID: &whA, IsActive: true}
+	require.NoError(t, repo.Create(context.Background(), locViaWhA))
+	t.Cleanup(func() { _ = repo.Delete(context.Background(), locViaWhA.ID) })
+
+	var ownID int
+
+	rA := setupRouterWithStore(storeA)
+
+	t.Run("create into foreign warehouse returns 403", func(t *testing.T) {
+		body := fmt.Sprintf(`{"code":"H403-1","name":"Foreign WH","warehouse_id":%d}`, whB)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/storage-locations", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("create into foreign store returns 403", func(t *testing.T) {
+		body := fmt.Sprintf(`{"code":"H403-2","name":"Foreign Store","store_id":%d}`, storeB)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/storage-locations", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("create into central warehouse returns 403", func(t *testing.T) {
+		body := fmt.Sprintf(`{"code":"H403-CWH","name":"Central WH","warehouse_id":%d}`, centralWH)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/storage-locations", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("create into own store succeeds", func(t *testing.T) {
+		body := fmt.Sprintf(`{"code":"H403-OWN","name":"Own Store","store_id":%d}`, storeA)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/storage-locations", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var resp struct {
+			Data StorageLocation `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		ownID = resp.Data.ID
+	})
+
+	t.Run("get foreign id returns 403", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/storage-locations/%d", locB.ID), nil)
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("update foreign id returns 403", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", fmt.Sprintf("/storage-locations/%d", locB.ID), strings.NewReader(`{"name":"Hijacked"}`))
+		req.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("update own row returns 200", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", fmt.Sprintf("/storage-locations/%d", ownID), strings.NewReader(`{"name":"Own Renamed"}`))
+		req.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("delete foreign id returns 403", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", fmt.Sprintf("/storage-locations/%d", locB.ID), nil)
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		got, err := repo.GetByID(context.Background(), locB.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "Foreign Loc", got.Name)
+	})
+
+	t.Run("bulk update with foreign id returns 403", func(t *testing.T) {
+		own := &StorageLocation{Code: "H403-BULK-OWN", Name: "Bulk Own", StoreID: &storeA, IsActive: true}
+		require.NoError(t, repo.Create(context.Background(), own))
+		t.Cleanup(func() { _ = repo.Delete(context.Background(), own.ID) })
+
+		w := httptest.NewRecorder()
+		body := fmt.Sprintf(`{"ids":[%d,%d],"is_active":false}`, own.ID, locB.ID)
+		req, _ := http.NewRequest("PUT", "/storage-locations/bulk", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+
+		got, err := repo.GetByID(context.Background(), own.ID)
+		require.NoError(t, err)
+		assert.True(t, got.IsActive, "own row must not be partially written")
+	})
+
+	t.Run("bulk delete with foreign id returns 403", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		body := fmt.Sprintf(`{"ids":[%d,%d]}`, ownID, locB.ID)
+		req, _ := http.NewRequest("DELETE", "/storage-locations/bulk", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+
+		_, err := repo.GetByID(context.Background(), ownID)
+		require.NoError(t, err, "own row must survive")
+		_, err = repo.GetByID(context.Background(), locB.ID)
+		require.NoError(t, err, "foreign row must survive")
+	})
+
+	t.Run("list is scoped to own store", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/storage-locations?limit=100", nil)
+		rA.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var resp struct {
+			Data []StorageLocation `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		ids := make([]int, 0, len(resp.Data))
+		for _, l := range resp.Data {
+			ids = append(ids, l.ID)
+		}
+		assert.Contains(t, ids, ownID, "own store-linked row must appear")
+		assert.Contains(t, ids, locViaWhA.ID, "own warehouse-linked row must appear")
+		assert.NotContains(t, ids, locB.ID, "foreign row must not appear in store-scoped list")
+	})
 }

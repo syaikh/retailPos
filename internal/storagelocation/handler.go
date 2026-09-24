@@ -1,6 +1,7 @@
 package storagelocation
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -81,8 +82,12 @@ func (h *Handler) GetByID(c *gin.Context) {
 		return
 	}
 
-	location, err := h.svc.GetByID(c.Request.Context(), id)
+	location, err := h.svc.GetByID(c.Request.Context(), id, shared.GetStoreID(c))
 	if err != nil {
+		if errors.Is(err, ErrStoreForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusNotFound, gin.H{"error": "storage location not found"})
 		return
 	}
@@ -106,8 +111,12 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	location, err := h.svc.Create(c.Request.Context(), req)
+	location, err := h.svc.Create(c.Request.Context(), req, shared.GetStoreID(c))
 	if err != nil {
+		if errors.Is(err, ErrStoreForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -151,7 +160,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	var oldLocation *StorageLocation
 	if h.auditSvc != nil {
-		oldLocation, _ = h.svc.GetByID(c.Request.Context(), id)
+		oldLocation, _ = h.svc.GetByID(c.Request.Context(), id, shared.GetStoreID(c))
 	}
 
 	var req UpdateRequest
@@ -160,8 +169,12 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
-	location, err := h.svc.Update(c.Request.Context(), id, req)
+	location, err := h.svc.Update(c.Request.Context(), id, req, shared.GetStoreID(c))
 	if err != nil {
+		if errors.Is(err, ErrStoreForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -205,7 +218,11 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
+	if err := h.svc.Delete(c.Request.Context(), id, shared.GetStoreID(c)); err != nil {
+		if errors.Is(err, ErrStoreForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -248,8 +265,12 @@ func (h *Handler) BulkUpdate(c *gin.Context) {
 		return
 	}
 
-	updated, err := h.svc.BulkUpdate(c.Request.Context(), req.IDs, req.IsActive)
+	updated, err := h.svc.BulkUpdate(c.Request.Context(), req.IDs, req.IsActive, shared.GetStoreID(c))
 	if err != nil {
+		if errors.Is(err, ErrStoreForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -291,8 +312,12 @@ func (h *Handler) BulkDelete(c *gin.Context) {
 		return
 	}
 
-	deleted, err := h.svc.BulkDelete(c.Request.Context(), req.IDs)
+	deleted, err := h.svc.BulkDelete(c.Request.Context(), req.IDs, shared.GetStoreID(c))
 	if err != nil {
+		if errors.Is(err, ErrStoreForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

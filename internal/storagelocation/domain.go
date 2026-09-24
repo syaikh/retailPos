@@ -1,5 +1,13 @@
 package storagelocation
 
+import "errors"
+
+// ErrStoreForbidden is returned when a store-scoped caller tries to read or
+// write a storage location owned by a different store (or by a warehouse with
+// no store). Handlers map it to HTTP 403. A nil caller store (superadmin)
+// never triggers it.
+var ErrStoreForbidden = errors.New("storage location is not in your store")
+
 type StorageLocation struct {
 	ID          int    `json:"id"`
 	Code        string `json:"code"`

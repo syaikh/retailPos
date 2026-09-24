@@ -54,8 +54,13 @@ export class ApiDriver {
   async patch(path: string, data: any) {
     return resolve(await this.request.patch(this.url(path), { headers: this.headers(), data }));
   }
-  async del(path: string) {
-    return resolve(await this.request.delete(this.url(path), { headers: this.headers() }));
+  async del(path: string, data?: any) {
+    return resolve(
+      await this.request.delete(this.url(path), {
+        headers: this.headers(),
+        ...(data !== undefined ? { data } : {}),
+      })
+    );
   }
 
   /**

@@ -2,9 +2,12 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"retail-pos-system/internal/shared"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // ExistenceProvider is the store-owned implementation of the
@@ -35,4 +38,38 @@ func (ExistenceProvider) WarehouseExists(ctx context.Context, db shared.DBPool, 
 		return false, fmt.Errorf("check warehouse exists: %w", err)
 	}
 	return exists, nil
+}
+
+// WarehouseStoreID returns the store_id linked to a warehouse, or nil when the
+// warehouse does not exist or has no linked store. Semantics match
+// WarehouseStoreIDProvider (name_provider.go) so both ports agree.
+func (ExistenceProvider) WarehouseStoreID(ctx context.Context, db shared.DBPool, warehouseID int) (*int, error) {
+	var storeID *int
+	err := db.QueryRow(ctx, `SELECT store_id FROM warehouses WHERE id = $1`, warehouseID).Scan(&storeID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolve warehouse store id: %w", err)
+	}
+	return storeID, nil
+}
+
+// WarehouseIDsByStoreID returns every warehouse id linked to the given store.
+func (ExistenceProvider) WarehouseIDsByStoreID(ctx context.Context, db shared.DBPool, storeID int) ([]int, error) {
+	rows, err := db.Query(ctx, `SELECT id FROM warehouses WHERE store_id = $1`, storeID)
+	if err != nil {
+		return nil, fmt.Errorf("list warehouse ids by store: %w", err)
+	}
+	defer rows.Close()
+
+	ids := []int{}
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan warehouse id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }

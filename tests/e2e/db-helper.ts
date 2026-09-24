@@ -67,6 +67,8 @@ export class TestDataTracker {
   brandIds: number[] = [];
   storeIds: number[] = [];
   productIds: number[] = [];
+  warehouseIds: number[] = [];
+  locationIds: number[] = [];
 
   trackSale(id: number | undefined | null): void {
     if (id) this.saleIds.push(id);
@@ -98,6 +100,14 @@ export class TestDataTracker {
 
   trackProduct(id: number | undefined | null): void {
     if (id) this.productIds.push(id);
+  }
+
+  trackWarehouse(id: number | undefined | null): void {
+    if (id) this.warehouseIds.push(id);
+  }
+
+  trackLocation(id: number | undefined | null): void {
+    if (id) this.locationIds.push(id);
   }
 
   cleanup(): void {
@@ -168,6 +178,25 @@ export class TestDataTracker {
       execSQL(`DELETE FROM cart_items WHERE product_id IN (SELECT id FROM products WHERE brand_id IN (${bids}))`);
       execSQL(`DELETE FROM products WHERE brand_id IN (${bids})`);
       execSQL(`DELETE FROM brands WHERE id IN (${bids})`);
+    }
+    if (this.locationIds.length) {
+      // storage_locations.chk_storage_locations_scope requires warehouse_id OR
+      // store_id — deleting the parent first would SET NULL both columns and
+      // violate the check, so locations always go before warehouses/stores.
+      execSQL(`DELETE FROM storage_locations WHERE id IN (${idList(this.locationIds)})`);
+    }
+    // Also purge any untracked locations still referencing the parents (e.g.
+    // rows created by a test that failed before trackLocation ran), otherwise
+    // the warehouse/store delete below trips the scope check via ON DELETE SET
+    // NULL and aborts the rest of the cleanup.
+    if (this.warehouseIds.length) {
+      execSQL(`DELETE FROM storage_locations WHERE warehouse_id IN (${idList(this.warehouseIds)})`);
+    }
+    if (this.storeIds.length) {
+      execSQL(`DELETE FROM storage_locations WHERE store_id IN (${idList(this.storeIds)})`);
+    }
+    if (this.warehouseIds.length) {
+      execSQL(`DELETE FROM warehouses WHERE id IN (${idList(this.warehouseIds)})`);
     }
     if (this.storeIds.length) {
       execSQL(`DELETE FROM stores WHERE id IN (${idList(this.storeIds)})`);
