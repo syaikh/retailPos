@@ -97,7 +97,8 @@ describe("TermsEditor.svelte source-structure guards", () => {
   it("shows a no-results empty state when the filter matches nothing", () => {
     expect(src).toContain("filteredTerms.length === 0 && !editingTerm");
     expect(src).toContain("icon={Search}");
-    expect(src).toContain("labels.noResultsFor");
-    expect(src).toContain("filterQuery.trim(),");
+    expect(src).toContain(
+      'labels.noResultsFor.replace("{query}", filterQuery.trim())',
+    );
   });
 });
