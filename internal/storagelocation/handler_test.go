@@ -474,7 +474,7 @@ func TestHandler_StoreBoundary403(t *testing.T) {
 
 		got, err := repo.GetByID(context.Background(), ownID)
 		require.NoError(t, err)
-		assert.Equal(t, "Own Store Loc", got.Name, "rejected update must not write")
+		assert.Equal(t, "Own Store", got.Name, "rejected update must not write")
 		assert.Equal(t, storeA, *got.StoreID, "scope must be unchanged")
 		assert.Nil(t, got.WarehouseID, "scope must be unchanged")
 	})
