@@ -32,10 +32,33 @@ var expectedAuthPaths = map[string]bool{
 	"/api/refresh":  true,
 }
 
+// identityPaths are session endpoints that carry client identity (ip,
+// user_agent) on every entry, including successes. They are a deliberate
+// exception to the "identity only when somebody will act on it" rule: these
+// are the calls that establish, extend and end a terminal session, and the
+// originating IP is the only way to tell a routine session from a stolen
+// token replayed from a new machine. /api/login and /api/logout are already
+// covered by the >= 400 and audit-log paths, but are listed so the set stays
+// complete as handlers are added.
+var identityPaths = map[string]bool{
+	"/api/validate":        true,
+	"/api/refresh":         true,
+	"/api/login":           true,
+	"/api/logout":          true,
+	"/api/change-password": true,
+}
+
 // isExpectedAuthRejection reports whether a 401 on path is part of the normal
 // session lifecycle.
 func isExpectedAuthRejection(path string, status int) bool {
 	return status == http.StatusUnauthorized && expectedAuthPaths[path]
+}
+
+// retainsClientIdentity reports whether an access-log entry should carry ip and
+// user_agent. Errors and slow requests always qualify; session endpoints
+// qualify at any status.
+func retainsClientIdentity(path string, status int, slow bool) bool {
+	return status >= 400 || slow || identityPaths[path]
 }
 
 // newRequestID generates a cryptographically random hex request ID.
@@ -54,7 +77,8 @@ func newRequestID() string {
 // Level selection keeps the signal-to-noise ratio high: successful traffic is
 // DEBUG, lateness above slowRequestThreshold is WARN regardless of status,
 // genuine server faults are ERROR, and client errors are WARN except for the
-// expected session-lifecycle 401s on expectedAuthPaths.
+// expected session-lifecycle 401s on expectedAuthPaths. Client identity is
+// attached for errors, slow requests, and every identityPaths entry.
 func RequestLoggingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		reqID := c.GetHeader("X-Request-ID")
@@ -88,10 +112,12 @@ func RequestLoggingMiddleware() gin.HandlerFunc {
 		}
 
 		// Client identity only earns its place on entries somebody will act
-		// on — errors and slow requests. Dropping it from routine 2xx traffic
-		// removes the bulk of the per-request noise while keeping the
-		// authentication and security diagnostics that need it.
-		if status >= 400 || slow {
+		// on — errors and slow requests — plus session endpoints, where the
+		// originating IP is the only evidence of where a token was used.
+		// Dropping it from routine 2xx traffic removes the bulk of the
+		// per-request noise while keeping the authentication and security
+		// diagnostics that need it.
+		if retainsClientIdentity(c.Request.URL.Path, status, slow) {
 			attrs = append(attrs,
 				"ip", shared.GetIPAddress(c),
 				"user_agent", c.Request.UserAgent(),

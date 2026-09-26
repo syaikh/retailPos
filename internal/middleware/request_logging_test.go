@@ -87,6 +87,12 @@ func setupRequestLoggingRouter() *gin.Engine {
 	r.POST("/api/sales", func(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "authorization token required"})
 	})
+	r.POST("/api/validate-ok", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"data": "session valid"})
+	})
+	r.GET("/api/products", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"data": "ok"})
+	})
 	return r
 }
 
@@ -278,6 +284,52 @@ func TestRequestLogging_ErrorsKeepClientIdentity(t *testing.T) {
 
 	assert.Equal(t, "10.0.0.7", attrs["ip"])
 	assert.Equal(t, "POS-Terminal/1.0", attrs["user_agent"])
+}
+
+// A successful session call still records where the token was used, even
+// though it logs at DEBUG and nobody is expected to act on the entry. This is
+// the only record of the originating IP for /api/validate, which writes no
+// audit row of its own, so dropping it would make a replayed access token
+// indistinguishable from routine use.
+func TestRequestLogging_SessionSuccessKeepsClientIdentity(t *testing.T) {
+	withSlowThreshold(t, time.Hour)
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(RequestLoggingMiddleware())
+	r.POST("/api/validate", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"data": "session valid"})
+	})
+
+	rec := serveLogged(t, r, http.MethodPost, "/api/validate")
+	attrs := recordAttrs(t, rec)
+
+	assert.Equal(t, slog.LevelDebug, rec.Level)
+	assert.Equal(t, "10.0.0.7", attrs["ip"])
+	assert.Equal(t, "POS-Terminal/1.0", attrs["user_agent"])
+}
+
+func TestRetainsClientIdentity(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		status   int
+		slow     bool
+		expected bool
+	}{
+		{"routine success", "/api/products", http.StatusOK, false, false},
+		{"session success", "/api/validate", http.StatusOK, false, true},
+		{"refresh success", "/api/refresh", http.StatusOK, false, true},
+		{"login success", "/api/login", http.StatusOK, false, true},
+		{"client error", "/api/products", http.StatusBadRequest, false, true},
+		{"slow routine success", "/api/products", http.StatusOK, true, true},
+		{"unlisted 401", "/api/sales", http.StatusUnauthorized, false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, retainsClientIdentity(tt.path, tt.status, tt.slow))
+		})
+	}
 }
 
 func TestRequestLogging_KeepsCorrelationFields(t *testing.T) {
