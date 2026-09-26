@@ -3,6 +3,7 @@
   import { labels, t } from "$shared/i18n";
   import { toast } from "$shared/stores/toast.svelte";
   import { goto } from "$app/router";
+  import { untrack } from "svelte";
   import { getRoles, createUser } from "$modules/admin";
   import { createStorageLocation } from "$modules/storage-location";
   import { createStoreAndGet, getReadiness } from "../services/stores-service";
@@ -77,19 +78,25 @@
 
   $effect(() => {
     if (open) {
-      step = "details";
-      loading = false;
-      errorMsg = "";
-      createdStore = null;
-      readiness = null;
-      copiedRole = "";
-      storeForm = { name: "", address: "", phone: "" };
-      rows = [];
-      locationForm = { enabled: true, code: "", name: "" };
-      locationCreated = false;
-      rolesReady = false;
-      rolesLoad = null;
-      void ensureRoles();
+      // Only `open` may drive the reset. The reset writes rolesReady and starts
+      // the roles fetch, so tracking those reads would re-run this effect when
+      // the fetch resolves: the form the user already filled is wiped and the
+      // freshly reset rolesReady starts the fetch again, looping indefinitely.
+      untrack(() => {
+        step = "details";
+        loading = false;
+        errorMsg = "";
+        createdStore = null;
+        readiness = null;
+        copiedRole = "";
+        storeForm = { name: "", address: "", phone: "" };
+        rows = [];
+        locationForm = { enabled: true, code: "", name: "" };
+        locationCreated = false;
+        rolesReady = false;
+        rolesLoad = null;
+        void ensureRoles();
+      });
     }
   });
 

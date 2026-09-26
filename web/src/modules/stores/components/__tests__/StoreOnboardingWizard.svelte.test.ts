@@ -29,10 +29,24 @@ describe("StoreOnboardingWizard.svelte source-structure guards", () => {
   it("opens as a bindable modal and resets state on open", () => {
     expect(src).toContain("open = $bindable(false)");
     expect(src).toContain("<Modal\n  bind:open");
-    expect(src).toContain("$effect(() => {\n    if (open) {");
+    expect(src).toContain("$effect(() => {\n    if (open) {\n      ");
     expect(src).toContain('step = "details"');
     expect(src).toContain("createdStore = null");
     expect(src).toContain("void ensureRoles();");
+  });
+
+  it("keeps the open reset untracked so a resolved roles fetch cannot replay it", () => {
+    // The reset writes rolesReady and kicks off the roles fetch. Tracking those
+    // reads would re-run the reset when the fetch resolves, wiping the filled
+    // details form and re-arming the fetch in a loop — the Next button in step
+    // 1 would then never enable.
+    expect(src).toContain('import { untrack } from "svelte";');
+    const effectStart = src.indexOf("$effect(() => {");
+    const untrackStart = src.indexOf("untrack(() => {", effectStart);
+    const ensureRoles = src.indexOf("void ensureRoles();", effectStart);
+    expect(effectStart).toBeGreaterThan(-1);
+    expect(untrackStart).toBeGreaterThan(effectStart);
+    expect(ensureRoles).toBeGreaterThan(untrackStart);
   });
 
   it("defines the five onboarding steps in order", () => {
