@@ -77,6 +77,10 @@ func main() {
 
 	cfg := config.Load()
 	shared.InitLogger(cfg.Env, cfg.LogLevel)
+	// Replay the warnings raised while loading, now that the handler matches the
+	// environment. Without this they would have been emitted in the default text
+	// format, including the production database-TLS notice.
+	cfg.LogStartupDiagnostics()
 
 	if cfg.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -84,10 +88,9 @@ func main() {
 
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		sslmode := "disable"
-		if cfg.Env == "production" {
-			sslmode = "require"
-		}
+		// A full DATABASE_URL carries its own sslmode and takes precedence.
+		// Otherwise the mode is resolved from DB_SSLMODE, defaulting to require
+		// in production and disable in development (config.resolveDBSSLMode).
 		dbUser := os.Getenv("DB_USER")
 		dbPass := os.Getenv("DB_PASSWORD")
 		dbHost := os.Getenv("DB_HOST")
@@ -98,7 +101,7 @@ func main() {
 			os.Exit(1)
 		}
 		dsn = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&timezone=Asia/Jakarta",
-			dbUser, dbPass, dbHost, dbPort, dbName, sslmode)
+			dbUser, dbPass, dbHost, dbPort, dbName, cfg.DBSSLMode)
 	}
 	poolCfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
