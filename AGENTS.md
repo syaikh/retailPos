@@ -25,6 +25,7 @@ This project uses a semantic codebase index at `.opencode/index`, use semantic t
 
 - Prefer incremental indexing for small changes. Full re-index only when index is missing/corrupt, large portion changed, or major refactoring.
 - Do not repeatedly re-index because a query returned no result — first consider whether the query is vague, wrong tool selected, or target outside index.
+- **Never run `index_codebase` with `force=true`, or `/index force`, on your own initiative.** A full re-index is expensive and the user runs it themselves. If the index is stale or a symbol you just wrote is not found, say so and let the user re-index; fall back to `grep`/`Read` in the meantime rather than triggering a rebuild.
 
 ## Environment Configuration
 
