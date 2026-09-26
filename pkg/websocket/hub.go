@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
@@ -100,6 +101,7 @@ type Client struct {
 	role    string
 	storeID *int
 	isAdmin bool
+	ip      string
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -206,6 +208,7 @@ func (h *Hub) Run() {
 		case <-h.done:
 			h.mutex.Lock()
 			h.userConnMu.Lock()
+			slog.Debug("WebSocket hub shutting down", "clients", len(h.clients))
 			for client := range h.clients {
 				if client.cancel != nil {
 					client.cancel()
@@ -228,6 +231,8 @@ func (h *Hub) Run() {
 			if count >= maxConnectionsPerUser {
 				h.userConnMu.Unlock()
 				h.mutex.Unlock()
+				slog.Warn("WebSocket connection rejected: per-user limit reached",
+					"user_id", client.userID, "ip", client.ip, "limit", maxConnectionsPerUser)
 				select {
 				case client.send <- []byte(`{"type":"error","payload":"Too many connections"}`):
 				default:
@@ -239,14 +244,25 @@ func (h *Hub) Run() {
 			h.userConnMu.Unlock()
 
 			h.clients[client] = true
+			connectedCount := len(h.clients)
 			h.mutex.Unlock()
 
 			h.broadcastUserCount()
-			slog.Info("WebSocket client registered", "total", len(h.clients), "user_id", client.userID, "role", client.role)
+			// Single lifecycle event per connect. The authenticated identity
+			// (including the client IP, useful for auth diagnostics) is
+			// reported here so the upgrade handler does not have to log it
+			// again.
+			slog.Info("WebSocket client connected",
+				"user_id", client.userID, "role", client.role, "store_id", client.storeID, "ip", client.ip, "total", connectedCount)
 
 		case client := <-h.unregister:
 			h.mutex.Lock()
-			if _, ok := h.clients[client]; ok {
+			// A client can reach h.unregister more than once (a slow-client
+			// drop and readPump's deferred unregister both push it). Only the
+			// first one owns the connection; later ones must not re-announce a
+			// disconnect for a slot already accounted for.
+			_, registered := h.clients[client]
+			if registered {
 				delete(h.clients, client)
 				close(client.send)
 
@@ -256,13 +272,17 @@ func (h *Hub) Run() {
 				}
 				h.userConnMu.Unlock()
 			}
+			disconnectedCount := len(h.clients)
 			h.mutex.Unlock()
 
 			if client.cancel != nil {
 				client.cancel()
 			}
 			h.broadcastUserCount()
-			slog.Info("WebSocket client unregistered", "total", len(h.clients))
+			if registered {
+				slog.Info("WebSocket client disconnected",
+					"user_id", client.userID, "ip", client.ip, "total", disconnectedCount)
+			}
 
 		case event := <-h.broadcast:
 			data, err := json.Marshal(event)
@@ -406,8 +426,6 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 		return
 	}
 
-	slog.Info("WebSocket auth OK", "user", claims.ID, "role", claims.Role, "store", claims.StoreID, "ip", clientIP)
-
 	var storeID *int
 	if claims.StoreID != nil {
 		sid := *claims.StoreID
@@ -424,6 +442,7 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 		role:    claims.Role,
 		storeID: storeID,
 		isAdmin: claims.Role == permissions.RoleSuperadmin || claims.Role == permissions.RoleManager,
+		ip:      clientIP,
 		ctx:     ctx,
 		cancel:  cancel,
 	}
@@ -472,6 +491,17 @@ func (c *Client) readPump() {
 	}
 }
 
+// isExpectedCloseError reports whether err is a normal end-of-connection
+// condition rather than a fault. gorilla returns ErrCloseSent once a close
+// frame has already been written — which is exactly what happens when the hub
+// unregisters a client during shutdown — and the net package reports
+// net.ErrClosed once the socket is gone. Neither is actionable, so a close
+// write that fails with either is left unreported; any other error on the
+// close-frame write is still surfaced by the caller.
+func isExpectedCloseError(err error) bool {
+	return errors.Is(err, websocket.ErrCloseSent) || errors.Is(err, net.ErrClosed)
+}
+
 func (c *Client) writePump() {
 	defer c.hub.wg.Done()
 	ticker := time.NewTicker(pingPeriod)
@@ -490,7 +520,7 @@ func (c *Client) writePump() {
 				return
 			}
 			if !ok {
-				if err := c.conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
+				if err := c.conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil && !isExpectedCloseError(err) {
 					slog.Warn("WebSocket write close message error", "user", c.userID, "error", err)
 				}
 				return
