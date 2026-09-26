@@ -95,29 +95,152 @@ func TestRepository_GetByUsername_DBError(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestRepository_UpdatePassword(t *testing.T) {
+func TestRepository_RotatePassword_CommitsEveryStep(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
 	defer mock.Close()
 
-	mock.ExpectExec("UPDATE users SET password_hash").WithArgs("hashed", 1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	expiresAt := time.Now().Add(time.Hour)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE users SET password_hash").
+		WithArgs("hashed", 1).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("DELETE FROM refresh_tokens").
+		WithArgs(1).
+		WillReturnResult(pgxmock.NewResult("DELETE", 2))
+	mock.ExpectExec("INSERT INTO refresh_tokens").
+		WithArgs(1, hashToken("new-refresh"), expiresAt).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectCommit()
 
 	repo := NewRepository(mock)
-	err = repo.UpdatePassword(context.Background(), 1, "hashed")
+	err = repo.RotatePassword(context.Background(), 1, "manager", "hashed", "new-refresh", expiresAt)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestRepository_DeleteUserRefreshTokens(t *testing.T) {
+func TestRepository_RotatePassword_RollsBackWhenRefreshTokenStoreFails(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
 	defer mock.Close()
 
-	mock.ExpectExec("DELETE FROM refresh_tokens").WithArgs(1).WillReturnResult(pgxmock.NewResult("DELETE", 2))
+	expiresAt := time.Now().Add(time.Hour)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE users SET password_hash").
+		WithArgs("hashed", 1).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("DELETE FROM refresh_tokens").
+		WithArgs(1).
+		WillReturnResult(pgxmock.NewResult("DELETE", 2))
+	mock.ExpectExec("INSERT INTO refresh_tokens").
+		WithArgs(1, hashToken("new-refresh"), expiresAt).
+		WillReturnError(fmt.Errorf("insert failed"))
+	mock.ExpectRollback()
 
 	repo := NewRepository(mock)
-	err = repo.DeleteUserRefreshTokens(context.Background(), 1)
-	assert.NoError(t, err)
+	err = repo.RotatePassword(context.Background(), 1, "manager", "hashed", "new-refresh", expiresAt)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "store refresh token")
+	// No ExpectCommit: the password update must not survive a failed rotation.
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_RotatePassword_RollsBackWhenPasswordUpdateFails(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE users SET password_hash").
+		WithArgs("hashed", 1).
+		WillReturnError(fmt.Errorf("update failed"))
+	mock.ExpectRollback()
+
+	repo := NewRepository(mock)
+	err = repo.RotatePassword(context.Background(), 1, "manager", "hashed", "new-refresh", time.Now().Add(time.Hour))
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "update password")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_RotatePassword_BeginError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectBegin().WillReturnError(fmt.Errorf("begin failed"))
+
+	repo := NewRepository(mock)
+	err = repo.RotatePassword(context.Background(), 1, "manager", "hashed", "new-refresh", time.Now().Add(time.Hour))
+	assert.Error(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// A rotated password must not stay behind in the GetByUsername cache: the next
+// login compares the submitted password against that entry, so a stale hash
+// rejects the new password until the cache expires.
+func TestRepository_RotatePassword_EvictsTheCachedUser(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	expiresAt := time.Now().Add(time.Hour)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE users SET password_hash").
+		WithArgs("hashed", 1).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("DELETE FROM refresh_tokens").
+		WithArgs(1).
+		WillReturnResult(pgxmock.NewResult("DELETE", 2))
+	mock.ExpectExec("INSERT INTO refresh_tokens").
+		WithArgs(1, hashToken("new-refresh"), expiresAt).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectCommit()
+
+	c := cache.New(5*time.Minute, 10*time.Minute)
+	repo := NewRepository(mock)
+	repo.SetCache(c)
+	c.Set("user:username:manager", User{ID: 1, Username: "manager", Password: "old-hash"})
+	c.Wait()
+
+	err = repo.RotatePassword(context.Background(), 1, "manager", "hashed", "new-refresh", expiresAt)
+	require.NoError(t, err)
+	c.Wait()
+
+	_, cached := c.Get("user:username:manager")
+	assert.False(t, cached, "rotated password must not stay readable from the username cache")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// The same eviction protects a soft-deleted account: while its entry survives,
+// a deleted user still authenticates.
+func TestRepository_DeleteUser_EvictsTheCachedUser(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE users SET reports_to").WithArgs(1).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+	mock.ExpectQuery("UPDATE users SET deleted_at").
+		WithArgs(1).
+		WillReturnRows(pgxmock.NewRows([]string{"username"}).AddRow("manager"))
+	mock.ExpectCommit()
+
+	c := cache.New(5*time.Minute, 10*time.Minute)
+	repo := NewRepository(mock)
+	repo.SetCache(c)
+	c.Set("user:username:manager", User{ID: 1, Username: "manager", IsActive: true})
+	c.Wait()
+
+	err = repo.DeleteUser(context.Background(), 1)
+	require.NoError(t, err)
+	c.Wait()
+
+	_, cached := c.Get("user:username:manager")
+	assert.False(t, cached, "deleted user must not stay readable from the username cache")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -383,9 +506,9 @@ func TestRepository_GetAllUsers_NoFilters(t *testing.T) {
 		"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to",
 		"reports_to_username",
 		"is_active", "language", "theme",
-		"created_at", "updated_at", "last_login",
+		"created_at", "updated_at", "last_login", "must_change_password",
 		"role_id_2", "role_name", "role_description", "role_is_system", "role_created_at",
-	}).AddRow(1, "manager", "manager@test.com", "hash", 1, nil, nil, "", true, "id", "light", now, now, nil,
+	}).AddRow(1, "manager", "manager@test.com", "hash", 1, nil, nil, "", true, "id", "light", now, now, nil, true,
 		1, "manager", "Admin", true, now)
 	mock.ExpectQuery("SELECT u.id, u.username").WithArgs(10, 0).WillReturnRows(rows)
 
@@ -395,6 +518,7 @@ func TestRepository_GetAllUsers_NoFilters(t *testing.T) {
 	assert.Equal(t, 1, total)
 	assert.Len(t, users, 1)
 	assert.Equal(t, "manager", users[0].Username)
+	assert.True(t, users[0].MustChangePassword, "the list query must report the rotation flag, not a hard false")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -421,7 +545,7 @@ func TestRepository_GetAllUsers_InvalidSort(t *testing.T) {
 		"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to",
 		"reports_to_username",
 		"is_active",
-		"created_at", "updated_at", "last_login",
+		"created_at", "updated_at", "last_login", "must_change_password",
 		"role_id_2", "role_name", "role_description", "role_is_system", "role_created_at",
 	}))
 
@@ -487,7 +611,7 @@ func TestRepository_DeleteUser(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE users SET reports_to").WithArgs(1).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-	mock.ExpectExec("UPDATE users SET deleted_at").WithArgs(1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectQuery("UPDATE users SET deleted_at").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"username"}).AddRow("manager"))
 	mock.ExpectCommit()
 
 	repo := NewRepository(mock)
@@ -667,7 +791,7 @@ func TestRepository_DeleteUser_DBError(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE users SET reports_to").WithArgs(1).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-	mock.ExpectExec("UPDATE users SET deleted_at").WithArgs(1).WillReturnError(fmt.Errorf("db error"))
+	mock.ExpectQuery("UPDATE users SET deleted_at").WithArgs(1).WillReturnError(fmt.Errorf("db error"))
 
 	repo := NewRepository(mock)
 	err = repo.DeleteUser(context.Background(), 1)
@@ -709,7 +833,7 @@ func TestRepository_DeleteUser_CommitError(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE users SET reports_to").WithArgs(1).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-	mock.ExpectExec("UPDATE users SET deleted_at").WithArgs(1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectQuery("UPDATE users SET deleted_at").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"username"}).AddRow("manager"))
 	mock.ExpectCommit().WillReturnError(fmt.Errorf("commit failed"))
 
 	repo := NewRepository(mock)
@@ -731,27 +855,14 @@ func TestRepository_UpdateLastLogin_DBError(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestRepository_UpdatePassword_DBError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	mock.ExpectExec("UPDATE users SET password_hash").WithArgs("hash", 1).WillReturnError(fmt.Errorf("db error"))
-
-	repo := NewRepository(mock)
-	err = repo.UpdatePassword(context.Background(), 1, "hash")
-	assert.Error(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestRepository_GetSubordinates_Success(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
 	defer mock.Close()
 
 	now := time.Now()
-	rows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "language", "theme", "created_at", "updated_at", "last_login"}).
-		AddRow(2, "sub1", "sub1@test.com", "hash", 2, nil, 1, true, "id", "light", now, now, nil)
+	rows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "language", "theme", "created_at", "updated_at", "last_login", "must_change_password"}).
+		AddRow(2, "sub1", "sub1@test.com", "hash", 2, nil, 1, true, "id", "light", now, now, nil, false)
 	mock.ExpectQuery("SELECT id, username, email").WithArgs(1).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
@@ -783,8 +894,8 @@ func TestRepository_GetManager_Success(t *testing.T) {
 	defer mock.Close()
 
 	now := time.Now()
-	rows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "language", "theme", "created_at", "updated_at", "last_login"}).
-		AddRow(1, "mgr", "mgr@test.com", "hash", 1, nil, nil, true, "id", "light", now, now, nil)
+	rows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "language", "theme", "created_at", "updated_at", "last_login", "must_change_password"}).
+		AddRow(1, "mgr", "mgr@test.com", "hash", 1, nil, nil, true, "id", "light", now, now, nil, false)
 	mock.ExpectQuery("SELECT m.id, m.username, m.email").WithArgs(2).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
@@ -814,15 +925,17 @@ func TestRepository_GetOrgChart_Success(t *testing.T) {
 	defer mock.Close()
 
 	now := time.Now()
-	rows := pgxmock.NewRows([]string{"id", "username", "email", "role_id", "store_id", "reports_to", "is_active", "language", "theme", "created_at", "updated_at", "last_login"}).
-		AddRow(1, "ceo", "ceo@test.com", 1, nil, nil, true, "id", "light", now, now, nil).
-		AddRow(2, "mgr", "mgr@test.com", 2, nil, 1, true, "id", "light", now, now, nil)
+	rows := pgxmock.NewRows([]string{"id", "username", "email", "role_id", "store_id", "reports_to", "is_active", "language", "theme", "created_at", "updated_at", "last_login", "must_change_password"}).
+		AddRow(1, "ceo", "ceo@test.com", 1, nil, nil, true, "id", "light", now, now, nil, true).
+		AddRow(2, "mgr", "mgr@test.com", 2, nil, 1, true, "id", "light", now, now, nil, false)
 	mock.ExpectQuery("WITH RECURSIVE org_tree").WillReturnRows(rows)
 
 	repo := NewRepository(mock)
 	users, err := repo.GetOrgChart(context.Background())
 	require.NoError(t, err)
 	assert.Len(t, users, 2)
+	assert.True(t, users[0].MustChangePassword)
+	assert.False(t, users[1].MustChangePassword)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -869,15 +982,39 @@ func TestRepository_IsSubordinate_DBError(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestRepository_DeleteUserRefreshTokens_DBError(t *testing.T) {
+func TestRepository_RotatePassword_CommitError(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
 	defer mock.Close()
 
-	mock.ExpectExec("DELETE FROM refresh_tokens").WithArgs(1).WillReturnError(fmt.Errorf("db error"))
+	expiresAt := time.Now().Add(time.Hour)
 
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE users SET password_hash").
+		WithArgs("hashed", 1).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("DELETE FROM refresh_tokens").
+		WithArgs(1).
+		WillReturnResult(pgxmock.NewResult("DELETE", 2))
+	mock.ExpectExec("INSERT INTO refresh_tokens").
+		WithArgs(1, hashToken("new-refresh"), expiresAt).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectCommit().WillReturnError(fmt.Errorf("commit failed"))
+
+	// The rotation did not land, so the cached row must stay in place: the old
+	// password is still the live one and evicting it would only cost a query.
+	c := cache.New(5*time.Minute, 10*time.Minute)
 	repo := NewRepository(mock)
-	err = repo.DeleteUserRefreshTokens(context.Background(), 1)
-	assert.Error(t, err)
+	repo.SetCache(c)
+	c.Set("user:username:manager", User{ID: 1, Username: "manager", Password: "old-hash"})
+	c.Wait()
+
+	err = repo.RotatePassword(context.Background(), 1, "manager", "hashed", "new-refresh", expiresAt)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "commit password rotation")
+	c.Wait()
+
+	_, cached := c.Get("user:username:manager")
+	assert.True(t, cached, "a rolled-back rotation must not evict the live user")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

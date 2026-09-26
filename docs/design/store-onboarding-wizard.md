@@ -59,7 +59,20 @@ No readiness column, no `stores.status` — readiness is always derived.
   - `AuthClaims.MustChangePassword` travels in the JWT.
   - Set on `Login` and re-read on `RefreshToken` (both already load the user).
   - `ChangePassword` clears the column and **re-issues the access token** so the
-    caller does not need to log in again.
+    caller does not need to log in again. Tokens are minted before persistence,
+    and `Repository.RotatePassword` writes the new hash, the cleared flag, the
+    invalidation of the old refresh tokens and the replacement refresh token in
+    one transaction — a storage failure must not leave the caller with a 500 for
+    a rotation that already landed (old password rejected, no valid refresh
+    token).
+  - Every write path that changes authentication-relevant columns must evict the
+    `user:username:<name>` cache entry. `GetByUsername` memoises the whole user
+    row (password hash and `must_change_password` included) for the 10-minute
+    cache TTL, and `Login` reads through it. Without eviction a rotation leaves
+    the pre-rotation hash cached, so the very next login with the new password
+    is rejected as `invalid username or password`, and a soft-deleted account
+    keeps authenticating until the entry expires. `RotatePassword` and
+    `DeleteUser` therefore take the username and evict after commit.
 - `internal/user/repository.go`: column added to every user SELECT/scan site.
 - `internal/user/handler.go`: `CreateUserRequest.must_change_password` (optional,
   default `false`). The wizard sends `true`.
@@ -115,6 +128,14 @@ location exists, and address + phone are set. The catalog gates readiness too:
 the `catalog` blocker is emitted when `active_products == 0` **or** every
 active product is out of stock (`zero_stock_products == active_products`);
 a partially out-of-stock catalog is informational (the catalog is shared).
+
+The catalog figures are store-independent, and the Stores list requests
+readiness once per visible row, so `SellableStats` memoises them for 30s
+(`catalogStatsTTL`) — one `v_products_full` scan per window instead of one per
+row. Product writes (`Create`/`Update`/`Delete`/`Restore`) drop the memo
+through `product.InvalidateSellableStats`; stock movements from sales, purchase
+orders and stock opnames are covered by the TTL, so freshly received stock can
+lag the checklist by up to 30s.
 
 ## Frontend
 

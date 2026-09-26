@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,6 +53,10 @@ func TestSellableStats_CountsActiveAndZeroStockProducts(t *testing.T) {
 	insertProduct("INACTIVE", "inactive", false, nil)
 	insertProduct("DELETED", "active", true, nil)
 
+	// The fixtures are inserted with raw SQL, so the product write paths did
+	// not get a chance to drop the memoised snapshot.
+	InvalidateSellableStats()
+
 	afterActive, afterZero, err := provider.SellableStockStats(ctx, dbPool)
 	require.NoError(t, err)
 
@@ -59,4 +64,45 @@ func TestSellableStats_CountsActiveAndZeroStockProducts(t *testing.T) {
 		"only the two non-deleted active fixtures are new sellable products")
 	assert.Equal(t, beforeZero+1, afterZero,
 		"only the fixture without stock adds to the zero-stock count")
+}
+
+// TestSellableStats_MemoisesTheGlobalAggregate pins the reason the snapshot
+// exists: readiness is computed per visible store row, and the catalogue half
+// is identical for every row, so the v_products_full scan must happen once per
+// TTL window instead of once per row.
+func TestSellableStats_MemoisesTheGlobalAggregate(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	InvalidateSellableStats()
+	t.Cleanup(InvalidateSellableStats)
+
+	query := "FROM v_products_full"
+	mock.ExpectQuery(query).WillReturnRows(
+		pgxmock.NewRows([]string{"count", "zero"}).AddRow(120, 7))
+	mock.ExpectQuery(query).WillReturnRows(
+		pgxmock.NewRows([]string{"count", "zero"}).AddRow(130, 9))
+
+	provider := SellableStats{}
+
+	active, zero, err := provider.SellableStockStats(context.Background(), mock)
+	require.NoError(t, err)
+	assert.Equal(t, 120, active)
+	assert.Equal(t, 7, zero)
+
+	// Second call must be served from the snapshot: no extra expectation is
+	// registered, so a query here would fail the mock.
+	active, zero, err = provider.SellableStockStats(context.Background(), mock)
+	require.NoError(t, err)
+	assert.Equal(t, 120, active, "cached read must not observe a later catalogue")
+	assert.Equal(t, 7, zero)
+
+	InvalidateSellableStats()
+	active, zero, err = provider.SellableStockStats(context.Background(), mock)
+	require.NoError(t, err)
+	assert.Equal(t, 130, active, "a product write must make the next read fresh")
+	assert.Equal(t, 9, zero)
+
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

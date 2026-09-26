@@ -13,6 +13,7 @@ import (
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/pkg/cache"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -563,6 +564,42 @@ func TestAuthService_ChangePassword_Success(t *testing.T) {
 	resp2, err := svc.Login(ctx, "changepw_success", "newpassword456")
 	require.NoError(t, err)
 	assert.Equal(t, "changepw_success", resp2.User.Username)
+}
+
+// The rotation has to be visible to the very next login even when the user
+// repository caches rows by username: the login that precedes the rotation
+// leaves the pre-rotation hash in that cache, and a stale entry would reject
+// the new password for as long as the cache entry lives.
+func TestAuthService_ChangePassword_NewPasswordWorksOnTheNextLogin(t *testing.T) {
+	_ = os.Setenv("JWT_SECRET", "test-secret-for-testing-only")
+	t.Cleanup(func() { _ = os.Unsetenv("JWT_SECRET") })
+	repo := NewRepository(dbPool)
+	repo.SetCache(cache.New(5*time.Minute, 10*time.Minute))
+	svc := NewAuthService(repo, nil, config.Load())
+	ctx := context.Background()
+
+	user := &User{
+		Username: "changepw_cached",
+		Email:    "changepw_cached@test.com",
+		Password: testPasswordHash(),
+		RoleID:   1,
+		IsActive: true,
+	}
+	require.NoError(t, repo.CreateUser(ctx, user))
+
+	// This login is what fills the cache with the old hash.
+	_, err := svc.Login(ctx, "changepw_cached", "password")
+	require.NoError(t, err)
+
+	_, _, err = svc.ChangePassword(ctx, user.ID, "password", "newpassword456")
+	require.NoError(t, err)
+
+	resp, err := svc.Login(ctx, "changepw_cached", "newpassword456")
+	require.NoError(t, err)
+	assert.Equal(t, "changepw_cached", resp.User.Username)
+
+	_, err = svc.Login(ctx, "changepw_cached", "password")
+	assert.ErrorIs(t, err, ErrInvalidCredentials, "the rotated password must stop working")
 }
 
 func TestAuthService_ChangePassword_WrongCurrent(t *testing.T) {

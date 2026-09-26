@@ -358,6 +358,7 @@ func (r *Repository) CreateProduct(ctx context.Context, product *Product) error 
 		r.cache.Delete(fmt.Sprintf("product:%d", product.ID))
 		r.cache.Delete(fmt.Sprintf("product:price:%d", product.ID))
 	}
+	InvalidateSellableStats()
 	return nil
 }
 
@@ -449,6 +450,7 @@ func (r *Repository) UpdateProduct(ctx context.Context, product *Product, storeI
 		r.cache.Delete(fmt.Sprintf("product:%d", product.ID))
 		r.cache.Delete(fmt.Sprintf("product:price:%d", product.ID))
 	}
+	InvalidateSellableStats()
 	return nil
 }
 
@@ -463,6 +465,9 @@ func (r *Repository) DeleteProduct(ctx context.Context, id int, storeID *int) er
 	if err == nil && r.cache != nil {
 		r.cache.Delete(fmt.Sprintf("product:%d", id))
 		r.cache.Delete(fmt.Sprintf("product:price:%d", id))
+	}
+	if err == nil {
+		InvalidateSellableStats()
 	}
 	return err
 }
@@ -508,6 +513,7 @@ func (r *Repository) RestoreProduct(ctx context.Context, product *Product) error
 		r.cache.Delete(fmt.Sprintf("product:%d", product.ID))
 		r.cache.Delete(fmt.Sprintf("product:price:%d", product.ID))
 	}
+	InvalidateSellableStats()
 	return nil
 }
 

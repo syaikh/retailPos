@@ -266,19 +266,13 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID int, currentPas
 		return "", "", fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
-	if err := s.repo.UpdatePassword(ctx, userID, string(hashed)); err != nil {
-		return "", "", fmt.Errorf("failed to update password: %w", err)
-	}
-
-	// The old refresh tokens are invalidated with the old password, so a fresh
-	// pair is issued here. Without it the session would die at the next
-	// proactive refresh even though the password change succeeded.
-	if err := s.repo.DeleteUserRefreshTokens(ctx, userID); err != nil {
-		slog.Warn("failed to delete refresh tokens after password change", "user", userID, "error", err)
-	}
-
-	if err := s.storeRefreshToken(ctx, user.ID, refreshToken); err != nil {
-		return "", "", fmt.Errorf("failed to store refresh token: %w", err)
+	// One atomic step: the new hash, the cleared rotation flag, the
+	// invalidation of the old refresh tokens and the replacement refresh token.
+	// Anything less and a storage failure would return an error for a rotation
+	// that already landed, leaving the user locked out. The username is passed
+	// along so the repository can evict the cached user the login path reads.
+	if err := s.repo.RotatePassword(ctx, userID, user.Username, string(hashed), refreshToken, time.Now().Add(s.refreshTTL)); err != nil {
+		return "", "", fmt.Errorf("failed to rotate password: %w", err)
 	}
 
 	return accessToken, refreshToken, nil
