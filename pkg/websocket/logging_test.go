@@ -35,13 +35,13 @@ func (h *captureLogs) Handle(_ context.Context, r slog.Record) error {
 func (h *captureLogs) WithAttrs(_ []slog.Attr) slog.Handler { return h }
 func (h *captureLogs) WithGroup(_ string) slog.Handler      { return h }
 
-// atOrAbove returns every captured record at level or higher than min.
-func (h *captureLogs) atOrAbove(min slog.Level) []slog.Record {
+// atOrAbove returns every captured record at or above the given level.
+func (h *captureLogs) atOrAbove(level slog.Level) []slog.Record {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	var out []slog.Record
 	for _, r := range h.records {
-		if r.Level >= min {
+		if r.Level >= level {
 			out = append(out, r)
 		}
 	}
