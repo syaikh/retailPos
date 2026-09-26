@@ -32,7 +32,7 @@ describe("StoreOnboardingWizard.svelte source-structure guards", () => {
     expect(src).toContain("$effect(() => {\n    if (open) {");
     expect(src).toContain('step = "details"');
     expect(src).toContain("createdStore = null");
-    expect(src).toContain("void loadRoles()");
+    expect(src).toContain("void ensureRoles();");
   });
 
   it("defines the five onboarding steps in order", () => {
@@ -63,6 +63,26 @@ describe("StoreOnboardingWizard.svelte source-structure guards", () => {
       'errorMsg = t("onboardingStaffFailed", { count: failed })',
     );
     expect(src).toContain("row.error = labels.roleNotFound;");
+  });
+
+  it("waits for the roles fetch before creating staff", () => {
+    // The roles request starts when the modal opens, so the staff step can be
+    // reached first. Creating without them would fail every row with
+    // "role not found" and leave the wizard stuck on the step.
+    expect(src).toContain("let rolesReady = $state(false);");
+    expect(src).toContain("function ensureRoles(): Promise<void> {");
+    expect(src).toContain("rolesLoad = loadRoles().finally(() => {");
+    expect(src).toContain("rolesLoad = null;");
+    expect(src).toContain("disabled={loading || !rolesReady}");
+
+    const gate = src.indexOf("await ensureRoles();");
+    const loop = src.indexOf("for (const row of pendingRows) {");
+    expect(gate).toBeGreaterThan(-1);
+    expect(loop).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(loop);
+
+    expect(src).toContain("if (!rolesReady) {");
+    expect(src).toContain("errorMsg = labels.toastFailedLoadRoles;");
   });
 
   it("generates a random temporary password per enabled row", () => {

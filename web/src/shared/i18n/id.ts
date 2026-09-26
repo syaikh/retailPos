@@ -821,6 +821,7 @@ export const id = {
   noItemsSelected: "Tidak ada barang dipilih",
   toastFailedLoadImportHistory: "Gagal memuat riwayat impor",
   toastFailedLoadJobDetail: "Gagal memuat detail pekerjaan",
+  toastFailedLoadRoles: "Gagal memuat peran",
   backToImportHistory: "Kembali ke Riwayat Impor",
   jobWithId: "Job #{id}",
   rowsCount: "{count} baris",

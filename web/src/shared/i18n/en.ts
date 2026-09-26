@@ -814,6 +814,7 @@ export const en: Labels = {
   noItemsSelected: "No items selected",
   toastFailedLoadImportHistory: "Failed to load import history",
   toastFailedLoadJobDetail: "Failed to load job detail",
+  toastFailedLoadRoles: "Failed to load roles",
   backToImportHistory: "Back to Import History",
   jobWithId: "Job #{id}",
   rowsCount: "{count} rows",

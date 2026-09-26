@@ -447,6 +447,61 @@ describe("auth-service", () => {
       expect(store.mustChangePassword).toBe(false);
     });
 
+    it("refreshes once and retries when the access token expired", async () => {
+      const { changePassword } = await import("../auth-service");
+      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      const store = useAuthStore();
+      store.mustChangePassword = true;
+      sessionStorage.setItem("access_token", "stale-token");
+
+      // 1) rotation attempt with the expired access token
+      mockPost.mockRejectedValueOnce(makeAxiosError(401));
+      // 2) refresh exchange
+      mockPost.mockResolvedValueOnce({
+        status: 200,
+        data: { access_token: "refreshed-token" },
+      });
+      // 3) retried rotation
+      mockPost.mockResolvedValueOnce({
+        status: 200,
+        data: { access_token: "rotated-token" },
+      });
+
+      const result = await changePassword("old-pass-1", "new-pass-123");
+
+      expect(result.ok).toBe(true);
+      expect(sessionStorage.getItem("access_token")).toBe("rotated-token");
+      expect(store.mustChangePassword).toBe(false);
+      expect(mockPost).toHaveBeenNthCalledWith(
+        3,
+        "/change-password",
+        { current_password: "old-pass-1", new_password: "new-pass-123" },
+        {
+          headers: { Authorization: "Bearer refreshed-token" },
+        },
+      );
+    });
+
+    it("reports an expired session when the refresh token is dead", async () => {
+      const { changePassword } = await import("../auth-service");
+      const { labels } = await import("$shared/i18n");
+      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      useAuthStore().mustChangePassword = true;
+      sessionStorage.setItem("access_token", "stale-token");
+
+      mockPost.mockRejectedValueOnce(makeAxiosError(401));
+      mockPost.mockRejectedValueOnce(makeAxiosError(401));
+
+      const result = await changePassword("old-pass-1", "new-pass-123");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.message).toBe(labels.toastSessionExpired);
+      // No third attempt: a dead refresh token is not recoverable here, the
+      // modal stays open and the user can sign out.
+      expect(mockPost).toHaveBeenCalledTimes(2);
+      expect(useAuthStore().mustChangePassword).toBe(true);
+    });
+
     it("returns the backend message on rejection", async () => {
       const { changePassword } = await import("../auth-service");
       const { useAuthStore } = await import("../../stores/auth-store.svelte");

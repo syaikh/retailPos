@@ -4,7 +4,7 @@ import { useAuthStore } from "../stores/auth-store.svelte";
 import { setAccessToken, getAuthToken } from "../lib/session";
 import type { User } from "../types";
 import { applyTheme } from "$shared/utils/theme";
-import { setLocale } from "$shared/i18n";
+import { labels, setLocale } from "$shared/i18n";
 import {
   initTabCoordination,
   destroyTabCoordination,
@@ -340,12 +340,35 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  try {
-    const res = await authApi.post(
+  const post = (token: string | null) =>
+    authApi.post(
       "/change-password",
       { current_password: currentPassword, new_password: newPassword },
-      { headers: getAuthHeaders() },
+      {
+        headers: token
+          ? { Authorization: `Bearer ${token}` }
+          : getAuthHeaders(),
+      },
     );
+
+  try {
+    let res;
+    try {
+      res = await post(null);
+    } catch (err) {
+      // authApi carries no 401 interceptor, and the access token can expire
+      // while the forced-rotation modal waits for input. Refresh once and
+      // retry so the user is not stranded behind a raw 401 with the only way
+      // out being "sign out and start over".
+      if (!axios.isAxiosError(err) || err.response?.status !== 401) {
+        throw err;
+      }
+      const refreshed = await doRefresh();
+      if (!refreshed) {
+        return { ok: false, message: labels.toastSessionExpired };
+      }
+      res = await post(refreshed);
+    }
     const token = res.data?.access_token;
     if (token) setAccessToken(token);
     const store = useAuthStore();

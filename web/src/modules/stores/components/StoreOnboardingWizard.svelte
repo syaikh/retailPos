@@ -47,6 +47,11 @@
   let readinessLoading = $state(false);
   let copiedRole = $state("");
   let roles = $state<{ id: number; name: string }[]>([]);
+  // Roles are fetched when the modal opens, so the staff step can be reached
+  // before they resolve. Creating staff without them marks every row
+  // "role not found" with no way forward, so the step waits for the fetch.
+  let rolesReady = $state(false);
+  let rolesLoad: Promise<void> | null = null;
 
   let storeForm = $state({ name: "", address: "", phone: "" });
   let rows = $state<StaffRow[]>([]);
@@ -82,16 +87,32 @@
       rows = [];
       locationForm = { enabled: true, code: "", name: "" };
       locationCreated = false;
-      void loadRoles();
+      rolesReady = false;
+      rolesLoad = null;
+      void ensureRoles();
     }
   });
 
   async function loadRoles() {
     try {
       roles = await getRoles();
+      rolesReady = roles.length > 0;
     } catch {
       roles = [];
+      rolesReady = false;
     }
+  }
+
+  // Dedupes concurrent callers and retries after a failed attempt: clearing the
+  // in-flight handle on settle means the next staff step click fetches again.
+  function ensureRoles(): Promise<void> {
+    if (rolesReady) return Promise.resolve();
+    if (!rolesLoad) {
+      rolesLoad = loadRoles().finally(() => {
+        rolesLoad = null;
+      });
+    }
+    return rolesLoad;
   }
 
   function stepTitle(s: Step): string {
@@ -211,6 +232,15 @@
     if (!createdStore) return;
     errorMsg = "";
     loading = true;
+    // The roles fetch may still be in flight (or have failed on a previous
+    // attempt) when this step is reached: resolve it before creating anyone,
+    // otherwise every row would fail with "role not found".
+    await ensureRoles();
+    if (!rolesReady) {
+      loading = false;
+      errorMsg = labels.toastFailedLoadRoles;
+      return;
+    }
     let failed = 0;
     for (const row of pendingRows) {
       const roleRecord = roles.find((r) => r.name === row.role);
@@ -718,7 +748,11 @@
         <Button variant="secondary" onclick={() => (step = "location")}>
           {labels.skip}
         </Button>
-        <Button variant="primary" disabled={loading} onclick={handleStaff}>
+        <Button
+          variant="primary"
+          disabled={loading || !rolesReady}
+          onclick={handleStaff}
+        >
           {#if loading}
             <Loader2 size={16} class="animate-spin" /> {labels.saving}
           {:else}
