@@ -1,0 +1,32 @@
+# Retail POS pod — Quadlet unit
+#
+# Install (rootless, per-user systemd):
+#   mkdir -p ~/.config/containers/systemd
+#   cp deploy/quadlet/* ~/.config/containers/systemd/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now retail-pos-pod.service retail-pos-backend.service
+#
+# Rootful hosts: copy to /etc/containers/systemd/ and use `sudo systemctl` without
+# `--user`. See deploy/PRODUCTION-DEPLOYMENT.md.
+#
+# The pod only creates the network namespace and the port forwards. The
+# containers in this directory attach to it.
+
+[Unit]
+Description=Retail POS pod (retail-pos-system)
+# This file becomes retail-pos-pod.service; the containers reference it with
+# Pod=retail-pos.pod. Quadlet links them automatically.
+
+[Pod]
+# Without this, Quadlet would name the pod systemd-retail-pos.
+PodName=retail-pos-pod
+Network=bridge
+PublishPort=8080:8080
+# nginx listens on 8081 inside the frontend image (deploy/nginx/nginx.conf:42,
+# EXPOSE 8081), not 80. The retired systemd unit published 80:80 and could
+# never have worked.
+PublishPort=5173:8081
+# Publishing 5432 exposes the database on every host interface. deploy/podman-deploy.sh
+# does the same, because its `seed` target connects from the host. Prefer not to
+# publish it: run migrations and seeding with a temporary forward instead.
+PublishPort=5432:5432

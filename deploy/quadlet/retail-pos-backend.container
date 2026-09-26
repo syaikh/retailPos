@@ -1,0 +1,53 @@
+# Retail POS backend API — Quadlet unit
+#
+# Secrets (JWT_SECRET, JWT_SECRET_REFRESH, DB_PASSWORD) and the per-deployment
+# values (CORS_ORIGIN, DB_SSLMODE) are supplied by EnvironmentFile. Everything
+# below is structural: values that are the same on every host and must never be
+# left to chance. If a name appears in both places, EnvironmentFile wins.
+
+[Unit]
+Description=Retail POS backend API
+# Quadlet links the container to its .pod unit automatically, so only the
+# database is ordered here. retail-pos-postgres.container generates a
+# retail-pos-postgres.service unit; a .container suffix here would not resolve.
+Requires=retail-pos-postgres.service
+After=retail-pos-postgres.service
+
+[Container]
+Image=localhost/retail-pos-backend:latest
+ContainerName=retail-pos-backend
+# The value takes the form <name>.pod, and the .pod unit must exist.
+Pod=retail-pos.pod
+EnvironmentFile=/etc/retail-pos/backend.env
+
+# Containers in a pod share a network namespace, so postgres is localhost.
+Environment=DB_HOST=localhost
+Environment=DB_PORT=5432
+Environment=PORT=8080
+Environment=ENV=production
+Environment=LOG_LEVEL=info
+Environment=GIN_MODE=release
+# Not hardening but correctness: the 7-day HttpOnly refresh_token cookie is set
+# with secure=(COOKIE_SECURE == "true") in internal/user/auth_handler.go, so
+# without this the cookie is sent over plain HTTP in production.
+Environment=COOKIE_SECURE=true
+Environment=TZ=Asia/Jakarta
+Exec=/usr/local/bin/server
+# The route registered in cmd/server/main.go is /health. The image installs curl
+# rather than wget, hence the binary here.
+HealthCmd=curl --fail --silent http://localhost:8080/health
+HealthInterval=30s
+HealthTimeout=10s
+HealthRetries=3
+HealthStartPeriod=10s
+
+[Service]
+# Unlike compose's `condition: service_healthy`, Quadlet can only order the
+# *start* of postgres, not its readiness. On a cold boot the backend can start
+# before initdb finishes and fail to connect. Restart=always recovers: the
+# container retries until postgres accepts connections. deploy/podman-deploy.sh
+# is the stricter path, with an explicit pg_isready wait and a `SHOW ssl` check.
+Restart=always
+
+[Install]
+WantedBy=default.target

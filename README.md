@@ -112,8 +112,8 @@ Retail POS System is a modern Point of Sale (POS) application for retail stores 
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  Nginx Frontend            Port 80 / 443                │
-│  Go Backend                Port 8080 (internal)         │
+│  Nginx Frontend            Port 5173 → 8081              │
+│  Go Backend                Port 8080 (published)        │
 │  PostgreSQL 18             Volume retail-pos-postgres-data│
 │  Network: retail-pos-network                              │
 │  `./deploy/podman-deploy.sh start`                       │
@@ -662,13 +662,32 @@ make build-all                       # Build backend + frontend images
 
 Or use the Makefile: `make deploy`, `make stop`, `make restart`, `make status`, `make logs`, `make db-backup`, `make db-restore`, `make db-shell`.
 
-#### Systemd
+#### Auto-start on boot (systemd + Quadlet)
+
+`podman generate systemd` was removed in Podman 5.0. Use the Quadlet units in
+`deploy/quadlet/`:
 
 ```bash
-sudo cp deploy/retail-pos.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now retail-pos
+./deploy/podman-deploy.sh build        # Quadlet starts containers, it does not build them
+
+# The secret file is created with sudo, so it is root-owned; a rootless user
+# service cannot read a root-owned 0600 file. Hand it to $USER, keep mode 600.
+sudo chown "$USER" /etc/retail-pos/backend.env
+sudo chmod 600 /etc/retail-pos/backend.env
+
+loginctl enable-linger "$USER"         # else the stack waits for your next login
+
+mkdir -p ~/.config/containers/systemd
+cp deploy/quadlet/* ~/.config/containers/systemd/
+systemctl --user daemon-reload
+
+# Enable all three, postgres included — `start` alone does not survive a reboot.
+systemctl --user enable --now retail-pos-postgres.service \
+  retail-pos-backend.service retail-pos-frontend.service
 ```
+
+Rootful hosts: copy to `/etc/containers/systemd/` and drop `--user`. See
+`deploy/PRODUCTION-DEPLOYMENT.md`.
 
 #### Database Migrations
 

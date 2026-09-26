@@ -1,0 +1,39 @@
+# Retail POS PostgreSQL — Quadlet unit
+#
+# POSTGRES_USER, POSTGRES_PASSWORD and POSTGRES_DB come from the secret file
+# named by EnvironmentFile. They are *not* declared here: the secret file is the
+# single source of truth for credentials across podman-deploy.sh, compose and
+# Quadlet. deploy/.env.example documents them.
+#
+# Note that EnvironmentFile= wins over Environment= in systemd when both define
+# the same name, so an operator can override anything below from the secret file
+# without editing this unit.
+
+[Unit]
+Description=Retail POS PostgreSQL
+# No pod dependency needed: Quadlet links a container to its .pod unit itself.
+
+[Container]
+Image=docker.io/library/postgres:18-alpine
+ContainerName=retail-pos-postgres
+Pod=retail-pos.pod
+EnvironmentFile=/etc/retail-pos/backend.env
+Environment=PGDATA=/var/lib/postgresql/data/pgdata
+Environment=TZ=Asia/Jakarta
+Volume=retail-pos-postgres-data:/var/lib/postgresql/data
+# $$ escapes to a literal $, so the shell inside the container expands the
+# variables the image set from the secret file.
+HealthCmd=pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=5
+
+[Service]
+Restart=always
+# First boot has to pull the image and run initdb, which can take several
+# minutes and otherwise trips systemd's default 90s start timeout and leaves
+# postgres repeatedly killed mid-init.
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

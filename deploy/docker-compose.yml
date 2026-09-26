@@ -1,4 +1,18 @@
-version: '3.8'
+# Retail POS System - Docker Compose Deployment
+#
+# Secrets are NOT interpolated here. Both services read
+# /etc/retail-pos/backend.env (override with ENV_FILE) via `env_file`, and that
+# file is documented by deploy/.env.example.
+#
+# Compose interpolates ${VAR} from the host shell or a project .env file, never
+# from a service's env_file, so a ${DB_PASSWORD:-changeme} style default would
+# resolve on the host rather than the secret file. Passing secrets through
+# env_file keeps them out of argv and the process table; they are still readable
+# by anyone who can inspect the container, so the file must stay mode 600.
+#
+# Required: ENV=production, CORS_ORIGIN and COOKIE_SECURE are declared on the
+# backend below. Unset, the server falls back to a development origin, debug
+# logging, and a refresh cookie without the Secure flag.
 
 services:
   # PostgreSQL Database
@@ -6,10 +20,15 @@ services:
     image: postgres:18-alpine
     container_name: retail-pos-postgres
     restart: unless-stopped
+    # Supplies POSTGRES_USER, POSTGRES_PASSWORD and POSTGRES_DB from the secret
+    # file. Declared through env_file rather than `environment:` so the values
+    # come from the secret file; anything repeated in `environment:` would
+    # override them. The official image ignores DB_USER/DB_NAME and falls back to
+    # a role and database both called "postgres" when POSTGRES_* are absent,
+    # which is not the role the backend authenticates as.
+    env_file:
+      - ${ENV_FILE:-/etc/retail-pos/backend.env}
     environment:
-      POSTGRES_USER: ${DB_USER:-pos}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
-      POSTGRES_DB: ${DB_NAME:-retail_pos}
       PGDATA: /var/lib/postgresql/data/pgdata
       TZ: Asia/Jakarta
     volumes:
@@ -17,7 +36,7 @@ services:
     networks:
       - retail-pos-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-pos}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -35,18 +54,47 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - ${ENV_FILE:-/etc/retail-pos/backend.env}
     environment:
+      # DB_USER, DB_NAME and DB_PASSWORD come from the secret file. DB_HOST is
+      # the compose service name, which the host-side value in the template
+      # (localhost) would break.
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_USER: ${DB_USER:-pos}
-      DB_PASSWORD: ${DB_PASSWORD:-changeme}
-      DB_NAME: ${DB_NAME:-retail_pos}
-      TZ: Asia/Jakarta
+      ENV: production
+      LOG_LEVEL: info
+      PORT: 8080
       GIN_MODE: release
+      TZ: Asia/Jakarta
+      # DB_SSLMODE and CORS_ORIGIN are deliberately NOT set here. `${VAR:-x}`
+      # resolves against the host, not env_file, and `environment:` outranks
+      # env_file, so declaring either name below would silently discard whatever
+      # the secret file says. Both are documented in deploy/.env.example and both
+      # have the same defaults in internal/config (require, and
+      # http://localhost:5173), so omitting them here loses nothing:
+      #
+      #   libpq sslmode. The stock postgres:18-alpine image ships with ssl=off,
+      #   so `require` needs a certificate and key mounted on postgres. Use
+      #   disable only if the database is unreachable from outside this network;
+      #   the backend logs a warning in production when it sees it.
+      #
+      #   CORS_ORIGIN MUST be a single origin. The CORS middleware receives it as
+      #   a one-element list with no comma splitting, and the WebSocket upgrade
+      #   check in pkg/websocket/hub.go compares it as an exact string. `*` is a
+      #   fatal startup error in production.
+      #
+      # Required, not hardening: the 7-day HttpOnly refresh_token cookie is set
+      # with secure=(COOKIE_SECURE == "true") in internal/user/auth_handler.go.
+      COOKIE_SECURE: "true"
+      # COOKIE_DOMAIN is intentionally unset. Host-only is the correct default;
+      # a parent-domain value would share the refresh token across subdomains.
     networks:
       - retail-pos-network
+    # The image installs curl, not wget, and the route registered in
+    # cmd/server/main.go is /health (not /api/health).
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -64,15 +112,20 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    # nginx.conf has a single `listen 8081;` and no TLS server block, and the
+    # image EXPOSEs only 8081 8443. Publishing 80:80 here reaches nothing, which
+    # is the defect the retired systemd unit had too. Terminate TLS in front of
+    # this port (host nginx, or a published 8443 once a TLS block exists).
     ports:
-      - "80:80"
-      - "443:443"
+      - "5173:8081"
     networks:
       - retail-pos-network
+    # nginx:alpine is busybox-based and has wget, not curl. The port is 8081
+    # because that is the only listener in deploy/nginx/nginx.conf.
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
     logging:
       driver: "json-file"
