@@ -131,6 +131,18 @@ E2E tests run in a separate workflow (`.github/workflows/e2e.yml`) with sharded 
 go run cmd/server/main.go
 ```
 
+A local `.env` is loaded automatically (dev only; production is skipped). The
+loader uses `godotenv.Load`, so variables already exported in the shell always
+win and `.env` only fills gaps. No `set -a; source .env` needed.
+
+Two consequences worth knowing:
+
+- `ENV` is read from the process environment **before** `.env` is loaded, so
+  putting `ENV=production` in `.env` will not disable the loader. Export it in
+  the shell for that.
+- Settings are cached on startup (`config.Load` is `sync.Once`-guarded), so
+  editing `.env` requires a restart.
+
 ## Utilities
 
 - `scripts/kill-port.sh <port>` — force-kill process holding a TCP port. Useful when `go run` child keeps port occupied (killing the parent `go run` PID does NOT free the port).

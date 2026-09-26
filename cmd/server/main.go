@@ -22,6 +22,7 @@ import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
@@ -41,7 +42,33 @@ const (
 	defaultIdleTimeout       = 60 * time.Second
 )
 
+// loadDotEnv fills in settings from a local .env file so `go run` and
+// `make run` behave the way developers expect without a manual
+// `set -a; source .env`.
+//
+// Two deliberate constraints:
+//
+//   - Production is skipped. There, settings are injected into the process
+//     environment by the orchestrator (systemd EnvironmentFile, container
+//     env, or the CI secret store), and reading a file from disk is both
+//     unnecessary and a liability.
+//   - godotenv.Load, not Overload. Variables already present in the
+//     environment always win, so this can never shadow a real injected
+//     value — which also means it is safe if a stray .env is ever baked
+//     into an image.
+//
+// A missing file is not an error: CI and container runs legitimately have
+// no .env, and every setting has a documented default or its own guard.
+func loadDotEnv() {
+	if os.Getenv("ENV") == "production" {
+		return
+	}
+	_ = godotenv.Load()
+}
+
 func main() {
+	loadDotEnv()
+
 	loc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
 		loc, _ = time.LoadLocation("UTC")
