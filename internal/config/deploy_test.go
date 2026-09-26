@@ -898,3 +898,59 @@ func TestDeliberatelyUnsetVarsAreNotAssigned(t *testing.T) {
 		})
 	}
 }
+
+// TestDocumentedScriptCommandsExist covers the deployment script's own CLI
+// surface: every subcommand shown to an operator, in the script's usage header
+// and in the guides, must have a branch in the case statement that dispatches
+// it.
+//
+// This exists because the docs and the dispatcher had already drifted. Both
+// guides told the operator to run `podman-deploy.sh build`, which had no branch
+// and exited with a usage error. build_image() was defined and called
+// internally by start_backend and start_frontend, so the symbol existed and the
+// script parsed cleanly; only the documented entry point was missing, and
+// nothing in the suite consulted either document.
+//
+// It reads the dispatcher rather than invoking it, so it needs neither a
+// container runtime nor root. That also bounds it: it can catch a verb that is
+// documented but not wired up, not one that is wired up but misbehaves.
+func TestDocumentedScriptCommandsExist(t *testing.T) {
+	script := repoFile(t, filepath.Join("deploy", "podman-deploy.sh"))
+
+	implemented := make(map[string]bool)
+	dispatch := regexp.MustCompile(`(?m)^\s{4}([a-z][a-z_]*)\)\s`)
+	for _, m := range dispatch.FindAllStringSubmatch(script, -1) {
+		implemented[m[1]] = true
+	}
+	require.NotEmpty(t, implemented, "no case branches found; the dispatch regex is stale")
+
+	// Only the leading usage header, so that worked examples in the body of the
+	// script cannot redefine the documented interface.
+	header := script
+	if idx := strings.Index(header, "\n\n"); idx >= 0 {
+		header = header[:idx]
+	}
+	documented := regexp.MustCompile(`podman-deploy\.sh\s+([a-z][a-z_]*)`)
+
+	sources := map[string]string{
+		"deploy/podman-deploy.sh usage header":                     header,
+		"README.md":                                                repoFile(t, "README.md"),
+		"deploy/PRODUCTION-DEPLOYMENT.md":                          repoFile(t, filepath.Join("deploy", "PRODUCTION-DEPLOYMENT.md")),
+		"docs/audits/production-deploy-config-audit-2026-09-26.md": repoFile(t, filepath.Join("docs", "audits", "production-deploy-config-audit-2026-09-26.md")),
+	}
+
+	checked := 0
+	for source, body := range sources {
+		t.Run(source, func(t *testing.T) {
+			for _, m := range documented.FindAllStringSubmatch(body, -1) {
+				verb := m[1]
+				checked++
+				assert.Truef(t, implemented[verb],
+					"%s documents `podman-deploy.sh %s`, but the dispatch statement in "+
+						"deploy/podman-deploy.sh has no %q branch, so the command exits with a usage "+
+						"error. Add the branch, or correct the document.", source, verb, verb)
+			}
+		})
+	}
+	assert.NotZero(t, checked, "found no documented commands to check; the verb regex is stale")
+}

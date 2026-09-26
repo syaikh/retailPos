@@ -5,6 +5,7 @@ set -e
 # Retail POS System - Podman Deployment Script (Refactored)
 # =============================================================================
 # Usage:
+#   ./deploy/podman-deploy.sh build
 #   ./deploy/podman-deploy.sh start [postgres|backend|frontend|all]
 #   ./deploy/podman-deploy.sh stop [postgres|backend|frontend|all]
 #   ./deploy/podman-deploy.sh migrate
@@ -457,6 +458,12 @@ case "$1" in
     stop)
         stop "$2"
         ;;
+    build)
+        # Reachable on its own because the Quadlet units start containers without
+        # ever calling this script, so nothing else would build their images.
+        build_image backend
+        build_image frontend
+        ;;
     migrate) migrate ;;
     seed)    seed ;;
     status)  status ;;
@@ -466,7 +473,7 @@ case "$1" in
         $0 start "$2"
         ;;
     *)
-        echo "Usage: $0 {start|stop|migrate|seed|status|logs|restart} [service]"
+        echo "Usage: $0 {build|start|stop|migrate|seed|status|logs|restart} [service]"
         exit 1
         ;;
 esac
