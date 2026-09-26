@@ -37,8 +37,8 @@ describe("Home.svelte source-structure guards", () => {
   it("uses $state for dashboard data", () => {
     expect(src).toContain("let todaysRevenue = $state");
     expect(src).toContain("let todaysSales = $state");
-    expect(src).toContain("let totalProducts = $state");
-    expect(src).toContain("let lowStockCount = $state");
+    expect(src).toContain("let outOfStockCount = $state");
+    expect(src).toContain("let categoriesCount = $state");
     expect(src).toContain("let loading = $state");
     expect(src).toContain("let wsConnected = $state");
   });

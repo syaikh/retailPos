@@ -32,8 +32,6 @@
 
   let todaysRevenue = $state(0);
   let todaysSales = $state(0);
-  let totalProducts = $state(0);
-  let lowStockCount = $state(0);
   let outOfStockCount = $state(0);
   let categoriesCount = $state(0);
   let loading = $state(true);
@@ -64,8 +62,6 @@
         if (data.data) {
           todaysRevenue = data.data.todays_revenue || 0;
           todaysSales = data.data.todays_sales || 0;
-          totalProducts = data.data.total_products || 0;
-          lowStockCount = data.data.low_stock_count || 0;
           outOfStockCount = data.data.out_of_stock_count || 0;
           categoriesCount = data.data.categories_count || 0;
         }

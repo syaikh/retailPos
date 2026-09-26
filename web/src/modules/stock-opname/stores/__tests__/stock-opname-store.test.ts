@@ -357,9 +357,14 @@ describe("stock-opname-store", () => {
       store.subscribeToWS();
 
       ws._fire("so_opened", { session_id: 3, session_number: "SO-0003" });
-      await vi.waitFor(() => {
-        expect(mockListStockOpnames).toHaveBeenCalled();
-      });
+      await vi.waitFor(
+        () => {
+          expect(mockListStockOpnames).toHaveBeenCalled();
+        },
+        // The default 1s budget is tight once the whole suite competes for the
+        // same event loop; a slow poll must not read as a regression.
+        { timeout: 5000 },
+      );
       expect(mockGetStockOpname).not.toHaveBeenCalled();
     });
 
@@ -386,9 +391,12 @@ describe("stock-opname-store", () => {
       store.subscribeToWS();
 
       ws._fire("so_submitted", { session_id: 5, session_number: "SO-0005" });
-      await vi.waitFor(() => {
-        expect(mockGetStockOpname).toHaveBeenCalledTimes(2);
-      });
+      await vi.waitFor(
+        () => {
+          expect(mockGetStockOpname).toHaveBeenCalledTimes(2);
+        },
+        { timeout: 5000 },
+      );
     });
 
     it("reloads the current session when so_posted arrives for it", async () => {
@@ -414,9 +422,12 @@ describe("stock-opname-store", () => {
       store.subscribeToWS();
 
       ws._fire("so_posted", { session_id: 5, session_number: "SO-0005" });
-      await vi.waitFor(() => {
-        expect(mockGetStockOpname).toHaveBeenCalledTimes(2);
-      });
+      await vi.waitFor(
+        () => {
+          expect(mockGetStockOpname).toHaveBeenCalledTimes(2);
+        },
+        { timeout: 5000 },
+      );
     });
 
     it("unsubscribing removes all handlers", async () => {

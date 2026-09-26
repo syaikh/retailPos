@@ -111,7 +111,6 @@
 <PayoutModal
   bind:show={showPayoutModal}
   settlement={selectedSettlement}
-  onclose={() => (showPayoutModal = false)}
   onpaid={async () => {
     showPayoutModal = false;
     await load();

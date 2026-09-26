@@ -19,12 +19,10 @@
   let {
     settlement,
     show = $bindable(),
-    onclose,
     onpaid,
   }: {
     settlement: Settlement | null;
     show: boolean;
-    onclose: () => void;
     onpaid: () => void;
   } = $props();
 

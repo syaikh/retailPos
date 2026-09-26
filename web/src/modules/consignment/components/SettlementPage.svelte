@@ -5,7 +5,6 @@
   import {
     Button,
     Modal,
-    Input,
     EmptyState,
     Badge,
     Pagination,
@@ -415,7 +414,6 @@
 <PayoutModal
   bind:show={showPayoutModal}
   settlement={payoutSettlement}
-  onclose={() => (showPayoutModal = false)}
   onpaid={async () => {
     showPayoutModal = false;
     await load();

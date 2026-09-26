@@ -27,11 +27,15 @@ describe("PayoutModal.svelte source-structure guards", () => {
     expect(src).toContain("consignment-service");
   });
 
-  it("exports expected props: settlement, show, onclose, onpaid", () => {
+  it("exports expected props: settlement, show, onpaid", () => {
     expect(src).toContain("settlement");
     expect(src).toContain("show");
-    expect(src).toContain("onclose");
     expect(src).toContain("onpaid");
+  });
+
+  it("closes through the bound show prop instead of an onclose callback", () => {
+    expect(src).toContain("show = $bindable()");
+    expect(src).not.toContain("onclose");
   });
 
   it("imports FormattedNumberInput for the amount field", () => {
