@@ -22,6 +22,9 @@ env:
   TEST_DB_PASSWORD: testpassword
   TEST_DB_NAME: retail_pos_test
   JWT_SECRET: ci-test-secret-9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a
+  # Defined rather than left to fall back to JWT_SECRET, so the separate
+  # refresh-token signing key is actually exercised.
+  JWT_SECRET_REFRESH: ci-test-refresh-1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809
 
 jobs:
   # ── Go Static Analysis ─────────────────────────────────────
@@ -306,6 +309,82 @@ jobs:
             sleep 2
           done
           curl -sf http://localhost:9095/health
+      # The steps above run with every setting defaulted, which is how the dev
+      # server is meant to start. The two below pin the production values that
+      # deploy/podman-deploy.sh and deploy/docker-compose.yml set, so a change
+      # that breaks a production-only path fails here rather than on a host.
+      # DB_SSLMODE=disable is required because the CI postgres service ships
+      # without TLS, same as postgres:18-alpine.
+      - name: Verify server starts in production mode
+        env:
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_USER: pos
+          DB_PASSWORD: testpassword
+          DB_NAME: retail_pos_test
+          JWT_SECRET: ${{ env.JWT_SECRET }}
+          JWT_SECRET_REFRESH: ${{ env.JWT_SECRET_REFRESH }}
+          ENV: production
+          LOG_LEVEL: info
+          CORS_ORIGIN: https://pos.example.com
+          COOKIE_SECURE: "true"
+          DB_SSLMODE: disable
+          PORT: "8080"
+        run: |
+          set -euo pipefail
+          /tmp/server > /tmp/prod-server.log 2>&1 &
+          pid=$!
+          trap 'kill $pid 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/health > /dev/null; then
+              echo "Backend healthy in production mode"
+              break
+            fi
+            if ! kill -0 $pid 2>/dev/null; then
+              echo "::error::server exited during production boot"
+              cat /tmp/prod-server.log
+              exit 1
+            fi
+            echo "Waiting for backend $i/30"
+            sleep 2
+          done
+          curl -sf http://localhost:8080/health > /dev/null
+          # ENV=production must select slog.JSONHandler, not the development text
+          # handler. A regression here leaks request paths and IPs into a log
+          # pipeline that is expected to be structured.
+          if ! head -1 /tmp/prod-server.log | jq -e '.level' > /dev/null; then
+            echo "::error::expected JSON logs in production, got:"
+            head -1 /tmp/prod-server.log
+            exit 1
+          fi
+          echo "Production JSON logging confirmed"
+      - name: Verify production fails fast without database TLS
+        env:
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_USER: pos
+          DB_PASSWORD: testpassword
+          DB_NAME: retail_pos_test
+          JWT_SECRET: ${{ env.JWT_SECRET }}
+          # DB_SSLMODE deliberately omitted: production defaults to require.
+          ENV: production
+          PORT: "8080"
+        run: |
+          set -uo pipefail
+          # The CI postgres has ssl=off. Production must refuse the connection
+          # rather than silently downgrading, otherwise a host that forgets to
+          # mount certificates gets a crash loop with no explanation.
+          if /tmp/server > /tmp/tls-server.log 2>&1; then
+            echo "::error::server started against a TLS-less database in production; expected a non-zero exit"
+            exit 1
+          fi
+          if ! grep -qi 'TLS' /tmp/tls-server.log; then
+            echo "::error::expected a TLS-related error, got:"
+            cat /tmp/tls-server.log
+            exit 1
+          fi
+          echo "Production correctly refused the TLS-less database:"
+          grep -i 'TLS' /tmp/tls-server.log | head -3
       - name: Install frontend dependencies
         working-directory: web
         run: npm ci

@@ -1,19 +1,51 @@
 # Production Deploy Configuration Audit
 
 Date: 2026-09-26
-Scope: `deploy/podman-deploy.sh`, `deploy/retail-pos.service`, `deploy/docker-compose.yml`,
-`deploy/.env.example`, `deploy/PRODUCTION-DEPLOYMENT.md`
-Status: **findings open — the documented production path cannot start the backend**
+Scope: `deploy/podman-deploy.sh`, `deploy/retail-pos.service` (since deleted),
+`deploy/docker-compose.yml`, `deploy/quadlet/`, `deploy/.env.example`,
+`deploy/PRODUCTION-DEPLOYMENT.md`, `internal/config/config.go`, `cmd/server/main.go`,
+`internal/user/auth_handler.go`
+Status: **all findings remediated across the three surviving paths, with two
+exceptions: 12 open (database TLS posture) and the P9 remainder (one `fmt.Printf`
+warning in `init()` that bypasses the logger).**
+
+### Deliberately out of scope
+
+`tools/print-agent` is a separate Go module with its own environment contract
+(`PRINT_TCP_ADDR`, `PRINT_SERIAL_DEVICE`, `PRINT_TOKEN`, `ALLOWED_ORIGINS`,
+`PORT`). It is excluded from this audit, and the exclusion is load-bearing rather
+than incidental:
+
+- It has its own `go.mod`, so root `go build ./...`, `go vet` and
+  `golangci-lint` do not cover it, and `ci.yml` never mentions it. Only
+  `e2e.yml` builds it. So it currently has no lint, vet or test coverage.
+- It has no entry in any deploy manifest — no compose service, no Quadlet unit,
+  no step in `podman-deploy.sh` — and no production documentation.
+- It reads `PRINT_TOKEN`, a secret, straight from `os.Getenv`, with none of the
+  secret-file handling applied to the paths audited here.
+
+It appears to be an e2e-only test harness, in which case the correct fix is a
+comment saying so. If it is ever intended to run in production, it needs the
+same treatment as the three paths above before it does.
 
 ## Summary
 
-Every production entry point fails at startup. The backend requires `JWT_SECRET`
+Every production entry point failed at startup. The backend requires `JWT_SECRET`
 and no deploy path supplies it, so the process panics before binding a port.
 The guard is doing its job; the configuration around it is simply incomplete.
 
 Two follow-on defects would surface immediately after the first is fixed: a
 CORS origin that is never set, and a secret-name mismatch in the template that
 would silently downgrade refresh-token security.
+
+A later boot test in production mode exposed two further defects that a
+config-only review missed: the refresh-token cookie was never marked `Secure`,
+and production TLS to the database could never succeed.
+
+Building the CI guard then exposed a third, in the code rather than the
+configuration: the notice that database TLS is disabled in production was the
+single log line emitted in the wrong format, because it is written before the
+production logger is installed (P9).
 
 ## Findings
 
@@ -74,42 +106,273 @@ systemd unit is worse: it points `POSTGRES_PASSWORD_FILE` and `DB_PASSWORD_FILE`
 at `/run/secrets/db_password` (`retail-pos.service:42,55`) and nothing in the
 repository creates that file.
 
-### P6 — Healthcheck port does not match the bound port
+### P6 — Healthcheck path and port are wrong in compose
 
-`docker-compose.yml:49` probes `http://localhost:8080/api/health`. Neither
-compose nor the systemd unit sets `PORT`, so `cmd/server/main.go:199-201`
-falls back to `defaultPort = "9095"`. The container binds 9095, the probe hits
-8080, and the backend is permanently unhealthy — which also blocks
-`depends_on: service_healthy` at line 36, so the frontend never starts.
-`podman-deploy.sh:154` does set `PORT=8080`, so the script path is correct and
-the two paths disagree with each other.
+`docker-compose.yml:49` probes `http://localhost:8080/api/health`. Two problems.
+The path is `/health` (`cmd/server/main.go:201`), not `/api/health`, so the probe
+can never succeed. And neither compose nor the systemd unit sets `PORT`, so
+`cmd/server/main.go` falls back to `defaultPort = "9095"` — the container binds
+9095 while the probe hits 8080. The backend is permanently unhealthy, which also
+blocks `depends_on: service_healthy` at line 36, so the frontend never starts.
+
+`podman-deploy.sh` was already correct on both counts: it sets `PORT=8080` and
+probes `/health` at line 87, which the backend image can serve because `curl` is
+installed in the runtime stage (`deploy/backend/Dockerfile:26`). The frontend
+probe is also valid — `deploy/nginx/nginx.conf:140` serves `/health`.
+
+### P7 — Refresh-token cookie issued without the `Secure` flag
+
+`internal/user/auth_handler.go:92` and `:294` compute
+`secure := os.Getenv("COOKIE_SECURE") == "true"`. No deploy path sets
+`COOKIE_SECURE`, so the 7-day `HttpOnly` `refresh_token` cookie would be issued
+without `Secure` in production, and sent in cleartext on any plaintext request
+to the host. `SameSite=Strict` and `HttpOnly` limit the exposure but do not
+prevent transmission over `http://`.
+
+This was not visible in configuration review because the variable is absent
+rather than wrong, and the code has no production guard for it.
+
+`COOKIE_DOMAIN` is deliberately left unset: host-only is the correct default,
+and a broad value would share the refresh token across subdomains.
+
+### P8 — Production database TLS could never succeed
+
+`cmd/server/main.go` composed the DSN with `sslmode` derived solely from
+`cfg.Env`: `require` in production, `disable` otherwise. No deploy path set
+`DATABASE_URL`, so the `DB_*` branch always ran.
+
+The podman script starts `postgres:18-alpine` with no certificate and no key
+mounted, and that image defaults to `ssl=off`. So the moment `ENV=production` was
+set correctly, the backend began demanding TLS from a database that has none:
+
+```
+ERROR unable to ping database ... tls error: server refused TLS connection
+```
+
+The failure was disguised as the P1 failure: `wait_for_postgres` uses
+`pg_isready`, which connects over the unix socket and never negotiates TLS, so
+it logged `PostgreSQL is ready!` and the script continued into a crash loop with
+`--restart unless-stopped`. Before `ENV` was set, the default was `development`
+and `sslmode=disable`, so the backend connected to an unencrypted database *by
+accident*.
+
+The root problem is that an undeclared security decision — encrypt database
+traffic or not — was hardcoded and unoverridable, with no way to record an
+intentional choice.
+
+### P9 — The production TLS notice was the one log line in the wrong format
+
+`internal/config.Load()` logs directly through the package-level `slog`, but
+`cmd/server/main.go:78-79` calls `config.Load()` *before* `shared.InitLogger`:
+
+```go
+cfg := config.Load()                    // logs here, default text handler
+shared.InitLogger(cfg.Env, cfg.LogLevel) // JSON handler installed here
+```
+
+`Load` cannot log after that point because `InitLogger` needs the `ENV` and
+`LOG_LEVEL` values that `Load` resolves. So all five diagnostics `Load` emits —
+including the P8 notice that production database TLS is disabled — were written
+by the default text handler even in production, while every subsequent line used
+`slog.JSONHandler`.
+
+This was not cosmetic. The notice that a deployment is running with unencrypted
+database traffic is exactly the line an operator greps for, and it was the one
+line that a structured log pipeline would silently fail to parse. A local
+production boot reproduced it:
+
+```
+2026/09/26 14:59:56 WARN database TLS disabled in production. ...
+{"time":"...","level":"INFO","msg":"connected to PostgreSQL"}
+```
+
+Fixed by collecting `Load`'s non-fatal diagnostics and replaying them from
+`main` after `InitLogger`, via `Config.LogStartupDiagnostics`. The one
+diagnostic that cannot be deferred — `CORS_ORIGIN='*'` in production, which
+calls `os.Exit(1)` — is still logged directly, and says so in its own message.
+
+The P8 notice is also what made this visible: it is the newest diagnostic, and
+the newest one happened to be the security-relevant one.
+
+### P9 remainder — one `fmt.Printf` warning still bypasses the logger
+
+`Load`'s own diagnostics, and the `getEnvInt` fallback warning, are all deferred
+now. One warning in the same package is not, and it is still plain text on stdout
+even in production:
+
+| Location | Fires when |
+|----------|-----------|
+| `internal/config/config.go:136` `init()` | `time.LoadLocation("Asia/Jakarta")` fails, i.e. no tzdata in the image. Falls back to UTC. |
+
+Left open deliberately. It runs at package initialisation — before `Load`, and so
+before any diagnostic sink exists. Buffering it means deferring the timezone load
+out of `init()` and into `Load`, which changes when a package-level variable is
+populated, for a warning that only fires on a broken image. It is loud rather
+than silent, and unlike the P8 notice it does not report a security decision.
+
+The companion `getEnvInt` warning was the same defect and *has* been fixed: it
+now records onto `Load`'s pending diagnostic list, and
+`TestGetEnvInt_InvalidFallsBack` asserts the warning is captured rather than
+printed. That also removed two lines of unstructured text from ordinary test
+output, which is how it was noticed.
+
+## Remediation applied
+
+Scoped to all three surviving paths — the podman script (canonical), compose and
+the Quadlet units — plus the CI guard. `deploy/retail-pos.service` was deleted
+rather than fixed; see Recommendation 7.
+
+| Finding | Change |
+|---------|--------|
+| P1 | `/etc/retail-pos/backend.env` holds `DB_PASSWORD`, `JWT_SECRET`, `JWT_SECRET_REFRESH`. Sourced by the script and passed to the container via `--env-file`, so secrets stay out of `argv` and the process table. They remain readable via `podman inspect` to anyone with container access, so the file must stay mode 600 — this limit is now stated in the script and the template rather than implied away. `validate_backend_config` reports every missing value at once, including rejection of the `.env.example` placeholder, and `start_postgres` guards independently. |
+| P2 | `ENV=production` and `LOG_LEVEL=info` now passed explicitly. |
+| P3 | `CORS_ORIGIN` replaces the dead `FRONTEND_URL`. Documented as single-origin, because the CORS middleware takes it as a one-element list and the WebSocket check compares it exactly — a comma-separated list matches neither. |
+| P4 | `deploy/.env.example` rewritten; the false "generated on first run" claim is gone and the name matches the code. |
+| P5 | `DB_PASSWORD` no longer defaults to `admin123` in the script, and `changeme` is gone from both the deploy template and compose. |
+| P6 | Compose sets `PORT=8080` and probes `http://localhost:8080/health` with `curl`. Two bugs at once: the old probe used `/api/health` (the route is `/health`) *and* `wget` (the image installs `curl`), and neither service set `PORT`, so the container bound 9095 while the probe hit 8080. The frontend carried the mirror-image defect — see the Compose section. |
+| P7 | `COOKIE_SECURE=true` passed to the backend. |
+| P8 | `DB_SSLMODE` added to `internal/config/config.go`, defaulting to `require` in production and `disable` in development, rejecting unrecognised values, and warning at startup when TLS is disabled in production. `wait_for_postgres` now reads `SHOW ssl` and refuses to continue when the database cannot satisfy the configured mode. |
+| P9 | `Load`'s non-fatal diagnostics are collected and replayed by `main` after `shared.InitLogger`, so the production TLS notice is JSON like every other line. |
+
+### Compose
+
+`deploy/docker-compose.yml` previously interpolated secrets as
+`${DB_PASSWORD:-changeme}`. Compose resolves `${VAR}` from the host shell or a
+project `.env` file, never from a service's `env_file`, so a default there
+resolves on the host rather than from the secret file — meaning the inline
+default was the only thing a fresh host would actually get. Both services now
+read the secret file through `env_file`, and `environment:` carries only
+non-secret wiring. The obsolete `version:` key is gone.
+
+Two further defects were found in the same file while retiring the systemd unit.
+Both are recorded in full under *Additional defects found while retiring the
+systemd path*; in short:
+
+- The **frontend** published `80:80` and `443:443` and healthchecked port 80,
+  while `deploy/nginx/nginx.conf` has a single `listen 8081;` and no TLS block.
+  Unreachable in both directions, and inherited from the deleted unit. Now
+  `5173:8081`, healthcheck on 8081.
+- The secret file was **missing the `POSTGRES_*` names**. Compose gives the
+  database only `env_file`, and the official image ignores `DB_USER`/`DB_NAME`,
+  defaulting both role and database to `postgres`, so the backend would have
+  authenticated as a role that was never created.
+
+A third problem was found in the fix for the first two, and is worth stating
+separately because it contradicts a claim made earlier in this document.
+
+The backend's `environment:` block declared
+
+```yaml
+DB_SSLMODE: ${DB_SSLMODE:-require}
+CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+```
+
+with the reasoning that the secret file supplies these names. It does not.
+Compose resolves `${VAR}` from the host environment or a project `.env`, never
+from a service's `env_file` — the same trap as the `:-changeme` defaults above —
+and `environment:` outranks `env_file`. So an operator who wrote
+`CORS_ORIGIN=https://pos.example.com` into `/etc/retail-pos/backend.env` would
+have got `http://localhost:5173` instead, and every browser request from their
+real domain would have been refused by CORS. The file said one thing and the
+container did another, with nothing in the logs to say so.
+
+Both names are now absent from `environment:`, so the secret file wins. Nothing
+is lost: `internal/config` already defaults them to the same two values, so an
+operator who omits them entirely sees identical behaviour, now decided in one
+place rather than two that can disagree.
+
+Note this is *not* a general "env_file must always win" rule, and `DB_PORT` is
+the counter-example that keeps it narrow: the template's `5433` is a host port
+while compose needs `5432` inside the network, so that name is overridden in
+`environment:` deliberately. `TestComposeDoesNotHostResolveSecretFileVars` guards
+the two that must not be, and `TestTemplateDocumentsDBPortForPodmanOnly` keeps
+the counter-example from silently becoming obsolete.
+
+
+`wait_for_backend` now dumps the last 20 lines of backend output on timeout,
+because both P1 and P8 presented as an unexplained timeout.
+
+`deploy/.env.example` was also found to describe a *compose* environment rather
+than the script's: `BACKEND_PORT`, `FRONTEND_PORT` and `BACKEND_IMAGE` (missing
+the `localhost/` registry prefix) were read by nothing, and `cp
+deploy/.env.example .env` was inert because no code or script ever sourced
+`.env`. Rewritten to document the variables the script actually reads.
 
 ## Recommendations
 
-Ordered by what unblocks a deploy first.
+1. ~~**Add `JWT_SECRET`**~~ — done for the podman path (P1).
+2. ~~**Add `ENV=production`**~~ — done for the podman path (P2).
+3. ~~**Replace `FRONTEND_URL` with `CORS_ORIGIN`**~~ — done for the podman path (P3).
+4. ~~**Rename `JWT_REFRESH_SECRET`**~~ — done (P4).
+5. ~~**Set `PORT` and fix the healthcheck in compose.**~~ — done (P6). The
+   systemd unit set no port and probed nothing useful; it has since been deleted
+   (Recommendation 7).
+6. ~~**Remove the `:-changeme` defaults** in `docker-compose.yml`.~~ — done; both
+   services read the secret file instead.
+7. ~~**Reconcile the deploy paths.**~~ — done. `deploy/retail-pos.service` is
+   deleted and the four Quadlet units in `deploy/quadlet/` replace it. All three
+   surviving paths (podman script, compose, Quadlet) read the same secret file and
+   declare the same environment. The documentation no longer recommends
+   `podman generate systemd`, which upstream removed in Podman 5.0.
+8. ~~**Fix `Documentation=`, which pointed at `github.com/your-repo`.**~~ — moot,
+   the file that contained it is deleted.
 
-1. **Add `JWT_SECRET` to all three paths** and correct
-   `deploy/.env.example:31`. Generate with `openssl rand -hex 32`. Supply it as
-   a real secret — systemd `EnvironmentFile=` on a root-only `600` file, or a
-   container secret — never as a committed literal.
-2. **Add `ENV=production`** to all three paths so log format and level follow
-   from the environment rather than from a fallback.
-3. **Replace `FRONTEND_URL` with `CORS_ORIGIN`** in `podman-deploy.sh`, and set
-   it to the real frontend origin. Delete the dead `FRONTEND_URL` rather than
-   leaving a variable that looks meaningful and is ignored.
-4. **Rename `JWT_REFRESH_SECRET` → `JWT_SECRET_REFRESH`** in
-   `deploy/.env.example` to match the code.
-5. **Set `PORT` explicitly** in compose and the systemd unit, and align the
-   healthcheck to the same value.
-6. **Remove the `:-changeme` defaults** in `docker-compose.yml` so a missing
-   password fails loudly at container start.
-7. **Reconcile the three deploy paths.** They currently disagree on port, on
-   which variables exist, and on how the database password is delivered.
-   `podman-deploy.sh` is the only one documented as the primary path and the
-   only one that sets `PORT`; treat it as the reference and bring the other two
-   in line, or drop them if the podman script is the sole supported route.
-8. **Fix `Documentation=` in `retail-pos.service:20`**, which still points at
-   `github.com/your-repo/retail-pos-system`.
+### Additional defects found while retiring the systemd path
+
+Recorded because each is the same class of bug this document exists to prevent,
+and each would have shipped silently:
+
+9. **The compose frontend published unreachable ports.** `ports: 80:80` and
+   `443:443` reached nothing: `deploy/nginx/nginx.conf` has exactly one
+   `listen 8081;` and no TLS server block, and the image `EXPOSE`s only 8081/8443.
+   The frontend healthcheck probed `http://localhost/` on port 80, so it could never
+   pass. This was inherited verbatim from the deleted unit, whose own
+   `-p 80:80 -p 443:443` was equally wrong. Now `5173:8081`, healthcheck on 8081.
+   `internal/config/deploy_test.go` cross-checks every published and healthchecked
+   port against the image's `EXPOSE` list, so this cannot recur silently.
+10. **The secret file was missing the `POSTGRES_*` names.** Compose gives the
+   database only `env_file`, and the official image ignores `DB_USER`/`DB_NAME`,
+   defaulting both the role and the database to `postgres` when `POSTGRES_USER`
+   and `POSTGRES_DB` are absent. A secret file carrying only the `DB_` names left
+   the backend attempting to authenticate as a role that was never created.
+   `deploy/.env.example` now documents both spellings and requires they agree.
+11. **The deleted unit read `/run/secrets/db_password`**, via both
+   `POSTGRES_PASSWORD_FILE` and `DB_PASSWORD_FILE`, from a path nothing ever
+   created. No unit had populated it.
+12. **Decide the database TLS posture per environment.** `require` with mounted
+   certs is the recommended production default; `disable` is defensible when the
+   database is confined to the pod network. The choice is now expressible and
+   visible in logs either way, but it has to be made explicitly. Note that as
+   shipped, `require` is the default and *fails* against the stock
+   `postgres:18-alpine` image, so a deployment is not complete until a certificate
+   and key are mounted on the database container.
+13. ~~**Add the CI guard described under Verification.**~~ — done.
+    `internal/config/deploy_test.go` asserts the manifests declare what the server
+    reads, the Integration job now boots the backend in production mode and
+    asserts it refuses a TLS-less database, and the guard also refuses a deploy
+    manifest that is neither checked nor explained.
+
+## CI guard
+
+`internal/config/deploy_test.go` is what stops this document from being true
+again. Every finding above is a variable the server reads and a manifest does not
+declare, and no unit test can see that: tests set whatever variables they need, so
+the application is only ever exercised in an environment nobody would build by
+hand.
+
+It scans `internal/` and `cmd/server/` for `os.Getenv("...")` and requires every
+name to appear in exactly one of the classification tables, in both directions —
+an unclassified variable fails, and so does an asserted name that no code reads.
+That second direction matters: a typo in the table would otherwise make a real gap
+pass silently.
+
+Each check asserts a *declaration*, not a mention. An earlier draft used plain
+substring matching and reported the podman script as correct purely because its
+comments name the variables, which is the exact failure mode the file exists to
+catch; the compose extraction reads the `backend:` service block, and the shell
+extraction reads the `start_backend()` function, so the postgres block's
+`POSTGRES_*` cannot be mistaken for backend configuration.
+
 
 ## Environment ownership
 
@@ -122,25 +385,49 @@ reads for itself provides.
 |-------------|--------------------|-------------|
 | Development | `.env`, loaded by the app (`cmd/server/main.go`, `loadDotEnv`) | Developer, locally |
 | Tests | Real process environment | `Makefile:72-73`, GitHub secrets |
-| Production | Container / systemd environment | Orchestrator + secret store |
+| Production | `/etc/retail-pos/backend.env` via `--env-file`, plus explicit `-e` for non-secret wiring | Operator, on the host |
 
 `loadDotEnv` uses `godotenv.Load`, which never overrides a variable that is
 already set, so a stray `.env` cannot shadow an injected production value even
-if one were accidentally baked into an image.
+if one were accidentally baked into an image. It is also skipped entirely when
+`ENV=production` is already exported.
 
 `.env.example` must remain a template only. It is committed and public, and it
 contains `JWT_SECRET=dev-jwt-secret-change-in-production`. Reading it as a
 fallback would boot a fresh clone with a published signing key — a token forged
 with it is indistinguishable from a legitimate one. The existing empty-secret
-guard would be defeated by supplying a wrong value instead of none.
+guard would be defeated by supplying a wrong value instead of none, so
+`validate_backend_config` now rejects that placeholder explicitly.
 
 ## Verification
 
-No production path is exercised by CI today. The Integration job builds the
-backend, applies migrations, and health-checks a locally started server, which
-means these gaps stay invisible until a real deploy attempt.
+No production path was exercised by CI while these findings accumulated. The
+Integration job built the backend, applied migrations, and health-checked a
+locally started server, which means the gaps stayed invisible until a real deploy
+attempt.
 
-Worth adding: a CI step that starts the backend with only the variables the
-deploy files actually pass, asserting it reaches a listening state. That would
-have caught P1, P2 and P6 as a failure to bind rather than a panic on a
-production host.
+The Integration job now has two further steps, both run against the CI Postgres
+service, which ships without TLS exactly like `postgres:18-alpine`:
+
+| Step | Asserts |
+|------|---------|
+| `Verify server starts in production mode` | The backend reaches `/health` with only the variables the deploy files pass, `ENV=production`, `CORS_ORIGIN`, `COOKIE_SECURE` and `DB_SSLMODE` set, and that `ENV=production` selects JSON logging rather than the development text handler |
+| `Verify production fails fast without database TLS` | With `DB_SSLMODE` omitted, production defaults to `require` and the process exits non-zero with a TLS error rather than connecting unencrypted |
+
+The first step would have caught P1 and P2 as a failure to bind. The second
+encodes P8 as a permanent expectation rather than a note.
+
+Locally verified, by boot rather than by inspection:
+
+| Check | Result |
+|-------|--------|
+| Preflight with no secret file | Reports `JWT_SECRET` and `DB_PASSWORD` missing, exits before creating any container |
+| Preflight with the `.env.example` placeholder | Rejected |
+| `bash -n deploy/podman-deploy.sh` | Clean |
+| `DB_SSLMODE` resolution | Table cases in `internal/config/config_test.go`; never empty, invalid values fall back, rejected input is reported |
+| Production boot, `DB_SSLMODE=disable` | `connected to PostgreSQL`, `server starting env=production`, clean shutdown |
+| Every log line in that boot is valid JSON | Yes, including the TLS notice — the P9 check |
+| Production boot, `DB_SSLMODE=require` against `ssl=off` | Exited non-zero with `server refused TLS connection`, as designed |
+| `deploy_test.go` negative checks | Each was shown to fail when the corresponding defect was reintroduced: assigning `COOKIE_DOMAIN`, dropping `ENV` from the backend service, inlining a 32-hex secret |
+| `podman compose config` with the secret file present | Resolves; `COOKIE_SECURE` stays a string, the healthcheck escapes `$${POSTGRES_USER}` correctly |
+| `go build ./...`, `go vet ./...`, `golangci-lint` on touched packages | Clean |
