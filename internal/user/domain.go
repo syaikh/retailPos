@@ -3,21 +3,22 @@ package user
 import "time"
 
 type User struct {
-	ID                int    `json:"id"`
-	Username          string `json:"username"`
-	Email             string `json:"email"`
-	Password          string `json:"-"`
-	RoleID            int    `json:"role_id"`
-	Role              Role   `json:"role"`
-	StoreID           *int   `json:"store_id,omitempty"`
-	ReportsToID       *int   `json:"reports_to,omitempty"`
-	ReportsToUsername string `json:"reports_to_username,omitempty"`
-	IsActive          bool   `json:"is_active"`
-	Language          string `json:"language"`
-	Theme             string `json:"theme"`
-	LastLogin         string `json:"last_login,omitempty"`
-	CreatedAt         string `json:"created_at,omitempty"`
-	UpdatedAt         string `json:"updated_at,omitempty"`
+	ID                 int    `json:"id"`
+	Username           string `json:"username"`
+	Email              string `json:"email"`
+	Password           string `json:"-"`
+	RoleID             int    `json:"role_id"`
+	Role               Role   `json:"role"`
+	StoreID            *int   `json:"store_id,omitempty"`
+	ReportsToID        *int   `json:"reports_to,omitempty"`
+	ReportsToUsername  string `json:"reports_to_username,omitempty"`
+	IsActive           bool   `json:"is_active"`
+	MustChangePassword bool   `json:"must_change_password"`
+	Language           string `json:"language"`
+	Theme              string `json:"theme"`
+	LastLogin          string `json:"last_login,omitempty"`
+	CreatedAt          string `json:"created_at,omitempty"`
+	UpdatedAt          string `json:"updated_at,omitempty"`
 }
 
 type Role struct {

@@ -36,6 +36,16 @@ function makeAxiosError(status: number) {
   return err;
 }
 
+function makePasswordGateError(status: number, code?: string) {
+  const err = new Error(`HTTP ${status}`) as Error & {
+    isAxiosError: boolean;
+    response: { status: number; data?: unknown };
+  };
+  err.isAxiosError = true;
+  err.response = { status, data: code ? { error: { code } } : undefined };
+  return err;
+}
+
 describe("auth-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -178,6 +188,50 @@ describe("auth-service", () => {
       setupAxiosInterceptors(client);
 
       expect(client.interceptors.response.use).toHaveBeenCalled();
+    });
+
+    async function capturedErrorInterceptor() {
+      const { setupAxiosInterceptors } = await import("../auth-service");
+      const handlers: Array<(error: unknown) => Promise<never>> = [];
+      const use = vi.fn(
+        (
+          _onFulfilled: unknown,
+          onRejected: (error: unknown) => Promise<never>,
+        ) => {
+          handlers.push(onRejected);
+        },
+      );
+      const client = {
+        interceptors: { response: { use } },
+      } as unknown as AxiosInstance;
+
+      setupAxiosInterceptors(client);
+      expect(handlers).toHaveLength(1);
+      return handlers[0];
+    }
+
+    it("raises the blocking password gate on 428 and re-rejects", async () => {
+      const interceptor = await capturedErrorInterceptor();
+      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      const store = useAuthStore();
+      store.mustChangePassword = false;
+
+      const gateError = makePasswordGateError(428, "PASSWORD_CHANGE_REQUIRED");
+
+      await expect(interceptor(gateError)).rejects.toBe(gateError);
+      expect(store.mustChangePassword).toBe(true);
+    });
+
+    it("does not raise the password gate for other failures", async () => {
+      const interceptor = await capturedErrorInterceptor();
+      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      const store = useAuthStore();
+      store.mustChangePassword = false;
+
+      const serverError = makeAxiosError(500);
+
+      await expect(interceptor(serverError)).rejects.toBe(serverError);
+      expect(store.mustChangePassword).toBe(false);
     });
   });
 
@@ -326,6 +380,94 @@ describe("auth-service", () => {
       const result = await restoreSession();
 
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe("password change required detection", () => {
+    it("detects 428 with PASSWORD_CHANGE_REQUIRED code", async () => {
+      const { isPasswordChangeRequired } = await import("../auth-service");
+      expect(
+        isPasswordChangeRequired(
+          makePasswordGateError(428, "PASSWORD_CHANGE_REQUIRED"),
+        ),
+      ).toBe(true);
+    });
+
+    it("ignores 428 without the expected code", async () => {
+      const { isPasswordChangeRequired } = await import("../auth-service");
+      expect(isPasswordChangeRequired(makePasswordGateError(428))).toBe(false);
+      expect(
+        isPasswordChangeRequired(makePasswordGateError(428, "OTHER_CODE")),
+      ).toBe(false);
+    });
+
+    it("ignores other statuses and non-axios errors", async () => {
+      const { isPasswordChangeRequired } = await import("../auth-service");
+      expect(isPasswordChangeRequired(makePasswordGateError(500))).toBe(false);
+      expect(isPasswordChangeRequired(new Error("boom"))).toBe(false);
+      expect(isPasswordChangeRequired(undefined)).toBe(false);
+    });
+
+    it("markPasswordChangeRequired sets the store flag", async () => {
+      const { markPasswordChangeRequired } = await import("../auth-service");
+      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+
+      useAuthStore().mustChangePassword = false;
+      markPasswordChangeRequired();
+      expect(useAuthStore().mustChangePassword).toBe(true);
+    });
+  });
+
+  describe("changePassword", () => {
+    it("posts credentials, stores the rotated token and clears the flag", async () => {
+      const { changePassword } = await import("../auth-service");
+      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      const store = useAuthStore();
+      store.mustChangePassword = true;
+      sessionStorage.setItem("access_token", "old-token");
+
+      mockPost.mockResolvedValueOnce({
+        status: 200,
+        data: { access_token: "rotated-token" },
+      });
+
+      const result = await changePassword("old-pass-1", "new-pass-123");
+
+      expect(result.ok).toBe(true);
+      expect(mockPost).toHaveBeenCalledWith(
+        "/change-password",
+        { current_password: "old-pass-1", new_password: "new-pass-123" },
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer old-token",
+          }),
+        }),
+      );
+      expect(sessionStorage.getItem("access_token")).toBe("rotated-token");
+      expect(store.mustChangePassword).toBe(false);
+    });
+
+    it("returns the backend message on rejection", async () => {
+      const { changePassword } = await import("../auth-service");
+      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      useAuthStore().mustChangePassword = true;
+
+      const err = new Error("HTTP 400") as Error & {
+        isAxiosError: boolean;
+        response: { status: number; data?: unknown };
+      };
+      err.isAxiosError = true;
+      err.response = {
+        status: 400,
+        data: { error: { message: "password too weak" } },
+      };
+      mockPost.mockRejectedValueOnce(err);
+
+      const result = await changePassword("old-pass-1", "short");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.message).toBe("password too weak");
+      expect(useAuthStore().mustChangePassword).toBe(true);
     });
   });
 });

@@ -132,6 +132,21 @@ export function stopProactiveRefresh() {
   stopProactiveTimer();
   destroyTabCoordination();
 }
+// The backend answers 428 Precondition Required with this code while a valid
+// session still owes a first-login password rotation.
+export const PASSWORD_CHANGE_REQUIRED = "PASSWORD_CHANGE_REQUIRED";
+
+export function isPasswordChangeRequired(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) return false;
+  if (err.response?.status !== 428) return false;
+  const code = (err.response.data as { error?: { code?: string } } | undefined)
+    ?.error?.code;
+  return code === PASSWORD_CHANGE_REQUIRED;
+}
+
+export function markPasswordChangeRequired(): void {
+  useAuthStore().mustChangePassword = true;
+}
 
 export function setupAxiosInterceptors(apiClient: AxiosInstance) {
   let failedQueue: Array<{
@@ -153,6 +168,14 @@ export function setupAxiosInterceptors(apiClient: AxiosInstance) {
   apiClient.interceptors.response.use(
     (response) => response,
     async (error: AxiosError) => {
+      // 428: the token is valid but the account still owes a first-login
+      // password rotation. Surface it as a blocking modal instead of retrying
+      // or logging the user out.
+      if (isPasswordChangeRequired(error)) {
+        markPasswordChangeRequired();
+        return Promise.reject(error);
+      }
+
       const originalRequest = error.config as AxiosRequestConfig & {
         _retry?: boolean;
       };
@@ -307,6 +330,42 @@ export async function login(
     return data;
   } catch {
     return false;
+  }
+}
+
+// Completes a first-login (or any) password rotation. On success the backend
+// re-issues the access token with the must_change_password claim cleared, so
+// the session continues without a re-login.
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const res = await authApi.post(
+      "/change-password",
+      { current_password: currentPassword, new_password: newPassword },
+      { headers: getAuthHeaders() },
+    );
+    const token = res.data?.access_token;
+    if (token) setAccessToken(token);
+    const store = useAuthStore();
+    if (store.user) {
+      store.user = { ...store.user, must_change_password: false };
+    }
+    store.mustChangePassword = false;
+    return { ok: true };
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      const body = err.response?.data as
+        { error?: { message?: string } | string } | undefined;
+      const raw = body?.error;
+      const message =
+        typeof raw === "string"
+          ? raw
+          : raw?.message || err.message || "Failed to change password";
+      return { ok: false, message };
+    }
+    return { ok: false, message: "Failed to change password" };
   }
 }
 

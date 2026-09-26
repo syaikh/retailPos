@@ -18,6 +18,9 @@ export interface CreateUserPayload {
   role_id: number;
   is_active: boolean;
   reports_to?: number | null;
+  store_id?: number | null;
+  /** Force a first-login password rotation (store onboarding wizard). */
+  must_change_password?: boolean;
 }
 
 export interface UpdateUserPayload {

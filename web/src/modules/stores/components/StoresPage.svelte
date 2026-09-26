@@ -9,10 +9,11 @@
   import { useSortable } from "$shared/composables/useSortable.svelte";
   import {
     getStores,
-    createStore,
     updateStore,
     deleteStore,
+    getReadiness,
   } from "../services/stores-service";
+  import StoreOnboardingWizard from "./StoreOnboardingWizard.svelte";
 
   const rbac = useRBAC();
 
@@ -28,6 +29,7 @@
     ConfirmDeleteModal,
     Pagination,
     SortableHeader,
+    Badge,
   } from "$shared/ui";
   import { Plus, Pencil, Trash2, Store, Loader2 } from "lucide-svelte";
 
@@ -41,10 +43,13 @@
   let showModal = $state(false);
   let showDeleteModal = $state(false);
   let selectedStore = $state(null);
-  let modalMode = $state("add");
   let saving = $state(false);
   const { sortState, handleSort } = useSortable("name", "asc");
   let showImportWizard = $state(false);
+  let showWizard = $state(false);
+  // store id -> readiness verdict (true/false), "loading" while in flight,
+  // null when the endpoint could not be reached (e.g. missing store.view).
+  let readinessMap = $state({});
 
   let form = $state({
     name: "",
@@ -91,6 +96,21 @@
     fetchStores(false);
   }
 
+  async function fetchReadiness(ids) {
+    await Promise.allSettled(
+      ids.map(async (id) => {
+        try {
+          const r = await getReadiness(id);
+          readinessMap[id] = r ? r.ready : null;
+        } catch {
+          // Network failure: resolve the row to "unknown" instead of leaving
+          // the skeleton spinning forever.
+          readinessMap[id] = null;
+        }
+      }),
+    );
+  }
+
   async function fetchStores(isSearch = false) {
     try {
       if (!isSearch) loading = true;
@@ -102,6 +122,7 @@
       });
       stores = res.data;
       total = res.total;
+      void fetchReadiness(res.data.map((s) => s.id));
     } catch {
       toast.error(labels.toastFailedLoadStores);
     } finally {
@@ -133,13 +154,12 @@
   }
 
   function openAdd() {
-    modalMode = "add";
-    form = { name: "", address: "", phone: "", is_active: true };
-    showModal = true;
+    // Onboarding is the default creation path: it also covers staff,
+    // storage location and the readiness checklist.
+    showWizard = true;
   }
 
   function openEdit(store) {
-    modalMode = "edit";
     selectedStore = store;
     form = {
       name: store.name,
@@ -162,27 +182,14 @@
     }
     try {
       saving = true;
-      let ok;
-      if (modalMode === "add") {
-        ok = await createStore({
-          name: form.name.trim(),
-          address: form.address.trim() || undefined,
-          phone: form.phone.trim() || undefined,
-        });
-      } else {
-        ok = await updateStore(selectedStore.id, {
-          name: form.name.trim(),
-          address: form.address.trim() || undefined,
-          phone: form.phone.trim() || undefined,
-          is_active: form.is_active,
-        });
-      }
+      const ok = await updateStore(selectedStore.id, {
+        name: form.name.trim(),
+        address: form.address.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        is_active: form.is_active,
+      });
       if (ok) {
-        toast.success(
-          modalMode === "add"
-            ? labels.toastStoreAdded
-            : labels.toastStoreUpdated,
-        );
+        toast.success(labels.toastStoreUpdated);
         showModal = false;
         await fetchStores();
       } else {
@@ -276,6 +283,9 @@
             <th class="text-left p-4 font-semibold w-40">{labels.address}</th>
             <th class="text-left p-4 font-semibold w-36">{labels.phone}</th>
             <th class="text-left p-4 font-semibold w-28">{labels.status}</th>
+            <th class="text-left p-4 font-semibold w-28"
+              >{labels.onboardingStepReadiness}</th
+            >
             <th class="text-left p-4 font-semibold w-28">{labels.createdAt}</th>
             <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
           </tr>
@@ -286,6 +296,7 @@
               <td class="p-4 min-w-0"><Skeleton class="h-4 w-full" /></td>
               <td class="p-4 w-40"><Skeleton class="h-4 w-3/4" /></td>
               <td class="p-4 w-36"><Skeleton class="h-4 w-2/3" /></td>
+              <td class="p-4 w-28"><Skeleton class="h-4 w-2/3" /></td>
               <td class="p-4 w-28"><Skeleton class="h-4 w-2/3" /></td>
               <td class="p-4 w-28"><Skeleton class="h-4 w-2/3" /></td>
               <td class="p-4 w-20"><Skeleton class="h-4 w-8" /></td>
@@ -326,6 +337,9 @@
               <th class="text-left p-4 font-semibold w-40">{labels.address}</th>
               <th class="text-left p-4 font-semibold w-36">{labels.phone}</th>
               <th class="text-left p-4 font-semibold w-28">{labels.status}</th>
+              <th class="text-left p-4 font-semibold w-28">
+                {labels.onboardingStepReadiness}
+              </th>
               <th class="text-left p-4 font-semibold w-28">
                 <SortableHeader
                   label={labels.createdAt}
@@ -383,6 +397,17 @@
                     </span>
                   {/if}
                 </td>
+                <td class="p-4 w-28">
+                  {#if readinessMap[store.id] === undefined}
+                    <Skeleton class="h-4 w-16" />
+                  {:else if readinessMap[store.id] === null}
+                    <span class="text-text-muted text-xs">—</span>
+                  {:else if readinessMap[store.id]}
+                    <Badge variant="success" size="sm">{labels.ready}</Badge>
+                  {:else}
+                    <Badge variant="warning" size="sm">{labels.notReady}</Badge>
+                  {/if}
+                </td>
                 <td class="p-4 w-28 text-text-secondary text-sm">
                   {formatDate(store.created_at)}
                 </td>
@@ -431,11 +456,7 @@
   </div>
 </div>
 
-<Modal
-  bind:open={showModal}
-  title={modalMode === "add" ? labels.addStore : labels.editStore}
-  size="md"
->
+<Modal bind:open={showModal} title={labels.editStore} size="md">
   <form
     onsubmit={(e) => {
       e.preventDefault();
@@ -488,14 +509,12 @@
         bind:value={form.phone}
       />
     </div>
-    {#if modalMode === "edit"}
-      <div class="flex items-center gap-3">
-        <ToggleSwitch
-          bind:checked={form.is_active}
-          label={form.is_active ? labels.active : labels.inactive}
-        />
-      </div>
-    {/if}
+    <div class="flex items-center gap-3">
+      <ToggleSwitch
+        bind:checked={form.is_active}
+        label={form.is_active ? labels.active : labels.inactive}
+      />
+    </div>
   </form>
   {#snippet footer()}
     <Button
@@ -512,7 +531,7 @@
       {#if saving}
         <Loader2 size={16} class="animate-spin" /> {labels.saving}
       {:else}
-        {modalMode === "add" ? labels.addStore : labels.simpanPerubahan}
+        {labels.simpanPerubahan}
       {/if}
     </Button>
   {/snippet}
@@ -535,4 +554,9 @@
   loading={false}
   onconfirm={confirmDelete}
   oncancel={() => (showDeleteModal = false)}
+/>
+
+<StoreOnboardingWizard
+  bind:open={showWizard}
+  onComplete={() => fetchStores()}
 />

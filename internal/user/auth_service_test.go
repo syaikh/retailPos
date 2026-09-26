@@ -355,7 +355,7 @@ func TestAuthService_FullLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, resp.User.ID, claims.ID)
 
-	err = svc.ChangePassword(ctx, user.ID, "password", "newlifecyclepw")
+	_, _, err = svc.ChangePassword(ctx, user.ID, "password", "newlifecyclepw")
 	require.NoError(t, err)
 
 	_, _, _, err = svc.RefreshToken(ctx, newRefresh)
@@ -554,7 +554,7 @@ func TestAuthService_ChangePassword_Success(t *testing.T) {
 	resp, err := svc.Login(ctx, "changepw_success", "password")
 	require.NoError(t, err)
 
-	err = svc.ChangePassword(ctx, user.ID, "password", "newpassword456")
+	_, _, err = svc.ChangePassword(ctx, user.ID, "password", "newpassword456")
 	require.NoError(t, err)
 
 	_, _, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
@@ -580,7 +580,7 @@ func TestAuthService_ChangePassword_WrongCurrent(t *testing.T) {
 	err := NewRepository(dbPool).CreateUser(ctx, user)
 	require.NoError(t, err)
 
-	err = svc.ChangePassword(ctx, user.ID, "wrongpassword", "newpassword")
+	_, _, err = svc.ChangePassword(ctx, user.ID, "wrongpassword", "newpassword")
 	assert.ErrorIs(t, err, ErrInvalidPassword)
 }
 
@@ -588,7 +588,7 @@ func TestAuthService_ChangePassword_UserNotFound(t *testing.T) {
 	svc := newAuthServiceWithDB(t)
 	ctx := context.Background()
 
-	err := svc.ChangePassword(ctx, 99999, "any", "newpassword")
+	_, _, err := svc.ChangePassword(ctx, 99999, "any", "newpassword")
 	assert.ErrorIs(t, err, ErrUserNotFound)
 }
 

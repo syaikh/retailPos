@@ -14,10 +14,89 @@ import (
 
 type Repository struct {
 	db shared.DBPool
+
+	staff     StaffCountsProvider
+	stock     SellableStockProvider
+	locations StorageLocationCountProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
+}
+
+// SetStaffCountsProvider wires the users/roles read port, implemented by
+// internal/user (see StoreStaffCounts). It MUST be called before Readiness
+// runs — an unwired repository fails fast at the readiness load point.
+func (r *Repository) SetStaffCountsProvider(p StaffCountsProvider) {
+	r.staff = p
+}
+
+// SetSellableStockProvider wires the catalog health read port, implemented by
+// internal/product (see SellableStats). It MUST be called before Readiness.
+func (r *Repository) SetSellableStockProvider(p SellableStockProvider) {
+	r.stock = p
+}
+
+// SetStorageLocationCountProvider wires the storage_locations read port,
+// implemented by internal/storagelocation (see StoreLocationCount). It MUST be
+// called before Readiness.
+func (r *Repository) SetStorageLocationCountProvider(p StorageLocationCountProvider) {
+	r.locations = p
+}
+
+func (r *Repository) staffCountsProvider() StaffCountsProvider {
+	if r.staff == nil {
+		panic("store.Repository: StaffCountsProvider not wired (SetStaffCountsProvider)")
+	}
+	return r.staff
+}
+
+func (r *Repository) sellableStockProvider() SellableStockProvider {
+	if r.stock == nil {
+		panic("store.Repository: SellableStockProvider not wired (SetSellableStockProvider)")
+	}
+	return r.stock
+}
+
+func (r *Repository) storageLocationCountProvider() StorageLocationCountProvider {
+	if r.locations == nil {
+		panic("store.Repository: StorageLocationCountProvider not wired (SetStorageLocationCountProvider)")
+	}
+	return r.locations
+}
+
+// ReadinessDetails is the cross-module input to the onboarding readiness
+// computation. Staff is keyed by role name (absent roles are simply missing),
+// while catalog stats are global because the product catalogue is shared.
+type ReadinessDetails struct {
+	Staff             map[string]int
+	ActiveProducts    int
+	ZeroStockProducts int
+	StorageLocations  int
+}
+
+// ReadinessDetails loads everything the readiness computation needs that the
+// store module does not own itself, delegating each read to its owning module
+// through the consumer-side ports.
+func (r *Repository) ReadinessDetails(ctx context.Context, storeID int) (*ReadinessDetails, error) {
+	staff, err := r.staffCountsProvider().StaffCountsByStore(ctx, r.db, storeID)
+	if err != nil {
+		return nil, err
+	}
+	activeProducts, zeroStockProducts, err := r.sellableStockProvider().SellableStockStats(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	locations, err := r.storageLocationCountProvider().StorageLocationCountByStore(ctx, r.db, storeID)
+	if err != nil {
+		return nil, err
+	}
+	return &ReadinessDetails{
+		Staff:             staff,
+		ActiveProducts:    activeProducts,
+		ZeroStockProducts: zeroStockProducts,
+		StorageLocations:  locations,
+	}, nil
 }
 
 func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Store, int, error) {

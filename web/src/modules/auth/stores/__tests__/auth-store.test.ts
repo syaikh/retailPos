@@ -66,4 +66,38 @@ describe("auth-store", () => {
     store.isAuthenticated = false;
     expect(store.isAuthenticated).toBe(false);
   });
+
+  it("mustChangePassword defaults to false and is settable", () => {
+    const store = useAuthStore();
+    store.mustChangePassword = false;
+    expect(store.mustChangePassword).toBe(false);
+    store.mustChangePassword = true;
+    expect(store.mustChangePassword).toBe(true);
+    store.mustChangePassword = false;
+    expect(store.mustChangePassword).toBe(false);
+  });
+
+  it("setUser mirrors must_change_password onto the flag", () => {
+    const store = useAuthStore();
+    store.setUser({
+      id: 9,
+      username: "forced",
+      must_change_password: true,
+    } as User);
+    expect(store.mustChangePassword).toBe(true);
+
+    store.setUser({
+      id: 10,
+      username: "normal",
+      must_change_password: false,
+    } as User);
+    expect(store.mustChangePassword).toBe(false);
+  });
+
+  it("clearUser resets mustChangePassword", () => {
+    const store = useAuthStore();
+    store.mustChangePassword = true;
+    store.clearUser();
+    expect(store.mustChangePassword).toBe(false);
+  });
 });

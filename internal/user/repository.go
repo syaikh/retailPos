@@ -48,9 +48,9 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*User,
 	var lastLogin sql.NullTime
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, language, theme, created_at, updated_at, last_login
+		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, language, theme, created_at, updated_at, last_login, must_change_password
 		FROM users WHERE username = $1 AND deleted_at IS NULL
-	`, username).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &u.Language, &u.Theme, &createdAt, &updatedAt, &lastLogin)
+	`, username).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &u.Language, &u.Theme, &createdAt, &updatedAt, &lastLogin, &u.MustChangePassword)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -99,9 +99,9 @@ func (r *Repository) getUserByID(ctx context.Context, id int) (*User, error) {
 	var lastLogin sql.NullTime
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, language, theme, created_at, updated_at, last_login
+		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, language, theme, created_at, updated_at, last_login, must_change_password
 		FROM users WHERE id = $1 AND deleted_at IS NULL
-	`, id).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &u.Language, &u.Theme, &createdAt, &updatedAt, &lastLogin)
+	`, id).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &u.Language, &u.Theme, &createdAt, &updatedAt, &lastLogin, &u.MustChangePassword)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -290,9 +290,9 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 	var createdAt, updatedAt time.Time
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO users (username, email, password_hash, role_id, store_id, reports_to, is_active)
-		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, updated_at
-	`, user.Username, user.Email, user.Password, user.RoleID, user.StoreID, user.ReportsToID, user.IsActive).Scan(&user.ID, &createdAt, &updatedAt)
+		INSERT INTO users (username, email, password_hash, role_id, store_id, reports_to, is_active, must_change_password)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, updated_at
+	`, user.Username, user.Email, user.Password, user.RoleID, user.StoreID, user.ReportsToID, user.IsActive, user.MustChangePassword).Scan(&user.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return err
 	}
@@ -517,7 +517,9 @@ func (r *Repository) UpdatePreferences(ctx context.Context, userID int, language
 }
 
 func (r *Repository) UpdatePassword(ctx context.Context, userID int, hashedPassword string) error {
-	_, err := r.db.Exec(ctx, "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2", hashedPassword, userID)
+	// A successful password change always satisfies the first-login rotation
+	// obligation, so the flag is cleared in the same statement.
+	_, err := r.db.Exec(ctx, "UPDATE users SET password_hash = $1, must_change_password = false, updated_at = NOW() WHERE id = $2", hashedPassword, userID)
 	return err
 }
 

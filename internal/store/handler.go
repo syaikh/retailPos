@@ -32,6 +32,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	sg.GET("", auth, perm(permissions.StoreView), h.List)
 	sg.GET("/active", auth, perm(permissions.StoreView), h.ListActive)
 	sg.GET("/:id", auth, perm(permissions.StoreView), h.GetByID)
+	sg.GET("/:id/readiness", auth, perm(permissions.StoreView), h.GetReadiness)
 	sg.POST("", auth, perm(permissions.StoreCreate), h.Create)
 	sg.PUT("/:id", auth, perm(permissions.StoreUpdate), h.Update)
 	sg.DELETE("/:id", auth, perm(permissions.StoreDelete), h.Delete)
@@ -158,6 +159,34 @@ func (h *Handler) GetByID(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": store})
+}
+
+// GetReadiness godoc
+// @Summary      Get store onboarding readiness
+// @Description  Compute the onboarding checklist state for a store (staffed roles, address/phone, storage location, catalog health)
+// @Tags         Stores
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      int  true  "Store ID"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /stores/{id}/readiness [get]
+func (h *Handler) GetReadiness(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if !requireOwnStore(c, id) {
+		return
+	}
+
+	readiness, err := h.svc.Readiness(c.Request.Context(), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": readiness})
 }
 
 // Create godoc

@@ -33,11 +33,11 @@ test.describe('RBAC behaviour (API driver)', () => {
     tracker.trackStore(s.body?.data?.id ?? s.body?.id);
   });
 
-  test('manager can create stores (store.create)', async ({ request }) => {
+  test('manager is rejected from store creation (store.create revoked by migration 050, HQ-only provisioning)', async ({
+    request,
+  }) => {
     const api = await apiAs(request, 'manager');
-    const r = await api.post('/api/stores', { name: `E2E Store ${Date.now()}` });
-    expect(r.status).toBe(201);
-    tracker.trackStore(r.body?.data?.id ?? r.body?.id);
+    expect((await api.post('/api/stores', { name: 'x' })).status).toBe(403);
   });
 
   test('supervisor is rejected from store creation (no store.create) but can create brands (has product.create)', async ({ request }) => {

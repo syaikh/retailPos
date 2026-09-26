@@ -22,13 +22,16 @@ describe("StoresPage.svelte source-structure guards", () => {
 
   it("imports store service functions", () => {
     expect(src).toContain(
-      'import {\n    getStores,\n    createStore,\n    updateStore,\n    deleteStore,\n  } from "../services/stores-service"',
+      'import {\n    getStores,\n    updateStore,\n    deleteStore,\n    getReadiness,\n  } from "../services/stores-service"',
+    );
+    expect(src).toContain(
+      'import StoreOnboardingWizard from "./StoreOnboardingWizard.svelte"',
     );
   });
 
   it("imports shared UI components", () => {
     expect(src).toContain(
-      'import {\n    Button,\n    Input,\n    Modal,\n    Skeleton,\n    BulkActionDropdown,\n    ImportWizard,\n    SearchBar,\n    ToggleSwitch,\n    ConfirmDeleteModal,\n    Pagination,\n    SortableHeader,\n  } from "$shared/ui"',
+      'import {\n    Button,\n    Input,\n    Modal,\n    Skeleton,\n    BulkActionDropdown,\n    ImportWizard,\n    SearchBar,\n    ToggleSwitch,\n    ConfirmDeleteModal,\n    Pagination,\n    SortableHeader,\n    Badge,\n  } from "$shared/ui"',
     );
   });
 
@@ -92,5 +95,23 @@ describe("StoresPage.svelte source-structure guards", () => {
 
   it("renders Pagination component", () => {
     expect(src).toContain("<Pagination");
+  });
+
+  it("opens the onboarding wizard instead of the plain add modal", () => {
+    expect(src).toContain("let showWizard = $state(false)");
+    expect(src).toContain("showWizard = true");
+    expect(src).toContain("<StoreOnboardingWizard");
+    expect(src).toContain("bind:open={showWizard}");
+    expect(src).toContain("onComplete={() => fetchStores()}");
+  });
+
+  it("tracks per-store readiness and renders a badge", () => {
+    expect(src).toContain("let readinessMap = $state({})");
+    expect(src).toContain("async function fetchReadiness(ids)");
+    expect(src).toContain("const r = await getReadiness(id)");
+    expect(src).toContain("readinessMap[store.id]");
+    expect(src).toContain('<Badge variant="success" size="sm">');
+    expect(src).toContain('<Badge variant="warning" size="sm">');
+    expect(src).toContain("labels.onboardingStepReadiness");
   });
 });

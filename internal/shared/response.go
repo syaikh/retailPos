@@ -21,6 +21,11 @@ const (
 	ErrInternal     = "INTERNAL_ERROR"
 	ErrValidation   = "VALIDATION_ERROR"
 	ErrRateLimited  = "RATE_LIMITED"
+
+	// ErrPasswordChangeRequired is returned with HTTP 428 when the caller's
+	// account must rotate its password on first login before any other
+	// protected endpoint will be served.
+	ErrPasswordChangeRequired = "PASSWORD_CHANGE_REQUIRED"
 )
 
 type ErrorDetail struct {

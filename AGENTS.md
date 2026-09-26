@@ -187,6 +187,7 @@ Migrations must be applied **before** deploying a new server binary. The server 
 | `047_finance_consignment_view.sql` | Grants `consignment.view` to `finance` (fix: finance could pay settlements but not view them) |
 | `048_add_termination_return_reason.sql` | Adds 'termination' to consignment_pending_returns reason check constraint |
 | `049_revoke_store_view_finance_supervisor.sql` | Revokes `store.view` from `finance` and `supervisor` (both are store-scoped via JWT; permission was redundant) |
+| `050_store_onboarding.sql` | Adds `users.must_change_password` (forced first-login rotation) and revokes `store.create` from `manager` (HQ-only store provisioning) |
 
 ## Filesystem Convention
 

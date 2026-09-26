@@ -5,6 +5,8 @@ import {
   refreshAccessToken,
   setupAxiosInterceptors,
   logout,
+  markPasswordChangeRequired,
+  PASSWORD_CHANGE_REQUIRED,
 } from "$modules/auth";
 import { setCache, invalidateCache } from "./cache";
 
@@ -85,6 +87,18 @@ export const apiFetch = async (
     }
     logout();
     throw new Error("Session expired");
+  }
+
+  // 428 - the session still owes a first-login password rotation: raise the
+  // blocking modal, but hand the response back so callers keep working.
+  if (response.status === 428) {
+    const body = await response
+      .clone()
+      .json()
+      .catch(() => null);
+    if (body?.error?.code === PASSWORD_CHANGE_REQUIRED) {
+      markPasswordChangeRequired();
+    }
   }
 
   return response;

@@ -49,8 +49,8 @@ func TestRepository_GetByUsername_CacheSet(t *testing.T) {
 	repo.SetCache(c)
 
 	now := time.Now()
-	rows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "language", "theme", "created_at", "updated_at", "last_login"}).
-		AddRow(1, "manager", "manager@test.com", "hash", 1, nil, nil, true, "id", "light", now, now, nil)
+	rows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "language", "theme", "created_at", "updated_at", "last_login", "must_change_password"}).
+		AddRow(1, "manager", "manager@test.com", "hash", 1, nil, nil, true, "id", "light", now, now, nil, false)
 	mock.ExpectQuery("SELECT (.+) FROM users WHERE username").WithArgs("manager").WillReturnRows(rows)
 
 	roleRows := pgxmock.NewRows([]string{"id", "name", "description", "is_system", "created_at"}).
@@ -330,8 +330,8 @@ func TestRepository_GetUserByID_CacheHit(t *testing.T) {
 	c.Set("user:1", User{ID: 1, Username: "manager"})
 
 	now := time.Now()
-	userRows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "language", "theme", "created_at", "updated_at", "last_login"}).
-		AddRow(1, "manager", "manager@test.com", "hash", 1, nil, nil, true, "id", "light", now, now, nil)
+	userRows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "language", "theme", "created_at", "updated_at", "last_login", "must_change_password"}).
+		AddRow(1, "manager", "manager@test.com", "hash", 1, nil, nil, true, "id", "light", now, now, nil, false)
 	mock.ExpectQuery("SELECT (.+) FROM users WHERE id").WithArgs(1).WillReturnRows(userRows)
 
 	roleRows := pgxmock.NewRows([]string{"id", "name", "description", "is_system", "created_at"}).
@@ -438,10 +438,10 @@ func TestRepository_CreateUser(t *testing.T) {
 
 	now := time.Now()
 	rows := pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(10, now, now)
-	mock.ExpectQuery("INSERT INTO users").WithArgs("new", "new@test.com", "hash", 1, pgxmock.AnyArg(), pgxmock.AnyArg(), true).WillReturnRows(rows)
+	mock.ExpectQuery("INSERT INTO users").WithArgs("new", "new@test.com", "hash", 1, pgxmock.AnyArg(), pgxmock.AnyArg(), true, true).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	u := &User{Username: "new", Email: "new@test.com", Password: "hash", RoleID: 1, IsActive: true}
+	u := &User{Username: "new", Email: "new@test.com", Password: "hash", RoleID: 1, IsActive: true, MustChangePassword: true}
 	err = repo.CreateUser(context.Background(), u)
 	require.NoError(t, err)
 	assert.Equal(t, 10, u.ID)

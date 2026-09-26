@@ -70,14 +70,38 @@ test.describe('Store Management', () => {
     await expect(page.locator('p', { hasText: /^Stores$/ }).first()).toBeVisible();
   });
 
-  test('should validate required fields', async ({ page }) => {
+  test('should gate the onboarding wizard on required store fields', async ({ page }) => {
     await page.getByRole('button', { name: 'Add Store' }).first().click();
-    await expect(page.getByRole('dialog', { name: 'Add Store' })).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: 'Store Onboarding Wizard' });
+    await expect(dialog).toBeVisible();
 
-    await page.fill('#store-name', '');
-    await page.getByRole('dialog', { name: 'Add Store' }).getByRole('button', { name: 'Add Store' }).click();
+    // Step 1 cannot advance until name, address and phone are all set —
+    // the same trio readiness blocks on.
+    const next = dialog.getByRole('button', { name: 'Next' });
+    await expect(next).toBeDisabled();
 
-    await expect(page.getByRole('dialog', { name: 'Add Store' })).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText('Store name is required')).toBeVisible({ timeout: 10000 });
+    await dialog.locator('#wiz-store-name').fill('E2E Wizard Store');
+    await expect(next).toBeDisabled();
+
+    await dialog.locator('#wiz-store-address').fill('Jl. E2E No. 1');
+    await expect(next).toBeDisabled();
+
+    await dialog.locator('#wiz-store-phone').fill('08120000001');
+    await expect(next).toBeEnabled();
+
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toBeHidden();
+  });
+
+  test('should show a readiness badge column for every store', async ({ page }) => {
+    await expect(page.getByRole('columnheader', { name: 'Readiness' })).toBeVisible();
+    const firstRow = page.locator('tbody tr').filter({ visible: true }).first();
+    await expect(firstRow).toBeVisible();
+    // Readiness is column 5 (name, address, phone, status, readiness, created, actions).
+    const readinessCell = firstRow.locator('td').nth(4);
+    // Loaded: either a verdict badge or the em dash for a user without store.view
+    await expect(readinessCell).toContainText(/^(Ready|Not Ready|—)$/, {
+      timeout: 10000,
+    });
   });
 });

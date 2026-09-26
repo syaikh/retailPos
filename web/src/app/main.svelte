@@ -30,7 +30,10 @@
 
   // Always-needed pages (loaded eagerly)
   import LoginPage from "$modules/auth/components/LoginPage.svelte";
+  import ForceChangePasswordModal from "$modules/auth/components/ForceChangePasswordModal.svelte";
   import Home from "$modules/dashboard/components/Home.svelte";
+
+  const authStore = useAuthStore();
 
   let Component = $state(LoginPage);
   let currentPath = $state(getPath());
@@ -324,6 +327,10 @@
       </div>
     </div>
   </div>
+{:else if authStore.mustChangePassword}
+  <!-- First-login password rotation: the backend answers 428 for every
+       non-allowlisted call, so the app blocks here until it is done. -->
+  <ForceChangePasswordModal />
 {:else if currentPath === "/login"}
   <Component />
 {:else}

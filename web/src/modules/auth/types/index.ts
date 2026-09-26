@@ -14,6 +14,8 @@ export interface User {
   permissions?: string[];
   language?: string;
   theme?: string;
+  /** True when the account still owes a first-login password rotation. */
+  must_change_password?: boolean;
 }
 
 export interface AuthState {

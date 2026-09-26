@@ -103,6 +103,9 @@ type CreateUserRequest struct {
 	StoreID     *int   `json:"store_id"`
 	ReportsToID *int   `json:"reports_to"`
 	IsActive    *bool  `json:"is_active"`
+	// MustChangePassword forces the new account to rotate its password on
+	// first login. Used by the store onboarding wizard's generated passwords.
+	MustChangePassword *bool `json:"must_change_password"`
 }
 
 type UpdateUserRequest struct {
@@ -213,6 +216,9 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		StoreID:     req.StoreID,
 		ReportsToID: req.ReportsToID,
 		IsActive:    isActive,
+	}
+	if req.MustChangePassword != nil {
+		user.MustChangePassword = *req.MustChangePassword
 	}
 
 	if err := h.svc.CreateUser(c.Request.Context(), user); err != nil {

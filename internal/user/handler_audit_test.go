@@ -168,8 +168,8 @@ func TestAuditHandler_DeleteRole_CountError(t *testing.T) {
 
 func TestAuditHandler_ChangePassword(t *testing.T) {
 	svc := &mockAuthLoginService{
-		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) error {
-			return nil
+		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) (string, string, error) {
+			return "access-token", "refresh-token", nil
 		},
 	}
 	r := setupMockAuthRouterWithAudit(svc)
@@ -249,8 +249,8 @@ func TestAuditHandler_Logout_EmptyRefreshToken(t *testing.T) {
 
 func TestAuditHandler_ChangePassword_InvalidPassword(t *testing.T) {
 	svc := &mockAuthLoginService{
-		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) error {
-			return ErrInvalidPassword
+		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) (string, string, error) {
+			return "", "", ErrInvalidPassword
 		},
 	}
 	r := setupMockAuthRouterWithAudit(svc)
@@ -265,8 +265,8 @@ func TestAuditHandler_ChangePassword_InvalidPassword(t *testing.T) {
 func TestAuditHandler_ChangePassword_InvalidPassword_WritesAudit(t *testing.T) {
 	var captured *audit.Log
 	svc := &mockAuthLoginService{
-		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) error {
-			return ErrInvalidPassword
+		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) (string, string, error) {
+			return "", "", ErrInvalidPassword
 		},
 	}
 	auditSvc := &mockAuditCreator{

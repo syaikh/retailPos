@@ -5,6 +5,7 @@ import type {
   UpdateStorePayload,
   StoreListParams,
   StoreListResponse,
+  StoreReadiness,
 } from "../types";
 
 export async function getStores(
@@ -52,6 +53,30 @@ export async function createStore(
     body: JSON.stringify(payload),
   });
   return r.ok;
+}
+
+/**
+ * Same as createStore but resolves to the created store so callers (the
+ * onboarding wizard) get the new id for follow-up staff/location calls.
+ */
+export async function createStoreAndGet(
+  payload: CreateStorePayload,
+): Promise<Store | null> {
+  const r = await apiFetch("/api/stores", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) return null;
+  const data = await r.json().catch(() => null);
+  return data?.data ?? null;
+}
+
+/** Computed onboarding readiness for one store (backend derives it). */
+export async function getReadiness(id: number): Promise<StoreReadiness | null> {
+  const r = await apiFetch(`/api/stores/${id}/readiness`);
+  if (!r.ok) return null;
+  const data = await r.json().catch(() => null);
+  return data?.data ?? null;
 }
 
 export async function updateStore(

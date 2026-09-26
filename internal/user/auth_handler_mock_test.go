@@ -18,7 +18,7 @@ type mockAuthLoginService struct {
 	loginFn          func(ctx context.Context, username, password string) (*LoginResponse, error)
 	refreshTokenFn   func(ctx context.Context, oldRefreshToken string) (string, string, *User, error)
 	validateTokenFn  func(tokenString string) (*AuthClaims, error)
-	changePasswordFn func(ctx context.Context, userID int, currentPassword, newPassword string) error
+	changePasswordFn func(ctx context.Context, userID int, currentPassword, newPassword string) (string, string, error)
 	logoutFn         func(ctx context.Context, userID int, refreshToken string) error
 	hashPasswordFn   func(password string) (string, error)
 	getUserByIDFn    func(ctx context.Context, id int) (*User, error)
@@ -33,7 +33,7 @@ func (m *mockAuthLoginService) RefreshToken(ctx context.Context, oldRefreshToken
 func (m *mockAuthLoginService) ValidateToken(tokenString string) (*AuthClaims, error) {
 	return m.validateTokenFn(tokenString)
 }
-func (m *mockAuthLoginService) ChangePassword(ctx context.Context, userID int, currentPassword, newPassword string) error {
+func (m *mockAuthLoginService) ChangePassword(ctx context.Context, userID int, currentPassword, newPassword string) (string, string, error) {
 	return m.changePasswordFn(ctx, userID, currentPassword, newPassword)
 }
 func (m *mockAuthLoginService) Logout(ctx context.Context, userID int, refreshToken string) error {
@@ -220,6 +220,26 @@ func TestAuthHandler_ValidateSession_Success(t *testing.T) {
 	assert.Equal(t, float64(1), user["id"])
 	assert.Equal(t, "testuser", user["username"])
 	assert.Equal(t, "manager", user["role"])
+	assert.Equal(t, false, user["must_change_password"], "flag must be present and false for an ordinary account")
+}
+
+func TestAuthHandler_ValidateSession_MustChangePassword(t *testing.T) {
+	svc := &mockAuthLoginService{
+		getUserByIDFn: func(ctx context.Context, id int) (*User, error) {
+			return &User{ID: id, Username: "testuser", MustChangePassword: true}, nil
+		},
+	}
+	r := setupMockAuthRouter(svc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/auth/validate", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	user, ok := resp["user"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, true, user["must_change_password"], "forced-rotation accounts must be flagged to the session layer")
 }
 
 func TestAuthHandler_ValidateSession_Permissions(t *testing.T) {
@@ -237,11 +257,11 @@ func TestAuthHandler_ValidateSession_Permissions(t *testing.T) {
 
 func TestAuthHandler_ChangePassword_Success(t *testing.T) {
 	svc := &mockAuthLoginService{
-		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) error {
+		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) (string, string, error) {
 			assert.Equal(t, 1, userID)
 			assert.Equal(t, "oldpass123", currentPassword)
 			assert.Equal(t, "newpass456", newPassword)
-			return nil
+			return "new-access-token", "new-refresh-token", nil
 		},
 	}
 
@@ -261,6 +281,14 @@ func TestAuthHandler_ChangePassword_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "password changed")
+	assert.Contains(t, w.Body.String(), "new-access-token", "response must carry a fresh access token")
+	// The rotation response re-issues the refresh cookie so the session
+	// continues without a re-login.
+	cookie := w.Header().Get("Set-Cookie")
+	assert.Contains(t, cookie, "refresh_token=new-refresh-token")
+	assert.Contains(t, cookie, "HttpOnly")
+	assert.Contains(t, cookie, "SameSite=Strict")
+	assert.Contains(t, cookie, "Path=/")
 }
 
 func TestAuthHandler_ChangePassword_InvalidJSON(t *testing.T) {
@@ -320,8 +348,8 @@ func TestAuthHandler_ChangePassword_WrongPassword(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	svc := &mockAuthLoginService{
-		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) error {
-			return ErrInvalidPassword
+		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) (string, string, error) {
+			return "", "", ErrInvalidPassword
 		},
 	}
 	h := NewAuthHandler(svc, nil)
@@ -342,8 +370,8 @@ func TestAuthHandler_ChangePassword_ServiceError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	svc := &mockAuthLoginService{
-		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) error {
-			return errors.New("db error")
+		changePasswordFn: func(ctx context.Context, userID int, currentPassword, newPassword string) (string, string, error) {
+			return "", "", errors.New("db error")
 		},
 	}
 	h := NewAuthHandler(svc, nil)

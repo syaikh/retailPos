@@ -19,6 +19,21 @@ func setCtxValue(ctx context.Context, key, val interface{}) context.Context {
 	return context.WithValue(ctx, key, val)
 }
 
+// passwordChangeAllowedPaths are the endpoints an account that still owes a
+// first-login password rotation may reach. Everything else on the authenticated
+// surface returns 428 until the rotation happens. Login and refresh are mounted
+// outside the authenticated group and are therefore not listed.
+var passwordChangeAllowedPaths = map[string]bool{
+	"/api/change-password": true,
+	"/api/logout":          true,
+	"/api/validate":        true,
+}
+
+// httpStatusPasswordChangeRequired (428 Precondition Required) is returned
+// when a valid token still owes a first-login password rotation; the body
+// carries shared.ErrPasswordChangeRequired as the machine-readable code.
+const httpStatusPasswordChangeRequired = 428
+
 func NewModularAuthMiddleware(authService *user.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString := extractToken(c)
@@ -30,6 +45,14 @@ func NewModularAuthMiddleware(authService *user.AuthService) gin.HandlerFunc {
 		claims, err := authService.ValidateToken(tokenString)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "invalid or expired token"))
+			return
+		}
+
+		if claims.MustChangePassword && !passwordChangeAllowedPaths[c.Request.URL.Path] {
+			c.AbortWithStatusJSON(httpStatusPasswordChangeRequired, shared.NewError(
+				shared.ErrPasswordChangeRequired,
+				"password must be changed before continuing",
+			))
 			return
 		}
 

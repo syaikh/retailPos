@@ -830,6 +830,66 @@ func TestMockHandler_CreateUser_WithReportsTo(t *testing.T) {
 	})
 }
 
+func TestMockHandler_CreateUser_MustChangePassword(t *testing.T) {
+	t.Run("flag is passed to the service and echoed back", func(t *testing.T) {
+		svc := &mockUserService{
+			getByUsernameFn: func(ctx context.Context, username string) (*User, error) {
+				return nil, errors.New("not found")
+			},
+			createUserFn: func(ctx context.Context, user *User) error {
+				assert.True(t, user.MustChangePassword, "the wizard's temp-password account must be stamped")
+				user.ID = 101
+				return nil
+			},
+			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+				return &Role{ID: 2, Name: "manager"}, nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		body := `{"username":"wizstaff","email":"wizstaff@test.com","password":"password123","role_id":2,"must_change_password":true}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/admin/users", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var resp map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		data, ok := resp["data"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, true, data["must_change_password"], "the response must echo the flag to the caller")
+	})
+
+	t.Run("omitted flag defaults to false", func(t *testing.T) {
+		svc := &mockUserService{
+			getByUsernameFn: func(ctx context.Context, username string) (*User, error) {
+				return nil, errors.New("not found")
+			},
+			createUserFn: func(ctx context.Context, user *User) error {
+				assert.False(t, user.MustChangePassword, "an account created without the flag must not be forced")
+				user.ID = 102
+				return nil
+			},
+			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+				return &Role{ID: 2, Name: "manager"}, nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		body := `{"username":"plainstaff","email":"plainstaff@test.com","password":"password123","role_id":2}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/admin/users", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var resp map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		data, ok := resp["data"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, false, data["must_change_password"])
+	})
+}
+
 func TestMockHandler_UpdateUser_WithReportsTo(t *testing.T) {
 	t.Run("self reference reports_to rejected", func(t *testing.T) {
 		svc := &mockUserService{

@@ -152,4 +152,65 @@ describe("stores-service", () => {
       expect(result).toBe(true);
     });
   });
+
+  describe("createStoreAndGet", () => {
+    it("returns the created store payload", async () => {
+      const created = { id: 7, name: "Cabang Baru" };
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: created }),
+      });
+
+      const { createStoreAndGet } = await import("../stores-service");
+      const result = await createStoreAndGet({
+        name: "Cabang Baru",
+        address: "Jl. A",
+        phone: "0812",
+      });
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/stores", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Cabang Baru",
+          address: "Jl. A",
+          phone: "0812",
+        }),
+      });
+      expect(result).toEqual(created);
+    });
+
+    it("returns null when the store cannot be created", async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false });
+
+      const { createStoreAndGet } = await import("../stores-service");
+      const result = await createStoreAndGet({ name: "Dup" });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("getReadiness", () => {
+    it("hits the readiness endpoint and unwraps data", async () => {
+      const readiness = { ready: true, blockers: [], staff: { manager: 1 } };
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: readiness }),
+      });
+
+      const { getReadiness } = await import("../stores-service");
+      const result = await getReadiness(3);
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/stores/3/readiness");
+      expect(result).toEqual(readiness);
+    });
+
+    it("returns null on failure", async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false });
+
+      const { getReadiness } = await import("../stores-service");
+      const result = await getReadiness(3);
+
+      expect(result).toBeNull();
+    });
+  });
 });

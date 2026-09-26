@@ -19,7 +19,10 @@ type AuthLoginService interface {
 	Login(ctx context.Context, username, password string) (*LoginResponse, error)
 	RefreshToken(ctx context.Context, oldRefreshToken string) (string, string, *User, error)
 	ValidateToken(tokenString string) (*AuthClaims, error)
-	ChangePassword(ctx context.Context, userID int, currentPassword, newPassword string) error
+	// ChangePassword rotates the password and returns a fresh access and
+	// refresh token so the caller's session survives the rotation (the old
+	// refresh token is invalidated together with the old password).
+	ChangePassword(ctx context.Context, userID int, currentPassword, newPassword string) (string, string, error)
 	Logout(ctx context.Context, userID int, refreshToken string) error
 	HashPassword(password string) (string, error)
 	GetUserByID(ctx context.Context, id int) (*User, error)
@@ -188,21 +191,24 @@ func (h *AuthHandler) ValidateSession(c *gin.Context) {
 	// Fetch language/theme preferences from DB.
 	userLang := "id"
 	userTheme := "light"
+	mustChangePassword := false
 	if resp.ID > 0 && h.svc != nil {
 		if fullUser, err := h.svc.GetUserByID(c.Request.Context(), resp.ID); err == nil {
 			userLang = fullUser.Language
 			userTheme = fullUser.Theme
+			mustChangePassword = fullUser.MustChangePassword
 		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
-			"id":       resp.ID,
-			"username": resp.Username,
-			"role":     resp.Role,
-			"store_id": resp.StoreID,
-			"language": userLang,
-			"theme":    userTheme,
+			"id":                   resp.ID,
+			"username":             resp.Username,
+			"role":                 resp.Role,
+			"store_id":             resp.StoreID,
+			"language":             userLang,
+			"theme":                userTheme,
+			"must_change_password": mustChangePassword,
 		},
 		"permissions": resp.Permissions,
 	})
@@ -237,7 +243,8 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.ChangePassword(c.Request.Context(), id, req.CurrentPassword, req.NewPassword); err != nil {
+	accessToken, refreshToken, err := h.svc.ChangePassword(c.Request.Context(), id, req.CurrentPassword, req.NewPassword)
+	if err != nil {
 		if errors.Is(err, ErrInvalidPassword) {
 			if h.auditSvc != nil {
 				username, _ := c.Get("username")
@@ -283,7 +290,17 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "password changed"})
+	domain := os.Getenv("COOKIE_DOMAIN")
+	secure := os.Getenv("COOKIE_SECURE") == "true"
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie("refresh_token", refreshToken, int(7*24*time.Hour/time.Second), "/", domain, secure, true)
+
+	// access_token lets the client drop the must_change_password claim without
+	// forcing a re-login.
+	c.JSON(http.StatusOK, gin.H{
+		"status":       "password changed",
+		"access_token": accessToken,
+	})
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {

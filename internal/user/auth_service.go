@@ -50,6 +50,10 @@ type AuthClaims struct {
 	Permissions []string `json:"permissions"`
 	StoreID     *int     `json:"store_id,omitempty"`
 	ReportsToID *int     `json:"reports_to,omitempty"`
+	// MustChangePassword mirrors users.must_change_password. It is enforced by
+	// middleware.NewModularAuthMiddleware (HTTP 428) until the account rotates
+	// its first-login password.
+	MustChangePassword bool `json:"must_change_password,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -226,30 +230,58 @@ func (s *AuthService) ValidateToken(tokenString string) (*AuthClaims, error) {
 	return s.parseToken(tokenString)
 }
 
-func (s *AuthService) ChangePassword(ctx context.Context, userID int, currentPassword, newPassword string) error {
+func (s *AuthService) ChangePassword(ctx context.Context, userID int, currentPassword, newPassword string) (string, string, error) {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
-		return ErrUserNotFound
+		return "", "", ErrUserNotFound
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(currentPassword)); err != nil {
-		return ErrInvalidPassword
+		return "", "", ErrInvalidPassword
 	}
 
 	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), 14)
 	if err != nil {
-		return fmt.Errorf("failed to hash password: %w", err)
+		return "", "", fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Tokens are minted before the password is persisted so a failure in the
+	// fallible permission/claim work leaves the old password (and the gate)
+	// intact instead of committing a change the caller never receives.
+	user.MustChangePassword = false
+	permissions, err := s.repo.GetRolePermissions(ctx, user.RoleID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get role permissions: %w", err)
+	}
+	perms := make([]string, len(permissions))
+	for i, p := range permissions {
+		perms[i] = p.Code
+	}
+	accessToken, err := s.generateToken(user, perms, s.accessTTL)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate access token: %w", err)
+	}
+	refreshToken, err := s.generateRefreshToken(user)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
 	if err := s.repo.UpdatePassword(ctx, userID, string(hashed)); err != nil {
-		return fmt.Errorf("failed to update password: %w", err)
+		return "", "", fmt.Errorf("failed to update password: %w", err)
 	}
 
+	// The old refresh tokens are invalidated with the old password, so a fresh
+	// pair is issued here. Without it the session would die at the next
+	// proactive refresh even though the password change succeeded.
 	if err := s.repo.DeleteUserRefreshTokens(ctx, userID); err != nil {
 		slog.Warn("failed to delete refresh tokens after password change", "user", userID, "error", err)
 	}
 
-	return nil
+	if err := s.storeRefreshToken(ctx, user.ID, refreshToken); err != nil {
+		return "", "", fmt.Errorf("failed to store refresh token: %w", err)
+	}
+
+	return accessToken, refreshToken, nil
 }
 
 func (s *AuthService) logFailure(ctx context.Context, username, ip, ua, reason string) {
@@ -287,6 +319,9 @@ func (s *AuthService) generateToken(user *User, permissions []string, ttl time.D
 		Permissions: permissions,
 		StoreID:     user.StoreID,
 		ReportsToID: user.ReportsToID,
+		// Carried in the access token so the auth middleware can enforce the
+		// 428 gate; re-reading the user on refresh keeps it current.
+		MustChangePassword: user.MustChangePassword,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
