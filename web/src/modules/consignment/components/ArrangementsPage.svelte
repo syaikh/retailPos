@@ -241,9 +241,10 @@
         showEndModal = false;
         showReturnBanner = true;
         activeTab = "return";
+        const supplierId = activeArrangement.supplier_id;
         try {
           arrangementStock = await fetchAllPages((p) =>
-            listStock(activeArrangement.supplier_id, p),
+            listStock(supplierId, p),
           );
         } catch {
           arrangementStock = [];

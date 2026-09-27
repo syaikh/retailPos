@@ -80,3 +80,28 @@ func (ConsignmentSupplierProvider) SupplierNamesByIDs(ctx context.Context, db sh
 	}
 	return names, rows.Err()
 }
+
+// SupplierIDsByName returns the IDs of suppliers whose name ILIKE-matches the
+// given search pattern (caller supplies the '%' pattern). Used by
+// internal/consignment to resolve the arrangement listing search filter
+// without an EXISTS clause against suppliers inside the consignment module.
+func (ConsignmentSupplierProvider) SupplierIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error) {
+	rows, err := db.Query(ctx, `
+		SELECT id
+		FROM suppliers
+		WHERE name ILIKE $1
+	`, search)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := []int{}
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}

@@ -224,14 +224,22 @@ func (r *Repository) ListArrangements(ctx context.Context, q queryer, storeID *i
 	}
 	if search != "" {
 		// Numeric search matches the arrangement id; anything else is a
-		// supplier-name substring search (both evaluated in SQL so the page
-		// is fetched in one round trip).
+		// supplier-name substring search. The name lookup runs through the
+		// supplier-owned port (internal/consignment does not query suppliers
+		// directly) and the matching IDs are filtered in SQL.
 		if _, err := strconv.Atoi(search); err == nil {
 			args = append(args, search)
 			conds = append(conds, fmt.Sprintf("a.id::text = $%d", len(args)))
 		} else {
-			args = append(args, "%"+search+"%")
-			conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM suppliers s WHERE s.id = a.supplier_id AND s.name ILIKE $%d)", len(args)))
+			supplierIDs, err := r.supplierStoreOrPanic().SupplierIDsByName(ctx, r.db, "%"+search+"%")
+			if err != nil {
+				return nil, 0, err
+			}
+			if supplierIDs == nil {
+				supplierIDs = []int{}
+			}
+			args = append(args, supplierIDs)
+			conds = append(conds, fmt.Sprintf("a.supplier_id = ANY($%d)", len(args)))
 		}
 	}
 	if status != "" {

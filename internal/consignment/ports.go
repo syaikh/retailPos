@@ -28,11 +28,13 @@ type StockReader interface {
 
 // SupplierStore is the supplier-side read port, implemented by
 // internal/supplier. It answers ownership questions about the suppliers table
-// (is_consignment flag) and supplier display names.
+// (is_consignment flag), supplier display names, and supplier ID lookups by
+// name for listing search filters.
 type SupplierStore interface {
 	IsConsignmentSupplier(ctx context.Context, db shared.DBPool, supplierID int) (bool, error)
 	ListConsignmentSuppliers(ctx context.Context, db shared.DBPool) ([]shared.SupplierRef, error)
 	SupplierNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error)
+	SupplierIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error)
 }
 
 // StoreNameProvider is the store-side read port, implemented by

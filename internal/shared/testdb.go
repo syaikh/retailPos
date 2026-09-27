@@ -78,9 +78,18 @@ func RunMigrations(pool *pgxpool.Pool, migrationsDir string) error {
 		}
 	}
 
+	// One connection for every remaining statement: migrations carry explicit
+	// BEGIN/COMMIT blocks that must stay on a single session, and psql (the
+	// production runner) also applies each file on one connection.
+	conn, err := pool.Acquire(context.Background())
+	if err != nil {
+		return fmt.Errorf("acquire migration connection: %w", err)
+	}
+	defer conn.Release()
+
 	for _, f := range files {
 		var applied bool
-		_ = pool.QueryRow(context.Background(), "SELECT TRUE FROM schema_migrations WHERE filename = $1", f).Scan(&applied)
+		_ = conn.QueryRow(context.Background(), "SELECT TRUE FROM schema_migrations WHERE filename = $1", f).Scan(&applied)
 		if applied {
 			continue
 		}
@@ -90,16 +99,171 @@ func RunMigrations(pool *pgxpool.Pool, migrationsDir string) error {
 		if err != nil {
 			return fmt.Errorf("read %s: %w", f, err)
 		}
-		if _, err := pool.Exec(context.Background(), string(content)); err != nil {
-			return fmt.Errorf("exec %s: %w", f, err)
+		// Statements execute one per query, the way psql applies a script:
+		// Postgres wraps a multi-statement message in a single implicit
+		// transaction, which CREATE INDEX CONCURRENTLY rejects.
+		for _, stmt := range splitSQLStatements(string(content)) {
+			if _, err := conn.Exec(context.Background(), stmt); err != nil {
+				return fmt.Errorf("exec %s: %w", f, err)
+			}
 		}
 		// Some migration files self-register into schema_migrations; ON CONFLICT
 		// keeps the recording step idempotent for those.
-		if _, err := pool.Exec(context.Background(), "INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING", f); err != nil {
+		if _, err := conn.Exec(context.Background(), "INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING", f); err != nil {
 			return fmt.Errorf("record %s: %w", f, err)
 		}
 	}
 	return nil
+}
+
+// splitSQLStatements splits a SQL script into its individual statements at
+// top-level semicolons. Semicolons inside string literals, dollar-quoted
+// bodies, and comments never split a statement, so function and trigger
+// definitions survive intact. Comments that trail the last statement are
+// dropped rather than sent as their own statement.
+func splitSQLStatements(script string) []string {
+	var stmts []string
+	var buf strings.Builder
+	hasCode := false
+
+	flush := func() {
+		if hasCode {
+			stmts = append(stmts, strings.TrimSpace(buf.String()))
+		}
+		buf.Reset()
+		hasCode = false
+	}
+
+	i := 0
+	for i < len(script) {
+		c := script[i]
+		switch {
+		case c == '-' && i+1 < len(script) && script[i+1] == '-':
+			j := i + 2
+			for j < len(script) && script[j] != '\n' {
+				j++
+			}
+			buf.WriteString(script[i:j])
+			i = j
+		case c == '/' && i+1 < len(script) && script[i+1] == '*':
+			j := i + 2
+			depth := 1
+			for j < len(script) && depth > 0 {
+				if j+1 < len(script) && script[j] == '/' && script[j+1] == '*' {
+					depth++
+					j += 2
+					continue
+				}
+				if j+1 < len(script) && script[j] == '*' && script[j+1] == '/' {
+					depth--
+					j += 2
+					continue
+				}
+				j++
+			}
+			buf.WriteString(script[i:j])
+			i = j
+		case c == '\'':
+			escaped := i > 0 && (script[i-1] == 'E' || script[i-1] == 'e') &&
+				(i < 2 || !isSQLIdentChar(script[i-2]))
+			j := i + 1
+			for j < len(script) {
+				if escaped && script[j] == '\\' && j+1 < len(script) {
+					j += 2
+					continue
+				}
+				if script[j] == '\'' {
+					if j+1 < len(script) && script[j+1] == '\'' {
+						j += 2
+						continue
+					}
+					j++
+					break
+				}
+				j++
+			}
+			buf.WriteString(script[i:j])
+			hasCode = true
+			i = j
+		case c == '"':
+			j := i + 1
+			for j < len(script) {
+				if script[j] == '"' {
+					if j+1 < len(script) && script[j+1] == '"' {
+						j += 2
+						continue
+					}
+					j++
+					break
+				}
+				j++
+			}
+			buf.WriteString(script[i:j])
+			hasCode = true
+			i = j
+		case c == '$':
+			closer, ok := dollarQuoteOpener(script, i)
+			if !ok {
+				buf.WriteByte(c)
+				i++
+				continue
+			}
+			j := strings.Index(script[i+len(closer):], closer)
+			if j < 0 {
+				j = len(script)
+			} else {
+				j = i + len(closer) + j + len(closer)
+			}
+			buf.WriteString(script[i:j])
+			hasCode = true
+			i = j
+		case c == ';':
+			flush()
+			i++
+		default:
+			if !isSQLSpace(c) {
+				hasCode = true
+			}
+			buf.WriteByte(c)
+			i++
+		}
+	}
+	flush()
+	return stmts
+}
+
+// dollarQuoteOpener returns the full opening delimiter ("$" + tag + "$") of a
+// dollar-quoted string starting at script[i], which must hold a '$'.
+func dollarQuoteOpener(script string, i int) (string, bool) {
+	j := i + 1
+	if j >= len(script) {
+		return "", false
+	}
+	if script[j] == '$' {
+		return "$$", true
+	}
+	if !isSQLIdentStart(script[j]) {
+		return "", false
+	}
+	for j < len(script) && isSQLIdentChar(script[j]) {
+		j++
+	}
+	if j >= len(script) || script[j] != '$' {
+		return "", false
+	}
+	return script[i : j+1], true
+}
+
+func isSQLIdentStart(c byte) bool {
+	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c >= 0x80
+}
+
+func isSQLIdentChar(c byte) bool {
+	return isSQLIdentStart(c) || (c >= '0' && c <= '9')
+}
+
+func isSQLSpace(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\n' || c == '\r'
 }
 
 func TruncateAll(pool *pgxpool.Pool, tables ...string) error {
