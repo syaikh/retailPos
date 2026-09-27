@@ -109,7 +109,7 @@ test.describe('Store onboarding (API)', () => {
     const cashierRole = roles.find((r: { name: string }) => r.name === 'cashier');
     expect(cashierRole, 'cashier role must be seeded').toBeTruthy();
 
-    const username = `onbcash${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+    const username = `onbcash${crypto.randomUUID().replaceAll("-", "")}`
       .toLowerCase()
       .slice(0, 24);
     const created = await super0.post('/api/admin/users', {
