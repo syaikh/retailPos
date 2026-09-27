@@ -122,7 +122,7 @@ func TestMockHandler_ListCategoriesManagement(t *testing.T) {
 	t.Run("limit clamped", func(t *testing.T) {
 		svc := &mockCategoryService{
 			getAllFn: func(ctx context.Context, limit, offset int, search string) ([]Category, int, error) {
-				assert.Equal(t, 20, limit)
+				assert.Equal(t, 100, limit)
 				return []Category{}, 0, nil
 			},
 		}

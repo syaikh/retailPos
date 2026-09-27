@@ -99,10 +99,10 @@ func TestMockHandler_GetCustomers(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "[]")
 	})
 
-	t.Run("limit clamped to 200", func(t *testing.T) {
+	t.Run("limit clamped to 100", func(t *testing.T) {
 		svc := &mockCustomerService{
 			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
-				assert.Equal(t, 20, limit)
+				assert.Equal(t, 100, limit)
 				return []Customer{}, 0, nil
 			},
 		}

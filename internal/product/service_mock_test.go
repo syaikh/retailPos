@@ -98,10 +98,10 @@ func TestMockHandler_GetProducts_StatusParam(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
-	t.Run("limit exceeds max ignored", func(t *testing.T) {
+	t.Run("limit exceeds max clamped", func(t *testing.T) {
 		svc := &mockProductService{
 			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int, ownershipType string) ([]Product, int, error) {
-				assert.Equal(t, 20, limit, "limit >100 should default to 20")
+				assert.Equal(t, 100, limit, "limit >100 should clamp to 100")
 				return []Product{}, 0, nil
 			},
 		}

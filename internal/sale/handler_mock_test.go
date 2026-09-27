@@ -887,7 +887,7 @@ func TestSaleHandler_GetSalesHistory_OutOfRangeLimit(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/sales?limit=999", nil)
 	r.ServeHTTP(w, req)
-	assert.Equal(t, 20, capturedLimit)
+	assert.Equal(t, 100, capturedLimit)
 }
 
 func TestSaleHandler_GetSalesHistory_NegativeOffset(t *testing.T) {
