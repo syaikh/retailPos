@@ -298,6 +298,43 @@ the `localhost/` registry prefix) were read by nothing, and `cp
 deploy/.env.example .env` was inert because no code or script ever sourced
 `.env`. Rewritten to document the variables the script actually reads.
 
+### Database and API published on every host interface
+
+Found while assessing the TLS posture, and it is the larger of the two problems.
+Both the podman script and the Quadlet pod published `-p 8080:8080` and
+`-p 5432:5432` with no host address, which podman binds to `0.0.0.0`. On a store
+machine that is not loopback and not the pod's private network: the database and
+the unauthenticated API were reachable by anything that could route to the host,
+and `DB_SSLMODE=disable` then carried that traffic in cleartext.
+
+Neither port needs to be routable. The backend reaches postgres over the pod's
+own network namespace, so the only client that wanted a host listener was
+`podman-deploy.sh seed` and host-side `psql`. Both mappings are now
+`127.0.0.1:8080:8080` and `127.0.0.1:5432:5432`. 5173 stays on every interface,
+because a browser on the store LAN is the frontend's intended client.
+
+`TestDatabaseAndAPIIsNotPublishedOnRoutableInterfaces` guards this, and treats
+the missing-address form as the failure it is: podman binds `0.0.0.0` when no
+address is given, so `5432:5432` and `0.0.0.0:5432:5432` are the same mistake.
+The check parses the address field rather than matching the mapping as a string,
+because an earlier version of it matched `^\d+\.` and flagged `127.0.0.1` itself.
+
+`deploy/.env.example` now ships `DB_SSLMODE=disable`, which is the correct value
+once the database is unreachable off-host, and the backend's `require` default is
+left in place because it fails closed for anyone who deviates. The template
+comment states plainly that no manifest here mounts a certificate, so `require`
+cannot start as shipped, and names the cloud case as the reason to change it.
+
+
+`wait_for_backend` now dumps the last 20 lines of backend output on timeout,
+because both P1 and P8 presented as an unexplained timeout.
+
+`deploy/.env.example` was also found to describe a *compose* environment rather
+than the script's: `BACKEND_PORT`, `FRONTEND_PORT` and `BACKEND_IMAGE` (missing
+the `localhost/` registry prefix) were read by nothing, and `cp
+deploy/.env.example .env` was inert because no code or script ever sourced
+`.env`. Rewritten to document the variables the script actually reads.
+
 ## Recommendations
 
 1. ~~**Add `JWT_SECRET`**~~ — done for the podman path (P1).

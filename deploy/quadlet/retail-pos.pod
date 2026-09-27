@@ -21,12 +21,18 @@ Description=Retail POS pod (retail-pos-system)
 # Without this, Quadlet would name the pod systemd-retail-pos.
 PodName=retail-pos-pod
 Network=bridge
-PublishPort=8080:8080
+# 8080 and 5432 bind to 127.0.0.1 only. An unqualified PublishPort reaches every
+# host interface, which would put the unauthenticated API and the database in
+# reach of anything that can route to this host. The backend reaches postgres
+# over the pod's own network namespace, so no host port is needed for the
+# running system; the loopback listener exists for `podman-deploy.sh seed`,
+# which connects from the host.
+PublishPort=127.0.0.1:8080:8080
 # nginx listens on 8081 inside the frontend image (deploy/nginx/nginx.conf:42,
 # EXPOSE 8081), not 80. The retired systemd unit published 80:80 and could
 # never have worked.
+#
+# 5173 stays on every interface: a browser on the store LAN is the intended
+# client. Put a reverse proxy with TLS in front of it for anything off-LAN.
 PublishPort=5173:8081
-# Publishing 5432 exposes the database on every host interface. deploy/podman-deploy.sh
-# does the same, because its `seed` target connects from the host. Prefer not to
-# publish it: run migrations and seeding with a temporary forward instead.
-PublishPort=5432:5432
+PublishPort=127.0.0.1:5432:5432

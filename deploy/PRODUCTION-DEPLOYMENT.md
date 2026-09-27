@@ -5,10 +5,15 @@
 This guide covers deploying the Retail POS System in production using **Podman containers** with a **pod architecture**. The system consists of:
 
 - **Nginx** (port 8081, published as 5173): Serves static frontend and reverse proxies API/WebSocket
-- **Go Backend** (port 8080, published as 8080): REST API + WebSocket server
-- **PostgreSQL** (port 5432, published as 5432 on the Podman paths only): Database
+- **Go Backend** (port 8080, published as 127.0.0.1:8080): REST API + WebSocket server
+- **PostgreSQL** (port 5432, published as 127.0.0.1:5432 on the Podman paths only): Database
 
 All three containers run in a **single Podman pod** with shared network namespace.
+
+Only 5173 is published on a routable interface, because a browser on the store
+LAN is the frontend's real client. 8080 and 5432 are bound to `127.0.0.1` and are
+unreachable from the network; `internal/config/deploy_test.go` fails the build if
+that changes.
 
 There is no TLS listener in these images. `deploy/nginx/nginx.conf` has exactly
 one `listen 8081;` and no `ssl` block, and the frontend container publishes only
@@ -25,9 +30,9 @@ the retired systemd unit, and it never matched the shipped nginx config.
 │              Host Machine (Podman)                 │
 ├─────────────────────────────────────────────────────┤
 │  Pod: retail-pos-pod (shared network)              │
-│  ├─ Container: Nginx (8081 → published 5173)      │
-│  ├─ Container: Backend (8080 → published 8080)    │
-│  └─ Container: Postgres (5432 → published 5432)   │
+│  ├─ Container: Nginx (8081 → published 5173)                │
+│  ├─ Container: Backend (8080 → published 127.0.0.1:8080)    │
+│  └─ Container: Postgres (5432 → published 127.0.0.1:5432)   │
 └─────────────────────────────────────────────────────┘
 
 Network flow:
@@ -37,11 +42,15 @@ Network flow:
               └─ /ws/ → upgrades to WebSocket (Backend)
 ```
 
-Postgres is published so the script's `seed` target can connect from the host.
-That makes the database reachable on **every host interface**, not just loopback.
-The compose path does not publish 5432 at all. If you do not need host-side
-`psql`, drop the `PublishPort`/`-p` line and run migrations and seeding through a
-temporary forward instead.
+Postgres and the API are published on `127.0.0.1` only. The backend reaches
+postgres over the pod's own network namespace, so no host port is needed for the
+running system; the loopback listener exists because the script's `seed` target
+and host-side `psql` connect from the host.
+
+Earlier revisions published both as bare `PORT:PORT`, which podman binds to
+`0.0.0.0`. That put the database and the unauthenticated API in reach of anything
+that could route to the machine, over a link that `DB_SSLMODE=disable` then
+carries in cleartext. The compose path publishes neither port at all.
 
 ---
 
@@ -251,9 +260,10 @@ sudo test -r /etc/retail-pos/backend.env || { echo "missing secret file"; exit 1
 # 1. Create pod with ports
 #    5173→8081, not 80→80: nginx.conf has a single `listen 8081;`. Publishing
 #    80/443 reaches nothing (this is the defect the retired systemd unit had).
-#    5432 is published only so host-side psql/seed can connect; drop it if you do
-#    not need that.
-podman pod create --name retail-pos-pod -p 5173:8081 -p 8080:8080 -p 5432:5432
+#    8080 and 5432 are bound to 127.0.0.1, never 0.0.0.0: a bare `-p 8080:8080`
+#    makes them reachable from anywhere that can route to this machine. 5432 is
+#    published at all only so host-side psql/seed can connect.
+podman pod create --name retail-pos-pod -p 5173:8081 -p 127.0.0.1:8080:8080 -p 127.0.0.1:5432:5432
 
 # 2. Create persistent volume for Postgres
 podman volume create retail-pos-postgres-data
@@ -778,6 +788,18 @@ Currently frontend uses `python3 -m http.server`. After containerization:
 - [ ] Add automated backups (cron job for pg_dump)
 - [ ] Deploy to multiple servers with load balancer
 - [ ] CI/CD pipeline for automatic image builds
+
+## Related guides
+
+These are separate documents because they are procedures in their own right,
+not part of the main deployment flow:
+
+- [Quadlet smoke test](../../docs/guides/quadlet-smoke-test.md) — proving the
+  `deploy/quadlet/` units actually start and stay up. Read this if you are using
+  the systemd path; ignore it if you use `./deploy/podman-deploy.sh`.
+- [Print agent production install](../../docs/guides/print-agent-production.md) —
+  installing `tools/print-agent` on a till, per-printer transports, and its
+  security model. The agent is a host service, not part of the pod.
 
 ---
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -953,4 +954,109 @@ func TestDocumentedScriptCommandsExist(t *testing.T) {
 		})
 	}
 	assert.NotZero(t, checked, "found no documented commands to check; the verb regex is stale")
+}
+
+// loopbackOnlyPorts must never be published on a routable host interface.
+//
+// Postgres and the API were both published as bare "PORT:PORT", which podman
+// binds to 0.0.0.0. That put the database in reach of anything that could
+// route to the store's machine, over a link that DB_SSLMODE=disable then
+// carries in cleartext. Neither needs a routable port: the backend reaches
+// postgres over the pod's own network namespace, and the only host-side client
+// is `podman-deploy.sh seed`, which connects to 127.0.0.1.
+//
+// 5173 is deliberately absent. A cashier's browser on the store LAN is the
+// intended client for the frontend, so it has to be reachable.
+var loopbackOnlyPorts = []string{"5432", "8080"}
+
+// TestDatabaseAndAPIIsNotPublishedOnRoutableInterfaces checks the pod unit and
+// the podman script, which are the two paths that publish host ports at all.
+// compose needs no equivalent: it declares no ports for postgres, so there is
+// nothing there to bind.
+func TestDatabaseAndAPIIsNotPublishedOnRoutableInterfaces(t *testing.T) {
+	// Quadlet: PublishPort=[IP:]HOST:CONTAINER, one per line.
+	quadlet := regexp.MustCompile(`(?m)^PublishPort=(\S+)`)
+	// podman: -p "IP:HOST:CONTAINER" or -p "HOST:CONTAINER". The value is
+	// matched rather than the whole line because the mapping is usually a
+	// continuation of a backslash-joined command.
+	scriptPattern := regexp.MustCompile(`-p\s+"([^"]+)"`)
+
+	// requireLoopback fails for a publish of a loopback-only port that names no
+	// host address, or names one that is not loopback. Both forms bind every
+	// interface: podman treats an absent address as 0.0.0.0.
+	requireLoopback := func(t *testing.T, source, publish string) {
+		t.Helper()
+		hostPort, hostIP := hostPortOf(publish)
+		if hostPort == "" {
+			return
+		}
+		for _, blocked := range loopbackOnlyPorts {
+			if !strings.HasPrefix(hostPort, blocked+":") {
+				continue
+			}
+			switch hostIP {
+			case "127.0.0.1", "::1", "[::1]", "localhost":
+				continue
+			}
+			if hostIP == "" {
+				assert.Failf(t, "loopback-only port published on a routable interface",
+					"%s publishes %s as %q. A mapping with no host address makes podman bind 0.0.0.0, "+
+						"so the port is reachable from anywhere that can route to this machine. Use "+
+						"127.0.0.1:%s instead.", source, blocked, publish, hostPort)
+				continue
+			}
+			assert.Failf(t, "loopback-only port published on a routable interface",
+				"%s publishes %s as %q, which binds the routable address %s. Nothing outside this machine "+
+					"should reach %s, so the mapping needs a loopback address: 127.0.0.1:%s.",
+				source, blocked, publish, hostIP, blocked, hostPort)
+		}
+	}
+
+	t.Run("deploy/quadlet/retail-pos.pod", func(t *testing.T) {
+		body := repoFile(t, filepath.Join("deploy", "quadlet", "retail-pos.pod"))
+		for i, line := range strings.Split(body, "\n") {
+			m := quadlet.FindStringSubmatch(line)
+			if m == nil {
+				continue
+			}
+			requireLoopback(t, fmt.Sprintf("deploy/quadlet/retail-pos.pod:%d", i+1), m[1])
+		}
+	})
+
+	t.Run("deploy/podman-deploy.sh", func(t *testing.T) {
+		body := repoFile(t, filepath.Join("deploy", "podman-deploy.sh"))
+		for _, m := range scriptPattern.FindAllStringSubmatch(body, -1) {
+			requireLoopback(t, "deploy/podman-deploy.sh", m[1])
+		}
+	})
+}
+
+// hostPortOf splits a publish mapping into the HOST:CONTAINER pair and the host
+// address that precedes it. The address is empty when the mapping names none,
+// which is the case this test treats as unsafe.
+//
+// A bracketed IPv6 address is handled explicitly, because splitting on ":" would
+// otherwise tear "[::1]" into three meaningless fields.
+func hostPortOf(publish string) (hostPort, hostIP string) {
+	if strings.HasPrefix(publish, "[") {
+		end := strings.Index(publish, "]")
+		if end < 0 {
+			return "", ""
+		}
+		hostIP = publish[:end+1]
+		rest := strings.TrimPrefix(publish[end+1:], ":")
+		if !strings.Contains(rest, ":") {
+			return "", ""
+		}
+		return rest, hostIP
+	}
+	fields := strings.Split(publish, ":")
+	if len(fields) < 2 {
+		return "", ""
+	}
+	hostPort = strings.Join(fields[len(fields)-2:], ":")
+	if len(fields) > 2 {
+		hostIP = fields[0]
+	}
+	return hostPort, hostIP
 }

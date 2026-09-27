@@ -143,12 +143,22 @@ validate_backend_config() {
 ensure_pod() {
     if ! pod_exists; then
         log_info "Creating pod '$POD_NAME'..."
+        # 5432 and 8080 are bound to 127.0.0.1 deliberately. Unqualified
+        # `-p PORT:PORT` publishes on every host interface, which puts the
+        # database and the unauthenticated API in reach of anything that can
+        # route to this host. The backend reaches the database over the pod's
+        # own network namespace, and nothing outside this machine should reach
+        # either port; the only client that needs a host-side listener is
+        # `seed`, which connects to 127.0.0.1:5432.
+        #
+        # The frontend keeps its public port, because a browser on the store
+        # LAN has to reach it.
         podman pod create \
             --name "$POD_NAME" \
             --network bridge \
             -p "${HOST_FRONTEND_PORT}:8081" \
-            -p "5432:5432" \
-            -p "8080:8080"
+            -p "127.0.0.1:5432:5432" \
+            -p "127.0.0.1:8080:8080"
     fi
 }
 
