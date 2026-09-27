@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -24,6 +25,9 @@ import (
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("[print-agent] invalid configuration: %v", err)
+	}
 
 	trans, err := transport.New(transport.Config{
 		Kind:         cfg.Transport,
@@ -34,7 +38,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("[print-agent] transport init failed: %v", err)
 	}
-	defer trans.Close()
+	defer func() { _ = trans.Close() }()
 
 	store := queue.NewStore()
 	pm := printer.New(trans)
@@ -57,13 +61,17 @@ func main() {
 	h.Register(mux)
 
 	srv := &http.Server{
-		Addr:              ":" + cfg.Port,
+		Addr:              net.JoinHostPort(cfg.BindAddress, cfg.Port),
 		Handler:           h.Middleware(mux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	// Never log Token. It is a credential, and startup logging is the one place
+	// it would otherwise be most likely to be copied into a bug report.
+	log.Printf("[print-agent] listening on %s transport=%s origins=%v auth=%s",
+		srv.Addr, cfg.Transport, cfg.AllowedOrigins, authMode(cfg.Token))
+
 	go func() {
-		log.Printf("[print-agent] listening on :%s transport=%s", cfg.Port, cfg.Transport)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("[print-agent] server error: %v", err)
 		}
@@ -99,4 +107,12 @@ func main() {
 	}
 
 	log.Println("[print-agent] stopped")
+}
+
+// authMode reports whether a bearer token is enforced, without revealing it.
+func authMode(token string) string {
+	if token == "" {
+		return "origin-allowlist-only"
+	}
+	return "bearer-token"
 }

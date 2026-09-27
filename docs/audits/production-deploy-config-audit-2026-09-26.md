@@ -28,6 +28,55 @@ It appears to be an e2e-only test harness, in which case the correct fix is a
 comment saying so. If it is ever intended to run in production, it needs the
 same treatment as the three paths above before it does.
 
+### Resolved: the print agent is in production
+
+Confirmed as a production component, so the three exclusions above were closed
+rather than documented. None of them were only about the audit's scope.
+
+**It has CI coverage now.** Four jobs in `ci.yml` run inside the module
+directory: gofmt, build, vet, and `go test -race`, plus lint and govulncheck.
+The separate `go.mod` is unchanged, so the root module's `./...` still skips it —
+the new jobs use `working-directory: tools/print-agent` for that reason. Its six
+test files were previously executed by nothing except a single e2e happy path.
+
+Enabling those jobs surfaced 15 lint failures that had been accumulating
+unobserved: 14 unchecked errors, mostly `defer x.Close()`, and one revive
+stutter on `transport.TransportError` (renamed to `transport.Error`). The
+`defer` sites now follow the convention already used in `internal/`. The
+discarded `json.Decode` results in `handler_test.go` were the interesting ones:
+a malformed response made those assertions pass for the wrong reason, so they
+are now checked.
+
+**`PRINT_TOKEN` is no longer read from a command line.** `print-agent.sh` had
+`--token <value>`, which is visible to every user on the machine through `ps` and
+lands in shell history. The flag now exits with an error naming the alternative.
+Configuration is loaded from a secret file via `--env-file`, mirroring
+`podman-deploy.sh`. Flags are parsed in a second pass so an explicit flag still
+overrides the file; the first version sourced the file afterwards and silently
+inverted that.
+
+**`ALLOWED_ORIGINS` is required in production.** Unset, the handler reflects
+whatever origin asks, so any website a cashier had open could POST a print job
+to the till's printer. `Config.Validate` refuses to start when `ENV=production`
+and the list is empty or `*`, with tests.
+
+**A host service and a runbook exist.** `tools/print-agent/print-agent.service`
+is a systemd *user* unit, not a Quadlet unit: a USB or serial thermal printer is a
+host device node and cannot be handed to a container without a privileged
+passthrough. `docs/guides/print-agent-production.md` covers install, serial group
+membership, and the security model.
+
+Two limitations are recorded in that guide rather than fixed, because both need a
+decision rather than a patch:
+
+- `PRINT_TOKEN` is unusable from the browser. The agent enforces it, but
+  `web/src/shared/services/print-service.ts` sends no `Authorization` header, so
+  setting it makes every print return 401. The field is left for a future
+  non-browser client.
+- The agent listens on `0.0.0.0:9123` because the browser is a different
+  machine, which makes the origin allowlist the only access control. It is
+  adequate for a trusted shop LAN and nothing more.
+
 ## Summary
 
 Every production entry point failed at startup. The backend requires `JWT_SECRET`
@@ -287,16 +336,6 @@ while compose needs `5432` inside the network, so that name is overridden in
 `environment:` deliberately. `TestComposeDoesNotHostResolveSecretFileVars` guards
 the two that must not be, and `TestTemplateDocumentsDBPortForPodmanOnly` keeps
 the counter-example from silently becoming obsolete.
-
-
-`wait_for_backend` now dumps the last 20 lines of backend output on timeout,
-because both P1 and P8 presented as an unexplained timeout.
-
-`deploy/.env.example` was also found to describe a *compose* environment rather
-than the script's: `BACKEND_PORT`, `FRONTEND_PORT` and `BACKEND_IMAGE` (missing
-the `localhost/` registry prefix) were read by nothing, and `cp
-deploy/.env.example .env` was inert because no code or script ever sourced
-`.env`. Rewritten to document the variables the script actually reads.
 
 ### Database and API published on every host interface
 

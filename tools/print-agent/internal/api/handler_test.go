@@ -64,8 +64,10 @@ func TestPrintLifecycle(t *testing.T) {
 		t.Fatalf("expected 202, got %d", resp.StatusCode)
 	}
 	var created map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&created)
-	resp.Body.Close()
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode response into created: %v", err)
+	}
+	_ = resp.Body.Close()
 	jobID, _ := created["job_id"].(string)
 	if jobID == "" {
 		t.Fatal("no job_id returned")
@@ -76,8 +78,10 @@ func TestPrintLifecycle(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		resp2, _ := http.Get(srv.URL + "/print/jobs/" + jobID)
 		var js map[string]interface{}
-		json.NewDecoder(resp2.Body).Decode(&js)
-		resp2.Body.Close()
+		if err := json.NewDecoder(resp2.Body).Decode(&js); err != nil {
+			t.Fatalf("decode response into js: %v", err)
+		}
+		_ = resp2.Body.Close()
 		status, _ = js["status"].(string)
 		if status == "completed" || status == "failed" {
 			break
@@ -93,7 +97,7 @@ func TestPrintLifecycle(t *testing.T) {
 	if resp3.StatusCode != http.StatusOK {
 		t.Fatalf("health status %d", resp3.StatusCode)
 	}
-	resp3.Body.Close()
+	_ = resp3.Body.Close()
 }
 
 func TestPrintIdempotency(t *testing.T) {
@@ -112,15 +116,17 @@ func TestPrintIdempotency(t *testing.T) {
 	if resp1.StatusCode != http.StatusAccepted {
 		t.Fatalf("first post expected 202, got %d", resp1.StatusCode)
 	}
-	resp1.Body.Close()
+	_ = resp1.Body.Close()
 
 	resp2, _ := http.Post(srv.URL+"/print", "application/json", bytes.NewReader(payload()))
 	if resp2.StatusCode != http.StatusOK {
 		t.Fatalf("duplicate post expected 200, got %d", resp2.StatusCode)
 	}
 	var dup map[string]interface{}
-	json.NewDecoder(resp2.Body).Decode(&dup)
-	resp2.Body.Close()
+	if err := json.NewDecoder(resp2.Body).Decode(&dup); err != nil {
+		t.Fatalf("decode response into dup: %v", err)
+	}
+	_ = resp2.Body.Close()
 	if dup["status"] == nil {
 		t.Fatal("duplicate response missing status")
 	}
@@ -136,7 +142,7 @@ func TestCORSPreflight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("OPTIONS expected 204, got %d", resp.StatusCode)
 	}

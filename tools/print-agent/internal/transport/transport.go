@@ -33,15 +33,17 @@ func New(cfg Config) (Transport, error) {
 	case "file", "":
 		return NewFile(cfg.OutputDir)
 	default:
-		return nil, &TransportError{Kind: cfg.Kind}
+		return nil, &Error{Kind: cfg.Kind}
 	}
 }
 
-// TransportError indicates an unknown or misconfigured transport kind.
-type TransportError struct {
+// Error indicates an unknown or misconfigured transport kind. Named Error rather than
+// TransportError because the package is already called transport, so the qualified
+// name transport.Error does not stutter.
+type Error struct {
 	Kind string
 }
 
-func (e *TransportError) Error() string {
+func (e *Error) Error() string {
 	return "unknown or unsupported transport: " + e.Kind
 }

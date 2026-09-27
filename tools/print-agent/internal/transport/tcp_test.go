@@ -11,7 +11,7 @@ func TestTCPTransportWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	received := make(chan []byte, 1)
 	go func() {
@@ -19,7 +19,7 @@ func TestTCPTransportWrite(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		buf := make([]byte, 64)
 		n, _ := conn.Read(buf)
 		received <- buf[:n]

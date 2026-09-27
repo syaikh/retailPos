@@ -26,7 +26,7 @@ func (t *TCPTransport) Write(jobID string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_, err = conn.Write(data)
 	return err
 }

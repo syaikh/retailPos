@@ -2,12 +2,17 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"strings"
 )
 
 // Config holds all print-agent settings.
 type Config struct {
+	// Env selects production behaviour. It is the same variable name the
+	// backend uses, so one secret file can describe a whole till.
+	Env            string
+	BindAddress    string
 	Port           string
 	Transport      string
 	OutputDir      string
@@ -26,6 +31,8 @@ func getenv(key, def string) string {
 
 // Load reads configuration from the environment.
 //
+//	ENV                 production | development    (default development)
+//	PRINT_BIND_ADDRESS  listen address                (default 0.0.0.0)
 //	PORT                 listen port                  (default 9123)
 //	PRINT_TRANSPORT      file | tcp | serial         (default file)
 //	PRINT_OUTPUT_DIR     file output directory        (default os temp dir)
@@ -35,6 +42,8 @@ func getenv(key, def string) string {
 //	ALLOWED_ORIGINS      comma-separated origins      (default "*")
 func Load() Config {
 	c := Config{
+		Env:          getenv("ENV", "development"),
+		BindAddress:  getenv("PRINT_BIND_ADDRESS", "0.0.0.0"),
 		Port:         getenv("PORT", "9123"),
 		Transport:    getenv("PRINT_TRANSPORT", "file"),
 		OutputDir:    getenv("PRINT_OUTPUT_DIR", os.TempDir()),
@@ -50,4 +59,33 @@ func Load() Config {
 		}
 	}
 	return c
+}
+
+// Validate refuses configurations that are safe in development and dangerous on
+// a shop floor, so the mistake is made at startup rather than discovered by a
+// customer.
+//
+// The one that matters is ALLOWED_ORIGINS. The browser is the only client, and
+// it identifies itself with an Origin header that a page cannot forge
+// cross-origin. Left unset, the handler reflects whatever origin asks, which
+// means any website a cashier has open in another tab can POST a /print request
+// to the till's printer: arbitrary content on a receipt roll, or a queue filled
+// until it stops draining. Requiring the list in production turns that from
+// silent exposure into a refused startup.
+func (c Config) Validate() error {
+	if c.Env != "production" {
+		return nil
+	}
+	if len(c.AllowedOrigins) == 0 {
+		return errors.New("ALLOWED_ORIGINS must list at least one exact origin when ENV=production; " +
+			"an unset list lets any website the cashier visits print to this till. " +
+			"Use the same value as the backend's CORS_ORIGIN")
+	}
+	for _, o := range c.AllowedOrigins {
+		if o == "*" {
+			return errors.New(`ALLOWED_ORIGINS must not be "*" when ENV=production; ` +
+				"list the exact origin of the POS frontend instead")
+		}
+	}
+	return nil
 }

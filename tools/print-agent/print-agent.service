@@ -1,0 +1,56 @@
+# print-agent runs on the till as a host service, not in the pod.
+#
+# It is deliberately not a Quadlet unit. The transports it supports include a
+# USB or serial thermal printer, which exists as a device node on the host and
+# cannot be handed to a container without a privileged passthrough that would
+# give the container access to every host device. A till with a network printer
+# could be containerised; requiring a host service keeps one method that works
+# for every printer.
+#
+# It is a user unit, so it needs no root and nothing is enabled system-wide. That
+# matters because the agent is per-till: each till runs its own instance against
+# its own printer, and tills do not share a machine.
+#
+# systemd does not expand variables inside EnvironmentFile=, so the path here is
+# fixed and must match the one in deploy/PRODUCTION-DEPLOYMENT.md.
+
+[Unit]
+Description=Retail POS print agent (per-till)
+# The agent is independent of the API. A printer fault must not stop a till
+# taking payments, and redeploying the backend must not restart the printer.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%S/print-agent.env
+ExecStart=%h/.local/bin/print-agent
+Restart=on-failure
+RestartSec=3
+
+# The agent holds one credential and one printer connection, so it needs no
+# privileges and is given none.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+# Deliberately absent: SystemCallFilter. A syscall set that excludes something
+# the Go runtime needs turns into a till that cannot print, and there is no way
+# to verify that from a checkout. Every directive above is enforced by the
+# kernel and fails loudly at startup instead of at the first bad request.
+#
+# Also absent: any Write path. ProtectSystem=strict leaves only /tmp writable,
+# and PrivateTmp=true gives the service its own, which is where the `file`
+# transport writes. A PRINT_OUTPUT_DIR anywhere else will fail to open; add a
+# ReadWritePaths= line for it if you need one.
+
+[Install]
+WantedBy=default.target
