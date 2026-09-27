@@ -1674,6 +1674,7 @@ export const id = {
   silent: "Diam",
   agentConnected: "Agen terhubung",
   agentUnreachable: "Agen tidak dapat dihubungi",
+  agentNotLocalhost: "Agen cetak ada di komputer lain — struk tercetak di sana",
   printAgentUnavailable:
     "Printer struk tidak tersedia — transaksi selesai. Gunakan Cetak Struk untuk mencoba lagi.",
   selesai: "Selesai",

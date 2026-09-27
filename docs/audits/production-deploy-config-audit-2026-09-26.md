@@ -47,13 +47,25 @@ discarded `json.Decode` results in `handler_test.go` were the interesting ones:
 a malformed response made those assertions pass for the wrong reason, so they
 are now checked.
 
-**`PRINT_TOKEN` is no longer read from a command line.** `print-agent.sh` had
-`--token <value>`, which is visible to every user on the machine through `ps` and
-lands in shell history. The flag now exits with an error naming the alternative.
-Configuration is loaded from a secret file via `--env-file`, mirroring
-`podman-deploy.sh`. Flags are parsed in a second pass so an explicit flag still
-overrides the file; the first version sourced the file afterwards and silently
-inverted that.
+**`PRINT_TOKEN` was removed, not just moved.** `print-agent.sh` had
+`--token <value>`, visible to every user on the machine through `ps` and in shell
+history, so it was replaced with `--env-file`, mirroring `podman-deploy.sh`, and
+the flag became a migration error. Flags are parsed in a second pass so an
+explicit flag still overrides the file; the first version sourced the file
+afterwards and silently inverted that.
+
+The setting was then deleted outright. Its description said "optional bearer
+token", so an operator setting it was doing exactly what the documentation
+invited, and the result was that every print returned 401 — a silent, total
+printing outage from a change made in the belief it improved security. Underneath
+that, it could never have worked as a control: the only client is a browser, and a
+token shipped to a browser is readable in developer tools by anyone at the till.
+It had no other client, no test, and no non-browser caller.
+
+`ALLOWED_ORIGINS` is the real control, and it is a check on a header a browser
+cannot forge cross-origin. A stale `PRINT_TOKEN` left in an env file is ignored
+with a logged warning rather than treated as fatal, so leftover config cannot take
+a till's printer offline for a setting that no longer exists.
 
 **`ALLOWED_ORIGINS` is required in production.** Unset, the handler reflects
 whatever origin asks, so any website a cashier had open could POST a print job
@@ -66,16 +78,19 @@ host device node and cannot be handed to a container without a privileged
 passthrough. `docs/guides/print-agent-production.md` covers install, serial group
 membership, and the security model.
 
-Two limitations are recorded in that guide rather than fixed, because both need a
-decision rather than a patch:
+One limitation is recorded in that guide rather than fixed, because it needs a
+network decision rather than a patch:
 
-- `PRINT_TOKEN` is unusable from the browser. The agent enforces it, but
-  `web/src/shared/services/print-service.ts` sends no `Authorization` header, so
-  setting it makes every print return 401. The field is left for a future
-  non-browser client.
 - The agent listens on `0.0.0.0:9123` because the browser is a different
   machine, which makes the origin allowlist the only access control. It is
   adequate for a trusted shop LAN and nothing more.
+
+`VITE_PRINT_AGENT_URL` is the frontend's build-time agent address. It is
+legitimate for development and for kiosks with printers on a server, and it is
+the wrong default for a shop with one printer PC per till, because it names a
+single agent for every register at once. The per-register setting outranks it,
+so it is correctable per PC, and the frontend now warns when the address in use
+is not localhost in silent mode.
 
 ## Summary
 

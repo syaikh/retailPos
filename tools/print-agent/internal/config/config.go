@@ -18,7 +18,6 @@ type Config struct {
 	OutputDir      string
 	TCPAddr        string
 	SerialDevice   string
-	Token          string
 	AllowedOrigins []string
 }
 
@@ -38,8 +37,13 @@ func getenv(key, def string) string {
 //	PRINT_OUTPUT_DIR     file output directory        (default os temp dir)
 //	PRINT_TCP_ADDR       host:port for tcp           (required if tcp)
 //	PRINT_SERIAL_DEVICE  e.g. /dev/ttyUSB0           (required if serial)
-//	PRINT_TOKEN          optional bearer token
 //	ALLOWED_ORIGINS      comma-separated origins      (default "*")
+//
+// There is no PRINT_TOKEN. A bearer token was supported and removed: the only
+// client is a browser, so the token would have to be built into the page where
+// anyone can read it, which makes it useless as a secret. It had no other
+// client, and enabling it made every print return 401. ALLOWED_ORIGINS plus
+// network isolation is the actual access control.
 func Load() Config {
 	c := Config{
 		Env:          getenv("ENV", "development"),
@@ -49,7 +53,6 @@ func Load() Config {
 		OutputDir:    getenv("PRINT_OUTPUT_DIR", os.TempDir()),
 		TCPAddr:      os.Getenv("PRINT_TCP_ADDR"),
 		SerialDevice: os.Getenv("PRINT_SERIAL_DEVICE"),
-		Token:        os.Getenv("PRINT_TOKEN"),
 	}
 	if v := os.Getenv("ALLOWED_ORIGINS"); v != "" {
 		for _, o := range strings.Split(v, ",") {

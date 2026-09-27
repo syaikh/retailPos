@@ -99,3 +99,51 @@ describe("PrintConfigStore", () => {
     expect(printConfig.mode).toBe("silent");
   });
 });
+
+describe("isLocalAgentUrl", () => {
+  it("treats loopback addresses as local", async () => {
+    const { isLocalAgentUrl } = await freshImport();
+    for (const url of [
+      "http://localhost:9123",
+      "http://localhost:8080",
+      "https://LocalHost:9123",
+      "http://127.0.0.1:9123",
+      "http://[::1]:9123",
+      "http://localhost:9123/",
+    ]) {
+      expect(isLocalAgentUrl(url), url).toBe(true);
+    }
+  });
+
+  it("treats a LAN or remote address as not local", async () => {
+    const { isLocalAgentUrl } = await freshImport();
+    for (const url of [
+      "http://192.168.1.10:9123",
+      "http://192.168.1.50:9123",
+      "http://printer-server.local:9123",
+      "https://pos.example.com",
+    ]) {
+      expect(isLocalAgentUrl(url), url).toBe(false);
+    }
+  });
+
+  it("does not treat a lookalike host as local", async () => {
+    // A substring check on "localhost" would wrongly accept all of these,
+    // which would silence the warning exactly when it is needed.
+    const { isLocalAgentUrl } = await freshImport();
+    for (const url of [
+      "http://localhost.evil.example:9123",
+      "http://notlocalhost:9123",
+      "http://127.0.0.1.evil.example:9123",
+    ]) {
+      expect(isLocalAgentUrl(url), url).toBe(false);
+    }
+  });
+
+  it("treats an unparseable or empty URL as not local", async () => {
+    const { isLocalAgentUrl } = await freshImport();
+    for (const url of ["", "   ", "localhost:9123", "not a url"]) {
+      expect(isLocalAgentUrl(url), url).toBe(false);
+    }
+  });
+});

@@ -36,7 +36,6 @@ PORT=9123
 PRINT_TRANSPORT=serial
 PRINT_SERIAL_DEVICE=/dev/ttyUSB0
 PRINT_OUTPUT_DIR=/var/lib/retail-pos/print-agent
-PRINT_TOKEN=
 ALLOWED_ORIGINS=https://pos.example.com
 EOF
 sudo chown "$USER" /etc/retail-pos/print-agent.env
@@ -76,18 +75,59 @@ journalctl --user -u print-agent.service -f
 curl -fsS http://127.0.0.1:9123/health
 ```
 
-The startup line reports the listen address, transport, allowed origins, and
-whether a bearer token is enforced. It never prints the token itself.
+The startup line reports the listen address, the transport, and the exact
+origins it will accept:
 
-## Two things to understand before you rely on it
+```
+[print-agent] listening on 0.0.0.0:9123 transport=serial origins=[http://192.168.1.10:5173] auth=origin-allowlist
+```
 
-**`PRINT_TOKEN` is not usable from a browser.** The agent enforces it as a
-bearer token if it is set, but the frontend does not send an `Authorization`
-header, so setting it will make every print return 401. Leave it empty. The
-field exists for a future non-browser client; it is not a security control you
-can switch on today. Do not assume a configured token protects anything.
+Read that line on a new till. If the origin is not your website's address, the
+agent is misconfigured. The agent holds no credential, so there is no secret in
+that output and nothing to redact from a bug report.
 
-**Origin allowlisting is the only real control, and it is a weak one.** The
+## Several tills, one print agent each
+
+This is the normal shape of a shop: one agent per printer PC, and any number of
+PCs. Install the agent on each printer PC exactly as above, and set the **same**
+`ALLOWED_ORIGINS` on every one of them, because it checks that the request came
+from your website. Do not give each agent a different origin allowlist.
+
+You do **not** need a separate website build per PC. The frontend works out
+which agent to use in this order:
+
+1. The address saved on that register's print settings screen (stored in that
+   one browser)
+2. `VITE_PRINT_AGENT_URL`, baked into the build
+3. `http://localhost:9123` — the default
+
+Leave `VITE_PRINT_AGENT_URL` **unset** and every register finds the agent on its
+own PC, so one build serves the whole shop. Setting it names a single address for
+every register at once, which in a multi-PC shop means most tills print to the
+wrong machine or to nothing.
+
+Because the per-register setting outranks the build-time one, a bad
+`VITE_PRINT_AGENT_URL` is fixable per PC from the print settings screen rather
+than being permanent. It is still a bad default, and the print settings screen
+warns when the address in use is not localhost while in silent mode.
+
+`VITE_PRINT_AGENT_URL` is legitimate for two cases: development, where the
+frontend dev server runs on a different machine from the agent, and a kiosk setup
+where printers are on a server rather than at the till. In a normal shop, leave
+it unset.
+
+## What protects the agent, and what does not
+
+**There is no token.** `PRINT_TOKEN` was supported and has been removed. The
+only client is a browser, so a token would have to be built into the page where
+anyone can read it through developer tools, which makes it useless as a secret.
+It had no other client, and because the browser never sent it, setting it made
+**every print return 401** — a silent, total outage from a setting that looked
+like it improved security. If an old env file still has a `PRINT_TOKEN` line, the
+agent ignores it and logs a warning rather than refusing to start, so leftover
+config cannot take a till offline. Delete the line.
+
+**Origin allowlisting is the control, and it is a bounded one.** The
 agent listens on `0.0.0.0:9123` because the browser is a different machine, and
 `ALLOWED_ORIGINS` is a check on the `Origin` header. That stops a random website
 from printing to your till, which is the realistic threat, but it does not stop

@@ -1662,6 +1662,8 @@ export const en: Labels = {
   silent: "Silent",
   agentConnected: "Agent connected",
   agentUnreachable: "Agent unreachable",
+  agentNotLocalhost:
+    "Print agent is on another computer — receipts print there",
   printAgentUnavailable:
     "Receipt printer unavailable — transaction completed. Use Print Receipt to retry.",
   selesai: "Done",

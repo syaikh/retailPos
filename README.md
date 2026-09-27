@@ -898,15 +898,19 @@ duplicate `job_id` it returns the existing job (no reprint).
 | `PRINT_OUTPUT_DIR` | OS temp | File transport output dir |
 | `PRINT_TCP_ADDR` | — | `host:port` for tcp |
 | `PRINT_SERIAL_DEVICE` | — | serial device path |
-| `PRINT_TOKEN` | — | optional bearer token (localhost CORS is the main control) |
-| `ALLOWED_ORIGINS` | `*` | comma-separated allowed CORS origins |
+| `ALLOWED_ORIGINS` | `*` | comma-separated allowed CORS origins; required when `ENV=production` |
 
 #### Security
 
 Listens on all interfaces by default for `PORT`; restrict/forward as needed for
-your deployment. For localhost use, the browser-origin CORS check is the primary
-control; `PRINT_TOKEN` is optional hardening (it would ship in the frontend
-bundle, so treat it as obfuscation, not real auth).
+your deployment.
+
+Access is controlled by the `ALLOWED_ORIGINS` check plus keeping the agent on a
+trusted network. There is no bearer token: `PRINT_TOKEN` was supported and
+removed, because a secret shipped to a browser is not a secret, it had no other
+client, and enabling it made every print return 401. The browser-origin check
+cannot be forged cross-origin, which is why it is the control rather than a
+token. See `docs/guides/print-agent-production.md`.
 
 #### Testing
 

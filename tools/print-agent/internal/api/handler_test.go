@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -148,5 +149,57 @@ func TestCORSPreflight(t *testing.T) {
 	}
 	if resp.Header.Get("Access-Control-Allow-Origin") != "http://localhost:5173" {
 		t.Fatalf("missing CORS header: %v", resp.Header)
+	}
+}
+
+// payload builds a minimal valid print request body.
+func payload() []byte {
+	b, _ := json.Marshal(map[string]interface{}{
+		"job_id": "print-test-id",
+		"data":   map[string]interface{}{"invoice_number": "INV-TEST", "total_amount": 1000},
+	})
+	return b
+}
+
+// Bearer auth was removed. A token configured anywhere in the environment must
+// no longer be able to reject a request, because the only client is a browser
+// and would never send it, so an enabled token meant printing never worked.
+func TestStaleTokenInEnvironmentDoesNotBlockPrinting(t *testing.T) {
+	t.Setenv("PRINT_TOKEN", "leftover-from-an-old-env-file")
+	srv := newTestServer(t)
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/print", "application/json", bytes.NewReader(payload()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusUnauthorized {
+		t.Fatal("stale PRINT_TOKEN still rejects requests; bearer auth was meant to be gone")
+	}
+	// A brand new job id is accepted for printing, not replayed.
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", resp.StatusCode)
+	}
+}
+
+// Authorization is no longer advertised in the preflight response. Advertising a
+// header the agent never reads invites a client to send a credential that buys
+// nothing.
+func TestPreflightDoesNotOfferAuthorizationHeader(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+
+	req, _ := http.NewRequest(http.MethodOptions, srv.URL+"/print", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	allowed := resp.Header.Get("Access-Control-Allow-Headers")
+	if strings.Contains(allowed, "Authorization") {
+		t.Fatalf("preflight still offers Authorization in %q", allowed)
 	}
 }

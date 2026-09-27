@@ -1,10 +1,19 @@
 <script lang="ts">
-  import { printConfig } from "$shared/stores/printConfig.svelte";
+  import {
+    printConfig,
+    isLocalAgentUrl,
+  } from "$shared/stores/printConfig.svelte";
   import { labels } from "$shared/i18n";
 
   let editing = $state(false);
   let urlDraft = $state(printConfig.agentUrl);
   let status = $state<"idle" | "ok" | "err">("idle");
+
+  // Only meaningful while actually printing silently: in preview mode the agent
+  // is not used, so a remote address is not a problem worth flagging.
+  const agentIsRemote = $derived(
+    printConfig.mode === "silent" && !isLocalAgentUrl(printConfig.agentUrl),
+  );
 
   function openEditor() {
     urlDraft = printConfig.agentUrl;
@@ -70,6 +79,13 @@
     title="Print agent settings">⚙</button
   >
 </div>
+
+{#if agentIsRemote}
+  <p class="px-1 pb-1 text-[10px] text-amber-600 dark:text-amber-400">
+    <span aria-hidden="true">▲</span>
+    {labels.agentNotLocalhost}
+  </p>
+{/if}
 
 {#if editing}
   <div class="flex items-center gap-1 px-1 pb-1">

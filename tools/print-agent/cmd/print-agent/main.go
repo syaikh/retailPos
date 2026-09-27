@@ -29,6 +29,16 @@ func main() {
 		log.Fatalf("[print-agent] invalid configuration: %v", err)
 	}
 
+	// A stale PRINT_TOKEN in an env file is ignored rather than fatal, because
+	// refusing to start would take every till's printer offline for a setting
+	// that no longer does anything. Warning instead means the leftover is
+	// visible in the log without stopping the agent.
+	if os.Getenv("PRINT_TOKEN") != "" {
+		log.Println("[print-agent] warning: PRINT_TOKEN is set but no longer used; " +
+			"bearer auth was removed because the only client is a browser. " +
+			"Delete it from the env file. Access is controlled by ALLOWED_ORIGINS.")
+	}
+
 	trans, err := transport.New(transport.Config{
 		Kind:         cfg.Transport,
 		OutputDir:    cfg.OutputDir,
@@ -66,10 +76,12 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// Never log Token. It is a credential, and startup logging is the one place
-	// it would otherwise be most likely to be copied into a bug report.
-	log.Printf("[print-agent] listening on %s transport=%s origins=%v auth=%s",
-		srv.Addr, cfg.Transport, cfg.AllowedOrigins, authMode(cfg.Token))
+	// The agent holds no credential. Logging that explicitly is useful: a
+	// startup line that lists the bind address, transport and the exact origins
+	// it will accept is how an operator confirms a register is pointed at the
+	// right agent and that no other origin is allowed.
+	log.Printf("[print-agent] listening on %s transport=%s origins=%v auth=origin-allowlist",
+		srv.Addr, cfg.Transport, cfg.AllowedOrigins)
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -107,12 +119,4 @@ func main() {
 	}
 
 	log.Println("[print-agent] stopped")
-}
-
-// authMode reports whether a bearer token is enforced, without revealing it.
-func authMode(token string) string {
-	if token == "" {
-		return "origin-allowlist-only"
-	}
-	return "bearer-token"
 }

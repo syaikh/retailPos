@@ -1,3 +1,5 @@
+import { SvelteURL } from "svelte/reactivity";
+
 // Print configuration store.
 //
 // Controls how receipts are emitted after a sale:
@@ -91,3 +93,29 @@ class PrintConfigStore {
 }
 
 export const printConfig = new PrintConfigStore();
+
+/**
+ * True when `url` addresses the same machine the browser is running on.
+ *
+ * In a shop with one printer PC per till, each register is meant to reach the
+ * print agent on its own PC over `localhost`. A build-time VITE_PRINT_AGENT_URL
+ * names one agent for every register at once, so setting it in a multi-PC shop
+ * silently points most tills at the wrong machine. The per-register setting
+ * outranks it, so the mistake is correctable — but only if somebody notices, and
+ * the failure is a receipt printing on a printer nobody is watching.
+ */
+export function isLocalAgentUrl(url: string): boolean {
+  const host = (() => {
+    try {
+      return new SvelteURL(url).hostname.toLowerCase();
+    } catch {
+      return "";
+    }
+  })();
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    host === "[::1]"
+  );
+}

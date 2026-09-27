@@ -15,8 +15,10 @@ describe("PrintModeToggle.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports printConfig store", () => {
-    expect(src).toContain(
-      'import { printConfig } from "$shared/stores/printConfig.svelte"',
+    // Matched with a regex rather than an exact string: prettier decides where
+    // to wrap the import, and this guard should not fail when it reflows.
+    expect(src).toMatch(
+      /import\s*\{\s*printConfig\s*,\s*isLocalAgentUrl\s*,?\s*\}\s*from\s*"\$shared\/stores\/printConfig\.svelte"/,
     );
   });
 
@@ -58,5 +60,17 @@ describe("PrintModeToggle.svelte source-structure guards", () => {
   it("shows agent connection status labels", () => {
     expect(src).toContain("{labels.agentConnected}");
     expect(src).toContain("{labels.agentUnreachable}");
+  });
+
+  it("warns when silent printing is pointed at an agent on another machine", () => {
+    expect(src).toContain("agentIsRemote");
+    expect(src).toContain("isLocalAgentUrl(printConfig.agentUrl)");
+    expect(src).toContain("{labels.agentNotLocalhost}");
+  });
+
+  it("only warns in silent mode, where the agent is actually used", () => {
+    // In preview mode the browser print dialog is used and the agent is never
+    // contacted, so a remote address is not a misconfiguration worth flagging.
+    expect(src).toMatch(/printConfig\.mode === "silent" &&\s*!isLocalAgentUrl/);
   });
 });

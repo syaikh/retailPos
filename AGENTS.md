@@ -53,7 +53,19 @@ All database connection parameters are in `.env.example`:
 | `ENV` | `development` | Log format: development/production |
 | `LOG_LEVEL` | `info` | Log level: debug/info/warn/error |
 | `VITE_PRINT_MODE` | | Receipt printing mode (frontend) |
-| `VITE_PRINT_AGENT_URL` | | Print agent URL (frontend) |
+| `VITE_PRINT_AGENT_URL` | | Print agent URL (frontend). **Leave unset for a multi-register shop** — see below |
+
+`VITE_PRINT_AGENT_URL` is a build-time override that names **one** print agent
+for **every** register. The frontend falls back to `http://localhost:9123`, so
+each register finds the agent on its own PC and one build serves the whole shop.
+Set this only for development (frontend and agent on different machines) or a
+kiosk where printers sit on a server. In a shop with one printer PC per till,
+setting it sends every till's receipts to a single machine. The per-register
+setting in the print settings screen outranks it, so it stays correctable, and the
+frontend warns when the active address is not localhost in silent mode.
+`PRINT_TOKEN` was removed from the print agent: the only client is a browser, so
+a token shipped to a browser is not a secret. See
+`docs/guides/print-agent-production.md`.
 
 Copy `.env.example` to `.env` and adjust as needed.
 

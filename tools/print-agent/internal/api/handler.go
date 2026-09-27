@@ -28,26 +28,25 @@ func NewHandler(store *queue.Store, pm *printer.Manager, cfg config.Config) *Han
 	return &Handler{store: store, printer: pm, cfg: cfg}
 }
 
-// Middleware applies CORS, optional bearer-token auth, and OPTIONS handling.
+// Middleware applies CORS and OPTIONS handling.
+//
+// There is deliberately no bearer-token check. A token was supported here and
+// was removed: the only client is a browser, and a secret shipped to a browser
+// is not a secret, so it could never have been a real control. It had no other
+// client, and setting it made every print return 401. The access control here
+// is the ALLOWED_ORIGINS check below, which the browser cannot forge
+// cross-origin, plus keeping the agent on a trusted network.
 func (h *Handler) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		allow := h.allowedOrigin(origin)
 		w.Header().Set("Access-Control-Allow-Origin", allow)
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
 			return
-		}
-
-		if h.cfg.Token != "" {
-			tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-			if tok != h.cfg.Token {
-				writeJSON(w, http.StatusUnauthorized, errBody("unauthorized"))
-				return
-			}
 		}
 
 		next.ServeHTTP(w, r)
