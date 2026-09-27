@@ -74,7 +74,11 @@ func (h *Handler) CreateSession(c *gin.Context) {
 }
 
 func (h *Handler) ListSessions(c *gin.Context) {
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 	status := c.Query("status")
 	search := c.Query("search")
 	sessions, total, err := h.svc.ListSessions(c.Request.Context(), limit, offset, status, search, shared.GetStoreID(c))
@@ -325,7 +329,11 @@ func (h *Handler) CloseSession(c *gin.Context) {
 }
 
 func (h *Handler) ListAdjustments(c *gin.Context) {
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 	adjustments, total, err := h.svc.ListAdjustments(c.Request.Context(), limit, offset, c.Query("status"), c.Query("search"), shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)

@@ -223,7 +223,7 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 	if sortDir == "" || !allowedSortDir[sortDir] {
 		sortDir = "DESC"
 	}
-	query += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortExpr, sortDir, argIdx2, argIdx2+1)
+	query += fmt.Sprintf(" ORDER BY %s %s, u.id %s LIMIT $%d OFFSET $%d", sortExpr, sortDir, sortDir, argIdx2, argIdx2+1)
 	args2 = append(args2, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, args2...)

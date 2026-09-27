@@ -35,6 +35,7 @@
     endArrangement,
     listConsignmentSuppliers,
     listStock,
+    fetchAllPages,
     bulkReturnAllStock,
   } from "../services/consignment-service";
   import { getActiveStores } from "$modules/stores/services/stores-service";
@@ -241,7 +242,9 @@
         showReturnBanner = true;
         activeTab = "return";
         try {
-          arrangementStock = await listStock(activeArrangement.supplier_id);
+          arrangementStock = await fetchAllPages((p) =>
+            listStock(activeArrangement.supplier_id, p),
+          );
         } catch {
           arrangementStock = [];
         }

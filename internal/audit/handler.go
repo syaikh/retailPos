@@ -34,8 +34,45 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/audit-logs/entity-types", auth, perm(permissions.AuditView), h.ListEntityTypes)
 }
 
+// ListAuditLogs godoc
+// @Summary List audit logs
+// @Description Get paginated audit logs with optional filters. Sequential
+// browsing should use the keyset cursor (after_created_at + after_id from the
+// previous page's next_cursor) instead of offset paging.
+// @Tags audit
+// @Accept json
+// @Produce json
+// @Param limit query int false "Limit" default(20)
+// @Param offset query int false "Offset (ignored when a cursor is provided)" default(0)
+// @Param after_created_at query string false "Keyset cursor timestamp (RFC3339), from next_cursor"
+// @Param after_id query string false "Keyset cursor row id, from next_cursor"
+// @Param search query string false "Search username, role, action, entity type, or IP"
+// @Param action query string false "Filter by action"
+// @Param entity_type query string false "Filter by entity type"
+// @Param entity_id query int false "Filter by entity ID"
+// @Param user_id query int false "Filter by user ID"
+// @Param start_date query string false "Start date (RFC3339 or YYYY-MM-DD, Jakarta time)"
+// @Param end_date query string false "End date (RFC3339 or YYYY-MM-DD, Jakarta time)"
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /audit-logs [get]
 func (h *Handler) ListAuditLogs(c *gin.Context) {
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
+
+	cursor, err := shared.ParseKeysetCursor(c.Query("after_created_at"), c.Query("after_id"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
+	// Cursor takes precedence over offset; echo what was actually applied.
+	if cursor != nil {
+		offset = 0
+	}
 
 	var userID *int
 	if uid := c.Query("user_id"); uid != "" {
@@ -60,7 +97,7 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 
 	storeID := shared.GetStoreID(c)
 
-	logs, total, err := h.svc.GetAuditLogs(c.Request.Context(), limit, offset, userID, search, action, entityType, entityID, startDate, endDate, storeID)
+	logs, total, next, err := h.svc.GetAuditLogs(c.Request.Context(), limit, offset, cursor, userID, search, action, entityType, entityID, startDate, endDate, storeID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch audit logs"})
 		return
@@ -70,7 +107,7 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 		logs = []LogListItem{}
 	}
 
-	shared.JSONPaginated(c, logs, total, limit, offset)
+	shared.JSONPaginatedCursor(c, logs, total, limit, offset, next)
 }
 
 func (h *Handler) GetAuditLog(c *gin.Context) {
@@ -127,7 +164,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 	storeID := shared.GetStoreID(c)
 
 	const maxExportRows = 10000
-	logs, _, err := h.svc.GetAuditLogs(c.Request.Context(), maxExportRows, 0, userID, search, action, entityType, entityID, startDate, endDate, storeID)
+	logs, _, _, err := h.svc.GetAuditLogs(c.Request.Context(), maxExportRows, 0, nil, userID, search, action, entityType, entityID, startDate, endDate, storeID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch audit logs"})
 		return

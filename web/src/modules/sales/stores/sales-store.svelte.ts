@@ -21,6 +21,13 @@ let sortDir = $state<"asc" | "desc">("desc");
 let paymentMethodOptions = $state<{ code: string; name: string }[]>([]);
 let initialized = false;
 
+// Keyset pagination: pageCursors[pageIndex] is the cursor that fetches that
+// page, recorded from the previous page's next_cursor. Page 0 and any page
+// never reached through a previous response fall back to offset. Only the
+// default sort (created_at DESC) may use a cursor — the server rejects a
+// cursor combined with any other sort.
+let pageCursors: (string | null)[] = [];
+
 export function useSalesStore() {
   if (!initialized) {
     initialized = true;
@@ -167,10 +174,21 @@ export function useSalesStore() {
     async load(filters: SaleFilters, signal?: AbortSignal) {
       loading = true;
       try {
-        const result = await getSalesHistory(filters, signal);
+        const page =
+          filters.limit > 0 ? Math.floor(filters.offset / filters.limit) : 0;
+        const defaultSort =
+          (filters.sortBy || "created_at").toLowerCase() === "created_at" &&
+          (filters.sortDir || "desc").toLowerCase() === "desc";
+        const cursor = defaultSort ? (pageCursors[page] ?? null) : null;
+        const result = await getSalesHistory(filters, signal, cursor);
         if (signal?.aborted) return;
         salesData = result.data;
         total = result.total;
+        // Record how to reach the next page without an OFFSET scan, and drop
+        // deeper entries so a cursor can never come from an older fetch chain
+        // (e.g. after a page-0 refresh reshuffled row boundaries).
+        pageCursors = pageCursors.slice(0, page + 1);
+        pageCursors[page + 1] = result.next_cursor ?? null;
       } catch {
         if (signal?.aborted) return;
         salesData = [];
@@ -178,6 +196,12 @@ export function useSalesStore() {
       } finally {
         loading = false;
       }
+    },
+
+    // Call whenever anything other than the page index changes (filters,
+    // page size, sort) — a recorded cursor must never cross query epochs.
+    resetCursors() {
+      pageCursors = [];
     },
 
     async loadPaymentMethods(signal?: AbortSignal) {

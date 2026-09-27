@@ -212,7 +212,11 @@ func (h *Handler) ListShifts(c *gin.Context) {
 	status := c.Query("status")
 	discFilter := c.Query("discrepancy")
 
-	limit, offset := shared.ParsePaginationParams(limitStr, offsetStr)
+	limit, offset, err := shared.ParsePaginationParams(limitStr, offsetStr)
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 
 	var userID *int
 	if uidStr := c.Query("user_id"); uidStr != "" {

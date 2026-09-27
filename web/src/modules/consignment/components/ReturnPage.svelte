@@ -19,6 +19,7 @@
     createReturn,
     listPendingReturns,
     listStock,
+    fetchAllPages,
     getReturn,
   } from "../services/consignment-service";
   import type {
@@ -63,29 +64,38 @@
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
-  const pagedReturns = $derived(
-    returns.slice(pageOffset, pageOffset + pageLimit),
-  );
+  let total = $state(0);
+  let loadSeq = 0;
 
   async function load() {
+    const seq = ++loadSeq;
     loading = true;
     try {
       const [rts, prs] = await Promise.all([
-        listReturns(arrangement.supplier_id),
-        listPendingReturns(arrangement.supplier_id),
+        listReturns(arrangement.supplier_id, {
+          limit: pageLimit,
+          offset: pageOffset,
+        }),
+        fetchAllPages((p) => listPendingReturns(arrangement.supplier_id, p)),
       ]);
-      returns = rts;
+      if (seq !== loadSeq) return;
+      returns = rts.data;
+      total = rts.total;
       openPending = prs.filter((p) => p.status === "open");
     } catch {
+      if (seq !== loadSeq) return;
       returns = [];
+      total = 0;
     } finally {
-      loading = false;
+      if (seq === loadSeq) loading = false;
     }
   }
 
   async function loadProducts() {
     try {
-      const stock = await listStock(arrangement.supplier_id);
+      const stock = await fetchAllPages((p) =>
+        listStock(arrangement.supplier_id, p),
+      );
       stockRows = stock;
       stockOptions = stock
         .filter(
@@ -198,6 +208,7 @@
   function handlePageChange(newOffset: number, newLimit: number) {
     pageOffset = newOffset;
     pageLimit = newLimit;
+    void load();
   }
 
   async function loadDetail(id: number) {
@@ -247,7 +258,7 @@
       <div class="p-8 text-center text-sm text-text-secondary">
         {labels.loading}
       </div>
-    {:else if returns.length === 0}
+    {:else if returns.length === 0 && total === 0}
       <EmptyState
         icon={RotateCcw}
         title={labels.consignmentNoReturns}
@@ -267,7 +278,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each pagedReturns as r (r.id || r)}
+            {#each returns as r (r.id || r)}
               <tr
                 class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
                 role="button"
@@ -298,7 +309,7 @@
       </div>
       <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
         <Pagination
-          total={returns.length}
+          {total}
           limit={pageLimit}
           offset={pageOffset}
           onPageChange={handlePageChange}

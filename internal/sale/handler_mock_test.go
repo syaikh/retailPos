@@ -32,7 +32,7 @@ type mockService struct {
 	createSaleFn               func(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error
 	createSaleWithParkedSaleFn func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error
 	getSaleByIDFn              func(ctx context.Context, id int, storeID *int) (*Sale, error)
-	listSalesFn                func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error)
+	listSalesFn                func(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error)
 	getSalesForExportFn        func(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error)
 	streamSalesExportCSVFn     func(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error
 	getNextInvoiceNumberFn     func(ctx context.Context) (string, error)
@@ -86,8 +86,8 @@ func (m *mockService) GetSaleByID(ctx context.Context, id int, storeID *int) (*S
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockService) ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
-	return m.listSalesFn(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeID, minTotal, maxTotal, cashierID, status)
+func (m *mockService) ListSales(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
+	return m.listSalesFn(ctx, limit, offset, cursor, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeID, minTotal, maxTotal, cashierID, status)
 }
 func (m *mockService) GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error) {
 	return m.getSalesForExportFn(ctx, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeID)
@@ -738,8 +738,8 @@ func TestSaleHandler_CreateSale_RejectsPayloadStoreID(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_Success(t *testing.T) {
 	svc := &mockService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
-			return []Sale{{ID: 1, InvoiceNumber: "INV-001"}}, 1, nil
+		listSalesFn: func(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
+			return []Sale{{ID: 1, InvoiceNumber: "INV-001"}}, 1, nil, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -755,8 +755,8 @@ func TestSaleHandler_GetSalesHistory_Success(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_Error(t *testing.T) {
 	svc := &mockService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
-			return nil, 0, assert.AnError
+		listSalesFn: func(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
+			return nil, 0, nil, assert.AnError
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -817,9 +817,9 @@ func TestSaleHandler_GetSalesHistory_InvalidMaxTotalOutOfRange(t *testing.T) {
 func TestSaleHandler_GetSalesHistory_WithFilters(t *testing.T) {
 	var capturedSearch string
 	svc := &mockService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
 			capturedSearch = search
-			return []Sale{}, 0, nil
+			return []Sale{}, 0, nil, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -832,9 +832,9 @@ func TestSaleHandler_GetSalesHistory_WithFilters(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_InvalidSortBy(t *testing.T) {
 	svc := &mockService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
 			assert.Equal(t, "created_at", sortBy, "invalid sort_by should default to created_at")
-			return []Sale{}, 0, nil
+			return []Sale{}, 0, nil, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -846,9 +846,9 @@ func TestSaleHandler_GetSalesHistory_InvalidSortBy(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_InvalidSortDir(t *testing.T) {
 	svc := &mockService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
 			assert.Equal(t, "DESC", sortDir, "invalid sort_dir should default to DESC")
-			return []Sale{}, 0, nil
+			return []Sale{}, 0, nil, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -861,10 +861,10 @@ func TestSaleHandler_GetSalesHistory_InvalidSortDir(t *testing.T) {
 func TestSaleHandler_GetSalesHistory_DefaultLimitOffset(t *testing.T) {
 	var capturedLimit, capturedOffset int
 	svc := &mockService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
 			capturedLimit = limit
 			capturedOffset = offset
-			return []Sale{}, 0, nil
+			return []Sale{}, 0, nil, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -878,9 +878,9 @@ func TestSaleHandler_GetSalesHistory_DefaultLimitOffset(t *testing.T) {
 func TestSaleHandler_GetSalesHistory_OutOfRangeLimit(t *testing.T) {
 	var capturedLimit int
 	svc := &mockService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
 			capturedLimit = limit
-			return []Sale{}, 0, nil
+			return []Sale{}, 0, nil, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -893,9 +893,9 @@ func TestSaleHandler_GetSalesHistory_OutOfRangeLimit(t *testing.T) {
 func TestSaleHandler_GetSalesHistory_NegativeOffset(t *testing.T) {
 	var capturedOffset int
 	svc := &mockService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
 			capturedOffset = offset
-			return []Sale{}, 0, nil
+			return []Sale{}, 0, nil, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -957,9 +957,9 @@ func TestSaleHandler_GetSaleByID_ServiceError(t *testing.T) {
 func TestSaleHandler_GetSalesHistory_WithCashierID(t *testing.T) {
 	var capturedCashierID *int
 	svc := &mockService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
 			capturedCashierID = cashierID
-			return []Sale{}, 0, nil
+			return []Sale{}, 0, nil, nil
 		},
 	}
 	r := setupSaleHandlerPerms(svc, []string{"sale.view", "report.view"})
@@ -974,9 +974,9 @@ func TestSaleHandler_GetSalesHistory_WithCashierID(t *testing.T) {
 func TestSaleHandler_GetSalesHistory_CashierIDClampedToSelf(t *testing.T) {
 	var capturedCashierID *int
 	svc := &mockService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
 			capturedCashierID = cashierID
-			return []Sale{}, 0, nil
+			return []Sale{}, 0, nil, nil
 		},
 	}
 	r := setupSaleHandlerPerms(svc, []string{"sale.view"})
@@ -990,8 +990,8 @@ func TestSaleHandler_GetSalesHistory_CashierIDClampedToSelf(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_InvalidCashierID(t *testing.T) {
 	svc := &mockService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
-			return []Sale{}, 0, nil
+		listSalesFn: func(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
+			return []Sale{}, 0, nil, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)

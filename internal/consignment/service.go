@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -127,39 +125,9 @@ func (s *Service) ListArrangements(ctx context.Context, claimsStore *int, limit,
 	if err != nil {
 		return nil, 0, err
 	}
-
-	// No search or numeric search: use SQL pagination (fast, indexed).
-	if search == "" {
-		arrs, total, err := s.repo.ListArrangements(ctx, s.repo.db, storeID, limit, offset, "", status)
-		if err != nil {
-			return nil, 0, err
-		}
-		if err := s.hydrateArrangementNames(ctx, arrs); err != nil {
-			return nil, 0, err
-		}
-		if err := s.hydrateArrangementTerms(ctx, arrs); err != nil {
-			return nil, 0, err
-		}
-		return arrs, total, nil
-	}
-	if _, idErr := strconv.Atoi(search); idErr == nil {
-		arrs, total, err := s.repo.ListArrangements(ctx, s.repo.db, storeID, limit, offset, search, status)
-		if err != nil {
-			return nil, 0, err
-		}
-		if err := s.hydrateArrangementNames(ctx, arrs); err != nil {
-			return nil, 0, err
-		}
-		if err := s.hydrateArrangementTerms(ctx, arrs); err != nil {
-			return nil, 0, err
-		}
-		return arrs, total, nil
-	}
-
-	// Non-numeric search (supplier name): load all, hydrate, filter in Go,
-	// then paginate. Consignment has a bounded number of arrangements per
-	// store so this is acceptable.
-	arrs, _, err := s.repo.ListArrangements(ctx, s.repo.db, storeID, 0, 0, "", status)
+	// Both id and supplier-name search are evaluated in SQL (see
+	// Repository.ListArrangements), so the page arrives in one round trip.
+	arrs, total, err := s.repo.ListArrangements(ctx, s.repo.db, storeID, limit, offset, search, status)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -169,28 +137,6 @@ func (s *Service) ListArrangements(ctx context.Context, claimsStore *int, limit,
 	if err := s.hydrateArrangementTerms(ctx, arrs); err != nil {
 		return nil, 0, err
 	}
-
-	filtered := make([]Arrangement, 0)
-	lower := strings.ToLower(search)
-	for _, a := range arrs {
-		if strings.Contains(strings.ToLower(a.SupplierName), lower) {
-			filtered = append(filtered, a)
-		}
-	}
-	arrs = filtered
-
-	total := len(arrs)
-
-	if limit > 0 && offset < len(arrs) {
-		end := offset + limit
-		if end > len(arrs) {
-			end = len(arrs)
-		}
-		arrs = arrs[offset:end]
-	} else if limit > 0 && offset >= len(arrs) {
-		arrs = []Arrangement{}
-	}
-
 	return arrs, total, nil
 }
 
@@ -742,28 +688,28 @@ func (s *Service) GetReceipt(ctx context.Context, id int, claimsStore *int) (*Re
 	return rec, nil
 }
 
-func (s *Service) ListReceipts(ctx context.Context, supplierID int, claimsStore *int, productID *int) ([]Receipt, error) {
+func (s *Service) ListReceipts(ctx context.Context, supplierID int, claimsStore *int, productID *int, search string, limit, offset int) ([]Receipt, int, error) {
 	storeID, err := resolveStore(claimsStore, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	var pid *int
 	if productID != nil && *productID > 0 {
 		pid = productID
 	}
-	recs, err := s.repo.ListReceipts(ctx, s.repo.db, supplierID, storeID, pid)
+	recs, total, err := s.repo.ListReceipts(ctx, s.repo.db, supplierID, storeID, pid, search, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if err := s.hydrateReceiptNames(ctx, recs); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	for i := range recs {
 		if err := s.hydrateReceiptItemProductNames(ctx, recs[i].Items); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
-	return recs, nil
+	return recs, total, nil
 }
 
 // EditReceipt edits a consignment receipt in-place with guardrails. It validates
@@ -986,23 +932,23 @@ func (s *Service) IsConsignmentOwned(ctx context.Context, productID int) (bool, 
 
 // --- Consignment stock ---
 
-func (s *Service) ListStock(ctx context.Context, supplierID int, claimsStore *int) ([]StockRow, error) {
+func (s *Service) ListStock(ctx context.Context, supplierID int, claimsStore *int, search string, limit, offset int) ([]StockRow, int, error) {
 	storeID, err := resolveStore(claimsStore, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	var sid *int
 	if supplierID > 0 {
 		sid = &supplierID
 	}
-	rows, err := s.repo.ListConsignmentStock(ctx, s.repo.db, sid, storeID)
+	rows, total, err := s.repo.ListConsignmentStockPaged(ctx, s.repo.db, sid, storeID, search, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if err := s.hydrateStockRowNames(ctx, rows); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return rows, nil
+	return rows, total, nil
 }
 
 // ListSuppliers returns all suppliers flagged as consignment.
@@ -1103,19 +1049,19 @@ func (s *Service) CreatePendingReturn(ctx context.Context, req *CreatePendingRet
 	return pr, nil
 }
 
-func (s *Service) ListPendingReturns(ctx context.Context, supplierID int, claimsStore *int) ([]PendingReturn, error) {
+func (s *Service) ListPendingReturns(ctx context.Context, supplierID int, claimsStore *int, limit, offset int) ([]PendingReturn, int, error) {
 	storeID, err := resolveStore(claimsStore, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	prs, err := s.repo.ListOpenPendingReturns(ctx, s.repo.db, supplierID, storeID)
+	prs, total, err := s.repo.ListOpenPendingReturns(ctx, s.repo.db, supplierID, storeID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if err := s.hydratePendingReturnProductNames(ctx, prs); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return prs, nil
+	return prs, total, nil
 }
 
 // --- Returns ---
@@ -1293,24 +1239,24 @@ func (s *Service) GetReturn(ctx context.Context, id int, claimsStore *int) (*Ret
 	return ret, nil
 }
 
-func (s *Service) ListReturns(ctx context.Context, supplierID int, claimsStore *int) ([]Return, error) {
+func (s *Service) ListReturns(ctx context.Context, supplierID int, claimsStore *int, limit, offset int) ([]Return, int, error) {
 	storeID, err := resolveStore(claimsStore, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	rets, err := s.repo.ListReturns(ctx, s.repo.db, supplierID, storeID)
+	rets, total, err := s.repo.ListReturns(ctx, s.repo.db, supplierID, storeID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if err := s.hydrateReturnNames(ctx, rets); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	for i := range rets {
 		if err := s.hydrateReturnItemProductNames(ctx, rets[i].Items); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
-	return rets, nil
+	return rets, total, nil
 }
 
 // --- Settlements ---
@@ -1466,27 +1412,27 @@ func (s *Service) GetSettlement(ctx context.Context, id int, claimsStore *int) (
 	return st, nil
 }
 
-func (s *Service) ListSettlements(ctx context.Context, supplierID *int, claimsStore *int, status *string) ([]Settlement, error) {
+func (s *Service) ListSettlements(ctx context.Context, supplierID *int, claimsStore *int, status *string, search string, limit, offset int) ([]Settlement, int, error) {
 	storeID, err := resolveStore(claimsStore, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	sts, err := s.repo.ListSettlements(ctx, s.repo.db, supplierID, storeID, status)
+	sts, total, err := s.repo.ListSettlements(ctx, s.repo.db, supplierID, storeID, status, search, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if err := s.hydrateSettlementNames(ctx, sts); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	for i := range sts {
 		if err := s.hydrateSettlementItemProductNames(ctx, sts[i].Items); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if err := s.hydratePayoutNames(ctx, sts[i].Payouts); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
-	return sts, nil
+	return sts, total, nil
 }
 
 // ListPaymentMethods returns the active payment methods for the payout picker.

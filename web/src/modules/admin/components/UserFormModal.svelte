@@ -112,7 +112,7 @@
   async function loadAllUsers() {
     if (allUsers.length > 0) return;
     try {
-      const result = await getUsers({ limit: 1000, offset: 0 });
+      const result = await getUsers({ limit: 100, offset: 0 });
       allUsers = result.data;
     } catch {
       // silently fail

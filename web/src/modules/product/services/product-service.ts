@@ -130,7 +130,7 @@ export async function createCategory(name: string): Promise<Category> {
 
 export async function getBrands(): Promise<Brand[]> {
   const r = await apiClient.get("/brands", {
-    params: { limit: 1000, offset: 0 },
+    params: { limit: 100, offset: 0 },
   });
   return r.data.data || [];
 }
@@ -163,7 +163,7 @@ export async function getProductOptions(): Promise<ProductOption[]> {
 
 export async function getUnitsOfMeasure(): Promise<UnitOfMeasure[]> {
   const r = await apiClient.get("/units-of-measure", {
-    params: { limit: 1000, offset: 0 },
+    params: { limit: 100, offset: 0 },
   });
   return r.data.data || [];
 }

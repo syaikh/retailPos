@@ -22,7 +22,7 @@ describe("StockOpnamesPage.svelte location-scope source guards", () => {
 
   it("loads active storage locations as location scope options", () => {
     expect(src).toContain(
-      "getStorageLocations({\n          is_active: true,\n          limit: 500,\n          offset: 0,\n        })",
+      "getStorageLocations({\n          is_active: true,\n          limit: 100,\n          offset: 0,\n        })",
     );
     expect(src).toContain('type === "location"');
   });

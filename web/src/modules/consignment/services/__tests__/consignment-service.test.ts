@@ -66,10 +66,14 @@ describe("consignment-service", () => {
 
       expect(result).toEqual(returnResult);
 
-      // listStock called with supplierId
-      expect(mockGet).toHaveBeenCalledWith(
-        expect.stringContaining("supplier_id=5"),
-      );
+      // listStock called with supplierId, paged via fetchAllPages so the
+      // server-side legacy LIMIT 1000 can never silently truncate
+      expect(mockGet).toHaveBeenCalledWith("/consignment/stock", {
+        params: { supplier_id: 5, limit: 100, offset: 0 },
+      });
+      expect(mockGet).toHaveBeenCalledWith("/consignment/pending-returns", {
+        params: { supplier_id: 5, limit: 100, offset: 0 },
+      });
 
       // createReturn called with correct items
       expect(mockPost).toHaveBeenCalledWith(
@@ -346,8 +350,11 @@ describe("consignment-service", () => {
       const { listSettlements } = await import("../consignment-service");
       const result = await listSettlements();
 
-      expect(result).toEqual(settlements);
-      expect(mockGet).toHaveBeenCalledWith("/consignment/settlements");
+      expect(result.data).toEqual(settlements);
+      expect(result.total).toBe(0);
+      expect(mockGet).toHaveBeenCalledWith("/consignment/settlements", {
+        params: {},
+      });
     });
 
     it("fetches settlements with supplierId", async () => {
@@ -359,10 +366,10 @@ describe("consignment-service", () => {
       const { listSettlements } = await import("../consignment-service");
       const result = await listSettlements(5);
 
-      expect(result).toEqual(settlements);
-      expect(mockGet).toHaveBeenCalledWith(
-        "/consignment/settlements?supplier_id=5",
-      );
+      expect(result.data).toEqual(settlements);
+      expect(mockGet).toHaveBeenCalledWith("/consignment/settlements", {
+        params: { supplier_id: 5 },
+      });
     });
 
     it("fetches settlements with status filter", async () => {
@@ -374,10 +381,10 @@ describe("consignment-service", () => {
       const { listSettlements } = await import("../consignment-service");
       const result = await listSettlements(undefined, "pending_payment");
 
-      expect(result).toEqual(settlements);
-      expect(mockGet).toHaveBeenCalledWith(
-        "/consignment/settlements?status=pending_payment",
-      );
+      expect(result.data).toEqual(settlements);
+      expect(mockGet).toHaveBeenCalledWith("/consignment/settlements", {
+        params: { status: "pending_payment" },
+      });
     });
 
     it("fetches settlements with both supplierId and status", async () => {
@@ -389,10 +396,34 @@ describe("consignment-service", () => {
       const { listSettlements } = await import("../consignment-service");
       const result = await listSettlements(5, "paid");
 
-      expect(result).toEqual(settlements);
-      expect(mockGet).toHaveBeenCalledWith(
-        "/consignment/settlements?supplier_id=5&status=paid",
-      );
+      expect(result.data).toEqual(settlements);
+      expect(mockGet).toHaveBeenCalledWith("/consignment/settlements", {
+        params: { supplier_id: 5, status: "paid" },
+      });
+    });
+
+    it("passes pagination and search params to the server", async () => {
+      mockGet.mockResolvedValueOnce({
+        data: { data: [], total: 7 },
+      });
+
+      const { listSettlements } = await import("../consignment-service");
+      const result = await listSettlements(5, "paid", {
+        limit: 20,
+        offset: 40,
+        search: "abc",
+      });
+
+      expect(result).toEqual({ data: [], total: 7 });
+      expect(mockGet).toHaveBeenCalledWith("/consignment/settlements", {
+        params: {
+          limit: 20,
+          offset: 40,
+          search: "abc",
+          supplier_id: 5,
+          status: "paid",
+        },
+      });
     });
   });
 
@@ -407,10 +438,11 @@ describe("consignment-service", () => {
       const { listReceipts } = await import("../consignment-service");
       const result = await listReceipts(5);
 
-      expect(result).toEqual(receipts);
-      expect(mockGet).toHaveBeenCalledWith(
-        "/consignment/receipts?supplier_id=5",
-      );
+      expect(result.data).toEqual(receipts);
+      expect(result.total).toBe(0);
+      expect(mockGet).toHaveBeenCalledWith("/consignment/receipts", {
+        params: { supplier_id: 5 },
+      });
     });
 
     it("fetches receipts with productId", async () => {
@@ -422,10 +454,10 @@ describe("consignment-service", () => {
       const { listReceipts } = await import("../consignment-service");
       const result = await listReceipts(5, 42);
 
-      expect(result).toEqual(receipts);
-      expect(mockGet).toHaveBeenCalledWith(
-        "/consignment/receipts?supplier_id=5&product_id=42",
-      );
+      expect(result.data).toEqual(receipts);
+      expect(mockGet).toHaveBeenCalledWith("/consignment/receipts", {
+        params: { supplier_id: 5, product_id: 42 },
+      });
     });
 
     it("returns empty array when no receipts match", async () => {
@@ -434,10 +466,10 @@ describe("consignment-service", () => {
       const { listReceipts } = await import("../consignment-service");
       const result = await listReceipts(5, 999);
 
-      expect(result).toEqual([]);
-      expect(mockGet).toHaveBeenCalledWith(
-        "/consignment/receipts?supplier_id=5&product_id=999",
-      );
+      expect(result.data).toEqual([]);
+      expect(mockGet).toHaveBeenCalledWith("/consignment/receipts", {
+        params: { supplier_id: 5, product_id: 999 },
+      });
     });
   });
 });

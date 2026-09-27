@@ -15,6 +15,112 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/audit-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get paginated audit logs with optional filters. Sequential",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit"
+                ],
+                "summary": "List audit logs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset (ignored when a cursor is provided)",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keyset cursor timestamp (RFC3339), from next_cursor",
+                        "name": "after_created_at",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keyset cursor row id, from next_cursor",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search username, role, action, entity type, or IP",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by action",
+                        "name": "action",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by entity type",
+                        "name": "entity_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by entity ID",
+                        "name": "entity_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by user ID",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (RFC3339 or YYYY-MM-DD, Jakarta time)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (RFC3339 or YYYY-MM-DD, Jakarta time)",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/auth/change-password": {
             "post": {
                 "security": [
@@ -1959,11 +2065,30 @@ const docTemplate = `{
                         "description": "End date (YYYY-MM-DD, Jakarta time)",
                         "name": "end_date",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keyset cursor timestamp (RFC3339), from next_cursor (default sort only)",
+                        "name": "after_created_at",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keyset cursor row id, from next_cursor (default sort only)",
+                        "name": "after_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -2179,6 +2304,18 @@ const docTemplate = `{
                         "type": "string",
                         "description": "End date (YYYY-MM-DD, Jakarta time)",
                         "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keyset cursor timestamp (RFC3339), from next_cursor (default sort only)",
+                        "name": "after_created_at",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keyset cursor row id, from next_cursor (default sort only)",
+                        "name": "after_id",
                         "in": "query"
                     }
                 ],
@@ -2861,6 +2998,44 @@ const docTemplate = `{
                     "Stores"
                 ],
                 "summary": "Delete a store",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Store ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/stores/{id}/readiness": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Compute the onboarding checklist state for a store (staffed roles, address/phone, storage location, catalog health)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Stores"
+                ],
+                "summary": "Get store onboarding readiness",
                 "parameters": [
                     {
                         "type": "integer",

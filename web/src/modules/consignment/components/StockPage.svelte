@@ -17,24 +17,13 @@
 
   let rows = $state<StockRow[]>([]);
   let loading = $state(true);
+  let total = $state(0);
+  let loadSeq = 0;
+  let filterDebounce: ReturnType<typeof setTimeout> | undefined;
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
   let filterQuery = $state("");
-  const filteredRows = $derived(
-    filterQuery.trim()
-      ? rows.filter((r) => {
-          const q = filterQuery.trim().toLowerCase();
-          return (
-            r.product_name?.toLowerCase().includes(q) ||
-            r.product_sku?.toLowerCase().includes(q)
-          );
-        })
-      : rows,
-  );
-  const pagedRows = $derived(
-    filteredRows.slice(pageOffset, pageOffset + pageLimit),
-  );
 
   const priceByProduct = $derived.by(() => {
     const map: Record<number, number> = {};
@@ -45,18 +34,31 @@
   });
 
   async function load() {
+    const seq = ++loadSeq;
     loading = true;
     try {
-      rows = await listStock(arrangement.supplier_id);
+      const res = await listStock(arrangement.supplier_id, {
+        limit: pageLimit,
+        offset: pageOffset,
+        search: filterQuery.trim() || undefined,
+      });
+      if (seq !== loadSeq) return;
+      rows = res.data;
+      total = res.total;
     } catch {
+      if (seq !== loadSeq) return;
       rows = [];
+      total = 0;
     } finally {
-      loading = false;
+      if (seq === loadSeq) loading = false;
     }
   }
 
   onMount(() => {
     load();
+    return () => {
+      if (filterDebounce) clearTimeout(filterDebounce);
+    };
   });
 
   let showCopied = new SvelteSet<string>();
@@ -74,10 +76,15 @@
   function handlePageChange(newOffset: number, newLimit: number) {
     pageOffset = newOffset;
     pageLimit = newLimit;
+    void load();
   }
 
   function handleFilterInput() {
     pageOffset = 0;
+    if (filterDebounce) clearTimeout(filterDebounce);
+    filterDebounce = setTimeout(() => {
+      void load();
+    }, 300);
   }
 </script>
 
@@ -86,7 +93,7 @@
     <h2 class="font-semibold text-text-primary whitespace-nowrap">
       {t("consignmentStockFor", { name: arrangement.supplier_name || "" })}
     </h2>
-    {#if !loading && rows.length > 0}
+    {#if rows.length > 0 || filterQuery !== ""}
       <SearchBar
         bind:value={filterQuery}
         placeholder={labels.consignmentFilterByProduct}
@@ -96,21 +103,23 @@
     {/if}
   </div>
 
-  {#if loading}
+  {#if loading && rows.length === 0}
     <div class="p-8 text-center text-sm text-text-secondary">
       {labels.loading}
     </div>
   {:else if rows.length === 0}
-    <EmptyState
-      icon={Package}
-      title={labels.consignmentNoStock}
-      subtitle={labels.consignmentNoStockSubtitle}
-    />
-  {:else if filteredRows.length === 0}
-    <EmptyState
-      icon={Search}
-      title={labels.noResultsFor.replace("{query}", filterQuery.trim())}
-    />
+    {#if filterQuery.trim()}
+      <EmptyState
+        icon={Search}
+        title={labels.noResultsFor.replace("{query}", filterQuery.trim())}
+      />
+    {:else}
+      <EmptyState
+        icon={Package}
+        title={labels.consignmentNoStock}
+        subtitle={labels.consignmentNoStockSubtitle}
+      />
+    {/if}
   {:else}
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
@@ -125,7 +134,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each pagedRows as r, stockIdx (stockIdx)}
+          {#each rows as r, stockIdx (stockIdx)}
             <tr
               class="border-t border-border hover:bg-surface-hover/50 transition-colors"
             >
@@ -173,7 +182,7 @@
     </div>
     <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
       <Pagination
-        total={filteredRows.length}
+        {total}
         limit={pageLimit}
         offset={pageOffset}
         onPageChange={handlePageChange}

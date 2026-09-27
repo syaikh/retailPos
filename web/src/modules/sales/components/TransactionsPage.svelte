@@ -117,6 +117,11 @@
     if (hasFilterChange && prevFilters) {
       store.page = 0;
     }
+    // Recorded keyset cursors must never cross query epochs: everything
+    // except a pure page jump (filters, page size, sort) invalidates them.
+    if ([...changed].some((k) => k !== "page")) {
+      store.resetCursors();
+    }
 
     prevFilters = json;
     qm.notify(store.currentFilters, changed);

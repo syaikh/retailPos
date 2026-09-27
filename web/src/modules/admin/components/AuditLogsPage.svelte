@@ -40,6 +40,13 @@
   let abortController: AbortController | null = $state(null);
   let hasInitialized = $state(false);
 
+  // Keyset pagination: pageCursors[pageIndex] is the cursor that fetches
+  // that page (recorded from the previous page's next_cursor). Page 0 and any
+  // page never reached through a previous response fall back to offset. The
+  // map is cleared whenever the query changes so a cursor never crosses
+  // filter/page-size epochs.
+  let pageCursors: (string | null)[] = [];
+
   const canView = $derived(rbac.can(Permissions.audit.view));
 
   // Drawer state
@@ -137,9 +144,11 @@
     try {
       loading = true;
       const range = getDateRange(selectedDateRange);
+      const page = Math.floor(offset / limit);
+      const cursor = pageCursors[page] ?? null;
       const params = new SvelteURLSearchParams({
         limit: limit.toString(),
-        offset: offset.toString(),
+        offset: cursor ? "0" : offset.toString(),
         search: searchQuery,
         start_date: range.start.toISOString(),
         end_date: range.end.toISOString(),
@@ -147,6 +156,11 @@
       if (selectedAction !== "all") params.append("action", selectedAction);
       if (selectedResource !== "all")
         params.append("entity_type", selectedResource);
+      if (cursor) {
+        const sep = cursor.indexOf("|");
+        params.append("after_created_at", cursor.slice(0, sep));
+        params.append("after_id", cursor.slice(sep + 1));
+      }
 
       const response = await apiClient.get(`audit-logs?${params.toString()}`, {
         signal: abortController.signal,
@@ -157,6 +171,11 @@
       const data = response.data || {};
       items = data.data || [];
       total = data.total || 0;
+      // Teach the next page how to be fetched without an OFFSET scan, and
+      // drop any deeper entries so a cursor can never come from an older
+      // fetch chain (e.g. after a page-0 refresh reshuffled row boundaries).
+      pageCursors = pageCursors.slice(0, page + 1);
+      pageCursors[page + 1] = data.next_cursor || null;
     } catch (error: unknown) {
       const err = error as {
         name?: string;
@@ -200,6 +219,7 @@
   let prevLim = $state(20);
 
   const debouncedSearchFetch = debounce(() => {
+    pageCursors = [];
     offset = 0;
     fetchLogs();
   }, 400);
@@ -234,6 +254,7 @@
 
     if (searchChanged) debouncedSearchFetch();
     else if (filterChanged) {
+      pageCursors = [];
       offset = 0;
       fetchLogs();
     } else if (pageChanged) fetchLogs();
@@ -247,6 +268,7 @@
   });
 
   function handlePageChange(newOffset: number, newLimit: number) {
+    if (newLimit !== limit) pageCursors = [];
     offset = newOffset;
     limit = newLimit;
   }
@@ -299,6 +321,7 @@
       bind:customEndDate
       {loading}
       onrefresh={() => {
+        pageCursors = [];
         offset = 0;
         fetchLogs();
       }}

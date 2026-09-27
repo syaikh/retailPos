@@ -76,7 +76,11 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 // @Success 200 {object} map[string]interface{}
 // @Router /suppliers [get]
 func (h *Handler) ListSuppliers(c *gin.Context) {
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 	search := c.Query("search")
 
 	var isActive *bool

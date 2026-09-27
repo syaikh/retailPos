@@ -80,7 +80,7 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 		return nil, 0, fmt.Errorf("count storage locations: %w", err)
 	}
 
-	query := fmt.Sprintf(`SELECT %s %s WHERE %s ORDER BY sl.code ASC LIMIT $%d OFFSET $%d`,
+	query := fmt.Sprintf(`SELECT %s %s WHERE %s ORDER BY sl.code ASC, sl.id ASC LIMIT $%d OFFSET $%d`,
 		selectColumns, baseFrom, where, argIdx, argIdx+1)
 	args = append(args, limit, offset)
 

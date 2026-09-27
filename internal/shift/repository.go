@@ -414,9 +414,9 @@ func (r *Repository) ListShifts(ctx context.Context, scope ownership.Scope, stat
 		       s.opened_at, s.closed_at, s.created_at, s.updated_at
 		FROM shifts s
 		WHERE %s
-		ORDER BY s.%s %s
+		ORDER BY s.%s %s, s.id %s
 		LIMIT $%d OFFSET $%d
-	`, where, sortBy, sortDir, argIdx, argIdx+1), args...)
+	`, where, sortBy, sortDir, sortDir, argIdx, argIdx+1), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list shifts: %w", err)
 	}

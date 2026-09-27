@@ -1,5 +1,5 @@
-import { test, expect } from './fixtures';
-import { apiAs, ApiDriver } from './api-driver';
+import { test, expect } from "./fixtures";
+import { apiAs, ApiDriver } from "./api-driver";
 
 /**
  * Audit-logs data contract driven at the API layer. This is the API half of
@@ -9,13 +9,15 @@ import { apiAs, ApiDriver } from './api-driver';
 const data = (b: any) => (b && b.data !== undefined ? b.data : b);
 
 function anon(request: any): ApiDriver {
-  return new ApiDriver(request, '');
+  return new ApiDriver(request, "");
 }
 
-test.describe('Audit Logs API - Get by ID', () => {
-  test('GET /api/audit-logs/:id returns a single audit log', async ({ request }) => {
-    const api = await apiAs(request, 'superadmin');
-    const listRes = await api.get('/api/audit-logs?limit=1');
+test.describe("Audit Logs API - Get by ID", () => {
+  test("GET /api/audit-logs/:id returns a single audit log", async ({
+    request,
+  }) => {
+    const api = await apiAs(request, "superadmin");
+    const listRes = await api.get("/api/audit-logs?limit=1");
     expect(listRes.ok).toBeTruthy();
     const listBody = data(listRes.body);
     expect(listBody.length).toBeGreaterThan(0);
@@ -28,94 +30,196 @@ test.describe('Audit Logs API - Get by ID', () => {
     expect(body.id).toBe(logId);
   });
 
-  test('GET /api/audit-logs/:id returns 400 for invalid id', async ({ request }) => {
-    const api = await apiAs(request, 'superadmin');
-    const res = await api.get('/api/audit-logs/not-a-number');
+  test("GET /api/audit-logs/:id returns 400 for invalid id", async ({
+    request,
+  }) => {
+    const api = await apiAs(request, "superadmin");
+    const res = await api.get("/api/audit-logs/not-a-number");
     expect(res.status).toBe(400);
   });
 
-  test('GET /api/audit-logs/:id returns 404 for nonexistent id', async ({ request }) => {
-    const api = await apiAs(request, 'superadmin');
-    const res = await api.get('/api/audit-logs/999999999');
+  test("GET /api/audit-logs/:id returns 404 for nonexistent id", async ({
+    request,
+  }) => {
+    const api = await apiAs(request, "superadmin");
+    const res = await api.get("/api/audit-logs/999999999");
     expect(res.status).toBe(404);
   });
 
-  test('GET /api/audit-logs/:id without auth returns 401', async ({ request }) => {
-    const res = await anon(request).get('/api/audit-logs/1');
+  test("GET /api/audit-logs/:id without auth returns 401", async ({
+    request,
+  }) => {
+    const res = await anon(request).get("/api/audit-logs/1");
     expect(res.status).toBe(401);
   });
 });
 
-test.describe('Audit Logs API - List Entity Types', () => {
-  test('GET /api/audit-logs/entity-types returns array of entity types', async ({ request }) => {
-    const api = await apiAs(request, 'superadmin');
-    const res = await api.get('/api/audit-logs/entity-types');
+test.describe("Audit Logs API - List Entity Types", () => {
+  test("GET /api/audit-logs/entity-types returns array of entity types", async ({
+    request,
+  }) => {
+    const api = await apiAs(request, "superadmin");
+    const res = await api.get("/api/audit-logs/entity-types");
     expect(res.ok, `entity types failed: ${res.status}`).toBeTruthy();
     const body = data(res.body);
     expect(Array.isArray(body)).toBeTruthy();
     expect(body.length).toBeGreaterThan(0);
     const lowerTypes = body.map((t: string) => t.toLowerCase());
-    expect(lowerTypes.some((t: string) => t.includes('auth') || t.includes('user') || t.includes('product'))).toBeTruthy();
+    expect(
+      lowerTypes.some(
+        (t: string) =>
+          t.includes("auth") || t.includes("user") || t.includes("product"),
+      ),
+    ).toBeTruthy();
   });
 
-  test('GET /api/audit-logs/entity-types without auth returns 401', async ({ request }) => {
-    const res = await anon(request).get('/api/audit-logs/entity-types');
+  test("GET /api/audit-logs/entity-types without auth returns 401", async ({
+    request,
+  }) => {
+    const res = await anon(request).get("/api/audit-logs/entity-types");
     expect(res.status).toBe(401);
   });
 
-  test('GET /api/audit-logs/entity-types with restricted role returns 403', async ({ request }) => {
-    const api = await apiAs(request, 'cashier');
-    const res = await api.get('/api/audit-logs/entity-types');
+  test("GET /api/audit-logs/entity-types with restricted role returns 403", async ({
+    request,
+  }) => {
+    const api = await apiAs(request, "cashier");
+    const res = await api.get("/api/audit-logs/entity-types");
     expect(res.status).toBe(403);
   });
 });
 
-test.describe('Audit Logs API - Export', () => {
-  test('GET /api/audit-logs/export returns CSV by default', async ({ request }) => {
-    const api = await apiAs(request, 'superadmin');
-    const res = await api.get('/api/audit-logs/export');
+test.describe("Audit Logs API - Export", () => {
+  test("GET /api/audit-logs/export returns CSV by default", async ({
+    request,
+  }) => {
+    const api = await apiAs(request, "superadmin");
+    const res = await api.get("/api/audit-logs/export");
     expect(res.ok, `export failed: ${res.status}`).toBeTruthy();
-    const ct = res.headers['content-type'] || '';
-    expect(ct).toContain('csv');
+    const ct = res.headers["content-type"] || "";
+    expect(ct).toContain("csv");
   });
 
-  test('GET /api/audit-logs/export?format=xlsx returns xlsx', async ({ request }) => {
-    const api = await apiAs(request, 'superadmin');
-    const res = await api.get('/api/audit-logs/export?format=xlsx');
+  test("GET /api/audit-logs/export?format=xlsx returns xlsx", async ({
+    request,
+  }) => {
+    const api = await apiAs(request, "superadmin");
+    const res = await api.get("/api/audit-logs/export?format=xlsx");
     expect(res.ok, `xlsx export failed: ${res.status}`).toBeTruthy();
-    const ct = res.headers['content-type'] || '';
-    expect(ct.includes('spreadsheetml') || ct.includes('octet-stream')).toBeTruthy();
+    const ct = res.headers["content-type"] || "";
+    expect(
+      ct.includes("spreadsheetml") || ct.includes("octet-stream"),
+    ).toBeTruthy();
   });
 
-  test('GET /api/audit-logs/export?format=csv returns CSV explicitly', async ({ request }) => {
-    const api = await apiAs(request, 'superadmin');
-    const res = await api.get('/api/audit-logs/export?format=csv');
+  test("GET /api/audit-logs/export?format=csv returns CSV explicitly", async ({
+    request,
+  }) => {
+    const api = await apiAs(request, "superadmin");
+    const res = await api.get("/api/audit-logs/export?format=csv");
     expect(res.ok).toBeTruthy();
   });
 
-  test('GET /api/audit-logs/export without auth returns 401', async ({ request }) => {
-    const res = await anon(request).get('/api/audit-logs/export');
+  test("GET /api/audit-logs/export without auth returns 401", async ({
+    request,
+  }) => {
+    const res = await anon(request).get("/api/audit-logs/export");
     expect(res.status).toBe(401);
   });
 
-  test('GET /api/audit-logs/export with restricted role returns 403', async ({ request }) => {
-    const api = await apiAs(request, 'cashier');
-    const res = await api.get('/api/audit-logs/export');
+  test("GET /api/audit-logs/export with restricted role returns 403", async ({
+    request,
+  }) => {
+    const api = await apiAs(request, "cashier");
+    const res = await api.get("/api/audit-logs/export");
     expect(res.status).toBe(403);
   });
 
-  test('Today filter returns seeded login event via API', async ({ request }) => {
-    const api = await apiAs(request, 'superadmin');
+  test("Today filter returns seeded login event via API", async ({
+    request,
+  }) => {
+    const api = await apiAs(request, "superadmin");
     const today = new Date(Date.now() + 7 * 60 * 60 * 1000);
     const year = today.getUTCFullYear();
-    const month = String(today.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(today.getUTCDate()).padStart(2, '0');
+    const month = String(today.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(today.getUTCDate()).padStart(2, "0");
     const todayStr = `${year}-${month}-${day}`;
 
-    const res = await api.get(`/api/audit-logs?start_date=${todayStr}&end_date=${todayStr}&limit=10`);
+    const res = await api.get(
+      `/api/audit-logs?start_date=${todayStr}&end_date=${todayStr}&limit=10`,
+    );
     expect(res.ok).toBeTruthy();
     const body = data(res.body);
     expect(body).toBeInstanceOf(Array);
     expect(body.length).toBeGreaterThanOrEqual(0);
+  });
+});
+
+test.describe("Audit Logs API - Keyset Pagination", () => {
+  const cursorParams = (nextCursor: string, limit = 2) => {
+    const sep = nextCursor.indexOf("|");
+    const p = new URLSearchParams({
+      after_created_at: nextCursor.slice(0, sep),
+      after_id: nextCursor.slice(sep + 1),
+      limit: String(limit),
+      offset: "0",
+    });
+    return p.toString();
+  };
+
+  test("GET /api/audit-logs returns has_more and next_cursor envelope", async ({
+    request,
+  }) => {
+    const api = await apiAs(request, "superadmin");
+    const res = await api.get("/api/audit-logs?limit=2&offset=0");
+    expect(res.ok, `list failed: ${res.status}`).toBeTruthy();
+    expect(typeof res.body.total).toBe("number");
+    expect(typeof res.body.has_more).toBe("boolean");
+    if (res.body.total > 2) {
+      expect(res.body.has_more).toBe(true);
+      expect(res.body.next_cursor).toBeTruthy();
+      expect(res.body.next_cursor).toContain("|");
+    } else {
+      expect(res.body.next_cursor).toBeUndefined();
+    }
+  });
+
+  test("cursor round-trip pages forward without overlapping rows", async ({
+    request,
+  }) => {
+    const api = await apiAs(request, "superadmin");
+    const page1 = await api.get("/api/audit-logs?limit=2&offset=0");
+    expect(page1.ok).toBeTruthy();
+    const logs1 = data(page1.body.data);
+    if (logs1.length < 2 || !page1.body.next_cursor) return;
+
+    const page2 = await api.get(
+      `/api/audit-logs?${cursorParams(page1.body.next_cursor)}`,
+    );
+    expect(page2.ok, `cursor page failed: ${page2.status}`).toBeTruthy();
+    const logs2 = data(page2.body.data);
+    expect(logs2.length).toBeGreaterThan(0);
+
+    const ids1 = new Set(logs1.map((l: { id: number }) => l.id));
+    for (const l of logs2 as Array<{ id: number }>) {
+      expect(ids1.has(l.id)).toBe(false);
+    }
+    expect(page2.body.offset).toBe(0);
+  });
+
+  test("malformed cursor returns 400", async ({ request }) => {
+    const api = await apiAs(request, "superadmin");
+    const res = await api.get(
+      "/api/audit-logs?after_created_at=not-a-date&after_id=1",
+    );
+    expect(res.status).toBe(400);
+  });
+
+  test("after_created_at without after_id returns 400", async ({ request }) => {
+    const api = await apiAs(request, "superadmin");
+    const res = await api.get(
+      "/api/audit-logs?after_created_at=2026-01-01T00:00:00Z",
+    );
+    expect(res.status).toBe(400);
   });
 });

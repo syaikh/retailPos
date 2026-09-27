@@ -172,7 +172,7 @@
 
   async function fetchCustomers() {
     try {
-      const r = await apiClient.get("/customers?limit=200");
+      const r = await apiClient.get("/customers?limit=100");
       customers = r.data.data || [];
     } catch (err) {
       console.warn("Failed to load customers", err);

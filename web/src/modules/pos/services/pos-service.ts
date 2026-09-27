@@ -22,7 +22,7 @@ export async function getPosProducts(
 }
 
 export async function getCustomers(
-  limit = 200,
+  limit = 100,
 ): Promise<{ id: number; name: string; phone?: string; email?: string }[]> {
   const r = await apiClient.get(`/customers?limit=${limit}`);
   return r.data.data || [];

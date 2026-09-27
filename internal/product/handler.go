@@ -153,7 +153,11 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		return
 	}
 
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 
 	search := c.Query("search")
 	sortBy := c.Query("sortBy")

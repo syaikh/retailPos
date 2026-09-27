@@ -12,7 +12,13 @@ const SLIDER_MAX_BOUND = 50000000;
 export async function getSalesHistory(
   filters: SaleFilters,
   signal?: AbortSignal,
-): Promise<{ data: Sale[]; total: number }> {
+  cursor?: string | null,
+): Promise<{
+  data: Sale[];
+  total: number;
+  has_more: boolean;
+  next_cursor: string | null;
+}> {
   const params = new URLSearchParams({
     start_date: filters.startDate,
     end_date: filters.endDate,
@@ -34,12 +40,25 @@ export async function getSalesHistory(
   if (filters.cashierId !== undefined) {
     params.set("cashier_id", filters.cashierId.toString());
   }
+  if (cursor) {
+    // Keyset cursor takes precedence over offset server-side, and the server
+    // rejects a cursor combined with a non-default sort.
+    params.set("offset", "0");
+    const sep = cursor.indexOf("|");
+    params.append("after_created_at", cursor.slice(0, sep));
+    params.append("after_id", cursor.slice(sep + 1));
+  }
   const res = await apiFetch(`/api/sales?${params.toString()}`, { signal });
   if (res.ok) {
     const data = await res.json();
-    return { data: data.data || [], total: data.total || 0 };
+    return {
+      data: data.data || [],
+      total: data.total || 0,
+      has_more: data.has_more || false,
+      next_cursor: data.next_cursor || null,
+    };
   }
-  return { data: [], total: 0 };
+  return { data: [], total: 0, has_more: false, next_cursor: null };
 }
 
 export async function getPaymentMethods(

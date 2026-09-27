@@ -106,7 +106,7 @@ func (r *Repository) GetAllPaginated(ctx context.Context, limit, offset int, sea
 	}
 
 	rows, err := r.db.Query(ctx, fmt.Sprintf(
-		"SELECT id, name, description, is_active, created_at, updated_at FROM brands %s ORDER BY name LIMIT $%d OFFSET $%d",
+		"SELECT id, name, description, is_active, created_at, updated_at FROM brands %s ORDER BY name, id LIMIT $%d OFFSET $%d",
 		where, argIdx, argIdx+1,
 	), append(args, limit, offset)...)
 	if err != nil {

@@ -47,9 +47,9 @@ describe("pos-service", () => {
     });
 
     const { getCustomers } = await import("../pos-service");
-    const result = await getCustomers(200);
+    const result = await getCustomers();
 
-    expect(mockGet).toHaveBeenCalledWith("/customers?limit=200");
+    expect(mockGet).toHaveBeenCalledWith("/customers?limit=100");
     expect(result).toHaveLength(1);
   });
 

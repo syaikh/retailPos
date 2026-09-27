@@ -81,7 +81,11 @@ func validateCustomerPhone(phone string) error {
 }
 
 func (h *Handler) GetCustomers(c *gin.Context) {
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 	search := strings.TrimSpace(c.Query("search"))
 
 	var isActive *bool

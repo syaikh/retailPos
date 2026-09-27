@@ -471,7 +471,7 @@ func (r *Repository) ListAdjustments(ctx context.Context, limit, offset int, sta
 		LEFT JOIN inventory_adjustment_items i ON i.adjustment_id = a.id
 		`+whereSQL+`
 		GROUP BY a.id, o.session_number
-		ORDER BY a.created_at DESC
+		ORDER BY a.created_at DESC, a.id DESC
 		LIMIT $`+fmt.Sprintf("%d", len(args)-1)+` OFFSET $`+fmt.Sprintf("%d", len(args)), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list adjustments: %w", err)

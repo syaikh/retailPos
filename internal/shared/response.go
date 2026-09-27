@@ -172,3 +172,17 @@ func InternalError(c *gin.Context, err error) {
 func JSONPaginated(c *gin.Context, data interface{}, total, limit, offset int) {
 	c.JSON(http.StatusOK, NewPaginatedResponse(data, total, limit, offset))
 }
+
+// JSONPaginatedCursor writes a paginated response carrying keyset cursor
+// state. next is the seek position after the last row of this page, or nil
+// when no further rows exist; it overrides the offset-derived has_more so
+// cursor-mode pages report an authoritative answer even though they echo
+// offset 0.
+func JSONPaginatedCursor(c *gin.Context, data interface{}, total, limit, offset int, next *KeysetCursor) {
+	resp := NewPaginatedResponse(data, total, limit, offset)
+	resp.HasMore = next != nil
+	if next != nil {
+		resp.NextCursor = next.String()
+	}
+	c.JSON(http.StatusOK, resp)
+}

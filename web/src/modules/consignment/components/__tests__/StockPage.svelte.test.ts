@@ -14,11 +14,11 @@ function getSource(): string {
 describe("StockPage.svelte source-structure guards", () => {
   const src = getSource();
 
-  it("filters the stock table by product name or SKU", () => {
-    expect(src).toContain("const filteredRows = $derived(");
-    expect(src).toContain("filterQuery.trim()");
-    expect(src).toContain("r.product_name?.toLowerCase().includes(q)");
-    expect(src).toContain("r.product_sku?.toLowerCase().includes(q)");
+  it("sends the stock filter to the server as a search param", () => {
+    expect(src).toContain("listStock(arrangement.supplier_id, {");
+    expect(src).toContain("limit: pageLimit");
+    expect(src).toContain("offset: pageOffset");
+    expect(src).toContain("search: filterQuery.trim() || undefined");
   });
 
   it("uses SearchBar component for the stock filter input", () => {
@@ -26,8 +26,8 @@ describe("StockPage.svelte source-structure guards", () => {
     expect(src).toContain("placeholder={labels.consignmentFilterByProduct}");
     expect(src).toContain("bind:value={filterQuery}");
     expect(src).toContain("oninput={handleFilterInput}");
-    // Only shown once rows are loaded and at least one row exists.
-    expect(src).toContain("{#if !loading && rows.length > 0}");
+    // Stays mounted while a filter is typed so input focus survives refetch.
+    expect(src).toContain('{#if rows.length > 0 || filterQuery !== ""}');
   });
 
   it("resets pagination to the first page when the filter input changes", () => {
@@ -35,15 +35,14 @@ describe("StockPage.svelte source-structure guards", () => {
     expect(src).toContain("pageOffset = 0");
   });
 
-  it("paginates over the filtered rows, not the raw list", () => {
-    expect(src).toContain(
-      "filteredRows.slice(pageOffset, pageOffset + pageLimit)",
-    );
-    expect(src).toContain("total={filteredRows.length}");
+  it("paginates server-side and binds the server total", () => {
+    expect(src).toContain("{total}");
+    expect(src).toContain("void load()");
+    expect(src).not.toContain("slice(pageOffset");
   });
 
   it("shows a no-results empty state when the filter matches nothing", () => {
-    expect(src).toContain("filteredRows.length === 0");
+    expect(src).toContain("{#if filterQuery.trim()}");
     expect(src).toContain("icon={Search}");
     expect(src).toContain("labels.noResultsFor");
     expect(src).toContain("filterQuery.trim()");

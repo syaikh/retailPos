@@ -83,7 +83,11 @@ func (h *Handler) CreateArrangement(c *gin.Context) {
 }
 
 func (h *Handler) ListArrangements(c *gin.Context) {
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 	arrangements, total, err := h.svc.ListArrangements(c.Request.Context(), shared.GetStoreID(c), limit, offset, c.Query("search"), c.Query("status"))
 	if err != nil {
 		writeError(c, err)
@@ -286,17 +290,53 @@ func (h *Handler) ListReceipts(c *gin.Context) {
 	if pid := queryInt(c, "product_id"); pid > 0 {
 		productID = &pid
 	}
-	receipts, err := h.svc.ListReceipts(c.Request.Context(), supplierID, shared.GetStoreID(c), productID)
+	ctx := c.Request.Context()
+	storeID := shared.GetStoreID(c)
+	limit, offset, paged, ok := pageLimit(c)
+	if !ok {
+		return
+	}
+	if paged {
+		recs, total, err := h.svc.ListReceipts(ctx, supplierID, storeID, productID, c.Query("search"), limit, offset)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		if recs == nil {
+			recs = []Receipt{}
+		}
+		shared.JSONPaginated(c, recs, total, limit, offset)
+		return
+	}
+	recs, _, err := h.svc.ListReceipts(ctx, supplierID, storeID, productID, c.Query("search"), 0, 0)
 	if err != nil {
 		writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": receipts})
+	c.JSON(http.StatusOK, gin.H{"data": recs})
 }
 
 func (h *Handler) ListStock(c *gin.Context) {
 	supplierID := queryInt(c, "supplier_id")
-	stock, err := h.svc.ListStock(c.Request.Context(), supplierID, shared.GetStoreID(c))
+	ctx := c.Request.Context()
+	storeID := shared.GetStoreID(c)
+	limit, offset, paged, ok := pageLimit(c)
+	if !ok {
+		return
+	}
+	if paged {
+		stock, total, err := h.svc.ListStock(ctx, supplierID, storeID, c.Query("search"), limit, offset)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		if stock == nil {
+			stock = []StockRow{}
+		}
+		shared.JSONPaginated(c, stock, total, limit, offset)
+		return
+	}
+	stock, _, err := h.svc.ListStock(ctx, supplierID, storeID, c.Query("search"), 0, 0)
 	if err != nil {
 		writeError(c, err)
 		return
@@ -330,7 +370,25 @@ func (h *Handler) ListPendingReturns(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "supplier_id required"})
 		return
 	}
-	prs, err := h.svc.ListPendingReturns(c.Request.Context(), supplierID, shared.GetStoreID(c))
+	ctx := c.Request.Context()
+	storeID := shared.GetStoreID(c)
+	limit, offset, paged, ok := pageLimit(c)
+	if !ok {
+		return
+	}
+	if paged {
+		prs, total, err := h.svc.ListPendingReturns(ctx, supplierID, storeID, limit, offset)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		if prs == nil {
+			prs = []PendingReturn{}
+		}
+		shared.JSONPaginated(c, prs, total, limit, offset)
+		return
+	}
+	prs, _, err := h.svc.ListPendingReturns(ctx, supplierID, storeID, 0, 0)
 	if err != nil {
 		writeError(c, err)
 		return
@@ -378,7 +436,25 @@ func (h *Handler) ListReturns(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "supplier_id required"})
 		return
 	}
-	returns, err := h.svc.ListReturns(c.Request.Context(), supplierID, shared.GetStoreID(c))
+	ctx := c.Request.Context()
+	storeID := shared.GetStoreID(c)
+	limit, offset, paged, ok := pageLimit(c)
+	if !ok {
+		return
+	}
+	if paged {
+		returns, total, err := h.svc.ListReturns(ctx, supplierID, storeID, limit, offset)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		if returns == nil {
+			returns = []Return{}
+		}
+		shared.JSONPaginated(c, returns, total, limit, offset)
+		return
+	}
+	returns, _, err := h.svc.ListReturns(ctx, supplierID, storeID, 0, 0)
 	if err != nil {
 		writeError(c, err)
 		return
@@ -443,7 +519,25 @@ func (h *Handler) ListSettlements(c *gin.Context) {
 	if s := c.Query("status"); s != "" {
 		status = &s
 	}
-	settlements, err := h.svc.ListSettlements(c.Request.Context(), supplierID, shared.GetStoreID(c), status)
+	ctx := c.Request.Context()
+	storeID := shared.GetStoreID(c)
+	limit, offset, paged, ok := pageLimit(c)
+	if !ok {
+		return
+	}
+	if paged {
+		settlements, total, err := h.svc.ListSettlements(ctx, supplierID, storeID, status, c.Query("search"), limit, offset)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		if settlements == nil {
+			settlements = []Settlement{}
+		}
+		shared.JSONPaginated(c, settlements, total, limit, offset)
+		return
+	}
+	settlements, _, err := h.svc.ListSettlements(ctx, supplierID, storeID, status, c.Query("search"), 0, 0)
 	if err != nil {
 		writeError(c, err)
 		return
@@ -528,6 +622,24 @@ func queryInt(c *gin.Context, name string) int {
 		return 0
 	}
 	return v
+}
+
+// pageLimit parses the optional limit/offset params. ok is false when the
+// request carries no limit param: handlers then return the legacy full list
+// (the repository applies a hard LIMIT instead of paging), which keeps
+// pre-pagination API consumers working unchanged. A request with limit but an
+// offset beyond shared.MaxPageOffset is answered with 400 here and ok=false,
+// so the caller returns without writing a second response.
+func pageLimit(c *gin.Context) (limit, offset int, paged, ok bool) {
+	if c.Query("limit") == "" {
+		return 0, 0, false, true
+	}
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return 0, 0, false, false
+	}
+	return limit, offset, true, true
 }
 
 func writeError(c *gin.Context, err error) {

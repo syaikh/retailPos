@@ -83,26 +83,26 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 	})
 
 	t.Run("GetAuditLogs returns logs with total count", func(t *testing.T) {
-		logs, total, err := repo.GetAuditLogs(ctx, 10, 0, nil, "", "", "", nil, nil, nil, nil)
+		logs, total, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, nil, "", "", "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 3)
 		assert.GreaterOrEqual(t, len(logs), 3)
 	})
 
 	t.Run("GetAuditLogs limit and offset", func(t *testing.T) {
-		first, total, err := repo.GetAuditLogs(ctx, 1, 0, nil, "", "", "", nil, nil, nil, nil)
+		first, total, _, err := repo.GetAuditLogs(ctx, 1, 0, nil, nil, "", "", "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.Len(t, first, 1)
 		require.Greater(t, total, 1)
 
-		second, _, err := repo.GetAuditLogs(ctx, 1, 1, nil, "", "", "", nil, nil, nil, nil)
+		second, _, _, err := repo.GetAuditLogs(ctx, 1, 1, nil, nil, "", "", "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.Len(t, second, 1)
 		assert.NotEqual(t, first[0].ID, second[0].ID)
 	})
 
 	t.Run("GetAuditLogs filtered by userID", func(t *testing.T) {
-		logs, total, err := repo.GetAuditLogs(ctx, 10, 0, &userID, "", "", "", nil, nil, nil, nil)
+		logs, total, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, &userID, "", "", "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, l := range logs {
@@ -112,7 +112,7 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 	})
 
 	t.Run("GetAuditLogs filtered by action", func(t *testing.T) {
-		logs, total, err := repo.GetAuditLogs(ctx, 10, 0, nil, "", "test_action_create_full", "", nil, nil, nil, nil)
+		logs, total, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, nil, "", "test_action_create_full", "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		require.Len(t, logs, 1)
@@ -120,7 +120,7 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 	})
 
 	t.Run("GetAuditLogs filtered by entityType", func(t *testing.T) {
-		logs, total, err := repo.GetAuditLogs(ctx, 10, 0, nil, "", "", "product", nil, nil, nil, nil)
+		logs, total, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, nil, "", "", "product", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, l := range logs {
@@ -129,7 +129,7 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 	})
 
 	t.Run("GetAuditLogs filtered by entityID", func(t *testing.T) {
-		logs, total, err := repo.GetAuditLogs(ctx, 10, 0, nil, "", "", "product", intPtr(123), nil, nil, nil)
+		logs, total, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, nil, "", "", "product", intPtr(123), nil, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		require.Len(t, logs, 1)
@@ -137,7 +137,7 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 	})
 
 	t.Run("GetAuditLogs search matches username", func(t *testing.T) {
-		logs, total, err := repo.GetAuditLogs(ctx, 10, 0, nil, "audit_repo_user", "", "", nil, nil, nil, nil)
+		logs, total, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, nil, "audit_repo_user", "", "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, l := range logs {
@@ -146,7 +146,7 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 	})
 
 	t.Run("GetAuditLogs search matches action", func(t *testing.T) {
-		logs, total, err := repo.GetAuditLogs(ctx, 10, 0, nil, "test_action_no_user", "", "", nil, nil, nil, nil)
+		logs, total, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, nil, "test_action_no_user", "", "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Equal(t, "test_action_no_user", logs[0].Action)
@@ -156,7 +156,7 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 		now := time.Now()
 		start := now.Add(-1 * time.Hour)
 		end := now.Add(1 * time.Hour)
-		gotLogs, total, err := repo.GetAuditLogs(ctx, 10, 0, nil, "", "", "", nil, &start, &end, nil)
+		gotLogs, total, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, nil, "", "", "", nil, &start, &end, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 3)
 		assert.GreaterOrEqual(t, len(gotLogs), 3)
@@ -164,7 +164,7 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 
 	t.Run("GetAuditLogs with future start date returns empty", func(t *testing.T) {
 		future := time.Now().Add(24 * time.Hour)
-		logs, total, err := repo.GetAuditLogs(ctx, 10, 0, nil, "", "", "", nil, &future, nil, nil)
+		logs, total, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, nil, "", "", "", nil, &future, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, logs)
@@ -197,7 +197,7 @@ func TestAuditRepository_StoreAttribution(t *testing.T) {
 		require.NoError(t, err)
 		require.Greater(t, al.ID, 0)
 
-		logs, total, err := repo.GetAuditLogs(ctx, 10, 0, nil, "", "test_action_store_attr", "", nil, nil, nil, nil)
+		logs, total, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, nil, "", "test_action_store_attr", "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		require.Equal(t, 1, total)
 		require.Len(t, logs, 1)
@@ -294,7 +294,7 @@ func TestAuditRepository_GetAuditLogs_CreatedAtJakartaTimezone(t *testing.T) {
 	require.NoError(t, repo.CreateAuditLog(ctx, al))
 	require.Greater(t, al.ID, 0)
 
-	logs, total, err := repo.GetAuditLogs(ctx, 10, 0, nil, "", al.Action, "", nil, nil, nil, nil)
+	logs, total, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, nil, "", al.Action, "", nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, 1, total)
 	require.Len(t, logs, 1)
@@ -305,6 +305,54 @@ func TestAuditRepository_GetAuditLogs_CreatedAtJakartaTimezone(t *testing.T) {
 	// Must match ISO 8601 with Jakarta +07:00 offset: YYYY-MM-DDTHH:MM:SS+07:00
 	jakartaFormat := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+07:00$`)
 	assert.Regexp(t, jakartaFormat, createdAt, "CreatedAt should be in Jakarta timezone format (YYYY-MM-DDTHH:MM:SS+07:00)")
+}
+
+func TestAuditRepository_GetAuditLogs_KeysetCursor(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	action := "keyset_cursor_test_" + time.Now().Format("0102150405.000000")
+	for i := 0; i < 3; i++ {
+		al := &Log{
+			Role:       "manager",
+			Action:     action,
+			EntityType: "product",
+		}
+		require.NoError(t, repo.CreateAuditLog(ctx, al))
+	}
+
+	page1, total1, next, err := repo.GetAuditLogs(ctx, 2, 0, nil, nil, "", action, "", nil, nil, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, 3, total1)
+	require.Len(t, page1, 2)
+	require.NotNil(t, next, "rows beyond the first page must yield a cursor")
+
+	page2, total2, _, err := repo.GetAuditLogs(ctx, 2, 0, next, nil, "", action, "", nil, nil, nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, total1, total2, "cursor must not change the reported total")
+	assert.Len(t, page2, 1)
+
+	seen := make(map[int]bool, len(page1))
+	for _, l := range page1 {
+		seen[l.ID] = true
+	}
+	for _, l := range page2 {
+		assert.False(t, seen[l.ID], "log %d repeated across the cursor boundary", l.ID)
+	}
+
+	// Strict seek: the cursor-page row sorts before the cursor row in
+	// (created_at, id). CreatedAt is fixed-width RFC3339 in one offset.
+	cursorRow := page1[len(page1)-1]
+	for _, l := range page2 {
+		before := l.CreatedAt < cursorRow.CreatedAt ||
+			(l.CreatedAt == cursorRow.CreatedAt && l.ID < cursorRow.ID)
+		require.True(t, before,
+			"log %d (created %s) must sort before cursor row %d (created %s)",
+			l.ID, l.CreatedAt, cursorRow.ID, cursorRow.CreatedAt)
+	}
 }
 
 func TestAuditRepository_GetAuditLogByID_CreatedAtJakartaTimezone(t *testing.T) {
@@ -416,7 +464,7 @@ func TestAuditRepository_CorrelationID(t *testing.T) {
 		al := &Log{Role: "manager", Action: "corr_list", EntityType: "system", CorrelationID: "list-trace"}
 		require.NoError(t, repo.CreateAuditLog(ctx, al))
 
-		logs, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, "", "corr_list", "system", nil, nil, nil, nil)
+		logs, _, _, err := repo.GetAuditLogs(ctx, 10, 0, nil, nil, "", "corr_list", "system", nil, nil, nil, nil)
 		require.NoError(t, err)
 		require.Len(t, logs, 1)
 		assert.Equal(t, "list-trace", logs[0].CorrelationID)
@@ -437,7 +485,7 @@ func TestAuditRepository_PurgeOlderThan(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), affected, "exactly the 2000-01-01 row should be purged")
 
-	remaining, _, err := repo.GetAuditLogs(ctx, 100, 0, nil, "", "purge_recent", "system", nil, nil, nil, nil)
+	remaining, _, _, err := repo.GetAuditLogs(ctx, 100, 0, nil, nil, "", "purge_recent", "system", nil, nil, nil, nil)
 	require.NoError(t, err)
 	assert.Len(t, remaining, 1, "the recent row must survive retention purge")
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { toast } from "$shared/stores/toast.svelte";
   import { getApiErrorMessage } from "$shared/utils/error-utils";
   import {
@@ -78,23 +79,9 @@
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
-  let filterProductId = $state<number | undefined>(undefined);
-
-  const filteredReceipts = $derived.by(() => {
-    if (!filterProductSearch.trim()) return receipts;
-    const q = filterProductSearch.toLowerCase();
-    return receipts.filter((r) =>
-      (r.items || []).some(
-        (item) =>
-          (item.product_name && item.product_name.toLowerCase().includes(q)) ||
-          (item.product_sku && item.product_sku.toLowerCase().includes(q)),
-      ),
-    );
-  });
-
-  const pagedReceipts = $derived(
-    filteredReceipts.slice(pageOffset, pageOffset + pageLimit),
-  );
+  let total = $state(0);
+  let loadSeq = 0;
+  let filterDebounce: ReturnType<typeof setTimeout> | undefined;
 
   const EDIT_WINDOW_DAYS = 7;
   const editWindowExpired = $derived.by(() => {
@@ -106,13 +93,23 @@
   });
 
   async function load() {
+    const seq = ++loadSeq;
     loading = true;
     try {
-      receipts = await listReceipts(arrangement.supplier_id, filterProductId);
+      const res = await listReceipts(arrangement.supplier_id, undefined, {
+        limit: pageLimit,
+        offset: pageOffset,
+        search: filterProductSearch.trim() || undefined,
+      });
+      if (seq !== loadSeq) return;
+      receipts = res.data;
+      total = res.total;
     } catch {
+      if (seq !== loadSeq) return;
       receipts = [];
+      total = 0;
     } finally {
-      loading = false;
+      if (seq === loadSeq) loading = false;
     }
   }
 
@@ -137,6 +134,13 @@
 
   $effect(() => {
     loadTermProducts();
+  });
+
+  onMount(() => {
+    load();
+    return () => {
+      if (filterDebounce) clearTimeout(filterDebounce);
+    };
   });
 
   function openEntry() {
@@ -286,24 +290,18 @@
     });
   }
 
-  $effect(() => {
-    const q = filterProductSearch.trim().toLowerCase();
-    if (!q) {
-      filterProductId = undefined;
-    } else {
-      const match = productOptions.find((opt) => opt.label.toLowerCase() === q);
-      filterProductId = match?.value;
-    }
-  });
-
-  $effect(() => {
-    void filterProductId;
-    load();
-  });
+  function handleFilterInput() {
+    pageOffset = 0;
+    if (filterDebounce) clearTimeout(filterDebounce);
+    filterDebounce = setTimeout(() => {
+      void load();
+    }, 300);
+  }
 
   function handlePageChange(newOffset: number, newLimit: number) {
     pageOffset = newOffset;
     pageLimit = newLimit;
+    void load();
   }
 </script>
 
@@ -313,13 +311,11 @@
       <h2 class="font-semibold text-text-primary whitespace-nowrap">
         {labels.consignmentReceiptHistory}
       </h2>
-      {#if !loading && receipts.length > 0}
+      {#if receipts.length > 0 || filterProductSearch !== ""}
         <SearchBar
           bind:value={filterProductSearch}
           placeholder={labels.consignmentFilterByProduct}
-          oninput={() => {
-            pageOffset = 0;
-          }}
+          oninput={handleFilterInput}
           class="flex-1 max-w-xs"
         />
       {/if}
@@ -333,11 +329,11 @@
       </div>
     </div>
 
-    {#if loading}
+    {#if loading && receipts.length === 0}
       <div class="p-8 text-center text-sm text-text-secondary">
         {labels.loading}
       </div>
-    {:else if filteredReceipts.length === 0}
+    {:else if receipts.length === 0}
       <EmptyState
         icon={Truck}
         title={filterProductSearch
@@ -361,7 +357,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each pagedReceipts as r (r.id || r)}
+            {#each receipts as r (r.id || r)}
               <tr
                 class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
                 onclick={() => openDetail(r.id)}
@@ -397,7 +393,7 @@
       </div>
       <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
         <Pagination
-          total={filteredReceipts.length}
+          {total}
           limit={pageLimit}
           offset={pageOffset}
           onPageChange={handlePageChange}

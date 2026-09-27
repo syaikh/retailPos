@@ -81,7 +81,7 @@
       try {
         const locRes = await getStorageLocations({
           is_active: true,
-          limit: 500,
+          limit: 100,
           offset: 0,
         });
         locs = locRes.data;

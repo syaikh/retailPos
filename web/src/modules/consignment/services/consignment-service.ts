@@ -35,6 +35,44 @@ export interface ArrangementListParams {
   status?: string;
 }
 
+// Shared list params for the server-paginated consignment endpoints. When
+// omitted the API returns the legacy full list (hard-capped server-side at
+// 1000 rows) — kept only for API compatibility; in-app callers that need the
+// complete set must use fetchAllPages instead of omitting limit.
+export interface ConsignmentListParams {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}
+
+// One page of rows used when walking a list endpoint to exhaustion.
+const FETCH_ALL_PAGE_SIZE = 100;
+
+// Fetches every row of a consignment list endpoint by walking limit/offset
+// pages, for flows where a truncated set would be wrong: bulk operations,
+// financial summaries, and stock pickers. Without this, the server's legacy
+// LIMIT 1000 would silently cut off rows past the first 1000. The server
+// rejects offsets beyond its MaxPageOffset bound with 400, so an
+// unreasonably large set fails loudly instead of looping or truncating.
+export async function fetchAllPages<T>(
+  fetchPage: (params: ConsignmentListParams) => Promise<{
+    data: T[];
+    total?: number;
+  }>,
+): Promise<T[]> {
+  const all: T[] = [];
+  for (;;) {
+    const page = await fetchPage({
+      limit: FETCH_ALL_PAGE_SIZE,
+      offset: all.length,
+    });
+    all.push(...page.data);
+    if (page.data.length < FETCH_ALL_PAGE_SIZE) {
+      return all;
+    }
+  }
+}
+
 export async function listArrangements(
   params: ArrangementListParams = {},
 ): Promise<{ data: Arrangement[]; total: number }> {
@@ -127,11 +165,15 @@ export async function searchAvailableProducts(
 export async function listReceipts(
   supplierId: number,
   productId?: number,
-): Promise<Receipt[]> {
-  const params = new URLSearchParams({ supplier_id: String(supplierId) });
-  if (productId) params.set("product_id", String(productId));
-  const res = await apiClient.get(`/consignment/receipts?${params.toString()}`);
-  return res.data.data || [];
+  params: ConsignmentListParams = {},
+): Promise<{ data: Receipt[]; total: number }> {
+  const query: Record<string, string | number | undefined> = {
+    supplier_id: supplierId,
+    ...params,
+  };
+  if (productId) query.product_id = productId;
+  const res = await apiClient.get("/consignment/receipts", { params: query });
+  return { data: res.data.data || [], total: res.data.total || 0 };
 }
 
 export async function getReceipt(id: number): Promise<Receipt> {
@@ -155,20 +197,24 @@ export async function editReceipt(
   return res.data.data;
 }
 
-export async function listStock(supplierId: number): Promise<StockRow[]> {
-  const res = await apiClient.get(
-    `/consignment/stock?supplier_id=${supplierId}`,
-  );
-  return res.data.data || [];
+export async function listStock(
+  supplierId: number,
+  params: ConsignmentListParams = {},
+): Promise<{ data: StockRow[]; total: number }> {
+  const res = await apiClient.get("/consignment/stock", {
+    params: { supplier_id: supplierId, ...params },
+  });
+  return { data: res.data.data || [], total: res.data.total || 0 };
 }
 
 export async function listPendingReturns(
   supplierId: number,
-): Promise<PendingReturn[]> {
-  const res = await apiClient.get(
-    `/consignment/pending-returns?supplier_id=${supplierId}`,
-  );
-  return res.data.data || [];
+  params: ConsignmentListParams = {},
+): Promise<{ data: PendingReturn[]; total: number }> {
+  const res = await apiClient.get("/consignment/pending-returns", {
+    params: { supplier_id: supplierId, ...params },
+  });
+  return { data: res.data.data || [], total: res.data.total || 0 };
 }
 
 export async function createPendingReturn(
@@ -180,11 +226,12 @@ export async function createPendingReturn(
 
 export async function listReturns(
   supplierId: number,
-): Promise<ConsignmentReturn[]> {
-  const res = await apiClient.get(
-    `/consignment/returns?supplier_id=${supplierId}`,
-  );
-  return res.data.data || [];
+  params: ConsignmentListParams = {},
+): Promise<{ data: ConsignmentReturn[]; total: number }> {
+  const res = await apiClient.get("/consignment/returns", {
+    params: { supplier_id: supplierId, ...params },
+  });
+  return { data: res.data.data || [], total: res.data.total || 0 };
 }
 
 export async function getReturn(id: number): Promise<ConsignmentReturn> {
@@ -203,9 +250,11 @@ export async function bulkReturnAllStock(
   arrangementId: number,
   supplierId: number,
 ): Promise<ConsignmentReturn> {
+  // Complete sets on both sides: a silent 1000-row cap here would skip
+  // stock or pending returns when building the bulk return payload.
   const [stock, pendingReturns] = await Promise.all([
-    listStock(supplierId),
-    listPendingReturns(supplierId),
+    fetchAllPages((p) => listStock(supplierId, p)),
+    fetchAllPages((p) => listPendingReturns(supplierId, p)),
   ]);
 
   const openPending = pendingReturns.filter(
@@ -272,15 +321,15 @@ export async function createSettlement(
 export async function listSettlements(
   supplierId?: number,
   status?: string,
-): Promise<Settlement[]> {
-  const params = new URLSearchParams();
-  if (supplierId) params.set("supplier_id", String(supplierId));
-  if (status) params.set("status", status);
-  const qs = params.toString();
-  const res = await apiClient.get(
-    `/consignment/settlements${qs ? `?${qs}` : ""}`,
-  );
-  return res.data.data || [];
+  params: ConsignmentListParams = {},
+): Promise<{ data: Settlement[]; total: number }> {
+  const query: Record<string, string | number | undefined> = { ...params };
+  if (supplierId) query.supplier_id = supplierId;
+  if (status) query.status = status;
+  const res = await apiClient.get("/consignment/settlements", {
+    params: query,
+  });
+  return { data: res.data.data || [], total: res.data.total || 0 };
 }
 
 export async function getSettlement(id: number): Promise<Settlement> {
@@ -310,7 +359,9 @@ export async function getSupplierSummary(supplierId: number): Promise<{
   unsettled_value: number;
   unsettled_qty: number;
 }> {
-  const stock = await listStock(supplierId);
+  // Full stock set: summary numbers must not be computed over a silently
+  // truncated page.
+  const stock = await fetchAllPages((p) => listStock(supplierId, p));
   let unsettledValue = 0;
   let unsettledQty = 0;
   try {

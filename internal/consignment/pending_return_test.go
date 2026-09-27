@@ -129,7 +129,7 @@ func TestService_PendingReturn(t *testing.T) {
 		require.Equal(t, ReasonExpired, prE.Reason)
 
 		// Both still list as open pending returns.
-		list, err := svc.ListPendingReturns(ctx, sup, &store)
+		list, _, err := svc.ListPendingReturns(ctx, sup, &store, 0, 0)
 		require.NoError(t, err)
 		require.Len(t, list, 2)
 		for _, pr := range list {
@@ -271,7 +271,7 @@ func TestService_Return(t *testing.T) {
 		require.Equal(t, 0, row.PendingReturnQty)
 
 		// pending return no longer open.
-		list, err := svc.ListPendingReturns(ctx, sup, &store)
+		list, _, err := svc.ListPendingReturns(ctx, sup, &store, 0, 0)
 		require.NoError(t, err)
 		require.Empty(t, list)
 
@@ -338,7 +338,7 @@ func TestService_Return(t *testing.T) {
 		require.Equal(t, 6, row.AvailableQty)
 		require.Equal(t, 1, row.PendingReturnQty)
 
-		list, err := svc.ListPendingReturns(ctx, sup, &store)
+		list, _, err := svc.ListPendingReturns(ctx, sup, &store, 0, 0)
 		require.NoError(t, err)
 		require.Len(t, list, 1)
 		require.Equal(t, 1, list[0].Qty)
@@ -357,7 +357,7 @@ func TestService_Return(t *testing.T) {
 		require.Equal(t, 6, row.AvailableQty)
 		require.Equal(t, 0, row.PendingReturnQty)
 
-		list, err = svc.ListPendingReturns(ctx, sup, &store)
+		list, _, err = svc.ListPendingReturns(ctx, sup, &store, 0, 0)
 		require.NoError(t, err)
 		require.Empty(t, list)
 	})
@@ -480,7 +480,7 @@ func TestService_Return(t *testing.T) {
 		require.Equal(t, 0, row.PendingReturnQty)
 
 		// pending return no longer open.
-		list, err := svc.ListPendingReturns(ctx, sup, &store)
+		list, _, err := svc.ListPendingReturns(ctx, sup, &store, 0, 0)
 		require.NoError(t, err)
 		require.Empty(t, list)
 
@@ -505,7 +505,7 @@ func TestService_ListWithNilStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Store-scoped user sees their receipts.
-		scoped, err := svc.ListReceipts(ctx, sup, &store, nil)
+		scoped, _, err := svc.ListReceipts(ctx, sup, &store, nil, "", 0, 0)
 		require.NoError(t, err)
 		require.Len(t, scoped, 1)
 		require.NotEmpty(t, scoped[0].SupplierName, "SupplierName should be hydrated on list")
@@ -514,7 +514,7 @@ func TestService_ListWithNilStore(t *testing.T) {
 		require.NotEmpty(t, scoped[0].Items[0].ProductSKU, "ProductSKU should be hydrated on receipt items")
 
 		// Admin (nil store) also sees them.
-		admin, err := svc.ListReceipts(ctx, sup, nil, nil)
+		admin, _, err := svc.ListReceipts(ctx, sup, nil, nil, "", 0, 0)
 		require.NoError(t, err)
 		require.Len(t, admin, 1)
 		require.NotEmpty(t, admin[0].SupplierName, "SupplierName should be hydrated on admin list")
@@ -536,11 +536,11 @@ func TestService_ListWithNilStore(t *testing.T) {
 		}, userID, &store)
 		require.NoError(t, err)
 
-		scoped, err := svc.ListPendingReturns(ctx, sup, &store)
+		scoped, _, err := svc.ListPendingReturns(ctx, sup, &store, 0, 0)
 		require.NoError(t, err)
 		require.Len(t, scoped, 1)
 
-		admin, err := svc.ListPendingReturns(ctx, sup, nil)
+		admin, _, err := svc.ListPendingReturns(ctx, sup, nil, 0, 0)
 		require.NoError(t, err)
 		require.Len(t, admin, 1)
 	})
@@ -562,13 +562,13 @@ func TestService_ListWithNilStore(t *testing.T) {
 		}, userID, &store)
 		require.NoError(t, err)
 
-		scoped, err := svc.ListReturns(ctx, sup, &store)
+		scoped, _, err := svc.ListReturns(ctx, sup, &store, 0, 0)
 		require.NoError(t, err)
 		require.Len(t, scoped, 1)
 		require.NotEmpty(t, scoped[0].SupplierName, "SupplierName should be hydrated on list")
 		require.NotEmpty(t, scoped[0].ReturnedByUsername, "ReturnedByUsername should be hydrated on list")
 
-		admin, err := svc.ListReturns(ctx, sup, nil)
+		admin, _, err := svc.ListReturns(ctx, sup, nil, 0, 0)
 		require.NoError(t, err)
 		require.Len(t, admin, 1)
 		require.NotEmpty(t, admin[0].SupplierName, "SupplierName should be hydrated on admin list")

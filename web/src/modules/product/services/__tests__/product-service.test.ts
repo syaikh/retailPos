@@ -165,7 +165,7 @@ describe("product-service", () => {
     const result = await getBrands();
 
     expect(mockGet).toHaveBeenCalledWith("/brands", {
-      params: { limit: 1000, offset: 0 },
+      params: { limit: 100, offset: 0 },
     });
     expect(result).toHaveLength(1);
   });
@@ -191,7 +191,7 @@ describe("product-service", () => {
     const result = await getUnitsOfMeasure();
 
     expect(mockGet).toHaveBeenCalledWith("/units-of-measure", {
-      params: { limit: 1000, offset: 0 },
+      params: { limit: 100, offset: 0 },
     });
     expect(result).toHaveLength(1);
   });

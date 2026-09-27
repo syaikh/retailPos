@@ -441,12 +441,12 @@ func TestService_ListSettlementsWithNilStore(t *testing.T) {
 	_, err := svc.CreateSettlement(ctx, &CreateSettlementRequest{SupplierID: sup}, userID, &store)
 	require.NoError(t, err)
 
-	scoped, err := svc.ListSettlements(ctx, &sup, &store, nil)
+	scoped, _, err := svc.ListSettlements(ctx, &sup, &store, nil, "", 0, 0)
 	require.NoError(t, err)
 	require.Len(t, scoped, 1)
 	require.NotEmpty(t, scoped[0].SupplierName, "SupplierName should be hydrated on list")
 
-	admin, err := svc.ListSettlements(ctx, &sup, nil, nil)
+	admin, _, err := svc.ListSettlements(ctx, &sup, nil, nil, "", 0, 0)
 	require.NoError(t, err)
 	require.Len(t, admin, 1)
 	require.NotEmpty(t, admin[0].SupplierName, "SupplierName should be hydrated on admin list")

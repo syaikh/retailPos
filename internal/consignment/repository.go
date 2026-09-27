@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +14,10 @@ import (
 
 	"retail-pos-system/internal/shared"
 )
+
+// legacyListCap bounds the legacy full-list responses (requests without a
+// limit param) so no endpoint can ever hand back an unbounded result set.
+const legacyListCap = 1000
 
 type queryer interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
@@ -218,8 +223,16 @@ func (r *Repository) ListArrangements(ctx context.Context, q queryer, storeID *i
 		conds = append(conds, fmt.Sprintf("a.store_id = $%d", len(args)))
 	}
 	if search != "" {
-		args = append(args, search)
-		conds = append(conds, fmt.Sprintf("a.id::text = $%d", len(args)))
+		// Numeric search matches the arrangement id; anything else is a
+		// supplier-name substring search (both evaluated in SQL so the page
+		// is fetched in one round trip).
+		if _, err := strconv.Atoi(search); err == nil {
+			args = append(args, search)
+			conds = append(conds, fmt.Sprintf("a.id::text = $%d", len(args)))
+		} else {
+			args = append(args, "%"+search+"%")
+			conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM suppliers s WHERE s.id = a.supplier_id AND s.name ILIKE $%d)", len(args)))
+		}
 	}
 	if status != "" {
 		args = append(args, status)
@@ -240,11 +253,8 @@ func (r *Repository) ListArrangements(ctx context.Context, q queryer, storeID *i
 		SELECT a.id, a.supplier_id, a.store_id, ` + effStatus + `,
 		       a.last_visit_at, a.ended_at, a.created_by, a.created_at, a.updated_at
 		FROM consignment_arrangements a
-	` + where + ` ORDER BY a.created_at DESC`
-	if limit > 0 {
-		args = append(args, limit, offset)
-		query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)-1, len(args))
-	}
+	` + where + ` ORDER BY a.created_at DESC, a.id DESC`
+	query, args = appendPage(query, args, limit, offset)
 	rows, err := q.Query(ctx, query, args...)
 	if err != nil {
 		return nil, 0, err
@@ -693,6 +703,64 @@ func (r *Repository) ListConsignmentStock(ctx context.Context, q queryer, suppli
 	return result, rows.Err()
 }
 
+// ListConsignmentStockPaged returns one page of consignment stock for the
+// list endpoint, with optional product name/sku search. limit == 0 selects
+// the legacy full-list mode: no COUNT query and a hard LIMIT legacyListCap
+// instead of paging. Correctness checks (end-arrangement guard, ownership
+// ledger) must keep using ListConsignmentStock, which is unbounded by design.
+func (r *Repository) ListConsignmentStockPaged(ctx context.Context, q queryer, supplierID *int, storeID *int, search string, limit, offset int) ([]StockRow, int, error) {
+	var conds []string
+	var args []any
+	if supplierID != nil {
+		conds = append(conds, fmt.Sprintf("cs.supplier_id = $%d", len(args)+1))
+		args = append(args, *supplierID)
+	}
+	if storeID != nil {
+		conds = append(conds, fmt.Sprintf("cs.store_id = $%d", len(args)+1))
+		args = append(args, *storeID)
+	}
+	if search != "" {
+		args = append(args, "%"+search+"%")
+		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM products p WHERE p.id = cs.product_id AND (p.name ILIKE $%d OR p.sku ILIKE $%d))", len(args), len(args)))
+	}
+	where := ""
+	if len(conds) > 0 {
+		where = " WHERE " + joinConds(conds)
+	}
+
+	var total int
+	if limit > 0 {
+		if err := q.QueryRow(ctx, `SELECT COUNT(*) FROM consignment_stock cs`+where, args...).Scan(&total); err != nil {
+			return nil, 0, err
+		}
+	}
+
+	query := `
+		SELECT cs.product_id, cs.supplier_id,
+		       cs.arrangement_id, cs.store_id, cs.available_qty, cs.pending_return_qty, cs.updated_at
+		FROM consignment_stock cs
+	` + where + ` ORDER BY cs.product_id ASC`
+	query, args = appendPage(query, args, limit, offset)
+	rows, err := q.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var result []StockRow
+	for rows.Next() {
+		var s StockRow
+		var updatedAt sql.NullTime
+		if err := rows.Scan(&s.ProductID, &s.SupplierID,
+			&s.ArrangementID, &s.StoreID, &s.AvailableQty, &s.PendingReturnQty, &updatedAt); err != nil {
+			return nil, 0, err
+		}
+		s.UpdatedAt = nullTimePtr(updatedAt)
+		result = append(result, s)
+	}
+	return result, total, rows.Err()
+}
+
 // --- Receipts ---
 
 func (r *Repository) InsertReceipt(ctx context.Context, tx pgx.Tx, rec *Receipt) error {
@@ -776,7 +844,10 @@ func (r *Repository) getReceiptItems(ctx context.Context, q queryer, receiptID i
 	return result, rows.Err()
 }
 
-func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int, storeID *int, productID *int) ([]Receipt, error) {
+// ListReceipts returns one page of consignment receipts (limit 0 = legacy
+// full list capped at legacyListCap) with optional item product name/sku
+// search; total is only computed in paged mode.
+func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int, storeID *int, productID *int, search string, limit, offset int) ([]Receipt, int, error) {
 	var conds []string
 	var args []any
 	args = append(args, supplierID)
@@ -789,15 +860,28 @@ func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int
 		args = append(args, *productID)
 		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM consignment_receipt_items cri WHERE cri.consignment_receipt_id = r.id AND cri.product_id = $%d)", len(args)))
 	}
+	if search != "" {
+		args = append(args, "%"+search+"%")
+		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM consignment_receipt_items cri JOIN products p ON p.id = cri.product_id WHERE cri.consignment_receipt_id = r.id AND (p.name ILIKE $%d OR p.sku ILIKE $%d))", len(args), len(args)))
+	}
 	where := " WHERE " + strings.Join(conds, " AND ")
 
-	rows, err := q.Query(ctx, `
+	var total int
+	if limit > 0 {
+		if err := q.QueryRow(ctx, `SELECT COUNT(*) FROM consignment_receipts r`+where, args...).Scan(&total); err != nil {
+			return nil, 0, err
+		}
+	}
+
+	query := `
 		SELECT r.id, r.receipt_number, r.supplier_id, r.store_id, r.arrangement_id,
 		       r.received_by, r.received_at, COALESCE(r.notes,''), r.created_at
 		FROM consignment_receipts r
-	`+where+` ORDER BY r.created_at DESC`, args...)
+	` + where + ` ORDER BY r.created_at DESC, r.id DESC`
+	query, args = appendPage(query, args, limit, offset)
+	rows, err := q.Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -807,17 +891,17 @@ func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int
 		var receivedAt, createdAt time.Time
 		if err := rows.Scan(&rec.ID, &rec.ReceiptNumber, &rec.SupplierID, &rec.StoreID, &rec.ArrangementID,
 			&rec.ReceivedBy, &receivedAt, &rec.Notes, &createdAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		rec.ReceivedAt = receivedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		rec.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		result = append(result, rec)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if len(result) == 0 {
-		return result, nil
+		return result, total, nil
 	}
 
 	ids := make([]int, len(result))
@@ -832,7 +916,7 @@ func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int
 		ORDER BY i.id ASC
 	`, ids)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer itemRows.Close()
 
@@ -841,18 +925,18 @@ func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int
 		var it ReceiptItem
 		if err := itemRows.Scan(&it.ConsignmentReceiptID, &it.ID, &it.ProductID,
 			&it.AcceptedQty, &it.Price, &it.StoreShareType, &it.StoreShareValue, &it.Notes); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		itemsByReceipt[it.ConsignmentReceiptID] = append(itemsByReceipt[it.ConsignmentReceiptID], it)
 	}
 	if err := itemRows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	for i := range result {
 		result[i].Items = itemsByReceipt[result[i].ID]
 	}
-	return result, nil
+	return result, total, nil
 }
 
 // --- Pending returns ---
@@ -933,7 +1017,10 @@ func (r *Repository) InsertPendingReturn(ctx context.Context, tx pgx.Tx, pr *Pen
 	return nil
 }
 
-func (r *Repository) ListOpenPendingReturns(ctx context.Context, q queryer, supplierID int, storeID *int) ([]PendingReturn, error) {
+// ListOpenPendingReturns returns one page of open pending returns (limit 0 =
+// legacy full list capped at legacyListCap); total is only computed in
+// paged mode.
+func (r *Repository) ListOpenPendingReturns(ctx context.Context, q queryer, supplierID int, storeID *int, limit, offset int) ([]PendingReturn, int, error) {
 	var conds []string
 	var args []any
 	args = append(args, supplierID)
@@ -945,14 +1032,23 @@ func (r *Repository) ListOpenPendingReturns(ctx context.Context, q queryer, supp
 	}
 	where := " WHERE " + strings.Join(conds, " AND ")
 
-	rows, err := q.Query(ctx, `
+	var total int
+	if limit > 0 {
+		if err := q.QueryRow(ctx, `SELECT COUNT(*) FROM consignment_pending_returns pr`+where, args...).Scan(&total); err != nil {
+			return nil, 0, err
+		}
+	}
+
+	query := `
 		SELECT pr.id, pr.supplier_id, pr.product_id,
 		       pr.arrangement_id, pr.store_id, pr.qty, pr.reason, COALESCE(pr.notes,''), pr.status,
 		       pr.returned_at, pr.created_by, pr.created_at
 		FROM consignment_pending_returns pr
-	`+where+` ORDER BY pr.created_at ASC`, args...)
+	` + where + ` ORDER BY pr.created_at ASC, pr.id ASC`
+	query, args = appendPage(query, args, limit, offset)
+	rows, err := q.Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -963,7 +1059,7 @@ func (r *Repository) ListOpenPendingReturns(ctx context.Context, q queryer, supp
 		if err := rows.Scan(&pr.ID, &pr.SupplierID, &pr.ProductID,
 			&pr.ArrangementID, &pr.StoreID, &pr.Qty, &pr.Reason, &pr.Notes, &pr.Status,
 			&returnedAt, &pr.CreatedBy, &createdAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		pr.CreatedAt = createdAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
 		if returnedAt.Valid {
@@ -972,7 +1068,7 @@ func (r *Repository) ListOpenPendingReturns(ctx context.Context, q queryer, supp
 		}
 		result = append(result, pr)
 	}
-	return result, rows.Err()
+	return result, total, rows.Err()
 }
 
 // --- Returns ---
@@ -1063,7 +1159,9 @@ func (r *Repository) getReturnItems(ctx context.Context, q queryer, returnID int
 	return result, rows.Err()
 }
 
-func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID int, storeID *int) ([]Return, error) {
+// ListReturns returns one page of consignment returns (limit 0 = legacy
+// full list capped at legacyListCap); total is only computed in paged mode.
+func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID int, storeID *int, limit, offset int) ([]Return, int, error) {
 	var conds []string
 	var args []any
 	args = append(args, supplierID)
@@ -1074,7 +1172,14 @@ func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID int,
 	}
 	where := " WHERE " + strings.Join(conds, " AND ")
 
-	rows, err := q.Query(ctx, `
+	var total int
+	if limit > 0 {
+		if err := q.QueryRow(ctx, `SELECT COUNT(*) FROM consignment_returns rt`+where, args...).Scan(&total); err != nil {
+			return nil, 0, err
+		}
+	}
+
+	query := `
 		SELECT rt.id, rt.return_number, rt.supplier_id, rt.store_id, rt.arrangement_id,
 		       rt.returned_by, rt.returned_at, COALESCE(rt.notes,''), rt.created_at,
 		       COALESCE(agg.total_items, 0), COALESCE(agg.total_qty, 0)
@@ -1085,9 +1190,11 @@ func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID int,
 			FROM consignment_return_items i
 			WHERE i.consignment_return_id = rt.id
 		) agg ON true
-	`+where+` ORDER BY rt.created_at DESC`, args...)
+	` + where + ` ORDER BY rt.created_at DESC, rt.id DESC`
+	query, args = appendPage(query, args, limit, offset)
+	rows, err := q.Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -1098,13 +1205,13 @@ func (r *Repository) ListReturns(ctx context.Context, q queryer, supplierID int,
 		if err := rows.Scan(&ret.ID, &ret.ReturnNumber, &ret.SupplierID, &ret.StoreID, &ret.ArrangementID,
 			&ret.ReturnedBy, &returnedAt, &ret.Notes, &createdAt,
 			&ret.TotalItems, &ret.TotalQty); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		ret.ReturnedAt = returnedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		ret.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		result = append(result, ret)
 	}
-	return result, rows.Err()
+	return result, total, rows.Err()
 }
 
 // --- Consignment sale items (checkout writes) ---
@@ -1320,7 +1427,11 @@ func (r *Repository) getSettlementItems(ctx context.Context, q queryer, settleme
 	return result, rows.Err()
 }
 
-func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID *int, storeID *int, status *string) ([]Settlement, error) {
+// ListSettlements returns one page of consignment settlements (limit 0 =
+// legacy full list capped at legacyListCap) with optional search over the
+// product names on the settlement's sale lines; total is only computed in
+// paged mode.
+func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID *int, storeID *int, status *string, search string, limit, offset int) ([]Settlement, int, error) {
 	var conds []string
 	var args []any
 	if supplierID != nil {
@@ -1335,18 +1446,31 @@ func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID 
 		args = append(args, *status)
 		conds = append(conds, fmt.Sprintf("st.status = $%d", len(args)))
 	}
+	if search != "" {
+		args = append(args, "%"+search+"%")
+		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM consignment_settlement_items csi JOIN consignment_sale_items csi2 ON csi2.id = csi.consignment_sale_item_id JOIN products p ON p.id = csi2.product_id WHERE csi.consignment_settlement_id = st.id AND p.name ILIKE $%d)", len(args)))
+	}
 	where := ""
 	if len(conds) > 0 {
 		where = " WHERE " + strings.Join(conds, " AND ")
 	}
 
-	rows, err := q.Query(ctx, `
+	var total int
+	if limit > 0 {
+		if err := q.QueryRow(ctx, `SELECT COUNT(*) FROM consignment_settlements st`+where, args...).Scan(&total); err != nil {
+			return nil, 0, err
+		}
+	}
+
+	query := `
 		SELECT st.id, st.settlement_number, st.supplier_id, st.store_id,
 		       st.total_sale_value, st.total_store_share, st.total_payable, st.status, st.created_by, st.created_at, st.paid_at
 		FROM consignment_settlements st
-	`+where+` ORDER BY st.created_at DESC`, args...)
+	` + where + ` ORDER BY st.created_at DESC, st.id DESC`
+	query, args = appendPage(query, args, limit, offset)
+	rows, err := q.Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -1356,7 +1480,7 @@ func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID 
 		var paidAt, createdAt sql.NullTime
 		if err := rows.Scan(&s.ID, &s.SettlementNumber, &s.SupplierID, &s.StoreID,
 			&s.TotalSaleValue, &s.TotalStoreShare, &s.TotalPayable, &s.Status, &s.CreatedBy, &createdAt, &paidAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		s.CreatedAt = createdAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
 		if paidAt.Valid {
@@ -1365,7 +1489,7 @@ func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID 
 		}
 		result = append(result, s)
 	}
-	return result, rows.Err()
+	return result, total, rows.Err()
 }
 
 func (r *Repository) InsertPayout(ctx context.Context, tx pgx.Tx, p *Payout) error {
@@ -1620,6 +1744,18 @@ func joinConds(conds []string) string {
 		out += c
 	}
 	return out
+}
+
+// appendPage appends LIMIT/OFFSET for paged requests (limit > 0), or the
+// hard legacyListCap without OFFSET for legacy full-list requests (limit 0),
+// so no consignment list query can run unbounded.
+func appendPage(query string, args []any, limit, offset int) (string, []any) {
+	if limit > 0 {
+		args = append(args, limit, offset)
+		return query + fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)-1, len(args)), args
+	}
+	args = append(args, legacyListCap)
+	return query + fmt.Sprintf(" LIMIT $%d", len(args)), args
 }
 
 // computeStoreShare returns the store share for one consignment sale LINE

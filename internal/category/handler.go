@@ -54,7 +54,11 @@ func (h *Handler) ListCategories(c *gin.Context) {
 }
 
 func (h *Handler) ListCategoriesManagement(c *gin.Context) {
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 	search := c.Query("search")
 
 	categories, total, err := h.svc.GetAllCategories(c.Request.Context(), limit, offset, search)

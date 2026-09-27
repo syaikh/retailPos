@@ -47,7 +47,7 @@ type Repo interface {
 	DeleteCartItem(ctx context.Context, tx pgx.Tx, cartID, itemID int) error
 	GetAllActive(ctx context.Context) ([]PaymentMethod, error)
 	GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error)
-	GetAllSales(ctx context.Context, limit, offset int, search string, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error)
+	GetAllSales(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search string, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error)
 	GetCartItems(ctx context.Context, cartID int) ([]CartItem, error)
 	GetCartSessionByID(ctx context.Context, cartID int) (*CartSession, error)
 	GetNextInvoiceNumber(ctx context.Context) (string, error)
@@ -336,8 +336,8 @@ func (s *service) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale,
 	return s.repo.GetSaleByID(ctx, id, storeID)
 }
 
-func (s *service) ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
-	return s.repo.GetAllSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, cashierID, status)
+func (s *service) ListSales(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
+	return s.repo.GetAllSales(ctx, limit, offset, cursor, search, sortBy, sortDir, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, cashierID, status)
 }
 
 func (s *service) GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error) {

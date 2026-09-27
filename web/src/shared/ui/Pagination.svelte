@@ -20,8 +20,15 @@
     onPageChange: (newOffset: number, newLimit: number) => void;
   } = $props();
 
+  // Mirrors shared.MaxPageOffset on the backend: offset beyond this bound is
+  // rejected with 400, so navigation must not offer pages past it either.
+  const MAX_PAGE_OFFSET = 10000;
+
   const currentPage = $derived(Math.floor(offset / limit) + 1);
-  const totalPages = $derived(Math.max(1, Math.ceil(total / limit)));
+  const maxNavigablePage = $derived(Math.floor(MAX_PAGE_OFFSET / limit) + 1);
+  const totalPages = $derived(
+    Math.max(1, Math.min(Math.ceil(total / limit), maxNavigablePage)),
+  );
 
   const canPrev = $derived(currentPage > 1);
   const canNext = $derived(currentPage < totalPages);

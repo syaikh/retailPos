@@ -49,11 +49,16 @@ describe("SettlementPage.svelte source-structure guards", () => {
     expect(src).toContain('"all" | "pending" | "paid"');
   });
 
-  it("has filteredSettlements derived that filters by tab and search", () => {
-    expect(src).toContain("filteredSettlements");
+  it("sends tab and search filters to the server", () => {
+    expect(src).toContain('return "pending_payment"');
+    expect(src).toContain('return "paid"');
+    expect(src).toContain("tabStatus()");
+    expect(src).toContain("historySearch.trim() || undefined");
+    expect(src).toContain("historyTab");
+    expect(src).toContain('"all" | "pending" | "paid"');
     expect(src).toContain("$derived");
-    expect(src).toContain("pending_payment");
-    expect(src).toContain("historySearch");
+    expect(src).toContain("{total}");
+    expect(src).not.toContain("slice(pageOffset");
   });
 
   it("has filteredPreviewItems derived for search in preview", () => {

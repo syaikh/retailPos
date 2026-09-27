@@ -557,7 +557,7 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 		       total_difference, total_adjustment, COALESCE(scope_name, '') AS scope_name
 		FROM stock_opnames
 		WHERE `+whereSQL+`
-		ORDER BY created_at DESC
+		ORDER BY created_at DESC, id DESC
 		LIMIT $`+fmt.Sprintf("%d", len(args)-1)+` OFFSET $`+fmt.Sprintf("%d", len(args)), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list sessions: %w", err)

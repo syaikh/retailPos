@@ -57,27 +57,15 @@
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
+  let total = $state(0);
+  let loadSeq = 0;
+  let searchDebounce: ReturnType<typeof setTimeout> | undefined;
 
-  const filteredSettlements = $derived.by(() => {
-    let result = settlements;
-    if (historyTab === "pending")
-      result = result.filter((s) => s.status === "pending_payment");
-    if (historyTab === "paid")
-      result = result.filter((s) => s.status === "paid");
-    if (historySearch.trim()) {
-      const q = historySearch.toLowerCase();
-      result = result.filter((s) =>
-        (s.items || []).some((item) =>
-          item.product_name?.toLowerCase().includes(q),
-        ),
-      );
-    }
-    return result;
-  });
-
-  const pagedSettlements = $derived(
-    filteredSettlements.slice(pageOffset, pageOffset + pageLimit),
-  );
+  function tabStatus(): string | undefined {
+    if (historyTab === "pending") return "pending_payment";
+    if (historyTab === "paid") return "paid";
+    return undefined;
+  }
 
   const filteredPreviewItems = $derived.by(() => {
     if (!previewSearch.trim()) return preview?.items || [];
@@ -99,14 +87,38 @@
   }
 
   async function load() {
+    const seq = ++loadSeq;
     loading = true;
     try {
-      settlements = await listSettlements(arrangement.supplier_id);
+      const res = await listSettlements(arrangement.supplier_id, tabStatus(), {
+        limit: pageLimit,
+        offset: pageOffset,
+        search: historySearch.trim() || undefined,
+      });
+      if (seq !== loadSeq) return;
+      settlements = res.data;
+      total = res.total;
     } catch {
+      if (seq !== loadSeq) return;
       settlements = [];
+      total = 0;
     } finally {
-      loading = false;
+      if (seq === loadSeq) loading = false;
     }
+  }
+
+  function setTab(tab: "all" | "pending" | "paid") {
+    historyTab = tab;
+    pageOffset = 0;
+    void load();
+  }
+
+  function handleHistorySearchInput() {
+    pageOffset = 0;
+    if (searchDebounce) clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      void load();
+    }, 300);
   }
 
   function openCreate() {
@@ -161,11 +173,15 @@
   onMount(() => {
     load();
     loadPreview();
+    return () => {
+      if (searchDebounce) clearTimeout(searchDebounce);
+    };
   });
 
   function handlePageChange(newOffset: number, newLimit: number) {
     pageOffset = newOffset;
     pageLimit = newLimit;
+    void load();
   }
 </script>
 
@@ -277,30 +293,31 @@
       <h2 class="font-semibold text-text-primary whitespace-nowrap">
         {labels.consignmentSettlementHistory}
       </h2>
-      {#if !loading && settlements.length > 0}
+      {#if total > 0 || historyTab !== "all" || historySearch !== ""}
         <SearchBar
           bind:value={historySearch}
           placeholder="Search product..."
+          oninput={handleHistorySearchInput}
           class="flex-1 max-w-xs"
         />
       {/if}
     </div>
-    {#if !loading && settlements.length > 0}
+    {#if total > 0 || historyTab !== "all" || historySearch !== ""}
       <div class="flex gap-2 px-4 pt-3">
         <Button
           variant={historyTab === "all" ? "secondary" : "ghost"}
           size="sm"
-          onclick={() => (historyTab = "all")}>All</Button
+          onclick={() => setTab("all")}>All</Button
         >
         <Button
           variant={historyTab === "pending" ? "secondary" : "ghost"}
           size="sm"
-          onclick={() => (historyTab = "pending")}>Pending</Button
+          onclick={() => setTab("pending")}>Pending</Button
         >
         <Button
           variant={historyTab === "paid" ? "secondary" : "ghost"}
           size="sm"
-          onclick={() => (historyTab = "paid")}>Paid</Button
+          onclick={() => setTab("paid")}>Paid</Button
         >
       </div>
     {/if}
@@ -308,7 +325,7 @@
       <div class="p-8 text-center text-sm text-text-secondary">
         {labels.loading}
       </div>
-    {:else if settlements.length === 0}
+    {:else if settlements.length === 0 && total === 0}
       <EmptyState
         icon={Banknote}
         title={labels.consignmentNoSettlements}
@@ -329,7 +346,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each pagedSettlements as st (st.id || st)}
+            {#each settlements as st (st.id || st)}
               <tr
                 class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
                 onclick={() => openDetail(st.id)}
@@ -378,7 +395,7 @@
       </div>
       <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
         <Pagination
-          total={settlements.length}
+          {total}
           limit={pageLimit}
           offset={pageOffset}
           onPageChange={handlePageChange}

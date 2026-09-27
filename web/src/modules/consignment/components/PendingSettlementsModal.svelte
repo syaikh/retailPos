@@ -1,7 +1,10 @@
 <script lang="ts">
   import { Button, Modal, EmptyState } from "$shared/ui";
   import { labels } from "$shared/i18n";
-  import { listSettlements } from "../services/consignment-service";
+  import {
+    listSettlements,
+    fetchAllPages,
+  } from "../services/consignment-service";
   import type { Settlement } from "../types";
   import { formatCurrency } from "../lib/format";
   import PayoutModal from "./PayoutModal.svelte";
@@ -26,7 +29,9 @@
   async function load() {
     loading = true;
     try {
-      settlements = await listSettlements(undefined, "pending_payment");
+      settlements = await fetchAllPages((p) =>
+        listSettlements(undefined, "pending_payment", p),
+      );
     } catch {
       settlements = [];
     } finally {

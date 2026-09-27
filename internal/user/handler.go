@@ -135,7 +135,11 @@ type UpdateRolePermissionsRequest struct {
 var usernameRegex = regexp.MustCompile(`^[a-z0-9]+$`)
 
 func (h *Handler) ListUsers(c *gin.Context) {
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 	search := c.Query("search")
 	sortBy := c.DefaultQuery("sort", "id")
 	sortDir := c.DefaultQuery("sort_dir", "desc")

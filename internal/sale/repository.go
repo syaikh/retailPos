@@ -342,19 +342,29 @@ func (r *Repository) buildSaleFilter(productIDs, customerIDs []int, search, star
 	return qb
 }
 
-func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search string, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, error) {
+// GetAllSales returns one page of sales plus the keyset cursor for the
+// following page (nil when this is the last page). cursor is only valid with
+// the default ordering (created_at DESC, id DESC) — the handler rejects
+// cursor requests carrying any other sort — and takes precedence over offset.
+func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search string, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error) {
 	var sales []Sale
 	var total int
 
 	productIDs, customerIDs, err := r.resolveSearchIDs(ctx, search)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, nil, err
 	}
 	qb := r.buildSaleFilter(productIDs, customerIDs, search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, cashierID, status)
 	countQuery := "SELECT COUNT(*) FROM sales s WHERE " + qb.Where()
 	err = r.db.QueryRow(ctx, countQuery, qb.Args...).Scan(&total)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, nil, err
+	}
+	// Keyset seek: rows strictly after the cursor in (created_at DESC, id
+	// DESC) order. Added after the COUNT so total keeps reflecting the whole
+	// filtered set rather than the remaining rows.
+	if cursor != nil {
+		qb.AddClause(" AND (s.created_at, s.id) < ($%d, $%d)", cursor.CreatedAt, cursor.ID)
 	}
 
 	query := `SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.customer_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at
@@ -362,20 +372,30 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 		WHERE ` + qb.Where()
 	allowedSortBy := map[string]bool{"created_at": true, "total_amount": true, "invoice_number": true, "payment_method": true, "status": true}
 	allowedSortDir := map[string]bool{"ASC": true, "DESC": true}
+	dir := "ASC"
 	if sortBy != "" && allowedSortBy[sortBy] {
-		query += fmt.Sprintf(" ORDER BY %s", sortBy)
 		if sortDir != "" && allowedSortDir[sortDir] {
-			query += " " + sortDir
+			dir = sortDir
 		}
+		query += fmt.Sprintf(" ORDER BY %s %s", sortBy, dir)
 	} else {
+		dir = "DESC"
 		query += " ORDER BY s.created_at DESC"
 	}
+	// Deterministic tie-break so page boundaries never shift between requests.
+	query += fmt.Sprintf(", s.id %s", dir)
+	// Fetch one extra row to detect a further page; a cursor takes precedence
+	// over offset, which is then forced to 0.
+	effectiveOffset := offset
+	if cursor != nil {
+		effectiveOffset = 0
+	}
 	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", qb.ArgIdx, qb.ArgIdx+1)
-	qb.Args = append(qb.Args, limit, offset)
+	qb.Args = append(qb.Args, limit+1, effectiveOffset)
 
 	rows, err := r.db.Query(ctx, query, qb.Args...)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, nil, err
 	}
 	defer rows.Close()
 
@@ -384,7 +404,18 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	var saleIDs []int
 	var customerIDSet map[int]bool
 	var userIDSet map[int]bool
+	var lastCreatedAt time.Time
+	hasMore := false
+	fetched := 0
 	for rows.Next() {
+		// The row beyond the page exists → a further page is available.
+		// The probe counts rows attempted rather than rows collected, so a
+		// failed Scan on an earlier row cannot suppress has_more.
+		if fetched >= limit {
+			hasMore = true
+			break
+		}
+		fetched++
 		var s Sale
 		var storeIDVal sql.NullInt64
 		var customerIDVal sql.NullInt64
@@ -415,9 +446,10 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 
 		sales = append(sales, s)
 		saleIDs = append(saleIDs, s.ID)
+		lastCreatedAt = createdAt
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, 0, nil, err
 	}
 
 	// Batch load all sale items in chunks to avoid PostgreSQL parameter limit
@@ -468,7 +500,7 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 		if len(itemProductIDs) > 0 {
 			names, err := r.productNamesByIDs(ctx, uniqueInts(itemProductIDs))
 			if err != nil {
-				return nil, 0, err
+				return nil, 0, nil, err
 			}
 			for i := range sales {
 				for j := range sales[i].Items {
@@ -487,7 +519,7 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 		}
 		names, err := r.customerNamesByIDs(ctx, customerIDList)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, nil, err
 		}
 		for i := range sales {
 			if sales[i].CustomerID != nil {
@@ -505,14 +537,18 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 		}
 		names, err := r.usernamesByIDs(ctx, userIDList)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, nil, err
 		}
 		for i := range sales {
 			sales[i].CashierName = names[sales[i].CashierID]
 		}
 	}
 
-	return sales, total, nil
+	var next *shared.KeysetCursor
+	if hasMore && len(sales) > 0 {
+		next = &shared.KeysetCursor{CreatedAt: lastCreatedAt, ID: sales[len(sales)-1].ID}
+	}
+	return sales, total, next, nil
 }
 
 func (r *Repository) buildExportQuery(ctx context.Context, search string, minTotal, maxTotal *int, storeID *int, paymentMethods string, startDate, endDate string) (string, []interface{}, error) {
@@ -531,7 +567,7 @@ func (r *Repository) buildExportQuery(ctx context.Context, search string, minTot
 			FROM sale_payments
 			GROUP BY sale_id
 		) sp_codes ON sp_codes.sale_id = s.id
-		WHERE ` + qb.Where() + " ORDER BY s.created_at DESC"
+		WHERE ` + qb.Where() + " ORDER BY s.created_at DESC, s.id DESC"
 	return query, qb.Args, nil
 }
 
@@ -608,7 +644,7 @@ func (r *Repository) StreamSalesExportCSV(ctx context.Context, w io.Writer, sear
 			FROM sale_payments
 			GROUP BY sale_id
 		) sp_codes ON sp_codes.sale_id = s.id
-		WHERE ` + qb.Where() + " ORDER BY s.created_at DESC"
+		WHERE ` + qb.Where() + " ORDER BY s.created_at DESC, s.id DESC"
 
 	rows, err := r.db.Query(ctx, query, qb.Args...)
 	if err != nil {
@@ -783,7 +819,7 @@ func (r *Repository) GetParkedSales(ctx context.Context, ownerID, storeID *int) 
 		args = append(args, *storeID)
 		query += fmt.Sprintf(` AND (s.store_id IS NULL OR s.store_id = $%d)`, len(args))
 	}
-	query += ` ORDER BY s.created_at DESC`
+	query += ` ORDER BY s.created_at DESC, s.id DESC`
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {

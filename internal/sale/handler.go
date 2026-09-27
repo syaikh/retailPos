@@ -29,7 +29,7 @@ type Service interface {
 	NotifySaleCreated(ctx context.Context, sale *Sale)
 	InTx(ctx context.Context, fn func(tx pgx.Tx) error) error
 	GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error)
-	ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int, cashierID *int, status *string) ([]Sale, int, error)
+	ListSales(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int, cashierID *int, status *string) ([]Sale, int, *shared.KeysetCursor, error)
 	GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error)
 	StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error
 	GetNextInvoiceNumber(ctx context.Context) (string, error)
@@ -554,13 +554,20 @@ func (h *Handler) auditCancelSaleTx(ctx context.Context, tx pgx.Tx, id int) erro
 // @Param sort_dir query string false "Sort direction (ASC or DESC)" default(DESC)
 // @Param start_date query string false "Start date (YYYY-MM-DD, Jakarta time)"
 // @Param end_date query string false "End date (YYYY-MM-DD, Jakarta time)"
+// @Param after_created_at query string false "Keyset cursor timestamp (RFC3339), from next_cursor (default sort only)"
+// @Param after_id query string false "Keyset cursor row id, from next_cursor (default sort only)"
 // @Security BearerAuth
 // @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
 // @Router /sales [get]
 func (h *Handler) GetSalesHistory(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 
 	search := c.Query("search")
 	paymentMethods := c.Query("payment_methods")
@@ -600,6 +607,23 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 		sortDir = "DESC"
 	}
 
+	// Keyset cursor: only meaningful for the default ordering (created_at
+	// DESC). Reject other sorts loudly rather than silently mixing
+	// pagination modes or returning shifted pages.
+	cursor, err := shared.ParseKeysetCursor(c.Query("after_created_at"), c.Query("after_id"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
+	if cursor != nil && (sortBy != "created_at" || sortDir != "DESC") {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "keyset cursor requires the default sort (sort_by=created_at, sort_dir=DESC)")
+		return
+	}
+	if cursor != nil {
+		// Cursor takes precedence over offset; echo what was actually applied.
+		offset = 0
+	}
+
 	tz := config.Load().Timezone
 	now := time.Now().In(tz)
 	endDate := now.Format("2006-01-02")
@@ -631,13 +655,13 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 		cashierID = &ownID
 	}
 
-	sales, total, err := h.svc.ListSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal, cashierID, nil)
+	sales, total, next, err := h.svc.ListSales(ctx, limit, offset, cursor, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal, cashierID, nil)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
 	}
 
-	shared.JSONPaginated(c, sales, total, limit, offset)
+	shared.JSONPaginatedCursor(c, sales, total, limit, offset, next)
 }
 
 // GetSaleByID godoc
@@ -709,13 +733,19 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 // @Param sort_dir query string false "Sort direction (ASC or DESC)" default(DESC)
 // @Param start_date query string false "Start date (YYYY-MM-DD, Jakarta time)"
 // @Param end_date query string false "End date (YYYY-MM-DD, Jakarta time)"
+// @Param after_created_at query string false "Keyset cursor timestamp (RFC3339), from next_cursor (default sort only)"
+// @Param after_id query string false "Keyset cursor row id, from next_cursor (default sort only)"
 // @Security BearerAuth
 // @Success 200 {object} map[string]interface{}
 // @Router /sales/lookup [get]
 func (h *Handler) GetSalesLookup(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 
 	search := c.Query("search")
 	paymentMethods := c.Query("payment_methods")
@@ -747,6 +777,23 @@ func (h *Handler) GetSalesLookup(c *gin.Context) {
 		sortDir = "DESC"
 	}
 
+	// Keyset cursor: only meaningful for the default ordering (created_at
+	// DESC). Reject other sorts loudly rather than silently mixing
+	// pagination modes or returning shifted pages.
+	cursor, err := shared.ParseKeysetCursor(c.Query("after_created_at"), c.Query("after_id"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
+	if cursor != nil && (sortBy != "created_at" || sortDir != "DESC") {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "keyset cursor requires the default sort (sort_by=created_at, sort_dir=DESC)")
+		return
+	}
+	if cursor != nil {
+		// Cursor takes precedence over offset; echo what was actually applied.
+		offset = 0
+	}
+
 	tz := config.Load().Timezone
 	now := time.Now().In(tz)
 	endDate := now.Format("2006-01-02")
@@ -767,7 +814,7 @@ func (h *Handler) GetSalesLookup(c *gin.Context) {
 	// Only finalized (completed) sales are surfaced: held/discarded carts and
 	// other non-completed states have no customer-service value here.
 	lookupStatus := "completed"
-	sales, total, err := h.svc.ListSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal, nil, &lookupStatus)
+	sales, total, next, err := h.svc.ListSales(ctx, limit, offset, cursor, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal, nil, &lookupStatus)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -777,7 +824,7 @@ func (h *Handler) GetSalesLookup(c *gin.Context) {
 	for _, s := range sales {
 		summaries = append(summaries, presentSaleLookup(s))
 	}
-	shared.JSONPaginated(c, summaries, total, limit, offset)
+	shared.JSONPaginatedCursor(c, summaries, total, limit, offset, next)
 }
 
 // GetSaleLookupDetail godoc

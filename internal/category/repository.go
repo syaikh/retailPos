@@ -141,7 +141,7 @@ func (r *Repository) GetAllCategories(ctx context.Context, limit, offset int, se
 		args2 = append(args2, "%"+search+"%")
 		argIdx2++
 	}
-	query += fmt.Sprintf(" ORDER BY c.name ASC LIMIT $%d OFFSET $%d", argIdx2, argIdx2+1)
+	query += fmt.Sprintf(" ORDER BY c.name ASC, c.id ASC LIMIT $%d OFFSET $%d", argIdx2, argIdx2+1)
 	args2 = append(args2, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, args2...)

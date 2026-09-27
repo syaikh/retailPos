@@ -226,7 +226,7 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 		return nil, 0, err
 	}
 
-	dataQuery += fmt.Sprintf(" ORDER BY name ASC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	dataQuery += fmt.Sprintf(" ORDER BY name ASC, id ASC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
 	args = append(args, limit, offset)
 
 	rows, err := r.db.Query(ctx, dataQuery, args...)

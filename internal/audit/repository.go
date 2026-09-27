@@ -158,7 +158,10 @@ func (r *Repository) GetDistinctEntityTypes(ctx context.Context) ([]string, erro
 	return types, nil
 }
 
-func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string, entityID *int, startDate *time.Time, endDate *time.Time, storeID *int) ([]LogListItem, int, error) {
+// GetAuditLogs returns one page of audit logs plus the keyset cursor for the
+// following page (nil when this is the last page). When cursor is non-nil it
+// takes precedence over offset and seeks past (created_at, id).
+func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, userID *int, search string, action string, entityType string, entityID *int, startDate *time.Time, endDate *time.Time, storeID *int) ([]LogListItem, int, *shared.KeysetCursor, error) {
 	var logs []LogListItem
 	var total int
 
@@ -199,10 +202,10 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, nil, err
 	}
 
-	query = `SELECT al.id, al.user_id, al.store_id, COALESCE(s.name, ''), COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb), COALESCE(al.correlation_id, '') FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id LEFT JOIN stores s ON al.store_id = s.id WHERE 1=1`
+	query = `SELECT al.id, al.user_id, al.store_id, COALESCE(s.name, ''), COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb), COALESCE(al.correlation_id, ''), al.created_at FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id LEFT JOIN stores s ON al.store_id = s.id WHERE 1=1`
 	args2 := []interface{}{}
 	if storeID != nil {
 		query += fmt.Sprintf(" AND (al.store_id IS NULL OR al.store_id = $%d)", len(args2)+1)
@@ -236,28 +239,60 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 		query += fmt.Sprintf(" AND al.created_at < $%d", len(args2)+1)
 		args2 = append(args2, endDate.Add(24*time.Hour))
 	}
-	query += fmt.Sprintf(" ORDER BY al.created_at DESC LIMIT $%d OFFSET $%d", len(args2)+1, len(args2)+2)
-	args2 = append(args2, limit, offset)
+	// Keyset seek: rows strictly after the cursor in (created_at DESC, id
+	// DESC) order. COUNT above intentionally stays cursor-free so total keeps
+	// reflecting the whole filtered set.
+	if cursor != nil {
+		query += fmt.Sprintf(" AND (al.created_at, al.id) < ($%d, $%d)", len(args2)+1, len(args2)+2)
+		args2 = append(args2, cursor.CreatedAt, cursor.ID)
+	}
+	// Fetch one extra row to detect a further page; a cursor takes precedence
+	// over offset, which is then forced to 0.
+	effectiveOffset := offset
+	if cursor != nil {
+		effectiveOffset = 0
+	}
+	query += fmt.Sprintf(" ORDER BY al.created_at DESC, al.id DESC LIMIT $%d OFFSET $%d", len(args2)+1, len(args2)+2)
+	args2 = append(args2, limit+1, effectiveOffset)
 
 	rows, err := r.db.Query(ctx, query, args2...)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, nil, err
 	}
 	defer rows.Close()
 
+	var rawCreatedAt time.Time
+	var lastCreatedAt time.Time
+	var lastID int
+	hasMore := false
+	fetched := 0
 	for rows.Next() {
+		// The row beyond the page exists → a further page is available.
+		// The probe counts rows attempted rather than rows collected, so a
+		// failed Scan on an earlier row cannot suppress has_more.
+		if fetched >= limit {
+			hasMore = true
+			break
+		}
+		fetched++
 		var al LogListItem
-		err = rows.Scan(&al.ID, &al.UserID, &al.StoreID, &al.StoreName, &al.Username, &al.Role, &al.Action, &al.EntityType, &al.EntityID, &al.IPAddress, &al.UserAgent, &al.CreatedAt, &al.Description, &al.OldValues, &al.NewValues, &al.CorrelationID)
+		err = rows.Scan(&al.ID, &al.UserID, &al.StoreID, &al.StoreName, &al.Username, &al.Role, &al.Action, &al.EntityType, &al.EntityID, &al.IPAddress, &al.UserAgent, &al.CreatedAt, &al.Description, &al.OldValues, &al.NewValues, &al.CorrelationID, &rawCreatedAt)
 		if err != nil {
 			slog.Error("error scanning audit log row", "error", err)
 			continue
 		}
 		logs = append(logs, al)
+		lastCreatedAt = rawCreatedAt
+		lastID = al.ID
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, 0, nil, err
 	}
-	return logs, total, nil
+	var next *shared.KeysetCursor
+	if hasMore && len(logs) > 0 {
+		next = &shared.KeysetCursor{CreatedAt: lastCreatedAt, ID: lastID}
+	}
+	return logs, total, next, nil
 }
 
 func (r *Repository) GetAuditLogByID(ctx context.Context, id int) (*Log, error) {

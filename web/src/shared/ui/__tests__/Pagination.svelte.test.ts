@@ -26,6 +26,12 @@ describe("Pagination.svelte source-structure guards", () => {
     expect(src).toContain("totalPages");
   });
 
+  it("caps navigable pages at the backend MaxPageOffset", () => {
+    expect(src).toContain("MAX_PAGE_OFFSET");
+    expect(src).toContain("maxNavigablePage");
+    expect(src).toContain("10000");
+  });
+
   it("calls onPageChange prop", () => {
     expect(src).toContain("onPageChange");
   });

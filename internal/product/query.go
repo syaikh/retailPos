@@ -127,10 +127,12 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 	allowedSortBy := map[string]bool{"v.id": true, "v.name": true, "v.sku": true, "v.barcode": true, "v.price": true, "v.status": true, "v.created_at": true, "v.updated_at": true, "v.stock": true, "category_name": true, "brand_name": true}
 	allowedSortDir := map[string]bool{"ASC": true, "DESC": true}
 	if sortBy != "" && allowedSortBy[sortBy] {
-		query2 += fmt.Sprintf(" ORDER BY %s", sortBy)
+		dir := "ASC"
 		if sortDir != "" && allowedSortDir[sortDir] {
-			query2 += " " + sortDir
+			dir = sortDir
 		}
+		// v.id tie-break keeps page boundaries deterministic on equal sort keys.
+		query2 += fmt.Sprintf(" ORDER BY %s %s, v.id %s", sortBy, dir, dir)
 	} else {
 		query2 += " ORDER BY v.id DESC"
 	}

@@ -681,7 +681,7 @@ func TestService_ListReceipts_ProductFilter(t *testing.T) {
 		}, userID, &store)
 		require.NoError(t, err)
 
-		recs, err := svc.ListReceipts(ctx, sup, &store, nil)
+		recs, _, err := svc.ListReceipts(ctx, sup, &store, nil, "", 0, 0)
 		require.NoError(t, err)
 		require.Len(t, recs, 1)
 	})
@@ -708,7 +708,7 @@ func TestService_ListReceipts_ProductFilter(t *testing.T) {
 
 		// Filter by product A.
 		pidA := productA
-		recsA, err := svc.ListReceipts(ctx, sup, &store, &pidA)
+		recsA, _, err := svc.ListReceipts(ctx, sup, &store, &pidA, "", 0, 0)
 		require.NoError(t, err)
 		require.Len(t, recsA, 1, "should return only receipt containing product A")
 		require.Len(t, recsA[0].Items, 1)
@@ -716,7 +716,7 @@ func TestService_ListReceipts_ProductFilter(t *testing.T) {
 
 		// Filter by product B.
 		pidB := productB
-		recsB, err := svc.ListReceipts(ctx, sup, &store, &pidB)
+		recsB, _, err := svc.ListReceipts(ctx, sup, &store, &pidB, "", 0, 0)
 		require.NoError(t, err)
 		require.Len(t, recsB, 1, "should return only receipt containing product B")
 		require.Len(t, recsB[0].Items, 1)
@@ -735,7 +735,7 @@ func TestService_ListReceipts_ProductFilter(t *testing.T) {
 		require.NoError(t, err)
 
 		nonExistentPID := 999999
-		recs, err := svc.ListReceipts(ctx, sup, &store, &nonExistentPID)
+		recs, _, err := svc.ListReceipts(ctx, sup, &store, &nonExistentPID, "", 0, 0)
 		require.NoError(t, err)
 		require.Empty(t, recs, "should return no receipts for non-existent product")
 	})
@@ -752,8 +752,60 @@ func TestService_ListReceipts_ProductFilter(t *testing.T) {
 		require.NoError(t, err)
 
 		zeroPID := 0
-		recs, err := svc.ListReceipts(ctx, sup, &store, &zeroPID)
+		recs, _, err := svc.ListReceipts(ctx, sup, &store, &zeroPID, "", 0, 0)
 		require.NoError(t, err)
 		require.Len(t, recs, 1, "productID 0 should be treated as nil (no filter)")
+	})
+}
+
+func TestService_ListReceipts_PaginationAndSearch(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	product := insertTestProduct(ctx, t, "LIST-PAGE-PROD")
+	svc, sup, store := setupArrangement(t, product)
+	userID := insertTestUser(ctx, t)
+
+	for i := 0; i < 3; i++ {
+		_, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 5}},
+		}, userID, &store)
+		require.NoError(t, err)
+	}
+
+	t.Run("limit bounds the page while total stays whole", func(t *testing.T) {
+		recs, total, err := svc.ListReceipts(ctx, sup, &store, nil, "", 2, 0)
+		require.NoError(t, err)
+		require.Len(t, recs, 2, "page must be bounded by limit")
+		require.Equal(t, 3, total, "COUNT must reflect the full filtered set")
+	})
+
+	t.Run("offset pages forward without overlap", func(t *testing.T) {
+		page1, _, err := svc.ListReceipts(ctx, sup, &store, nil, "", 2, 0)
+		require.NoError(t, err)
+		page2, total2, err := svc.ListReceipts(ctx, sup, &store, nil, "", 2, 2)
+		require.NoError(t, err)
+		require.Len(t, page2, 1)
+		require.Equal(t, 3, total2)
+
+		seen := make(map[int]bool, len(page1))
+		for _, r := range page1 {
+			seen[r.ID] = true
+		}
+		for _, r := range page2 {
+			require.False(t, seen[r.ID], "receipt %d repeated across pages", r.ID)
+		}
+	})
+
+	t.Run("search filters data and total together", func(t *testing.T) {
+		recs, total, err := svc.ListReceipts(ctx, sup, &store, nil, "LIST-PAGE-PROD", 2, 0)
+		require.NoError(t, err)
+		require.Len(t, recs, 2)
+		require.Equal(t, 3, total)
+
+		_, missTotal, err := svc.ListReceipts(ctx, sup, &store, nil, "NO-SUCH-PRODUCT-XYZ", 2, 0)
+		require.NoError(t, err)
+		require.Equal(t, 0, missTotal)
 	})
 }

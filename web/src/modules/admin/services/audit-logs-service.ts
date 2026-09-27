@@ -4,11 +4,14 @@ import type { AuditLog, AuditLogFilters } from "../types";
 export interface AuditLogListResponse {
   data: AuditLog[];
   total: number;
+  has_more: boolean;
+  next_cursor: string | null;
 }
 
 export async function getAuditLogs(
   filters: AuditLogFilters,
   signal?: AbortSignal,
+  cursor?: string | null,
 ): Promise<AuditLogListResponse> {
   const params = new URLSearchParams({
     limit: filters.limit.toString(),
@@ -19,12 +22,24 @@ export async function getAuditLogs(
   });
   if (filters.action) params.append("action", filters.action);
   if (filters.entity_type) params.append("entity_type", filters.entity_type);
+  if (cursor) {
+    // Keyset cursor takes precedence over offset server-side.
+    params.set("offset", "0");
+    const sep = cursor.indexOf("|");
+    params.append("after_created_at", cursor.slice(0, sep));
+    params.append("after_id", cursor.slice(sep + 1));
+  }
 
   const response = await apiClient.get(`audit-logs?${params.toString()}`, {
     signal,
   });
   const data = response.data || {};
-  return { data: data.data || [], total: data.total || 0 };
+  return {
+    data: data.data || [],
+    total: data.total || 0,
+    has_more: data.has_more || false,
+    next_cursor: data.next_cursor || null,
+  };
 }
 
 export function buildExportUrl(

@@ -64,7 +64,11 @@ func (h *Handler) writeError(c *gin.Context, err error) {
 // @Success      200  {object}  map[string]interface{}
 // @Router       /storage-locations [get]
 func (h *Handler) List(c *gin.Context) {
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 	search := c.Query("search")
 
 	var isActive *bool

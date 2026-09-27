@@ -478,9 +478,9 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 		       po.created_by, po.updated_by, po.created_at, po.updated_at
 		FROM purchase_orders po
 		WHERE %s
-		ORDER BY po.%s %s
+		ORDER BY po.%s %s, po.id %s
 		LIMIT $%d OFFSET $%d
-	`, qb.Where(), sortBy, sortDir, len(qb.Args)+1, len(qb.Args)+2)
+	`, qb.Where(), sortBy, sortDir, sortDir, len(qb.Args)+1, len(qb.Args)+2)
 
 	args := append(qb.Args, limit, offset)
 	rows, err := r.db.Query(ctx, query, args...)

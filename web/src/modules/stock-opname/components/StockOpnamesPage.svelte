@@ -79,7 +79,7 @@
         loaded = brands.map((b) => ({ value: b.id, label: b.name }));
       } else if (type === "supplier") {
         const res = await getSuppliers({
-          limit: 500,
+          limit: 100,
           offset: 0,
           is_active: true,
         });
@@ -93,7 +93,7 @@
       } else if (type === "location") {
         const res = await getStorageLocations({
           is_active: true,
-          limit: 500,
+          limit: 100,
           offset: 0,
         });
         loaded = res.data.map((l) => ({

@@ -60,11 +60,13 @@ describe("ReceiptEntry.svelte source-structure guards", () => {
     expect(src).toContain("$state");
   });
 
-  it("has filteredReceipts derived that filters by product name or SKU", () => {
-    expect(src).toContain("filteredReceipts");
-    expect(src).toContain("$derived");
-    expect(src).toContain("product_name");
-    expect(src).toContain("product_sku");
+  it("sends the product filter to the server as a search param", () => {
+    expect(src).toContain("listReceipts(arrangement.supplier_id, undefined, {");
+    expect(src).toContain("limit: pageLimit");
+    expect(src).toContain("offset: pageOffset");
+    expect(src).toContain("search: filterProductSearch.trim() || undefined");
+    expect(src).toContain("{total}");
+    expect(src).not.toContain("slice(pageOffset");
   });
 
   it("uses SearchBar component for filter input", () => {

@@ -70,6 +70,22 @@ describe("audit-logs-service", () => {
     expect(mockGet.mock.calls[0][1]?.signal).toBe(controller.signal);
   });
 
+  it("getAuditLogs sends the keyset cursor and zeroes offset", async () => {
+    mockGet.mockResolvedValueOnce({ data: { data: [], total: 0 } });
+
+    const { getAuditLogs } = await import("../audit-logs-service");
+    await getAuditLogs(
+      { limit: 20, offset: 40, search: "", start_date: "", end_date: "" },
+      undefined,
+      "2024-01-02T03:04:05.123456Z|77",
+    );
+
+    const url: string = mockGet.mock.calls[0][0];
+    expect(url).toContain("offset=0");
+    expect(url).toContain("after_created_at=2024-01-02T03%3A04%3A05.123456Z");
+    expect(url).toContain("after_id=77");
+  });
+
   it("buildExportUrl returns correct URL", async () => {
     const { buildExportUrl } = await import("../audit-logs-service");
     const url = buildExportUrl("csv", {

@@ -20,10 +20,11 @@ describe("PendingSettlementsModal.svelte source-structure guards", () => {
     );
   });
 
-  it("imports listSettlements from consignment-service", () => {
-    expect(src).toContain(
-      'import { listSettlements } from "../services/consignment-service"',
-    );
+  it("imports listSettlements and fetchAllPages from consignment-service", () => {
+    expect(src).toContain(`import {
+    listSettlements,
+    fetchAllPages,
+  } from "../services/consignment-service";`);
   });
 
   it("imports PayoutModal component", () => {
@@ -36,7 +37,8 @@ describe("PendingSettlementsModal.svelte source-structure guards", () => {
   });
 
   it("uses listSettlements with pending_payment filter", () => {
-    expect(src).toContain('listSettlements(undefined, "pending_payment")');
+    expect(src).toContain('listSettlements(undefined, "pending_payment", p)');
+    expect(src).toContain("fetchAllPages");
   });
 
   it("has a settlements state array", () => {

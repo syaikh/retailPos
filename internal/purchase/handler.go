@@ -411,7 +411,11 @@ func (h *Handler) GetPO(c *gin.Context) {
 }
 
 func (h *Handler) ListPOs(c *gin.Context) {
-	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	limit, offset, err := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		return
+	}
 	search := c.Query("search")
 	sortBy := c.Query("sort_by")
 	sortDir := c.Query("sort_dir")

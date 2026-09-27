@@ -19,6 +19,7 @@
   import {
     listStock,
     listPendingReturns,
+    fetchAllPages,
     createPendingReturn,
   } from "../services/consignment-service";
   import type { Arrangement, PendingReturn, StockRow } from "../types";
@@ -54,18 +55,23 @@
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
-  const pagedReturns = $derived(
-    pendingReturns.slice(pageOffset, pageOffset + pageLimit),
-  );
+  let total = $state(0);
+  let loadSeq = 0;
 
   async function load() {
+    const seq = ++loadSeq;
     loading = true;
     try {
       const [prs, stock] = await Promise.all([
-        listPendingReturns(arrangement.supplier_id),
-        listStock(arrangement.supplier_id),
+        listPendingReturns(arrangement.supplier_id, {
+          limit: pageLimit,
+          offset: pageOffset,
+        }),
+        fetchAllPages((p) => listStock(arrangement.supplier_id, p)),
       ]);
-      pendingReturns = prs;
+      if (seq !== loadSeq) return;
+      pendingReturns = prs.data;
+      total = prs.total;
       stockRows = stock;
       stockOptions = stock
         .filter((s) => s.available_qty > 0)
@@ -76,9 +82,11 @@
             : `${s.product_name} — ${labels.consignmentAvailableStock} ${s.available_qty}`,
         }));
     } catch {
+      if (seq !== loadSeq) return;
       pendingReturns = [];
+      total = 0;
     } finally {
-      loading = false;
+      if (seq === loadSeq) loading = false;
     }
   }
 
@@ -158,6 +166,7 @@
   function handlePageChange(newOffset: number, newLimit: number) {
     pageOffset = newOffset;
     pageLimit = newLimit;
+    void load();
   }
 </script>
 
@@ -181,7 +190,7 @@
       <div class="p-8 text-center text-sm text-text-secondary">
         {labels.loading}
       </div>
-    {:else if pendingReturns.length === 0}
+    {:else if pendingReturns.length === 0 && total === 0}
       <EmptyState
         icon={RotateCcw}
         title={labels.consignmentNoPendingReturns}
@@ -202,7 +211,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each pagedReturns as pr (pr.id || pr)}
+            {#each pendingReturns as pr (pr.id || pr)}
               <tr
                 class="border-t border-border hover:bg-surface-hover/50 transition-colors"
               >
@@ -250,7 +259,7 @@
       </div>
       <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
         <Pagination
-          total={pendingReturns.length}
+          {total}
           limit={pageLimit}
           offset={pageOffset}
           onPageChange={handlePageChange}

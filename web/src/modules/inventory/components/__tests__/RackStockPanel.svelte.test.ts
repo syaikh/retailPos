@@ -75,7 +75,7 @@ describe("RackStockPanel.svelte source-structure guards", () => {
     expect(src).toContain("if (canAdjust) {");
     expect(src).toContain("getStorageLocations({");
     expect(src).toContain("is_active: true");
-    expect(src).toContain("limit: 500");
+    expect(src).toContain("limit: 100");
     expect(src).toContain("offset: 0");
   });
 });
