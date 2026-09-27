@@ -1060,3 +1060,39 @@ func hostPortOf(publish string) (hostPort, hostIP string) {
 	}
 	return hostPort, hostIP
 }
+
+// TestPrintAgentServiceReadsTheEnvFileTheGuideWrites guards the one path an
+// operator cannot easily debug. A missing EnvironmentFile is a hard start-up
+// failure, and the unit's path and the documented path live in different files,
+// so nothing else in the build notices when they disagree.
+//
+// The guide is the authority: it is what someone types on a till.
+func TestPrintAgentServiceReadsTheEnvFileTheGuideWrites(t *testing.T) {
+	unit := stripComments(repoFile(t, filepath.Join("tools", "print-agent", "print-agent.service")), "#")
+	guide := repoFile(t, filepath.Join("docs", "guides", "print-agent-production.md"))
+
+	envFile := regexp.MustCompile(`(?m)^EnvironmentFile=(.+)$`).FindStringSubmatch(unit)
+	require.Len(t, envFile, 2, "print-agent.service must declare EnvironmentFile=")
+	unitPath := strings.TrimSpace(envFile[1])
+
+	// %S is "state directory root", which a *user* manager resolves to
+	// $XDG_STATE_HOME (~/.local/state) rather than /etc. It reads as portable
+	// and resolves to a file the guide never created.
+	assert.NotContainsf(t, unitPath, "%S",
+		"print-agent.service uses %%%s, which a user manager resolves to $XDG_STATE_HOME, "+
+			"not /etc. Use the absolute path the guide writes.", "S")
+	assert.True(t, strings.HasPrefix(unitPath, "/"),
+		"EnvironmentFile= must be an absolute path the guide can also print, got %q", unitPath)
+
+	// The guide writes the file with a heredoc, so assert on the documented
+	// write rather than any mention of the path.
+	assert.Containsf(t, guide, "tee "+unitPath,
+		"docs/guides/print-agent-production.md must create %s, which is the file "+
+			"print-agent.service reads", unitPath)
+
+	// A stale PRINT_OUTPUT_DIR in the sample env file would fail at runtime
+	// under ProtectSystem=strict, and only for the file transport.
+	assert.NotContains(t, guide, "PRINT_OUTPUT_DIR=/var/lib",
+		"the sample env file sets PRINT_OUTPUT_DIR outside /tmp, but the service runs "+
+			"with ProtectSystem=strict where only /tmp is writable")
+}

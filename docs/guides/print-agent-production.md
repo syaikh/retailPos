@@ -28,20 +28,25 @@ scp /tmp/print-agent till:/tmp/print-agent
 # on the till:
 install -Dm755 /tmp/print-agent ~/.local/bin/print-agent
 
-# 2. Secret file. Same location and ownership as the backend's.
+# 2. Secret file. Same location and ownership as the backend's. This exact path
+#    is what print-agent.service reads, so the two must not drift apart.
 sudo mkdir -p /etc/retail-pos
 sudo tee /etc/retail-pos/print-agent.env >/dev/null <<'EOF'
 ENV=production
 PORT=9123
 PRINT_TRANSPORT=serial
 PRINT_SERIAL_DEVICE=/dev/ttyUSB0
-PRINT_OUTPUT_DIR=/var/lib/retail-pos/print-agent
 ALLOWED_ORIGINS=https://pos.example.com
 EOF
 sudo chown "$USER" /etc/retail-pos/print-agent.env
 sudo chmod 600 /etc/retail-pos/print-agent.env
 sudo usermod -aG dialout "$USER"   # serial access; log out and back in
 ```
+
+`PRINT_OUTPUT_DIR` is absent above on purpose. The service runs with
+`ProtectSystem=strict`, so only `/tmp` is writable. A serial or tcp printer never
+touches the output directory, so setting one would look correct in the env file
+and then fail to open at runtime.
 
 `ALLOWED_ORIGINS` must be the exact origin of the POS frontend, the same value
 as the backend's `CORS_ORIGIN`. With `ENV=production` the agent refuses to start

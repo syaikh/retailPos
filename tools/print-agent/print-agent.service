@@ -11,8 +11,20 @@
 # matters because the agent is per-till: each till runs its own instance against
 # its own printer, and tills do not share a machine.
 #
-# systemd does not expand variables inside EnvironmentFile=, so the path here is
-# fixed and must match the one in deploy/PRODUCTION-DEPLOYMENT.md.
+# systemd does not expand shell variables inside EnvironmentFile=, so this path
+# is fixed. It must match the path docs/guides/print-agent-production.md tells
+# you to write, which is the same secret-file location the backend uses.
+#
+# This is deliberately an absolute path and not a %S specifier. %S means
+# "state directory root", which for a *user* manager resolves to $XDG_STATE_HOME
+# (~/.local/state), not /etc. A %S path here looks portable and silently reads a
+# file the guide never created, and systemd treats a missing EnvironmentFile as
+# a hard start-up failure.
+#
+# The file is intentionally not optional (no leading "-"): starting with no
+# config would default the transport to `file` and the origin allowlist to "*",
+# which in production means printing to a temp directory and accepting a print
+# job from any website. Failing loudly is the correct behaviour.
 
 [Unit]
 Description=Retail POS print agent (per-till)
@@ -23,13 +35,14 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-EnvironmentFile=%S/print-agent.env
+EnvironmentFile=/etc/retail-pos/print-agent.env
 ExecStart=%h/.local/bin/print-agent
 Restart=on-failure
 RestartSec=3
 
-# The agent holds one credential and one printer connection, so it needs no
-# privileges and is given none.
+# The agent holds no credential and one printer connection, so it needs no
+# privileges and is given none. Access control is the ALLOWED_ORIGINS check
+# inside the agent, plus keeping it on a trusted network.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
