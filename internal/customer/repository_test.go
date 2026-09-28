@@ -89,7 +89,7 @@ func TestCustomerRepository_GetAllCustomers(t *testing.T) {
 	ctx := context.Background()
 
 	// TestMain truncates the DB and never loads seeds, so this test creates the
-	// customers it relies on instead of assuming 014_customers.sql exists.
+	// customers it relies on instead of assuming they ship with the baseline.
 	fixtures := []struct{ name, phone string }{
 		{"Ahmad Zulkarnaen", "081100000001"},
 		{"Budi Santoso", "081100000002"},

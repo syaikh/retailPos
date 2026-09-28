@@ -465,7 +465,7 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 
 	// 3g. Ensure manager/supervisor/cashier users have store_id assigned
 	// (consignment settlement requires store_id from JWT; users created by
-	// 000_squash.sql have store_id NULL).
+	// 000_baseline.sql have store_id NULL). System users now survive truncation,
 	// so a store_id inherited from a previous run can point at a store id that
 	// no longer exists — clear those first, then backfill operational roles.
 	if _, err := db.ExecContext(ctx, `

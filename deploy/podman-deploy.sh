@@ -343,7 +343,7 @@ migrate() {
         podman exec postgres createdb -U "$DB_USER" "$DB_NAME"
     fi
 
-    # Bootstrap prerequisites that 000_squash.sql depends on (fresh-DB spin-up).
+    # Bootstrap prerequisites that 000_baseline.sql depends on (fresh-DB spin-up).
     # pgcrypto + invoice_seq are required by the schema; schema_migrations tracks
     # applied files and must exist before the first migration runs.
     log_info "Bootstrapping schema_migrations, pgcrypto, invoice_seq..."
@@ -373,10 +373,10 @@ migrate() {
                 log_error "Migration failed: $(basename "$sql_file")"
                 return 1
             }
-            # Record the applied file for the audit trail. Migrations that
-            # self-register keep their own row; 000_squash clears 00*.sql rows
-            # on each run, so every migration is re-applied idempotently. The
-            # ON CONFLICT guard makes recording safe for both cases.
+            # Record the applied file for the audit trail. 000_baseline.sql
+            # registers itself as its final step; any migration added after the
+            # squash is recorded here instead. The ON CONFLICT guard keeps the
+            # two paths from colliding, so re-running migrate is always safe.
             podman exec postgres psql -U "$DB_USER" -d "$DB_NAME" -q \
                 -c "INSERT INTO schema_migrations (filename) VALUES ('$(basename "$sql_file")') ON CONFLICT (filename) DO NOTHING" >/dev/null
         fi

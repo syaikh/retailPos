@@ -17,13 +17,13 @@ server refuses to start without it.
 
 On a fresh database this bootstraps `pgcrypto`, `invoice_seq`, and the
 `schema_migrations` table, then applies every file in `database/migrations/`
-sequentially with `ON_ERROR_STOP=1` (`000_squash.sql` …
-`052_first_install_hardening.sql`). Migrations are **not** run automatically on
+sequentially with `ON_ERROR_STOP=1` (currently just `000_baseline.sql`, the
+squashed Version 1 baseline). Migrations are **not** run automatically on
 server start, and must be applied **before** deploying a new server binary.
 
 Result: full schema + reference data — 6 roles, 86 permissions, grants, the 6
 default users (below), payment methods, customer groups, and the placeholder
-**Default Store** (migration `044`).
+**Default Store**.
 
 ## 2. Log in
 

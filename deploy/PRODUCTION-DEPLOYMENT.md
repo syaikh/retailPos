@@ -236,23 +236,23 @@ host or reachable from another machine.
 
 ## Database Migrations & Fresh-DB Spin-up
 
-Migrations are SQL files in `database/migrations/` (currently `000_squash.sql`, `001`–`007`, `031`–`032`). They are **not** run automatically by the backend server — you must run them explicitly:
+Migrations are SQL files in `database/migrations/` (currently `000_baseline.sql` — the squashed Version 1 baseline; the 32 migrations it replaces live in `database/migrations/archive/pre-squash-migrations.tar.gz`). They are **not** run automatically by the backend server — you must run them explicitly:
 
 ```bash
 ./deploy/podman-deploy.sh migrate   # applies every *.sql in database/migrations/
 ```
 
-On a **fresh database** (or a fresh Postgres container), `migrate` now bootstraps the three prerequisites that `000_squash.sql` depends on before applying any migration:
+On a **fresh database** (or a fresh Postgres container), `migrate` now bootstraps the three prerequisites that `000_baseline.sql` depends on before applying any migration:
 
 1. `CREATE EXTENSION IF NOT EXISTS pgcrypto`
 2. `CREATE SEQUENCE IF NOT EXISTS invoice_seq START 1`
 3. `CREATE TABLE IF NOT EXISTS schema_migrations (...)` (tracks applied files)
 
-It then applies each migration in sorted filename order with `ON_ERROR_STOP=1` and records each applied file in `schema_migrations`. Because `000_squash.sql` is idempotent and clears stale `00*.sql` tracking rows on each run, `migrate` can be re-run safely against an already-migrated database.
+It then applies each migration in sorted filename order with `ON_ERROR_STOP=1` and records each applied file in `schema_migrations`. `000_baseline.sql` is idempotent throughout (`IF NOT EXISTS`, `DO`-guarded constraints, `ON CONFLICT DO NOTHING`) and, as its final step, replaces the ledger rows of the 32 migrations it superseded with its own — so `migrate` can be re-run safely against an already-migrated database and `schema_migrations` converges on exactly one row.
 
 Migrations produce the full schema plus reference data: roles (6), permissions (86), role grants, the `superadmin`/`manager`/`supervisor`/`cashier`/`inventory_staff`/`finance` users (all flagged for forced first-login password rotation), payment methods, and customer groups (Walk-in/Member/VIP). They also seed a placeholder **Default Store** (with those users assigned to it) — but **no products, customers, or sales**. Finish the first store per [`docs/guides/first-time-installation.md`](../docs/guides/first-time-installation.md); run `./deploy/podman-deploy.sh seed` only when you want dummy/demo business data.
 
-> **Important:** Apply migrations **before** deploying a new server binary — several migrations carry ordering constraints (see `AGENTS.md` "Deployment" section for the full list).
+> **Important:** Apply migrations **before** deploying a new server binary — see the `AGENTS.md` "Deployment" section.
 
 ---
 

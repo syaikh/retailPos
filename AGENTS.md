@@ -190,39 +190,34 @@ Re-seeding (`-truncate=false`) continues document sequences and reuses existing 
 
 ### Migration Ordering
 
-Migrations must be applied **before** deploying a new server binary. The server validates permission codes at startup — mismatched notation (dot vs colon) causes permission failures for all non-superadmin users.
+Migrations must be applied **before** deploying a new server binary. Permission codes are seeded in dot notation by `000_baseline.sql`; there is no startup validation of codes — a mismatch surfaces as permission failures at request time, not at boot.
 
 | Migration | Purpose |
 |-----------|---------|
-| `001_consignment.sql` | Creates `consignment_*` tables/sequences and `consignment.*` permissions |
-| `002_settlement_items_product_id.sql` | Adds `consignment_settlement_items.product_id` FK |
-| `003_settlement_updated_at.sql` | Adds `consignment_settlements.updated_at` |
-| `004_supplier_code_sequence.sql` | Creates `supplier_seq` for auto-generating `SUP-%06d` codes |
-| `005_app_settings.sql` | Creates `app_settings` key-value table, seeds defaults |
-| `006_user_preferences.sql` | Adds per-user `language`/`theme` columns to `users` |
-| `007_sale_lookup.sql` | Grants `sale.lookup` to `cashier`/`manager` (code seeded in `000_squash`) |
-| `031_revoke_sale_lookup_manager.sql` | Revokes `sale.lookup` from `manager` (cashier-only) |
-| `032_sale_detail_and_receipt_print.sql` | Grants `sale.detail`/`receipt.print` to cashier/manager/superadmin |
-| `033_audit_log_store_and_immutability.sql` | Adds `audit_logs.store_id` FK + append-only trigger |
-| `033b_cash_change.sql` | Adds `sales.change_due` column (returned change on cash over-tender); part of the `033` pair — both apply in lexical order before `034` |
-| `034_audit_immutable_bypass.sql` | GUC-aware bypass for audit immutability trigger |
-| `035_audit_correlation_id.sql` | Adds `audit_logs.correlation_id` column |
-| `036_audit_export_permission.sql` | Grants `audit.export` to superadmin (code seeded in `000_squash`) |
-| `037_audit_immutable_fk_bypass.sql` | Allows FK-cascade updates through append-only trigger |
-| `038_grant_audit_view_to_admin.sql` | No-op on fresh deploy (legacy `admin` role renamed; manager holds `audit.view`) |
-| `039_business_permission_audit.sql` | Business-perspective audit: +12 manager, +4 cashier permissions |
-| `040_shift_cash_movements.sql` | Creates `cash_movements` table, grants `shift.cash_movement` (code seeded in `000_squash`) |
-| `041_shift_settings.sql` | Seeds `shift_*` keys into `app_settings` |
-| `042_consignment_receipt_edit.sql` | Creates `consignment_receipt_edits` append-only audit table |
-| `043_product_ownership_type.sql` | Adds `products.ownership_type` (store/consignment) + backfill + view rebuild |
-| `044_store_first_and_finance_role.sql` | Seeds default store; renames roles (admin→manager, manager→supervisor, staff→inventory_staff); creates `finance` role; grants supervisor `sale.create`; replaces inventory_staff permissions; backfills `store_id` |
-| `045_rename_usernames.sql` | Aligns default usernames to role names (admin→manager, manager→supervisor, staff→inventory_staff) |
-| `046_manager_consignment_pay.sql` | Grants `consignment.pay` to `manager` (settle-without-pay bug fix) |
-| `047_finance_consignment_view.sql` | Grants `consignment.view` to `finance` (fix: finance could pay settlements but not view them) |
-| `048_add_termination_return_reason.sql` | Adds 'termination' to consignment_pending_returns reason check constraint |
-| `049_revoke_store_view_finance_supervisor.sql` | Revokes `store.view` from `finance` and `supervisor` (both are store-scoped via JWT; permission was redundant) |
-| `050_store_onboarding.sql` | Adds `users.must_change_password` (forced first-login rotation) and revokes `store.create` from `manager` (HQ-only store provisioning) |
-| `051_pagination_indexes.sql` | Adds composite `(created_at, id)` indexes on `audit_logs` (incl. partial store-scoped) and `sales` backing keyset pagination |
+| `000_baseline.sql` | Version 1 baseline. Complete schema (60 tables, 1 view, 3 materialised views, 72 functions, 225 indexes, 676 constraints) plus reference data (6 roles, 86 permissions, 264 grants, the 6 system users, 5 payment methods, 3 customer groups, default store, walk-in customer, 7 `app_settings` keys). Ends by clearing the `schema_migrations` rows of the migrations it replaced and registering itself. |
+
+The 32 migrations this file squashes (`000_squash.sql` + `001`–`007` + `031`–`053`) are preserved unmodified in `database/migrations/archive/pre-squash-migrations.tar.gz`; their per-migration purpose list is kept in `docs/design/squash-v1-baseline-plan.md`. **New migrations must start at `054_*.sql`.**
+
+`000_baseline.sql` is generated, not hand-written: it was produced from a `pg_dump` of a fully-migrated reference database and normalised so that it replays on an empty database, on a database that already went through the legacy chain, and on every re-run. Anything it does not cover (timestamps, random-salt credential hashes, materialised-view contents) is deliberately excluded rather than frozen into the file.
+
+### Migration Replay Contract
+
+All three non-test runners apply **every** file in `database/migrations/*.sql` (lexical order, `psql -v ON_ERROR_STOP=1`) on every run — no ledger check:
+
+| Runner | Reads `schema_migrations` | Writes it |
+|--------|---------------------------|-----------|
+| `deploy/podman-deploy.sh:369-375` | no | yes, per file (`:381`) |
+| `.github/workflows/ci.yml:376-379` | no | no |
+| `.github/workflows/e2e.yml:63-66` | no | no |
+| `internal/shared/testdb.go:90-114` | **yes** (`:92`) | yes (`:75`, `:112`) |
+
+Consequences:
+
+- **Every migration must be permanently re-runnable.** Use `IF NOT EXISTS` / `ON CONFLICT DO NOTHING` / `DROP … IF EXISTS`. One statement that fails on a second run aborts the loop.
+- **`000_baseline.sql` self-registers as its last statement and deletes the rows of the 32 migrations it replaced**, so `schema_migrations` converges on exactly one row. `testdb.go` requires `len(schema_migrations) == len(files)`; with a single migration file that count is 1. The deletion is scoped to an explicit filename list, so migrations added later keep their own entries.
+- **Never make a runner skip by filename.** The baseline is amended in place, so skipping would freeze old content in prod while CI/e2e (empty ledger) keep replaying — the two would diverge invisibly.
+- **Guarded DDL skips silently when the object already exists.** `ADD COLUMN IF NOT EXISTS x INTEGER REFERENCES parent(id)` adds neither column nor FK if the column pre-exists.
+- **`database/migrations/archive/001_create_tables.sql` is the only file containing `DROP TABLE … CASCADE`.** Never execute it (or any archived file) against an existing DB: dropping `products`/`stores`/`categories`/`users` cascades away inbound FKs on tables it does not recreate, and the guarded DDL that follows never restores them.
 
 ## Filesystem Convention
 
@@ -245,5 +240,5 @@ docs/
 ```
 
 - Root-level kept: `README.md`, `CONTRIBUTING.md`, `AGENTS.md`, `LICENSE`
-- SQL schema: `database/migrations/` (seed data consolidated into `000_squash.sql`)
+- SQL schema: `database/migrations/` (seed data consolidated into `000_baseline.sql`)
 - `docs/docs.go`, `docs/swagger.*` — swag-generated OpenAPI artifacts (do not move)

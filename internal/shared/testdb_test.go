@@ -137,8 +137,6 @@ func TestSplitSQLStatements_MigrationFiles(t *testing.T) {
 		}
 		name := filepath.Base(f)
 		stmts := splitSQLStatements(string(data))
-		// Comment-only files are legal (038 is an intentional no-op and
-		// registers itself through the recording step).
 		for i, stmt := range stmts {
 			if stmt == "" {
 				t.Errorf("%s: statement %d is empty", name, i)
@@ -151,22 +149,65 @@ func TestSplitSQLStatements_MigrationFiles(t *testing.T) {
 	}
 }
 
-func TestSplitSQLStatements_PaginationMigration(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "database", "migrations", "051_pagination_indexes.sql"))
-	if err != nil {
-		t.Fatalf("read 051: %v", err)
-	}
+// The migrations this baseline replaced are archived, so the fixture is inline
+// rather than read from disk. CREATE INDEX CONCURRENTLY cannot run inside a
+// transaction, which is why the runner must receive each of these as its own
+// statement — a split that merged them would break the run.
+func TestSplitSQLStatements_ConcurrentIndexAndRegistration(t *testing.T) {
+	script := `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_a ON t(a);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_b ON t(b, c);
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_d ON t(d);
+INSERT INTO schema_migrations (filename) VALUES ('051_pagination_indexes.sql')
+ON CONFLICT (filename) DO NOTHING;`
 
-	stmts := splitSQLStatements(string(data))
+	stmts := splitSQLStatements(script)
 	if len(stmts) != 4 {
-		t.Fatalf("051 splits into %d statements, want 4 (3 CREATE INDEX + 1 registration INSERT): %q", len(stmts), stmts)
+		t.Fatalf("got %d statements, want 4 (3 CREATE INDEX + 1 registration INSERT): %q", len(stmts), stmts)
 	}
 	for i, stmt := range stmts[:3] {
-		if !strings.Contains(stmt, "CREATE INDEX CONCURRENTLY") {
+		if !strings.Contains(stmt, "INDEX CONCURRENTLY") {
 			t.Errorf("statement %d does not create an index concurrently: %.80s", i, stmt)
 		}
 	}
 	if !strings.Contains(stmts[3], "INSERT INTO schema_migrations") {
 		t.Errorf("statement 3 should be the registration insert: %.80s", stmts[3])
+	}
+}
+
+// 000_baseline.sql is the only migration file. It runs inside one transaction
+// and leans on DO blocks for its idempotency guards, so both must survive the
+// split: a merged DO block would be re-executed as fragments, and a lost
+// BEGIN/COMMIT would stop the file from running on a single session.
+func TestSplitSQLStatements_BaselineMigration(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "database", "migrations", "000_baseline.sql"))
+	if err != nil {
+		t.Fatalf("read 000_baseline: %v", err)
+	}
+
+	stmts := splitSQLStatements(string(data))
+	if len(stmts) == 0 {
+		t.Fatal("000_baseline.sql split into no statements")
+	}
+	if !strings.HasSuffix(stmts[0], "BEGIN") {
+		t.Errorf("first statement should open the transaction, got %.60q", stmts[0])
+	}
+	if last := stmts[len(stmts)-1]; last != "COMMIT" {
+		t.Errorf("last statement should be COMMIT, got %.60q", last)
+	}
+
+	var doBlocks int
+	for i, stmt := range stmts {
+		if strings.HasPrefix(stmt, "DO $$") {
+			doBlocks++
+			if !strings.HasSuffix(stmt, "$$") {
+				t.Errorf("statement %d: DO block was split too early: %.80s", i, stmt)
+			}
+		}
+		if again := splitSQLStatements(stmt); len(again) != 1 {
+			t.Errorf("statement %d is not atomic, resplits into %d: %.60s", i, len(again), stmt)
+		}
+	}
+	if doBlocks == 0 {
+		t.Error("expected 000_baseline.sql to contain DO blocks")
 	}
 }

@@ -232,7 +232,7 @@ internal/
 | `internal/appsettings/handler.go` | Application settings (branding, receipt info, per-user preferences) |
 | `internal/sale/service.go` | POS transaction, parked sales, split payment |
 | `internal/shared/logger.go` | Structured logging (slog) |
-| `database/migrations/000_squash.sql` | Baseline schema (role, user, product, sale, inventory, etc.) |
+| `database/migrations/000_baseline.sql` | Version 1 baseline: complete schema + reference data (role, user, product, sale, inventory, etc.) |
 | `docs/swagger.go` | OpenAPI annotations |
 
 #### Run Tests
@@ -693,30 +693,16 @@ Rootful hosts: copy to `/etc/containers/systemd/` and drop `--user`. See
 
 #### Database Migrations
 
-Migrations are SQL files in `database/migrations/` (currently **`000_squash.sql`, `001`–`007`, `031`–`032`**). Migrations do **not** run automatically on server start — run them explicitly via `./deploy/podman-deploy.sh migrate` (or the test harness, which applies pending migrations to the test DB). Tracking of which migrations have been applied is in the `schema_migrations` table.
+Migrations are SQL files in `database/migrations/` (currently **`000_baseline.sql`** alone — the squashed Version 1 baseline). Migrations do **not** run automatically on server start — run them explicitly via `./deploy/podman-deploy.sh migrate` (or the test harness, which applies pending migrations to the test DB). Tracking of which migrations have been applied is in the `schema_migrations` table.
 
-**Fresh database (new spin-up):** `migrate` bootstraps `pgcrypto`, `invoice_seq`, and the `schema_migrations` table first, then applies each file sequentially from `000_squash.sql` with `ON_ERROR_STOP=1`. Result: complete schema + reference data (roles, 85 permissions, grants, 5 default users, payment methods, customer groups). Business data (stores, products, customers, sales) must be seeded via `./seed-dev.sh` or `./deploy/podman-deploy.sh seed`.
+**Fresh database (new spin-up):** `migrate` bootstraps `pgcrypto`, `invoice_seq`, and the `schema_migrations` table first, then applies `000_baseline.sql` with `ON_ERROR_STOP=1`. Result: complete schema + reference data (roles, 86 permissions, grants, 6 default users, payment methods, customer groups) plus the placeholder **Default Store**. Business data (products, customers, sales) must be seeded via `./seed-dev.sh` or `./deploy/podman-deploy.sh seed`.
 
-> **Important:** Apply migrations **before** deploying a new server binary. Migrations are idempotent (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`) and must be run sequentially from `000_squash.sql`. Current migrations: `001`–`007`, `031`–`039` — see AGENTS.md for deployment ordering details.
+> **Important:** Apply migrations **before** deploying a new server binary. `000_baseline.sql` is idempotent (`IF NOT EXISTS` / `DO` guards / `ON CONFLICT DO NOTHING`) and can be re-run safely; it also clears the ledger rows of the migrations it replaced, so `schema_migrations` converges on one row.
 
 Current migrations:
-- `000_squash.sql` — Baseline schema + initial seed data (roles, 85 permissions, grants, 5 default users, payment methods, customer groups, tombstone sequences)
-- `001_consignment.sql` — Consignment supplier: `consignment_*` tables, sequence, `consignment.*` permissions
-- `002_settlement_items_product_id.sql` — `consignment_settlement_items.product_id` column (FK to products, NULL-able)
-- `003_settlement_updated_at.sql` — `consignment_settlements.updated_at` column
-- `004_supplier_code_sequence.sql` — `supplier_seq` sequence for auto-generating supplier codes (`SUP-%06d`)
-- `005_app_settings.sql` — `app_settings` table (global key-value: branding, receipt text), seed defaults, `app_settings.view`/`app_settings.update` permissions
-- `006_user_preferences.sql` — `users.language` and `users.theme` columns for per-user preferences
-- `007_sale_lookup.sql` — `sale.lookup` permission + grant to `cashier` (grant to `manager` later revoked by `031`)
-- `031_revoke_sale_lookup_manager.sql` — Revoke `sale.lookup` grant from `manager` role
-- `032_sale_detail_and_receipt_print.sql` — `sale.detail` and `receipt.print` permissions; grant to `cashier`, `manager`, `admin`, `superadmin`
-- `033_*` — Audit log store FK + immutability trigger + cash_change table
-- `034_audit_immutable_bypass.sql` — GUC-aware bypass for audit immutability trigger
-- `035_audit_correlation_id.sql` — `audit_logs.correlation_id` column
-- `036_audit_export_permission.sql` — `audit.export` permission; grant to `superadmin`, `admin`
-- `037_audit_immutable_fk_bypass.sql` — Allow FK-cascade updates through append-only trigger
-- `038_grant_audit_view_to_admin.sql` — Grant `audit.view` to `admin` (fix: admin had export but not view)
-- `039_business_permission_audit.sql` — Business-perspective audit: +12 manager, +4 cashier, +1 staff permissions
+- `000_baseline.sql` — Version 1 baseline: complete schema (60 tables, 3 materialised views, functions, indexes, constraints) plus reference data (6 roles, 86 permissions, 264 grants, the 6 system users, payment methods, customer groups, default store, walk-in customer, `app_settings`).
+
+The 32 migrations it supersedes (`000_squash.sql` + `001`–`007` + `031`–`053`) are preserved, unmodified, in `database/migrations/archive/pre-squash-migrations.tar.gz`.
 
 ### Default Credentials
 
@@ -729,7 +715,7 @@ Current migrations:
 | Inventory Staff | `inventory_staff` | `admin123` | Stock ops: inventory.adjust, stock opname full lifecycle (create/assign/count/verify/post/close/export/report), storage location manage |
 | Finance | `finance` | `admin123` | Records supplier payments and views financial reports (consignment view/pay, reporting) |
 
-Change password in production via the UI change-password. (Default user password seeds previously lived in `database/seeds/`, which was retired; the default `admin123` users are created in `database/migrations/000_squash.sql`.)
+All six accounts are flagged by `000_baseline.sql` and must rotate `admin123` on first login — the backend answers HTTP 428 for every protected call until the password is changed, and the SPA blocks behind a *Change Your Password* dialog. Afterwards, change your own password anytime at `/account/password` (lock icon in the sidebar). (Default user password seeds previously lived in `database/seeds/`, which was retired; the default `admin123` users are created in `database/migrations/000_baseline.sql`.)
 
 ### Permission Matrix
 
