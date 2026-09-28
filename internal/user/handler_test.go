@@ -170,11 +170,13 @@ func TestHandler_UpdateUser(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 	hash := testPasswordHash()
+	storeID := 1
 	u := &User{
 		Username: "hdlupdatebefore",
 		Email:    "hdlupdate@test.com",
 		Password: hash,
 		RoleID:   2,
+		StoreID:  &storeID,
 		IsActive: true,
 	}
 	require.NoError(t, repo.CreateUser(ctx, u))
@@ -228,7 +230,7 @@ func TestHandler_CreateUser_WithReportsTo(t *testing.T) {
 	require.NoError(t, repo.CreateUser(ctx, mgr))
 
 	t.Run("create user with reports_to", func(t *testing.T) {
-		body := fmt.Sprintf(`{"username":"hdlstaff1","email":"hdlstaff1@test.com","password":"secret123","role_id":2,"reports_to":%d}`, mgr.ID)
+		body := fmt.Sprintf(`{"username":"hdlstaff1","email":"hdlstaff1@test.com","password":"secret123","role_id":2,"store_id":1,"reports_to":%d}`, mgr.ID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/admin/users", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -263,11 +265,13 @@ func TestHandler_UpdateUser_WithReportsTo(t *testing.T) {
 	}
 	require.NoError(t, repo.CreateUser(ctx, mgr))
 
+	storeID := 1
 	user := &User{
 		Username: "hdl_upd_user",
 		Email:    "hdl_upd_user@test.com",
 		Password: hash,
 		RoleID:   2,
+		StoreID:  &storeID,
 		IsActive: true,
 	}
 	require.NoError(t, repo.CreateUser(ctx, user))
@@ -278,6 +282,7 @@ func TestHandler_UpdateUser_WithReportsTo(t *testing.T) {
 		Email:       "hdl_upd_sub@test.com",
 		Password:    hash,
 		RoleID:      2,
+		StoreID:     &storeID,
 		IsActive:    true,
 		ReportsToID: &user.ID,
 	}

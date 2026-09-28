@@ -59,10 +59,13 @@
     roles.find((r) => r.id === form.role_id)?.name || labels.role,
   );
 
+  // Mirrors permissions.OperationalRoles (internal/permissions/permissions.go):
+  // these roles must be assigned a store_id before they can be saved.
   const isOperationalRole = $derived(
     (() => {
       const roleName = roles.find((r) => r.id === form.role_id)?.name;
       return (
+        roleName === "manager" ||
         roleName === "cashier" ||
         roleName === "supervisor" ||
         roleName === "finance" ||

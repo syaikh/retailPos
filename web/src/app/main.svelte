@@ -81,6 +81,7 @@
     "/stock-opnames": () => labels.stockOpname,
     "/stock-opnames/adjustments": () => labels.stockOpnameAdjustments,
     "/storage-locations": () => labels.storageLocations,
+    "/account/password": () => labels.changePassword,
   };
 
   const pageModules = {
@@ -144,6 +145,8 @@
       import("$modules/storage-location/components/StorageLocationsPage.svelte"),
     "/consignment": () =>
       import("$modules/consignment/components/ArrangementsPage.svelte"),
+    "/account/password": () =>
+      import("$modules/user/components/ChangePasswordPage.svelte"),
   };
 
   let loadId = 0;
@@ -204,10 +207,9 @@
     if (!hasRoutePermission(path)) {
       toast.error(labels.noPermissionToAccessPage);
       const fallback = getDefaultRoute(useAuthStore().user);
-      if (fallback === path) {
-        goto("/");
-      } else {
-        goto(fallback);
+      const target = fallback !== path ? fallback : "/";
+      if (target !== path && hasRoutePermission(target)) {
+        goto(target);
       }
       return;
     }

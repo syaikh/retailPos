@@ -4,24 +4,21 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
-function getSource(): string {
-  return readFileSync(
-    path.join(
-      path.dirname(__filename),
-      "..",
-      "ForceChangePasswordModal.svelte",
-    ),
-    "utf-8",
-  );
+function getSource(file: string): string {
+  return readFileSync(path.join(path.dirname(__filename), "..", file), "utf-8");
 }
 
 describe("ForceChangePasswordModal.svelte source-structure guards", () => {
-  const src = getSource();
+  const src = getSource("ForceChangePasswordModal.svelte");
 
-  it("imports changePassword, logout and the auth store from the auth module", () => {
+  it("imports logout and the auth store, and delegates to the shared form", () => {
     expect(src).toContain(
-      'import { changePassword, logout, useAuthStore } from "$modules/auth"',
+      'import { logout, useAuthStore } from "$modules/auth"',
     );
+    expect(src).toContain(
+      'import PasswordChangeForm from "./PasswordChangeForm.svelte"',
+    );
+    expect(src).toContain('idPrefix="force"');
     expect(src).toContain("labels.forceChangePasswordTitle");
     expect(src).toContain("labels.forceChangePasswordDesc");
   });
@@ -36,6 +33,20 @@ describe("ForceChangePasswordModal.svelte source-structure guards", () => {
     expect(src).toContain("{#if auth.mustChangePassword}");
   });
 
+  it("offers an explicit sign-out escape hatch", () => {
+    expect(src).toContain("labels.signOut");
+    expect(src).toContain("async function handleLogout()");
+    expect(src).toContain("await logout()");
+  });
+});
+
+describe("PasswordChangeForm.svelte source-structure guards", () => {
+  const src = getSource("PasswordChangeForm.svelte");
+
+  it("imports changePassword from the auth module", () => {
+    expect(src).toContain('import { changePassword } from "$modules/auth"');
+  });
+
   it("collects current, new and confirmation passwords with labels", () => {
     expect(src).toContain('let currentPassword = $state("")');
     expect(src).toContain('let newPassword = $state("")');
@@ -43,9 +54,9 @@ describe("ForceChangePasswordModal.svelte source-structure guards", () => {
     expect(src).toContain("labels.currentPassword");
     expect(src).toContain("labels.newPassword");
     expect(src).toContain("labels.confirmNewPassword");
-    expect(src).toContain('for="force-current-password"');
-    expect(src).toContain('for="force-new-password"');
-    expect(src).toContain('for="force-confirm-password"');
+    expect(src).toContain("`${idPrefix}-current-password`");
+    expect(src).toContain("`${idPrefix}-new-password`");
+    expect(src).toContain("`${idPrefix}-confirm-password`");
   });
 
   it("validates length and confirmation before enabling submit", () => {
@@ -63,15 +74,8 @@ describe("ForceChangePasswordModal.svelte source-structure guards", () => {
     expect(src).toContain('role="alert"');
   });
 
-  it("focuses the first field while the rotation flag is set", () => {
+  it("focuses the first field when autofocus is set", () => {
     expect(src).toContain("$effect(() => {");
-    expect(src).toContain("if (auth.mustChangePassword)");
-    expect(src).toContain("fieldRef?.focus()");
-  });
-
-  it("offers an explicit sign-out escape hatch", () => {
-    expect(src).toContain("labels.signOut");
-    expect(src).toContain("async function handleLogout()");
-    expect(src).toContain("await logout()");
+    expect(src).toContain("if (autofocus) fieldRef?.focus()");
   });
 });

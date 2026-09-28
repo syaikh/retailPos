@@ -2114,6 +2114,8 @@ export const id = {
   blockerCatalog: "Katalog kosong atau semua produk habis stok",
   blockerStaffRole: "Belum ada akun aktif untuk {role}",
   blockersRemaining: "Sisa hambatan:",
+  changePassword: "Ganti Kata Sandi",
+  changePasswordDesc: "Perbarui kata sandi untuk akun Anda.",
   confirmNewPassword: "Konfirmasi Kata Sandi Baru",
   copied: "Tersalin",
   copy: "Salin",

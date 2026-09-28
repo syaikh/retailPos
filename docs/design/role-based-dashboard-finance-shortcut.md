@@ -1,7 +1,8 @@
 # Role-Based Dashboard + Finance Settlement Shortcut
 
 **Date:** 2026-09-22
-**Status:** Planned
+**Status:** Implemented (all six parts shipped; tables verified against
+`Home.svelte` and the live permission set on 2026-09-28)
 
 ## Problem
 
@@ -35,16 +36,29 @@ Consignment → Arrangement → Settlement Tab
 
 ## Part 1: Role-Based Quick Access Cards
 
-All modules in one array with `required` permissions, filtered by `rbac.canAny()`.
+All modules in one array with `required` permissions, filtered by `rbac.canAny()`
+(Administration shows if **any** of its three permissions is held).
 
 | Role | Cards |
 |------|-------|
-| Superadmin | POS, Inventory, Reports, Consignment, Administration |
-| Manager | POS, Inventory, Reports, Consignment |
-| Supervisor | POS, Inventory, Reports, Consignment |
-| Cashier | POS, Shifts |
-| Inventory Staff | Products, Stock Opname |
-| Finance | **Pending Settlements**, Reports, Transactions |
+| Superadmin | **Pending Settlements**, POS, Inventory, Reports, Administration |
+| Manager | **Pending Settlements**, POS, Inventory, Reports, Administration |
+| Supervisor | POS, Inventory, Reports |
+| Cashier | POS |
+| Inventory Staff | *(none — the role has no `dashboard.view`, so the dashboard itself is unreachable)* |
+| Finance | **Pending Settlements**, Reports |
+
+| Card | Permission gate |
+|------|-----------------|
+| **Pending Settlements** | `consignment.pay` (superadmin, manager, finance) |
+| POS | `sale.create` |
+| Inventory | `product.view` → links to `/inventory/products` |
+| Reports | `report.view` |
+| Administration | `user.view` **or** `role.view` **or** `store.view` |
+
+> The original draft of the table above also listed Consignment, Shifts and
+> Transactions cards; only POS, Inventory, Reports and Administration were
+> built as navigation cards, plus the Pending Settlements shortcut.
 
 "Pending Settlements" card:
 - Permission: `consignment.pay`
@@ -78,12 +92,18 @@ Used by:
 
 ## Part 4: Role-Based Stat Cards
 
-| Role | Stat Cards |
-|------|-----------|
-| Superadmin/Manager/Supervisor/Cashier/Finance | Revenue, Transactions, Products, Low Stock |
-| Inventory Staff | Total Products, Low Stock, Out of Stock, Categories |
+| Stat card | Shown for |
+|-----------|-----------|
+| Today's Revenue, Transactions | everyone who can open the dashboard |
+| Categories | superadmin, manager |
+| Out of Stock | superadmin, manager, supervisor |
 
-Backend extends `/api/dashboard/live` with `out_of_stock_count` and `categories_count`.
+Backend `/api/dashboard/live` returns `out_of_stock_count` and
+`categories_count`.
+
+> The original design also planned "Products"/"Low Stock" stat cards and an
+> inventory-staff stat set — neither was built. `inventory_staff` has no
+> `dashboard.view`, so it never reaches this screen anyway.
 
 ## Part 5: Settlement Page — Status Tabs + Search
 

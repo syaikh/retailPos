@@ -2100,6 +2100,8 @@ export const en: Labels = {
   blockerCatalog: "Catalog is empty or fully out of stock",
   blockerStaffRole: "No active account for {role}",
   blockersRemaining: "Remaining blockers:",
+  changePassword: "Change Password",
+  changePasswordDesc: "Update the password for your account.",
   confirmNewPassword: "Confirm New Password",
   copied: "Copied",
   copy: "Copy",

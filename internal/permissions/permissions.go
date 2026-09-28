@@ -139,8 +139,11 @@ const (
 	RoleInventoryStaff = "inventory_staff" // was "staff" — stock management
 )
 
-// OperationalRoles are roles that require a store_id.
+// OperationalRoles are the roles CreateUser/UpdateUser require a store_id for.
+// RequireStoreID 403s a store-less user on every protected route (including
+// /api/stores), so an account created without a store could never self-repair.
 var OperationalRoles = map[string]bool{
+	RoleManager:        true,
 	RoleCashier:        true,
 	RoleSupervisor:     true,
 	RoleFinance:        true,

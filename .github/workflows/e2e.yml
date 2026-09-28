@@ -73,6 +73,15 @@ jobs:
         env:
           PGPASSWORD: admin123
         run: psql -h localhost -p 5433 -U pos -d retail_pos -c "SELECT username, is_active, substring(password_hash,1,7) AS hash_prefix FROM users WHERE username IN ('superadmin','manager','supervisor','cashier', 'inventory_staff') ORDER BY username"
+      - name: Clear forced password rotation gate
+        env:
+          PGPASSWORD: admin123
+        # Migration 052 flags the seed accounts so a real first install forces
+        # a rotation, and the seeder deliberately preserves that flag. e2e API
+        # tests have no in-UI rotation path, so the gate is cleared here
+        # instead. The 428 behaviour itself is covered by
+        # force-password-change.spec.ts, which flags its own user.
+        run: psql -h localhost -p 5433 -U pos -d retail_pos -c "UPDATE users SET must_change_password = false WHERE username IN ('superadmin','manager','supervisor','cashier','inventory_staff','finance') AND must_change_password = true"
       - name: Start backend
         env:
           DB_HOST: localhost

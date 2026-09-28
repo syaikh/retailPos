@@ -821,7 +821,7 @@ func TestMockHandler_CreateUser_WithReportsTo(t *testing.T) {
 			},
 		}
 		r := setupMockUserRouter(svc)
-		body := `{"username":"staff1","email":"staff1@test.com","password":"password123","role_id":2,"reports_to":1}`
+		body := `{"username":"staff1","email":"staff1@test.com","password":"password123","role_id":2,"store_id":1,"reports_to":1}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/admin/users", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -846,7 +846,7 @@ func TestMockHandler_CreateUser_MustChangePassword(t *testing.T) {
 			},
 		}
 		r := setupMockUserRouter(svc)
-		body := `{"username":"wizstaff","email":"wizstaff@test.com","password":"password123","role_id":2,"must_change_password":true}`
+		body := `{"username":"wizstaff","email":"wizstaff@test.com","password":"password123","role_id":2,"store_id":1,"must_change_password":true}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/admin/users", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -875,7 +875,7 @@ func TestMockHandler_CreateUser_MustChangePassword(t *testing.T) {
 			},
 		}
 		r := setupMockUserRouter(svc)
-		body := `{"username":"plainstaff","email":"plainstaff@test.com","password":"password123","role_id":2}`
+		body := `{"username":"plainstaff","email":"plainstaff@test.com","password":"password123","role_id":2,"store_id":1}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/admin/users", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")

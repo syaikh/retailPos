@@ -10,6 +10,7 @@
     ChevronDown,
     ChevronLeft,
     ChevronRight,
+    LockKeyhole,
     LogOut,
     Store,
     User,
@@ -621,6 +622,16 @@
                 {/if}
               </button>
             </Tooltip>
+            <Tooltip content={labels.changePassword} placement="top">
+              <button
+                type="button"
+                onclick={() => navigate("/account/password")}
+                class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary-subtle transition-all duration-200"
+                aria-label={labels.changePassword}
+              >
+                <LockKeyhole size={13} />
+              </button>
+            </Tooltip>
           </div>
           {#if canLogout}
             <button
@@ -649,6 +660,15 @@
       </div>
 
       {#if collapsed}
+        <button
+          type="button"
+          onclick={() => navigate("/account/password")}
+          class="sidebar-item w-full justify-center px-3 py-2.5"
+          title={labels.changePassword}
+          aria-label={labels.changePassword}
+        >
+          <LockKeyhole size={18} />
+        </button>
         {#if canLogout}
           <button
             type="button"

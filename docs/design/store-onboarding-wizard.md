@@ -1,6 +1,6 @@
 # Store Onboarding Wizard + Forced First-Login Password Rotation
 
-> **Status:** Planned → In implementation
+> **Status:** Shipped — the 5-step wizard lives in the Stores UI (`StoreOnboardingWizard.svelte`); forced first-login rotation ships via migrations `050`/`052` (HTTP 428 gate + `/account/password`)
 > **Related:** [Store-First + Finance Role](./store-first-and-finance-role.md), [Store Scoping All Roles](./store-scoping-all-roles.md)
 
 ## Problem

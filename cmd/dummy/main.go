@@ -466,6 +466,14 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	// 3g. Ensure manager/supervisor/cashier users have store_id assigned
 	// (consignment settlement requires store_id from JWT; users created by
 	// 000_squash.sql have store_id NULL).
+	// so a store_id inherited from a previous run can point at a store id that
+	// no longer exists — clear those first, then backfill operational roles.
+	if _, err := db.ExecContext(ctx, `
+		UPDATE users SET store_id = NULL
+		WHERE store_id IS NOT NULL
+		AND NOT EXISTS (SELECT 1 FROM stores s WHERE s.id = users.store_id AND s.is_active = true)`); err != nil {
+		return fmt.Errorf("failed to clear dangling store_id on users: %w", err)
+	}
 	if _, err := db.ExecContext(ctx, `
 		UPDATE users SET store_id = (
 			SELECT id FROM stores WHERE is_active = true ORDER BY id LIMIT 1
@@ -475,6 +483,14 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 		return fmt.Errorf("failed to assign store_id to users: %w", err)
 	}
 	fmt.Println("   ✅ Store IDs assigned to users")
+
+	// 3g1. Every active store needs one active user per operational role or
+	// GET /stores/:id/readiness reports staff.<role> blockers (the seed only
+	// ever staffed the first store).
+	if staffErr := ensureStoreStaff(ctx, db); staffErr != nil {
+		return fmt.Errorf("failed to ensure per-store staff: %w", staffErr)
+	}
+	fmt.Println("   ✅ Per-store staff ensured")
 
 	// Reopen the connection pool to discard any connections with leaked
 	// session_replication_role='replica' from truncateAllData. Go's database/sql
@@ -659,45 +675,14 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		}
 	}()
 
-	// Save system users before truncation. The preserved set is an explicit
-	// allowlist of default users (usernames match their role names, cf.
-	// migration 045), not a heuristic — anything else (dummy/test users, stray
-	// accounts) is truncated away and its sequence position reused.
-	type sysUser struct {
-		id, roleID                    int
-		username, email, passwordHash string
-		reportsTo                     *int
-		isActive                      bool
-		storeID                       *int
-	}
-	var systemUsers []sysUser
-	rows, err := conn.QueryContext(ctx, `
-		SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.reports_to, u.is_active, u.store_id
-		FROM users u
-		WHERE u.username IN ('superadmin', 'manager', 'supervisor', 'cashier', 'inventory_staff', 'finance')`)
-	if err == nil {
-		for rows.Next() {
-			var u sysUser
-			var reportsTo sql.NullInt64
-			var storeID sql.NullInt64
-			if err := rows.Scan(&u.id, &u.username, &u.email, &u.passwordHash, &u.roleID, &reportsTo, &u.isActive, &storeID); err == nil {
-				if reportsTo.Valid {
-					v := int(reportsTo.Int64)
-					u.reportsTo = &v
-				}
-				if storeID.Valid {
-					v := int(storeID.Int64)
-					u.storeID = &v
-				}
-				systemUsers = append(systemUsers, u)
-			}
-		}
-		_ = rows.Close()
-	} else {
-		log.Printf("Warning: could not save system users: %v", err)
-	}
-
-	// Truncate tables in correct order (children first)
+	// Truncate tables in correct order (children first).
+	//
+	// `users` is deliberately NOT in this list: the six default accounts
+	// (usernames match their role names, cf. migration 045) keep their rows —
+	// IDs, email, store_id and flags survive the seed — and only stray
+	// accounts are deleted afterwards. Every table that references `users` is
+	// either listed below or cascades from `shifts`/`stock_opnames`, so no
+	// dangling reference is left behind.
 	tables := []string{
 		// Consignment child tables first
 		"consignment_settlement_items",
@@ -742,7 +727,6 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		"customer_groups",
 		"audit_logs",
 		"refresh_tokens",
-		"users",
 	}
 
 	for _, table := range tables {
@@ -752,40 +736,16 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		}
 	}
 
-	// Restore system users
-	for _, u := range systemUsers {
-		var reportsTo interface{}
-		if u.reportsTo != nil {
-			reportsTo = *u.reportsTo
-		}
-		var storeIDVal interface{}
-		if u.storeID != nil {
-			storeIDVal = *u.storeID
-		}
-		_, err := conn.ExecContext(ctx,
-			`INSERT INTO users (id, username, email, password_hash, role_id, reports_to, is_active, store_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) ON CONFLICT (id) DO NOTHING`,
-			u.id, u.username, u.email, u.passwordHash, u.roleID, reportsTo, u.isActive, storeIDVal,
-		)
-		if err != nil {
-			log.Printf("Warning: failed to restore system user %d: %v", u.id, err)
-		}
-	}
-
-	// Resync sequences after explicit ID inserts to prevent duplicate key errors
-	if _, err := conn.ExecContext(ctx, `SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 1) FROM users))`); err != nil {
-		log.Printf("Warning: failed to resync users_id_seq: %v", err)
-	}
-
-	// Store-boundary safety: non-superadmin system users must carry a
-	// store_id. RequireStoreID 403s store-less non-superadmins on every
-	// protected route, so a missing store would lock these accounts out.
+	// Delete stray accounts (dummy/test users from previous runs) while the
+	// six default accounts are preserved as-is — including their
+	// must_change_password flag (migrations 050/052): a seed must not silently
+	// revert the forced first-login rotation. Referencing tables are already
+	// empty — each one is either in the list above or cascades from
+	// `shifts`/`stock_opnames`.
 	if _, err := conn.ExecContext(ctx, `
-		UPDATE users u
-		SET store_id = (SELECT s.id FROM stores s WHERE s.is_active = true ORDER BY s.id LIMIT 1)
-		WHERE u.store_id IS NULL
-		  AND u.username IN ('manager', 'supervisor', 'cashier', 'inventory_staff', 'finance')
-		  AND EXISTS (SELECT 1 FROM stores s WHERE s.is_active = true)`); err != nil {
-		log.Printf("Warning: failed to backfill store_id for system users: %v", err)
+		DELETE FROM users
+		WHERE username NOT IN ('superadmin', 'manager', 'supervisor', 'cashier', 'inventory_staff', 'finance')`); err != nil {
+		return fmt.Errorf("failed to delete non-system users: %w", err)
 	}
 
 	return nil
@@ -1284,7 +1244,7 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo, nu
 	var count int
 	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM suppliers").Scan(&count); err == nil && count > 0 {
 		fmt.Printf("   Found %d existing suppliers, skipping creation\n", count)
-		return nil
+		return syncSupplierSequence(ctx, db)
 	}
 
 	// Cap to available names
@@ -1384,7 +1344,7 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo, nu
 	}
 
 	fmt.Printf("   🎲 Created %d suppliers with %d product links\n", len(supplierIDs), linkCount)
-	return nil
+	return syncSupplierSequence(ctx, db)
 }
 
 func ensurePricingRules(ctx context.Context, db *sql.DB, products []ProductInfo) error {
@@ -1823,6 +1783,8 @@ type workerJob struct {
 	customerIDs      []int // Available customer IDs to assign to sales
 	walkInCustomerID int   // Walk-in/general customer ID for 30-50% of sales
 	stockUpdateCh    chan<- stockUpdateMsg
+	userStores       map[int]int // user ID -> active store ID (sale attribution)
+	activeStoreIDs   []int       // fallback store IDs for store-less cashiers
 }
 
 // stockUpdateMsg is a request to update product stock, processed sequentially
@@ -1967,6 +1929,84 @@ func syncPOSequences(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
+// syncSupplierSequence advances supplier_seq past the highest numeric suffix in
+// suppliers.code (app format "SUP-%06d", seeder format "SUP-%03d", cf.
+// migration 004). TRUNCATE does not restart the sequence — it is not column
+// owned — so without this a post-seed supplier created from the UI draws a
+// stale high-water mark.
+func syncSupplierSequence(ctx context.Context, db *sql.DB) error {
+	var maxSeq int
+	if err := db.QueryRowContext(ctx, `
+		SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(code, '^SUP-0*', '') AS bigint)), 0)
+		FROM suppliers
+		WHERE code ~ '^SUP-\d+$'`).Scan(&maxSeq); err != nil {
+		return fmt.Errorf("read max supplier code: %w", err)
+	}
+	if maxSeq == 0 {
+		// setval(..., false) marks the value as unused, so the next
+		// nextval() returns 1 (matching a truncated DB).
+		if _, err := db.ExecContext(ctx, `SELECT setval('supplier_seq', 1, false)`); err != nil {
+			return fmt.Errorf("sync supplier_seq: %w", err)
+		}
+		return nil
+	}
+	if _, err := db.ExecContext(ctx, `SELECT setval('supplier_seq', $1)`, maxSeq); err != nil {
+		return fmt.Errorf("sync supplier_seq: %w", err)
+	}
+	fmt.Println("   🔄 Synced supplier_seq")
+	return nil
+}
+
+// loadStoreAttribution returns each user's active store_id plus every active
+// store ID, so bulk sales can be attributed to the cashier's store. Users whose
+// store is missing or inactive are absent from the map (callers fall back to
+// the active store list).
+func loadStoreAttribution(ctx context.Context, db *sql.DB) (map[int]int, []int, error) {
+	userStores := make(map[int]int)
+	rows, err := db.QueryContext(ctx, `
+		SELECT u.id, u.store_id
+		FROM users u
+		JOIN stores s ON s.id = u.store_id AND s.is_active = true
+		WHERE u.deleted_at IS NULL`)
+	if err != nil {
+		return nil, nil, err
+	}
+	for rows.Next() {
+		var userID, storeID int
+		if err := rows.Scan(&userID, &storeID); err != nil {
+			_ = rows.Close()
+			return nil, nil, err
+		}
+		userStores[userID] = storeID
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, nil, err
+	}
+	_ = rows.Close()
+
+	var activeStoreIDs []int
+	srows, err := db.QueryContext(ctx, `SELECT id FROM stores WHERE is_active = true ORDER BY id`)
+	if err != nil {
+		return nil, nil, err
+	}
+	for srows.Next() {
+		var id int
+		if err := srows.Scan(&id); err != nil {
+			_ = srows.Close()
+			return nil, nil, err
+		}
+		activeStoreIDs = append(activeStoreIDs, id)
+	}
+	if err := srows.Err(); err != nil {
+		_ = srows.Close()
+		return nil, nil, err
+	}
+	_ = srows.Close()
+
+	return userStores, activeStoreIDs, nil
+}
+
 // injectDailySales generates transactions ensuring every day has at least 10 transactions using concurrent workers
 func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, customerIDs []int, walkInCustomerID int, startDate, endDate time.Time) error {
 	numWorkers := runtime.NumCPU()
@@ -2054,9 +2094,20 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 	stockUpdateCh := runStockUpdater(ctx, db)
 	defer close(stockUpdateCh)
 
+	// Attribution data for each sale: the cashier's store, with a random
+	// active store as fallback. Report queries filter with
+	// "store_id IS NULL OR store_id = $N", so a NULL-store sale would inflate
+	// every store's numbers instead of belonging to exactly one.
+	userStores, activeStoreIDs, attrErr := loadStoreAttribution(ctx, db)
+	if attrErr != nil {
+		return fmt.Errorf("failed to load store attribution: %w", attrErr)
+	}
+
 	// Assign stock updater channel to all workers
 	for i := range jobs {
 		jobs[i].stockUpdateCh = stockUpdateCh
+		jobs[i].userStores = userStores
+		jobs[i].activeStoreIDs = activeStoreIDs
 	}
 
 	// Start workers
@@ -2123,7 +2174,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 	saleStmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO sales (invoice_number, cashier_id, customer_id, store_id, payment_method, status, subtotal, discount, tax, total_amount, created_at)
-		 VALUES ($1, $2, $3, NULL, $4, 'completed', $5, 0, $6, $7, $8) RETURNING id`)
+		 VALUES ($1, $2, $3, $4, $5, 'completed', $6, 0, $7, $8, $9) RETURNING id`)
 	if err != nil {
 		log.Printf("Worker %d: prepare sale stmt: %v", job.workerID, err)
 		if rbErr := tx.Rollback(); rbErr != nil {
@@ -2170,6 +2221,16 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 			invoiceCounter++
 
 			cashierID := randElemInt(userIDs)
+			// The sale belongs to the cashier's store; a store-less cashier
+			// falls back to a random active store so no sale stays NULL-scoped.
+			storeID := job.userStores[cashierID]
+			if storeID == 0 {
+				storeID = randElemInt(job.activeStoreIDs)
+			}
+			var storeIDVal any
+			if storeID != 0 {
+				storeIDVal = storeID
+			}
 			// 30-50% of sales use the walk-in/general customer
 			customerID := randElemInt(job.customerIDs)
 			if rand.Intn(100) < 40 {
@@ -2218,7 +2279,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 			// Insert sale
 			var saleID int
-			err := saleStmt.QueryRowContext(ctx, invoice, cashierID, customerID, paymentMethod, totalDPP, totalTax, totalAmount, createdAt).Scan(&saleID)
+			err := saleStmt.QueryRowContext(ctx, invoice, cashierID, customerID, storeIDVal, paymentMethod, totalDPP, totalTax, totalAmount, createdAt).Scan(&saleID)
 			if err != nil {
 				_ = saleStmt.Close()
 				_ = itemStmt.Close()
@@ -2269,7 +2330,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 				tx, _ = db.BeginTx(ctx, nil)
 				saleStmt, _ = tx.PrepareContext(ctx,
 					`INSERT INTO sales (invoice_number, cashier_id, customer_id, store_id, payment_method, status, subtotal, discount, tax, total_amount, created_at)
-				 VALUES ($1, $2, $3, NULL, $4, 'completed', $5, 0, $6, $7, $8) RETURNING id`)
+				 VALUES ($1, $2, $3, $4, $5, 'completed', $6, 0, $7, $8, $9) RETURNING id`)
 				itemStmt, _ = tx.PrepareContext(ctx,
 					`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
 				movementStmt, _ = tx.PrepareContext(ctx, `
@@ -2327,7 +2388,8 @@ func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time)
 	//    dates are inserted as 'closed' and finalized below with the others.
 	rows, err := db.QueryContext(ctx, `
 		INSERT INTO shifts (user_id, store_id, status, opening_balance, opened_at, created_at, updated_at)
-		SELECT s.cashier_id, $1,
+		SELECT s.cashier_id,
+		       COALESCE((SELECT u.store_id FROM users u WHERE u.id = s.cashier_id), $1),
 		       CASE WHEN s.sale_date = s.last_date
 		                 AND NOT EXISTS (
 		                     SELECT 1 FROM shifts ex
@@ -2779,6 +2841,113 @@ func ensureCashierUsers(ctx context.Context, db *sql.DB, minCashiers, maxCashier
 		}
 	}
 	log.Printf("   ℹ️  Created %d dummy cashier users (total now %d)", needed, target)
+	return nil
+}
+
+// ensureStoreStaff guarantees every active store has at least one active user
+// in each operational role required by store readiness (manager, supervisor,
+// cashier, inventory_staff, finance — see store.RequiredRoles). Without this a
+// multi-store seed reports staff.<role> blockers on every store beyond the
+// first. Missing accounts are created as dummy_<role>_<store_id> with the same
+// password hash as the seeded system users so dev/e2e logins keep working.
+// Idempotent: staffed (store, role) pairs are skipped and usernames are
+// deterministic, so ON CONFLICT absorbs re-runs.
+func ensureStoreStaff(ctx context.Context, db *sql.DB) error {
+	// Ordered manager-first: later roles look the store's manager up for
+	// reports_to, so the manager must exist by then.
+	requiredRoles := []string{"manager", "supervisor", "cashier", "inventory_staff", "finance"}
+
+	roleIDs := make(map[string]int, len(requiredRoles))
+	for _, name := range requiredRoles {
+		var id int
+		if err := db.QueryRowContext(ctx, `SELECT id FROM roles WHERE name = $1`, name).Scan(&id); err != nil {
+			return fmt.Errorf("failed to find role %s: %w", name, err)
+		}
+		roleIDs[name] = id
+	}
+
+	// Reuse an existing bcrypt hash so the staff can log in with the same
+	// default password as the seeded system users. ORDER BY id keeps the pick
+	// deterministic (the first seeded system user).
+	var pwHash string
+	_ = db.QueryRowContext(ctx,
+		`SELECT password_hash FROM users WHERE password_hash IS NOT NULL AND length(password_hash) > 0 ORDER BY id LIMIT 1`,
+	).Scan(&pwHash)
+
+	var superadminID sql.NullInt64
+	_ = db.QueryRowContext(ctx, `
+		SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id
+		WHERE r.name = 'superadmin' AND u.is_active = true AND u.deleted_at IS NULL LIMIT 1`,
+	).Scan(&superadminID)
+
+	srows, err := db.QueryContext(ctx, `SELECT id FROM stores WHERE is_active = true ORDER BY id`)
+	if err != nil {
+		return fmt.Errorf("failed to load stores: %w", err)
+	}
+	var storeIDs []int
+	for srows.Next() {
+		var id int
+		if err := srows.Scan(&id); err != nil {
+			_ = srows.Close()
+			return fmt.Errorf("scan store id: %w", err)
+		}
+		storeIDs = append(storeIDs, id)
+	}
+	if err := srows.Err(); err != nil {
+		_ = srows.Close()
+		return fmt.Errorf("iterate stores: %w", err)
+	}
+	_ = srows.Close()
+
+	created := 0
+	for _, storeID := range storeIDs {
+		for _, roleName := range requiredRoles {
+			var staffed int
+			if err := db.QueryRowContext(ctx, `
+				SELECT COUNT(*) FROM users
+				WHERE role_id = $1 AND store_id = $2 AND is_active = true AND deleted_at IS NULL`,
+				roleIDs[roleName], storeID,
+			).Scan(&staffed); err != nil {
+				return fmt.Errorf("failed to count %s users for store %d: %w", roleName, storeID, err)
+			}
+			if staffed > 0 {
+				continue
+			}
+
+			// Staff report to their store's manager; managers report to
+			// superadmin (the manager row is inserted first within this store's
+			// iteration, so later roles find it).
+			var reportsTo sql.NullInt64
+			if roleName == "manager" {
+				reportsTo = superadminID
+			} else if err := db.QueryRowContext(ctx, `
+				SELECT id FROM users
+				WHERE role_id = $1 AND store_id = $2 AND is_active = true AND deleted_at IS NULL LIMIT 1`,
+				roleIDs["manager"], storeID,
+			).Scan(&reportsTo); err != nil && err != sql.ErrNoRows {
+				return fmt.Errorf("failed to find manager for store %d: %w", storeID, err)
+			}
+
+			username := fmt.Sprintf("dummy_%s_%d", roleName, storeID)
+			res, err := db.ExecContext(ctx, `
+				INSERT INTO users (username, email, password_hash, role_id, store_id, reports_to, is_active, created_at)
+				VALUES ($1, $2, $3, $4, $5, $6, true, NOW())
+				ON CONFLICT (username) DO NOTHING`,
+				username, username+"@retail-pos.local", pwHash, roleIDs[roleName], storeID, reportsTo,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create %s user %s: %w", roleName, username, err)
+			}
+			// ON CONFLICT DO NOTHING reports 0 rows on a re-run; only count
+			// accounts that were actually inserted.
+			if rows, err := res.RowsAffected(); err == nil && rows > 0 {
+				created++
+			}
+		}
+	}
+	if created > 0 {
+		log.Printf("   ℹ️  Created %d per-store staff users across %d stores", created, len(storeIDs))
+	}
 	return nil
 }
 

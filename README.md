@@ -64,7 +64,7 @@ Retail POS System is a modern Point of Sale (POS) application for retail stores 
 - **Pricing Engine** — Price rules (special price / promotion) by product, category, brand, customer group, and store; approval workflow (draft → pending → approved/rejected); real-time price resolver
 - **Supplier Management** — Supplier CRUD, product-supplier links, preferred supplier, bulk actions, auto-generate codes (SUP-XXXXXX)
 - **Konsinyasi Supplier (Consignment)** — Full consignment management: agreements, goods receiving, returns, settlements, payouts, consignment stock, POS checkout integration
-- **Application Settings** — Global settings (store branding, jargon, logo) for superadmin only, receipt info per branch, per-user preferences (theme/light-dark, language)
+- **Application Settings** — Global settings (store branding, jargon, logo) for superadmin and manager to view (superadmin edits), receipt info per branch, per-user preferences (theme/light-dark, language)
 - **Customer & Customer Groups** — Customer management, customer groups (Walk-in, Member, VIP), bulk actions
 - **Multi-Warehouse & Multi-Store** — Inventory per warehouse/store with composite unique key, store management
 - **Inventory Management** — Stock tracking, movement, low stock alerts, stock thresholds, multi-category filter
@@ -406,6 +406,8 @@ Base path: `/api`. All endpoints require JWT (via `Authorization: Bearer` or coo
 | GET | `/stores` | Store list | `store.view` |
 | GET | `/stores/active` | Active store list | `store.view` |
 | GET | `/stores/:id` | Store detail | `store.view` |
+| GET | `/stores/:id/readiness` | Onboarding readiness (blockers + ready flag) | `store.view` |
+| GET | `/warehouses` | Warehouse list (store-scoped) | Authenticated |
 | POST | `/stores` | Create store | `store.create` |
 | PUT | `/stores/:id` | Update store | `store.update` |
 | DELETE | `/stores/:id` | Delete store | `store.delete` |
@@ -720,11 +722,12 @@ Current migrations:
 
 | Role | Username | Password | Description |
 |------|----------|----------|-------------|
-| Superadmin | `superadmin` | `admin123` | All permissions (85 including consignment.*, app_settings.*, audit.*) |
+| Superadmin | `superadmin` | `admin123` | All permissions (86 including consignment.*, app_settings.*, audit.*) |
 | Manager | `manager` | `admin123` | Operational management: user CRUD (no delete), product/category/customer/pricing full CRUD, PO, stock opname, consignment view/create/update/settle/pay, store management, audit view+export (without user.delete, role.update/delete, app_settings.update, purchase_order.delete) |
 | Supervisor | `supervisor` | `admin123` | Store operator: product/category/customer full CRUD, pricing, PO, stock opname, consignment view/create/update/settle, shifts, POS sales (sale.create) |
 | Cashier | `cashier` | `admin123` | POS: create/view sales, park, shift, stock count, dashboard, category/pricing/customer_group view, Find Transaction lookup |
 | Inventory Staff | `inventory_staff` | `admin123` | Stock ops: inventory.adjust, stock opname full lifecycle (create/assign/count/verify/post/close/export/report), storage location manage |
+| Finance | `finance` | `admin123` | Records supplier payments and views financial reports (consignment view/pay, reporting) |
 
 Change password in production via the UI change-password. (Default user password seeds previously lived in `database/seeds/`, which was retired; the default `admin123` users are created in `database/migrations/000_squash.sql`.)
 
@@ -732,59 +735,61 @@ Change password in production via the UI change-password. (Default user password
 
 Permissions use **dot-notation** (`entity.action`), e.g.: `user.view`, `product.create`, `stock_opname.post`. This table is the default configuration from seeds; it can be changed via the Role Management UI. Total 86 permissions (including `consignment.*`, `app_settings.*`, `sale.lookup`, `sale.detail`, `receipt.print`, `audit.export`, `shift.cash_movement`).
 
-| Permission | Superadmin | Manager | Supervisor | Cashier | Inventory Staff |
-|------------|:---:|:---:|:---:|:---:|:---:|
-| `dashboard.view` | ✅ | ✅ | ✅ | ✅ | – |
-| `product.view` | ✅ | ✅ | ✅ | ✅ | – |
-| `product.create` | ✅ | ✅ | ✅ | – | – |
-| `product.update` | ✅ | ✅ | ✅ | – | – |
-| `product.delete` | ✅ | ✅ | – | – | – |
-| `product.import`, `product.export` | ✅ | ✅ | – | – | – |
-| `product.history.view` | ✅ | ✅ | – | – | – |
-| `product.cost.view` | ✅ | ✅ | ✅ | – | – |
-| `category.view` | ✅ | ✅ | ✅ | ✅ | – |
-| `category.create` | ✅ | ✅ | ✅ | – | – |
-| `category.update`, `category.delete` | ✅ | ✅ | ✅ | – | – |
-| `category.import`, `category.export` | ✅ | ✅ | – | – | – |
-| `sale.view` | ✅ | ✅ | ✅ | ✅ | – |
-| `sale.create`, `sale.park` | ✅ | ✅ | ✅ | ✅ | – |
-| `sale.lookup` | – | – | – | ✅ | – |
-| `sale.detail`, `receipt.print` | ✅ | ✅ | ✅ | ✅ | – |
-| `shift.view`, `shift.create`, `shift.cash_movement` | ✅ | ✅ | ✅ | ✅ | – |
-| `shift.review`, `shift.audit` | ✅ | ✅ | ✅ | – | – |
-| `inventory.adjust` | ✅ | ✅ | ✅ | – | ✅ |
-| `report.view` | ✅ | ✅ | ✅ | – | – |
-| `customer.view` | ✅ | ✅ | ✅ | ✅ | – |
-| `customer.create`, `customer.update` | ✅ | ✅ | ✅ | – | – |
-| `customer.delete`, `customer.import`, `customer.export` | ✅ | ✅ | ✅ | – | – |
-| `customer_group.view` | ✅ | ✅ | ✅ | ✅ | – |
-| `customer_group.create/update/delete` | ✅ | ✅ | ✅ | – | – |
-| `store.view` | ✅ | ✅ | ✅ | – | – |
-| `store.create/update/delete` | ✅ | ✅ | – | – | – |
-| `storage_location.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `storage_location.create/update/delete` | ✅ | ✅ | – | – | ✅ |
-| `stock_opname.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `stock_opname.count`, `stock_opname.submit` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `stock_opname.create`, `stock_opname.assign` | ✅ | ✅ | ✅ | – | ✅ |
-| `stock_opname.verify`, `stock_opname.post`, `stock_opname.close`, `stock_opname.report` | ✅ | ✅ | ✅ | – | ✅ |
-| `stock_opname.cancel`, `stock_opname.export`, `stock_opname.recount` | ✅ | ✅ | ✅ | – | ✅ |
-| `pricing.view` | ✅ | ✅ | ✅ | ✅ | – |
-| `pricing.create`, `pricing.update` | ✅ | ✅ | ✅ | – | – |
-| `pricing.delete` | ✅ | ✅ | ✅ | – | – |
-| `purchase_order.view/create/update/confirm/receive` | ✅ | ✅ | ✅ | – | – |
-| `purchase_order.delete` | ✅ | – | – | – | – |
-| `purchase_order.cancel` | ✅ | ✅ | ✅ | – | – |
-| `consignment.view` | ✅ | ✅ | ✅ | – | – |
-| `consignment.create`, `consignment.update` | ✅ | ✅ | ✅ | – | – |
-| `consignment.settle` | ✅ | ✅ | ✅ | – | – |
-| `consignment.pay` | ✅ | ✅ | – | – | – |
-| `app_settings.view` | ✅ | ✅ | – | – | – |
-| `app_settings.update` | ✅ | – | – | – | – |
-| `user.view`, `user.create`, `user.update` | ✅ | ✅ | – | – | – |
-| `user.delete` | ✅ | – | – | – | – |
-| `role.view`, `role.create` | ✅ | ✅ | – | – | – |
-| `role.update`, `role.delete` | ✅ | – | – | – | – |
-| `audit.view`, `audit.export` | ✅ | ✅ | – | – | – |
+| Permission | Superadmin | Manager | Supervisor | Cashier | Inventory Staff | Finance |
+|------------|:---:|:---:|:---:|:---:|:---:|:---:|
+| `dashboard.view` | ✅ | ✅ | ✅ | ✅ | – | ✅ |
+| `product.view` | ✅ | ✅ | ✅ | ✅ | – | – |
+| `product.create` | ✅ | ✅ | ✅ | – | – | – |
+| `product.update` | ✅ | ✅ | ✅ | – | – | – |
+| `product.delete` | ✅ | ✅ | – | – | – | – |
+| `product.import`, `product.export` | ✅ | ✅ | – | – | – | – |
+| `product.history.view` | ✅ | ✅ | – | – | – | – |
+| `product.cost.view` | ✅ | ✅ | ✅ | – | – | – |
+| `category.view` | ✅ | ✅ | ✅ | ✅ | – | – |
+| `category.create` | ✅ | ✅ | ✅ | – | – | – |
+| `category.update`, `category.delete` | ✅ | ✅ | ✅ | – | – | – |
+| `category.import`, `category.export` | ✅ | ✅ | – | – | – | – |
+| `sale.view` | ✅ | ✅ | ✅ | ✅ | – | ✅ |
+| `sale.create`, `sale.park` | ✅ | ✅ | ✅ | ✅ | – | – |
+| `sale.lookup` | – | – | – | ✅ | – | – |
+| `sale.detail`, `receipt.print` | ✅ | ✅ | ✅ | ✅ | – | – |
+| `shift.view`, `shift.create`, `shift.cash_movement` | ✅ | ✅ | ✅ | ✅ | – | – |
+| `shift.review`, `shift.audit` | ✅ | ✅ | ✅ | – | – | – |
+| `inventory.adjust` | ✅ | ✅ | ✅ | – | ✅ | – |
+| `report.view` | ✅ | ✅ | ✅ | – | – | ✅ |
+| `customer.view` | ✅ | ✅ | ✅ | ✅ | – | – |
+| `customer.create`, `customer.update` | ✅ | ✅ | ✅ | – | – | – |
+| `customer.delete`, `customer.import`, `customer.export` | ✅ | ✅ | ✅ | – | – | – |
+| `customer_group.view` | ✅ | ✅ | ✅ | ✅ | – | – |
+| `customer_group.create/update/delete` | ✅ | ✅ | ✅ | – | – | – |
+| `store.view` | ✅ | ✅ | – | – | – | – |
+| `store.create` | ✅ | – | – | – | – | – |
+| `store.update`, `store.delete` | ✅ | ✅ | – | – | – | – |
+| `storage_location.view` | ✅ | ✅ | ✅ | ✅ | ✅ | – |
+| `storage_location.create/update/delete` | ✅ | ✅ | – | – | ✅ | – |
+| `stock_opname.view` | ✅ | ✅ | ✅ | ✅ | ✅ | – |
+| `stock_opname.count`, `stock_opname.submit` | ✅ | ✅ | ✅ | ✅ | ✅ | – |
+| `stock_opname.create`, `stock_opname.assign` | ✅ | ✅ | ✅ | – | ✅ | – |
+| `stock_opname.verify`, `stock_opname.post`, `stock_opname.close`, `stock_opname.report` | ✅ | ✅ | ✅ | – | ✅ | – |
+| `stock_opname.cancel`, `stock_opname.export`, `stock_opname.recount` | ✅ | ✅ | ✅ | – | ✅ | – |
+| `pricing.view` | ✅ | ✅ | ✅ | ✅ | – | – |
+| `pricing.create`, `pricing.update` | ✅ | ✅ | ✅ | – | – | – |
+| `pricing.delete` | ✅ | ✅ | ✅ | – | – | – |
+| `purchase_order.view/create/update/confirm/receive` | ✅ | ✅ | ✅ | – | – | – |
+| `purchase_order.delete` | ✅ | – | – | – | – | – |
+| `purchase_order.cancel` | ✅ | ✅ | ✅ | – | – | – |
+| `consignment.view` | ✅ | ✅ | ✅ | – | – | ✅ |
+| `consignment.create`, `consignment.update` | ✅ | ✅ | ✅ | – | – | – |
+| `consignment.settle` | ✅ | ✅ | ✅ | – | – | – |
+| `consignment.pay` | ✅ | ✅ | – | – | – | ✅ |
+| `app_settings.view` | ✅ | ✅ | – | – | – | – |
+| `app_settings.update` | ✅ | – | – | – | – | – |
+| `user.view`, `user.create`, `user.update` | ✅ | ✅ | – | – | – | – |
+| `user.delete` | ✅ | – | – | – | – | – |
+| `role.view`, `role.create` | ✅ | ✅ | – | – | – | – |
+| `role.update`, `role.delete` | ✅ | – | – | – | – | – |
+| `audit.view` | ✅ | ✅ | – | – | – | ✅ |
+| `audit.export` | ✅ | ✅ | – | – | – | – |
 
 ### Testing
 
@@ -1003,15 +1008,16 @@ go test ./...
 
 #### Roles and Permissions
 
-The system has five built-in roles. Your role determines which menus you see and which actions you can take.
+The system has six built-in roles. Your role determines which menus you see and which actions you can take.
 
 | Role | Typical user | What they do |
 |------|--------------|--------------|
 | **Superadmin** | System owner | Everything, including user deletion, role management, and audit logs |
-| **Admin** | Store administrator | Everything except deleting users/roles and audit logs (can create and edit users and roles) |
-| **Manager** | Store/ops manager | Dashboard, transactions, reports, shifts, purchase orders, stock opname; manages products, categories, customers, pricing rules, suppliers; adjusts inventory; no POS register |
+| **Manager** | Store administrator | Dashboard, POS sales, transactions, reports, shifts, purchase orders, stock opname; manages products, categories, customers, pricing rules, suppliers, stores, users and roles; views audit logs and app settings |
+| **Supervisor** | Shift lead / store operator | POS sales, own shifts, receives purchase orders, verifies and posts stock opname, product/category/customer CRUD, pricing, consignment view/create/update/settle |
 | **Cashier** | Front-line seller | POS, own transactions, own shifts, customer lookup, stock counting |
-| **Staff** | Warehouse/counter staff | Products (view), stock opname counting |
+| **Inventory staff** | Warehouse/counter staff | Stock opname counting, inventory adjustments, storage locations |
+| **Finance** | Finance officer | Records supplier payments and views financial reports (consignment view/pay, reporting) |
 
 A complete permission-to-role matrix is in [Appendix A](#appendix-a-role--permission-matrix).
 
@@ -1024,8 +1030,8 @@ A complete permission-to-role matrix is in [Appendix A](#appendix-a-role--permis
 After a successful login you are taken to the screen appropriate for your role:
 
 - **Cashier** → the **Shifts** page (you must open a shift before using the POS).
-- **Staff** → the **Products** page.
-- **Superadmin / Admin / Manager** → the **Dashboard**.
+- **Inventory staff** → the **Stock Opname** page.
+- **Everyone else** (superadmin, manager, supervisor, finance) → the **Dashboard**.
 
 > Your session is active for the current browser tab only. If you close the browser, you will need to log in again.
 
@@ -1035,25 +1041,26 @@ The left sidebar contains the main navigation. What you see depends on your role
 
 **Main menu**
 - **Dashboard** — today's revenue and quick access tiles.
-- **Point of Sale** — the cash register (not shown for manager/staff).
+- **Point of Sale** — the cash register (requires `sale.create`).
 - **Transactions** — sales history.
 - **Reports** — revenue analytics.
 - **Shifts** — cash register shifts.
-- **Purchase Orders** — purchasing from suppliers (not shown for cashier/staff).
+- **Purchase Orders** — purchasing from suppliers (not shown for cashier/inventory staff).
 - **Stock Opname** — physical stock counting.
 
 **Master Data** (collapsible group)
 - Products, Categories, Brands, Units, Customers, Pricing Rules, Customer Groups, Suppliers, Storage Locations.
 
-**Administration** (shown for admin/superadmin)
-- Stores, Users, Roles, Audit Logs (audit logs require superadmin).
+**Administration** (shown for manager/superadmin — finance sees only Audit Logs)
+- Stores, Users, Roles, Audit Logs, Settings (Audit Logs also for finance).
 
 Sidebar visibility by role:
 
 - **Cashier** — Point of Sale, Transactions, Shifts.
-- **Staff** — Stock Opname, and Master Data → Products.
-- **Manager** — Dashboard, Transactions, Reports, Shifts, Purchase Orders, Stock Opname, Konsinyasi, and Master Data (Products, Categories, Brands, Units, Customers, Pricing Rules, Customer Groups, Suppliers).
-- **Admin / Superadmin** — the full menu plus Administration (Stores, Users, Roles; Audit Logs and Settings are superadmin-only).
+- **Inventory staff** — Stock Opname.
+- **Manager / Superadmin** — Dashboard, Point of Sale, Transactions, Reports, Shifts, Purchase Orders, Stock Opname, Konsinyasi, and Master Data (Products, Categories, Brands, Units, Customers, Pricing Rules, Customer Groups, Suppliers, Storage Locations), plus Administration (Stores, Users, Roles, Audit Logs, Settings).
+- **Supervisor** — Dashboard, Transactions, Reports, Shifts, Purchase Orders, Stock Opname, Konsinyasi, and the same Master Data group as manager (no Administration; Point of Sale works via direct URL — the sidebar grouping for supervisors omits it).
+- **Finance** — Dashboard, Transactions, Reports, Konsinyasi, and Administration → Audit Logs.
 
 > The sidebar shows only the menus above, but a role can also navigate directly to a URL whose permission code it holds (for example a cashier who also has `stock_opname.view` can open the Stock Opname page).
 
@@ -1100,7 +1107,7 @@ Superadmins can configure global branding under **Administration → Settings**:
 - **Receipt Header** — custom text printed at the top of receipts.
 - **Receipt Footer** — custom text printed at the bottom of receipts (default: "Terima kasih atas kunjungan Anda!").
 
-Admins can view these settings but only superadmins can edit them.
+Managers can view these settings but only superadmins can edit them.
 
 ---
 
@@ -1326,18 +1333,18 @@ Active filter chips appear below the toolbar; use the **X** on a chip or **Clear
 
 #### Adding / Editing a Product
 
-Click **Add Product** (superadmin/admin only) and fill in:
+Click **Add Product** (superadmin, manager or supervisor) and fill in:
 
 - **Name** (required), **SKU** (required), **Barcode** (optional)
 - **Category** (required) — type to search existing categories
 - **Brand**, **Unit**, **Tax Class** (e.g. PPN 11%)
 - **Price (IDR)** (required), **Cost (IDR)**, **Stock** (required)
 - **Description** (optional)
-- **Status** — Draft / Active / Inactive / Discontinued (Archived is available to admin/superadmin)
+- **Status** — Draft / Active / Inactive / Discontinued (Archived is available to superadmin/manager)
 
 On **edit**, a **Pricing Rules** panel lists the rules currently attached to the product (inactive rules are dimmed).
 
-**Deleting a product** is permanent and removes it from the catalog — only admin/superadmin can do it.
+**Deleting a product** is permanent and removes it from the catalog — only superadmin and manager can do it.
 
 #### Adjusting Stock
 
@@ -1594,7 +1601,7 @@ Draft → Open → Counting → Verification → Approved → Posted → Closed
 
 While the session is Draft/Open/Counting/Needs Recount, an assigner can **Assign Counter** — add counter users to the session. Only assigned counters can enter counts.
 
-> By role: **Manager/admin/superadmin** create, assign, verify, post, and close sessions (they cannot enter counts). **Cashiers and staff** hold the `stock_opname.count`/`stock_opname.submit` permissions and are the usual counters — a manager assigns them to a session before counting begins.
+> By role: **Superadmin, manager, supervisor and inventory staff** create, assign, verify, post, and close sessions (only assigned counters enter counts). **Cashiers and inventory staff** hold the `stock_opname.count`/`stock_opname.submit` permissions and are the usual counters — an assigner adds them to the session before counting begins.
 
 #### Opening & Counting
 
@@ -1705,7 +1712,7 @@ Open **Konsinyasi Supplier** from the sidebar. You'll see the **Arrangements Lis
 **Creating a new arrangement:**
 1. Click **Arrangement Baru** (New Arrangement) (top-right).
 2. In the modal, select the **Supplier** from the dropdown (only consignment suppliers appear).
-3. The **Store** defaults to your current store (superadmin/admin can change it).
+3. The **Store** defaults to your current store (superadmin can change it; other roles are auto-assigned to their own store).
 4. Click **Create**. The arrangement appears in the list with status **Aktif**.
 
 > If no consignment suppliers appear in the dropdown, go to **Suppliers** first and toggle the **Supplier Konsinyasi** (Consignment Supplier) flag on the supplier you want to use.
@@ -1964,37 +1971,38 @@ The **Reports** page is the revenue analytics dashboard.
 
 The **Stores** page (`/stores`, Indonesian UI) manages store branches.
 
-- **Tambah Toko** (Add Store) → **Nama Toko** (Store Name, required, e.g. "Cabang Bandung"), optional **Alamat** (Address) and **Telepon** (Phone).
+- **Tambah Toko** (Add Store) launches the **onboarding wizard** — Details (name, address, phone) → Staff (creates one active user per required role: manager, supervisor, cashier, inventory_staff, finance) → Location (first storage location) → Stock (initial products with stock) → Readiness. Each step only advances once its API call succeeded, so a store is never left half-created.
+- **Readiness** — every store row reflects `GET /api/stores/:id/readiness`: `ready: true` requires an active store with address + phone, at least one active user in each required role, ≥1 storage location, and ≥1 active product with stock. Blockers are listed per missing ingredient.
 - **Edit** — change details and toggle **Aktif** (Active).
 - **Delete** — the confirmation suggests deactivating instead of deleting.
 
-Active stores are used elsewhere in the system (e.g. as a scope for storage locations and stock opname, and as the outlet filter for pricing rules).
+Migration `044` seeds a placeholder **Default Store** (with all default users assigned to it); finish it by adding a real address/phone, a storage location, and catalog stock. Active stores are used elsewhere in the system (e.g. as a scope for storage locations and stock opname, and as the outlet filter for pricing rules).
 
 ---
 
 ### 17. Administration
 
-The Administration group is shown only to **admin** and **superadmin** (Audit Logs is superadmin-only).
+The Administration group is shown only to **manager** and **superadmin** (requires the relevant `*.view` permissions; Audit Logs requires `audit.view`, held by superadmin and manager).
 
 #### Users
 
 Manage login accounts:
-- **Add User** — username (alphanumeric), email, **password** (min 6 characters), **role** (superadmin/admin/cashier/manager/staff), **active** status, and an optional **reports-to** manager (or *None (top-level)*).
+- **Add User** — username (alphanumeric), email, **password** (min 8 characters), **role** (superadmin, manager, supervisor, cashier, inventory_staff, finance), **active** status, a **store** (required for operational roles), and an optional **reports-to** manager (or *None (top-level)*).
 - **Edit** — change details, role, active status, or set a **new password** (leave blank to keep the current one).
 - Deactivate or delete users. The superadmin account cannot be deleted and deleting users is superadmin-only.
 
-> There is no self-service "change password" screen. Passwords are set/reset by an administrator through User Management.
+> Change your own password anytime at **`/account/password`** (lock icon in the sidebar). Migration `052` forces the six seeded accounts through it on first login. Administrators can still reset any user's password in User Management.
 
 #### Roles & Permissions
 
 Custom roles let you grant exactly the right permissions:
 - **Create Role** — Step 1: name + description. Step 2: tick permission checkboxes grouped by area (User & Role, Product, Category, Sales, Inventory, Customer, Report, Dashboard, POS, System), with group toggles, a permission counter, and search.
-- **Edit / Duplicate** (`(copy)` suffix) / **Delete** via the row menu. System roles cannot be deleted, and deleting roles requires superadmin (admin can create, edit, and duplicate roles but not delete them).
+- **Edit / Duplicate** (`(copy)` suffix) / **Delete** via the row menu. System roles cannot be deleted, and deleting roles requires superadmin (manager can create, edit, and duplicate roles but not delete them).
 - Role permission changes take effect for members on their next request.
 
 #### Audit Logs
 
-A read-only log of important actions (who did what and when), with filters for action, resource, and date range, plus export. Superadmin only.
+A read-only log of important actions (who did what and when), with filters for action, resource, and date range, plus export. Visible to superadmin, manager and finance; superadmin and manager can export.
 
 ---
 
@@ -2021,47 +2029,47 @@ Imports are processed with preview/validation before commit, so mistakes can be 
 
 Legend: ✓ full access · ◐ partial/limited · — no access
 
-| Capability | Superadmin | Manager | Supervisor | Cashier | Inventory Staff |
-|------------|:---:|:---:|:---:|:---:|:---:|
-| Dashboard | ✓ | ✓ | ✓ | ✓ | — |
-| Point of Sale (create sale) | ✓ | ✓ | ✓ | ✓ | — |
-| View transactions | ✓ | ✓ | ✓ | ✓ (own) | — |
-| Reports | ✓ | ✓ | ✓ | — | — |
-| Shifts — open/close own | ✓ | ✓ | ✓ | ✓ | — |
-| Shifts — view/review all | ✓ | ✓ | ✓ | — | — |
-| Products — view | ✓ | ✓ | ✓ | ✓ | — |
-| Products — create/edit | ✓ | ✓ | ✓ | — | — |
-| Products — delete | ✓ | ✓ | — | — | — |
-| Inventory adjustment | ✓ | ✓ | ✓ | — | ✓ |
-| Categories — view | ✓ | ✓ | ✓ | ✓ | — |
-| Categories — create | ✓ | ✓ | ✓ | — | — |
-| Categories — edit/delete | ✓ | ✓ | ✓ | — | — |
-| Customers — view | ✓ | ✓ | ✓ | ✓ | — |
-| Customers — create/update | ✓ | ✓ | ✓ | — | — |
-| Customers — delete/export/import | ✓ | ✓ | ✓ | — | — |
-| Customer groups — view | ✓ | ✓ | ✓ | ✓ | — |
-| Customer groups — manage | ✓ | ✓ | ✓ | — | — |
-| Suppliers (use module) | ✓ | ✓ | ✓ | — | — |
-| Storage locations — manage | ✓ | ✓ | — | — | ✓ |
-| Pricing rules — create/manage | ✓ | ✓ | ✓ | ✓ (view) | — |
-| Purchase orders — create/confirm/receive | ✓ | ✓ | ✓ | — | — |
-| Stock opname — create/assign/verify/post/close | ✓ | ✓ | ✓ | — | ✓ |
-| Stock opname — count/submit | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Stock opname — export/report | ✓ | ✓ | ✓ | — | ✓ |
-| Konsinyasi — view | ✓ | ✓ | ✓ | — | — |
-| Konsinyasi — create/update terms | ✓ | ✓ | ✓ | — | — |
-| Konsinyasi — settle | ✓ | ✓ | ✓ | — | — |
-| Konsinyasi — pay supplier | ✓ | ✓ | — | — | — |
-| Stores — manage | ✓ | ✓ | — | — | — |
-| Users — create/edit | ✓ | ✓ | — | — | — |
-| Users — delete | ✓ | — | — | — | — |
-| Roles — create | ✓ | ✓ | — | — | — |
-| Roles — update/delete | ✓ | — | — | — | — |
-| Audit logs — view | ✓ | ✓ | — | — | — |
-| Audit logs — export | ✓ | ✓ | — | — | — |
-| Application settings — view | ✓ | ✓ | — | — | — |
-| Application settings — update | ✓ | — | — | — | — |
-| Import/Export (product, category, customer) | ✓ | ✓ | ✓ (customer) | — | — |
+| Capability | Superadmin | Manager | Supervisor | Cashier | Inventory Staff | Finance |
+|------------|:---:|:---:|:---:|:---:|:---:|:---:|
+| Dashboard | ✓ | ✓ | ✓ | ✓ | — | ✓ |
+| Point of Sale (create sale) | ✓ | ✓ | ✓ | ✓ | — | — |
+| View transactions | ✓ | ✓ | ✓ | ✓ (own) | — | ✓ |
+| Reports | ✓ | ✓ | ✓ | — | — | ✓ |
+| Shifts — open/close own | ✓ | ✓ | ✓ | ✓ | — | — |
+| Shifts — view/review all | ✓ | ✓ | ✓ | — | — | — |
+| Products — view | ✓ | ✓ | ✓ | ✓ | — | — |
+| Products — create/edit | ✓ | ✓ | ✓ | — | — | — |
+| Products — delete | ✓ | ✓ | — | — | — | — |
+| Inventory adjustment | ✓ | ✓ | ✓ | — | ✓ | — |
+| Categories — view | ✓ | ✓ | ✓ | ✓ | — | — |
+| Categories — create | ✓ | ✓ | ✓ | — | — | — |
+| Categories — edit/delete | ✓ | ✓ | ✓ | — | — | — |
+| Customers — view | ✓ | ✓ | ✓ | ✓ | — | — |
+| Customers — create/update | ✓ | ✓ | ✓ | — | — | — |
+| Customers — delete/export/import | ✓ | ✓ | ✓ | — | — | — |
+| Customer groups — view | ✓ | ✓ | ✓ | ✓ | — | — |
+| Customer groups — manage | ✓ | ✓ | ✓ | — | — | — |
+| Suppliers (use module) | ✓ | ✓ | ✓ | — | — | — |
+| Storage locations — manage | ✓ | ✓ | — | — | ✓ | — |
+| Pricing rules — create/manage | ✓ | ✓ | ✓ | ✓ (view) | — | — |
+| Purchase orders — create/confirm/receive | ✓ | ✓ | ✓ | — | — | — |
+| Stock opname — create/assign/verify/post/close | ✓ | ✓ | ✓ | — | ✓ | — |
+| Stock opname — count/submit | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Stock opname — export/report | ✓ | ✓ | ✓ | — | ✓ | — |
+| Konsinyasi — view | ✓ | ✓ | ✓ | — | — | ✓ |
+| Konsinyasi — create/update terms | ✓ | ✓ | ✓ | — | — | — |
+| Konsinyasi — settle | ✓ | ✓ | ✓ | — | — | — |
+| Konsinyasi — pay supplier | ✓ | ✓ | — | — | — | ✓ |
+| Stores — manage | ✓ | ✓ | — | — | — | — |
+| Users — create/edit | ✓ | ✓ | — | — | — | — |
+| Users — delete | ✓ | — | — | — | — | — |
+| Roles — create | ✓ | ✓ | — | — | — | — |
+| Roles — update/delete | ✓ | — | — | — | — | — |
+| Audit logs — view | ✓ | ✓ | — | — | — | ✓ |
+| Audit logs — export | ✓ | ✓ | — | — | — | — |
+| Application settings — view | ✓ | ✓ | — | — | — | — |
+| Application settings — update | ✓ | — | — | — | — | — |
+| Import/Export (product, category, customer) | ✓ | ✓ | ✓ (customer) | — | — | — |
 
 > Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions-1)). Exact permission codes per action: `dashboard.view`, `sale.create/view/lookup/detail/park`, `product.view/create/update/delete/export/import/history.view/cost.view`, `category.view/create/update/delete/export/import`, `customer.view/create/update/delete/export/import`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel/delete`, `shift.view/create/review/audit/cash_movement`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `consignment.view/create/update/settle/pay`, `app_settings.view/update`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view/export`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, manager, and supervisor can use it.
 

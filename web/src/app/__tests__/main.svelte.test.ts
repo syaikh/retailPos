@@ -28,4 +28,22 @@ describe("main.svelte source-structure guards", () => {
     expect(login).toBeGreaterThan(gate);
     expect(src).toContain("<ForceChangePasswordModal />");
   });
+
+  it("routes the self-service password screen without a permission gate", () => {
+    expect(src).toContain('"/account/password"');
+    const permissions = readFileSync(
+      path.join(path.dirname(__filename), "..", "config", "permissions.ts"),
+      "utf-8",
+    );
+    expect(permissions).not.toContain("/account/password");
+  });
+
+  it("never redirects into a page the user cannot access", () => {
+    const guard = src.indexOf("if (!hasRoutePermission(path))");
+    const checked = src.indexOf(
+      "if (target !== path && hasRoutePermission(target))",
+    );
+    expect(guard).toBeGreaterThan(-1);
+    expect(checked).toBeGreaterThan(guard);
+  });
 });

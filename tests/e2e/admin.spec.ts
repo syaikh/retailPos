@@ -12,6 +12,13 @@ async function selectRole(page: any, roleName: string) {
   await option.click();
 }
 
+// Every non-superadmin role requires a store (permissions.OperationalRoles is
+// mirrored by isOperationalRole in UserFormModal), so a store must be picked
+// before Create User — index 0 is the "None" placeholder.
+async function selectStore(page: any) {
+  await page.selectOption('#store-select', { index: 1 });
+}
+
 test.describe('Admin Panel - User Management', () => {
   test.beforeEach(async ({ page }) => {
     await loginUI(page, 'superadmin', 'admin123');
@@ -43,6 +50,7 @@ test.describe('Admin Panel - User Management', () => {
     await page.fill('#usr-email', `${inputUsername.toLowerCase()}@example.com`);
     await page.fill('#usr-password', 'password123');
     await selectRole(page, 'manager');
+    await selectStore(page);
 
     await page.getByRole('button', { name: 'Create User' }).click();
 
@@ -108,6 +116,7 @@ test.describe('Admin Panel - User Management', () => {
     await page.fill('#usr-email', `${username}@example.com`);
     await page.fill('#usr-password', 'password123');
     await selectRole(page, 'manager');
+    await selectStore(page);
     await page.getByRole('button', { name: 'Create User' }).click();
     await expect(page.getByRole('dialog', { name: 'Add User' })).toBeHidden({ timeout: 15000 });
 
@@ -132,6 +141,7 @@ test.describe('Admin Panel - User Management', () => {
     await page.fill('#usr-email', `${username}@example.com`);
     await page.fill('#usr-password', 'password123');
     await selectRole(page, 'manager');
+    await selectStore(page);
     await page.getByRole('button', { name: 'Create User' }).click();
     await expect(page.getByRole('dialog', { name: 'Add User' })).toBeHidden({ timeout: 15000 });
 
@@ -161,6 +171,7 @@ test.describe('Admin Panel - User Management', () => {
     await page.fill('#usr-email', `${username}@example.com`);
     await page.fill('#usr-password', 'password123');
     await selectRole(page, 'manager');
+    await selectStore(page);
     await page.getByRole('button', { name: 'Create User' }).click();
     await expect(page.getByRole('dialog', { name: 'Add User' })).toBeHidden({ timeout: 15000 });
 

@@ -150,9 +150,18 @@ chmod +x deploy/podman-deploy.sh
 
 Open browser: **http://your-server-ip**
 
-Login credentials:
+Bootstrap login credentials:
 - Username: `superadmin`
 - Password: `admin123`
+
+**These are bootstrap credentials, not production credentials.** Migration
+`052` flags every seeded account (`superadmin`, `manager`, `supervisor`,
+`cashier`, `inventory_staff`, `finance`), so the first login is forced through
+a password rotation — the backend answers HTTP 428 for every protected call
+until it is done. Follow
+[`docs/guides/first-time-installation.md`](../docs/guides/first-time-installation.md)
+for the full first-run flow (migrate → rotate → finish the Default Store →
+verify readiness).
 
 ---
 
@@ -241,7 +250,7 @@ On a **fresh database** (or a fresh Postgres container), `migrate` now bootstrap
 
 It then applies each migration in sorted filename order with `ON_ERROR_STOP=1` and records each applied file in `schema_migrations`. Because `000_squash.sql` is idempotent and clears stale `00*.sql` tracking rows on each run, `migrate` can be re-run safely against an already-migrated database.
 
-Migrations produce the full schema plus reference data: roles (5), permissions (85), role grants, the `superadmin`/`admin`/`manager`/`cashier`/`staff` users, payment methods, and customer groups (Walk-in/Member/VIP). **They do not create stores, products, customers, or sales** — run `./deploy/podman-deploy.sh seed` afterwards for dummy/business data.
+Migrations produce the full schema plus reference data: roles (6), permissions (86), role grants, the `superadmin`/`manager`/`supervisor`/`cashier`/`inventory_staff`/`finance` users (all flagged for forced first-login password rotation), payment methods, and customer groups (Walk-in/Member/VIP). They also seed a placeholder **Default Store** (with those users assigned to it) — but **no products, customers, or sales**. Finish the first store per [`docs/guides/first-time-installation.md`](../docs/guides/first-time-installation.md); run `./deploy/podman-deploy.sh seed` only when you want dummy/demo business data.
 
 > **Important:** Apply migrations **before** deploying a new server binary — several migrations carry ordering constraints (see `AGENTS.md` "Deployment" section for the full list).
 

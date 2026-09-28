@@ -12,14 +12,16 @@ This project uses a semantic codebase index at `.opencode/index`, use semantic t
 | `codebase_peek` | Conceptual area is known, but exact files/symbols are not |
 | `implementation_lookup` | Symbol name is known, locate its authoritative definition |
 | `codebase_search` | Need actual source content for known files/symbols/concepts |
+| `semble_search` | Second opinion from the independent Semble index when `codebase_search` misses or returns doc-heavy noise; strongest on frontend/Svelte, where the Go-weighted index underperforms. Discards paths under `docs/`, `*.md`, and `database/migrations/` when judging whether a hit is real code |
 | `call_graph` | Understand callers or callees of a known symbol |
 | `call_graph_path` | Investigate end-to-end execution path between two points |
-| `find_similar` | Before creating new implementation, check for existing patterns |
+| `find_similar` | Before creating new implementation, check for existing patterns; matches against a pasted snippet |
+| `semble_find_related` | Similarity from the Semble index, keyed off a `file:line` you already have — use when there is no snippet to match against, e.g. locating near-duplicates of a known implementation for the duplication review track |
 | `code_communities` | Module boundaries, architecture, coupling, hub symbols |
 | `codebase_edit_context` | Before modifying a known implementation, get bounded context |
 | `pr_impact` | Assess blast radius of a branch or planned change |
 
-**Quick rules:** For known symbols, start with `implementation_lookup`. For exact text, use `grep`. For new features, add `find_similar` → `code_communities` before implementing.
+**Quick rules:** For known symbols, start with `implementation_lookup`. For exact text, use `grep`. For new features, add `find_similar` → `code_communities` before implementing. When a semantic search comes back thin, cross-check with `semble_search` before falling back to `grep`. When you have a location but no snippet, use `semble_find_related` instead of `find_similar`.
 
 ### Incremental indexing
 
@@ -173,9 +175,16 @@ Never auto-commit. Changes must be committed manually.
 | `-products=N` | Number of products (4500-5000, random if 0; if 0 and DB has products, reuses existing) |
 | `-days=N` | Days to generate (0 = interactive prompt) |
 | `-categories=N` | Number of categories (65-100, random if 0) |
+| `-stores=N` | Number of stores to generate (random 20-40 if 0) |
+| `-warehouses=N` | Warehouses per store (default 1) |
+| `-storage-zones=N` | Storage zones per warehouse (default 4) |
+| `-storage-racks=N` | Racks per storage zone (default 5) |
+| `-stock-opnames=N` | Stock opname sessions to inject (0 = auto ~1/month) |
+| `-suppliers=N` | Number of suppliers (random 10-15 if 0) |
+| `-consignment=N` | Consignment suppliers (0 = auto, 10-20% of suppliers) |
 | `-truncate=false` | Skip truncating existing data |
 
-Re-seeding (`-truncate=false`) continues document sequences and reuses existing products/suppliers/pricing rules, adding new transactions without key collisions.
+Re-seeding (`-truncate=false`) continues document sequences and reuses existing products/suppliers/pricing rules, adding new transactions without key collisions. The seeder preserves `must_change_password` on the six system accounts (the e2e workflow unflags its own test users instead).
 
 ## Deployment
 

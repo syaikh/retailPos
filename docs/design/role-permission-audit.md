@@ -3,11 +3,12 @@
 > **Date:** 2026-09-11
 > **Status:** Implemented — migration 044 applied, backend guards, frontend, E2E tests
 > **Applied:** 2026-09-11
+> **Reconciled:** 2026-09-28 — counts and matrix verified against the live database with migrations 000–052 applied; see [Post-Implementation Changes](#post-implementation-changes)
 > **Related:** [Store-First and Finance Role](./store-first-and-finance-role.md)
 
 ## Executive Summary
 
-The current role hierarchy has two problems:
+The role hierarchy at the time of this audit had two problems:
 
 1. **Separation of duties gap** — the admin role (80 permissions) bundles operational management with financial operations. The person who manages staff shouldn't also pay suppliers.
 
@@ -21,14 +22,14 @@ The current role hierarchy has two problems:
 
 ## New Role Structure
 
-| Old Name | New Name | Permissions | Scope | Business Context |
+| Old Name | New Name | Permissions (current) | Scope | Business Context |
 |----------|----------|-------------|-------|------------------|
 | superadmin | **superadmin** | 85 | All stores | IT admin at HQ |
-| admin | **manager** | 80 | Single store | Store manager (the boss) |
-| manager | **supervisor** | 57+2 | Single store | Shift supervisor |
-| finance | **finance** | 5+1 | Single store | Payment processing |
+| admin | **manager** | 79 | Single store | Store manager (the boss) |
+| manager | **supervisor** | 58 | Single store | Shift supervisor |
+| finance | **finance** | 6 | Single store | Payment processing |
 | cashier | **cashier** | 19 | Single store | Sales |
-| staff | **inventory_staff** | 6 | Single store | Stock management |
+| staff | **inventory_staff** | 17 | Single store | Stock management |
 
 ### Visual Hierarchy
 
@@ -48,7 +49,12 @@ manager (store boss)
 
 ## Permission Count by Role
 
-### Before (Current)
+> **Historical snapshots** — the two tables below are the planning-phase numbers
+> from the 044 work. Current counts (86 codes total; superadmin lacks
+> `sale.lookup`): superadmin 85, manager 79, supervisor 58, cashier 19,
+> inventory_staff 17, finance 6.
+
+### Before (at audit date)
 
 | Role | Permissions | Scope |
 |------|-------------|-------|
@@ -58,7 +64,7 @@ manager (store boss)
 | cashier | 19 | Store-level (sales) |
 | staff | 6 | Store-level (minimal) |
 
-### After (Proposed)
+### After (Proposed for 044)
 
 | Role | Permissions | Scope | Changes |
 |------|-------------|-------|---------|
@@ -81,7 +87,7 @@ Manager (admin) can:
 └── Pay supplier (consignment.pay)  ← SAME PERSON!
 ```
 
-### After (Fixed)
+### After (As Implemented)
 
 ```
 Supervisor creates settlement (consignment.settle)
@@ -92,7 +98,13 @@ Finance records payment (consignment.pay)
     "Paid Rp 5,000,000 via bank transfer"
 ```
 
-**No single person can both create AND pay a settlement.**
+**The supervisor↔finance split holds: neither role alone can both settle and
+pay.** Two deliberate exemptions exist:
+
+- **superadmin** holds all five `consignment.*` permissions (full access).
+- **manager** was re-granted `consignment.pay` in **046** (settle-without-pay
+  bug fix — the settlement screen hid the Pay button from managers who had just
+  created the settlement). A manager can both settle and pay.
 
 ---
 
@@ -128,7 +140,7 @@ Finance records payment (consignment.pay)
 
 | Permission | superadmin | manager | supervisor | finance | cashier | inventory_staff |
 |------------|------------|---------|------------|---------|---------|-----------------|
-| `store.create` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `store.create` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `store.view` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `store.update` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `store.delete` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -140,10 +152,10 @@ Finance records payment (consignment.pay)
 | `product.view` | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
 | `product.create` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | `product.update` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `product.delete` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `product.export` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `product.import` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `product.history.view` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `product.delete` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `product.export` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `product.import` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `product.history.view` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `product.cost.view` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 
 ### Category Management
@@ -154,15 +166,15 @@ Finance records payment (consignment.pay)
 | `category.create` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | `category.update` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | `category.delete` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `category.export` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `category.import` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `category.export` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `category.import` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ### Customer Management
 
 | Permission | superadmin | manager | supervisor | finance | cashier | inventory_staff |
 |------------|------------|---------|------------|---------|---------|-----------------|
 | `customer.view` | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
-| `customer.create` | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| `customer.create` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | `customer.update` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | `customer.delete` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | `customer.export` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
@@ -190,7 +202,7 @@ Finance records payment (consignment.pay)
 
 | Permission | superadmin | manager | supervisor | finance | cashier | inventory_staff |
 |------------|------------|---------|------------|---------|---------|-----------------|
-| `consignment.view` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `consignment.view` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 | `consignment.create` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | `consignment.update` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | `consignment.settle` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
@@ -204,6 +216,7 @@ Finance records payment (consignment.pay)
 | `sale.create` | ✅ | ✅ | ➕ | ❌ | ✅ | ❌ |
 | `sale.detail` | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
 | `sale.park` | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| `sale.lookup` | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | `receipt.print` | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
 
 ### Inventory
@@ -216,12 +229,12 @@ Finance records payment (consignment.pay)
 
 | Permission | superadmin | manager | supervisor | finance | cashier | inventory_staff |
 |------------|------------|---------|------------|---------|---------|-----------------|
-| `stock_opname.view` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
+| `stock_opname.view` | ✅ | ✅ | ✅ | ❌ | ✅ | ➕ |
 | `stock_opname.create` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
 | `stock_opname.assign` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
-| `stock_opname.count` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
+| `stock_opname.count` | ✅ | ✅ | ✅ | ❌ | ✅ | ➕ |
 | `stock_opname.recount` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
-| `stock_opname.submit` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
+| `stock_opname.submit` | ✅ | ✅ | ✅ | ❌ | ✅ | ➕ |
 | `stock_opname.verify` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
 | `stock_opname.close` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
 | `stock_opname.cancel` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
@@ -255,24 +268,24 @@ Finance records payment (consignment.pay)
 
 | Permission | superadmin | manager | supervisor | finance | cashier | inventory_staff |
 |------------|------------|---------|------------|---------|---------|-----------------|
-| `storage_location.view` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
-| `storage_location.create` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
-| `storage_location.update` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
-| `storage_location.delete` | ✅ | ✅ | ✅ | ❌ | ❌ | ➕ |
+| `storage_location.view` | ✅ | ✅ | ✅ | ❌ | ✅ | ➕ |
+| `storage_location.create` | ✅ | ✅ | ❌ | ❌ | ❌ | ➕ |
+| `storage_location.update` | ✅ | ✅ | ❌ | ❌ | ❌ | ➕ |
+| `storage_location.delete` | ✅ | ✅ | ❌ | ❌ | ❌ | ➕ |
 
 ### Reports & Dashboard
 
 | Permission | superadmin | manager | supervisor | finance | cashier | inventory_staff |
 |------------|------------|---------|------------|---------|---------|-----------------|
-| `dashboard.view` | ✅ | ✅ | ✅ | ➕ | ❌ | ❌ |
+| `dashboard.view` | ✅ | ✅ | ✅ | ➕ | ✅ | ❌ |
 | `report.view` | ✅ | ✅ | ✅ | ➕ | ❌ | ❌ |
 
 ### Audit
 
 | Permission | superadmin | manager | supervisor | finance | cashier | inventory_staff |
 |------------|------------|---------|------------|---------|---------|-----------------|
-| `audit.view` | ✅ | ✅ | ✅ | ➕ | ❌ | ❌ |
-| `audit.export` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `audit.view` | ✅ | ✅ | ❌ | ➕ | ❌ | ❌ |
+| `audit.export` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ---
 
@@ -298,6 +311,10 @@ Finance records payment (consignment.pay)
 |------------|---------|
 | `consignment.pay` | finance |
 
+> **Update:** migration **046** later re-granted `consignment.pay` to manager
+> (settle-without-pay bug fix), so the store boss can both settle and pay —
+> see [Separation of Duties](#separation-of-duties).
+
 ### Roles Renamed
 
 | Old Name | New Name |
@@ -307,6 +324,33 @@ Finance records payment (consignment.pay)
 | staff | inventory_staff |
 
 ---
+
+## Post-Implementation Changes
+
+Migrations applied after 044 changed role grants; the Detailed Permission
+Matrix above already reflects the final state:
+
+| Migration | Change |
+|-----------|--------|
+| 045 | Default usernames renamed to match role names (admin→manager, manager→supervisor, staff→inventory_staff) |
+| 046 | manager regained `consignment.pay` (settle-without-pay bug fix) |
+| 047 | finance gained `consignment.view` (the module and pay-flow gate) — still lacks `consignment.create/update/settle`, so it can view and pay but never originate or settle |
+| 049 | `store.view` revoked from finance and supervisor (redundant — both are store-scoped via JWT) |
+| 050 | `store.create` revoked from manager (HQ-only store provisioning); added `users.must_change_password` |
+| 052 | The six seed accounts flagged `must_change_password` (forced first-login rotation) |
+
+Some cells in the matrix as originally written for 044 also never matched the
+grants actually applied by `000_squash.sql` (for example supervisor never
+received `product.delete/export/import/history.view`, and cashier holds
+`dashboard.view`, `stock_opname.view/count/submit` and
+`storage_location.view`). All 86 permission codes were reconciled against the
+live database on 2026-09-28.
+
+The phantom `inventory_staff` / `product.view` reading had a concrete source: the
+pre-044 grant block at `000_squash.sql:1612` still granted `product.view` to the
+role on every replay, relying on 044's wholesale `DELETE` (line 78) to strip it
+again. That dead block was removed 2026-09-28, so 044 is now the sole owner of
+`inventory_staff` grants — see `.opencode/plans/migration-replay-idempotency-reconciliation.md`.
 
 ## Implementation
 
