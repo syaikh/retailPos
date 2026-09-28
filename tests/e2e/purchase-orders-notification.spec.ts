@@ -62,6 +62,12 @@ test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
   });
 
   test('partial GR -> bell notification -> click -> product page; then full GR -> second notification', async ({ page, request }) => {
+    // The stock event is pushed over WebSocket and is never replayed, so a GR
+    // fired before the socket connects is lost — the badge then never appears
+    // and no amount of polling recovers it. loginUI/waitForAppReady only gate
+    // on permission hydration, not on socket state, so gate on it here.
+    await expect(page.getByTitle('Real-time connection')).toContainText('Online', { timeout: 15000 });
+
     // ---- Create and confirm PO ----
     const storeRaw = (await (await request.get(`${API_BASE}/api/stores/active`, { headers })).json()).data;
     const store = Array.isArray(storeRaw) ? storeRaw[0] : storeRaw;

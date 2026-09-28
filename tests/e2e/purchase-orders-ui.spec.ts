@@ -437,16 +437,24 @@ test.describe('Purchase Orders - UI Flow', () => {
     const grBody = await grResponse.json();
     const grData = grBody.data || grBody;
     expect(grData.purchase_order_id).toBe(poId);
-    await page.waitForTimeout(500);
 
     // GR created (201 confirmed above); toast may not be visible if session expires — skip toast assertion
 
     // ---- Verify stock increased via API ----
-    const finalStockRes = await request.get(`${API_BASE}/api/products/${product.id}`, { headers });
-    expect(finalStockRes.ok()).toBeTruthy();
-    const finalStockBody = await finalStockRes.json();
-    const finalStock = (finalStockBody.data || finalStockBody).stock;
-    expect(finalStock).toBe(initialStock + 10);
+    // The stock write is event-driven, so poll for it rather than sleeping a
+    // fixed 500ms and reading once: the single read raced the event under CI
+    // load and saw the pre-GR value. Same reason the notification spec polls.
+    await expect
+      .poll(
+        async () => {
+          const res = await request.get(`${API_BASE}/api/products/${product.id}`, { headers });
+          expect(res.ok()).toBeTruthy();
+          const body = await res.json();
+          return (body.data || body).stock;
+        },
+        { timeout: 15000, message: 'goods receipt should increase stock by 10' }
+      )
+      .toBe(initialStock + 10);
 
     // ---- Verify table shows fully_received status (reload to get fresh data) ----
     await page.goto('/purchase-orders');
