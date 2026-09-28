@@ -118,7 +118,10 @@ func (dbPaymentMethods) PaymentMethodsByIDs(ctx context.Context, ids []int) (map
 func insertTestStore(ctx context.Context, t *testing.T) int {
 	t.Helper()
 	var id int
-	err := dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ($1) RETURNING id`, "Consignment Test Store").Scan(&id)
+	// stores.name carries a case-insensitive unique index (052), and every
+	// test in this package asks for its own store, so the name must be fresh.
+	err := dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ($1) RETURNING id`,
+		"Consignment Test Store "+uniqueSuffix()).Scan(&id)
 	require.NoError(t, err)
 	return id
 }
