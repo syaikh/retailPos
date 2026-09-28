@@ -8,6 +8,7 @@
     deleteUser,
     getSubordinates,
   } from "$modules/admin";
+  import { getActiveStores } from "$modules/stores";
   import { toast } from "$shared/stores/toast.svelte";
   import { debounce } from "$shared/utils/debounce";
   import { useAuthStore } from "$modules/auth";
@@ -32,6 +33,7 @@
   let limit = $state(20);
   let offset = $state(0);
   let roles = $state([]);
+  let stores = $state([]);
   let searchQuery = $state("");
   let showModal = $state(false);
   let showDeleteModal = $state(false);
@@ -112,9 +114,19 @@
     }
   }
 
+  // Operational roles (mirrored by isOperationalRole in UserFormModal) must be
+  // assigned a store, so the form's store dropdown needs the list up front.
+  async function fetchStores() {
+    try {
+      stores = await getActiveStores();
+    } catch {
+      toast.error(labels.failedToLoad);
+    }
+  }
+
   onMount(async () => {
     isInitialMount = true;
-    await fetchRoles();
+    await Promise.all([fetchRoles(), fetchStores()]);
     await fetchUsers(false);
     isInitialMount = false;
   });
@@ -353,6 +365,7 @@
   {modalMode}
   bind:form
   {roles}
+  {stores}
   bind:saving
   {usernameHasInvalidChars}
   // @compatibility-layer — reports-to (manager) assignment; TODO: Sprint 1 — user.assign_manager
