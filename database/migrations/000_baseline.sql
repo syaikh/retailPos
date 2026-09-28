@@ -18,6 +18,9 @@
 --   * users.password_hash is regenerated as crypt('admin123', gen_salt(...))
 --     so each install gets its own salt and no literal credential hash is
 --     committed to the repository
+--   * every column-owned sequence is advanced past the explicit ids above,
+--     so the first insert after a fresh install cannot collide with a seeded
+--     row
 --
 -- The 32 migrations this replaces are archived in
 -- database/migrations/archive/pre-squash-migrations.tar.gz.
@@ -5062,6 +5065,76 @@ WHERE u.store_id IS NULL
                     WHERE r.name IN ('supervisor', 'manager', 'cashier',
                                       'finance', 'inventory_staff'))
   AND EXISTS (SELECT 1 FROM public.stores);
+
+-- ============================================================================
+-- Sequence resynchronisation
+-- ============================================================================
+-- The reference data above is written with explicit ids so that every install
+-- lands on the same stable keys (stores.id = 1 is the default store, the six
+-- system users hold 1..6, the walk-in customer is customers.id = 1). A row
+-- inserted with an explicit id never advances the sequence that owns the
+-- column, so on a freshly baseline'd database the first INSERT INTO stores,
+-- users, roles or payment_methods would draw id = 1 from a sequence still
+-- parked at its START value and fail with 23505. The legacy chain never had
+-- this problem because 000_squash.sql inserted its reference rows without
+-- ids and let the defaults fill them in.
+--
+-- Every sequence owned by a public column is advanced past max(id) of that
+-- column. It is never rewound: a database that already carries rows keeps its
+-- high-water mark, so this block is a no-op on every re-run and on a database
+-- that went through the legacy chain first.
+-- ============================================================================
+DO $$
+DECLARE
+    r        record;
+    tbl      text;
+    col      text;
+    max_id   bigint;
+    last_val bigint;
+    called   boolean;
+    incr     bigint;
+    next_val bigint;
+BEGIN
+    FOR r IN
+        SELECT format('%I.%I', n.nspname, c.relname) AS seqname, c.oid AS seqoid
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'S'
+          AND n.nspname = 'public'
+        ORDER BY c.relname
+    LOOP
+        SELECT format('%I.%I', tn.nspname, t.relname), a.attname
+          INTO tbl, col
+        FROM pg_depend d
+        JOIN pg_class t    ON t.oid = d.refobjid
+        JOIN pg_namespace tn ON tn.oid = t.relnamespace
+        JOIN pg_attribute a  ON a.attrelid = d.refobjid AND a.attnum = d.refobjsubid
+        WHERE d.classid = 'pg_class'::regclass
+          AND d.objid   = r.seqoid
+          AND d.deptype = 'a'
+          AND t.relkind = 'r'
+        LIMIT 1;
+
+        -- Sequences with no owning column (invoice_seq and friends) issue
+        -- document numbers, not primary keys, and are left alone.
+        CONTINUE WHEN tbl IS NULL;
+
+        EXECUTE format('SELECT COALESCE(max(%I), 0) FROM %s', col, tbl)
+            INTO max_id;
+        EXECUTE format('SELECT last_value, is_called FROM %s', r.seqname)
+            INTO last_val, called;
+        SELECT seqincrement INTO incr
+        FROM pg_sequence WHERE seqrelid = r.seqoid;
+
+        -- nextval returns last_value when the sequence has never been called
+        -- and last_value + seqincrement afterwards.
+        next_val := last_val + CASE WHEN called THEN COALESCE(incr, 1) ELSE 0 END;
+
+        IF max_id >= next_val THEN
+            PERFORM setval(r.seqname::regclass, max_id, true);
+        END IF;
+    END LOOP;
+END $$;
 
 -- ============================================================================
 -- Reference data self-check
