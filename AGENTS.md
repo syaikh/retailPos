@@ -186,6 +186,26 @@ Never auto-commit. Changes must be committed manually.
 
 Re-seeding (`-truncate=false`) continues document sequences and reuses existing products/suppliers/pricing rules, adding new transactions without key collisions. The seeder preserves `must_change_password` on the six system accounts (the e2e workflow unflags its own test users instead).
 
+`seed-dev.sh` is **not** a reset. It truncates 40 tables but preserves `users` (ids, `store_id`, `must_change_password`) and never touches `roles`, `permissions`, `role_permissions`, or `app_settings`; `cart_sessions`, `cash_movements`, the four `import_*` tables, and `dead_letter_events` survive it entirely.
+
+## Resetting the Dev Database to Fresh-Install State
+
+```bash
+./scripts/reset-dev-db.sh [flags]   # or: make db-fresh
+```
+
+| Flag | Description |
+|------|-------------|
+| `--yes` | Skip the interactive `RESET` confirmation |
+| `--keep-uploads` | Do not clear `uploads/logos/` |
+| `--reseed` | Run `./seed-dev.sh` afterwards (**not** a fresh install — the seeder recreates `stores`/`payment_methods`/`customer_groups` with new ids, so `stores(id=1)` and `customers(id=1)` drift off the baseline invariant) |
+
+Re-migrating cannot achieve this. `000_baseline.sql` is purely additive — 123 `ON CONFLICT` guards, forward-only `setval`, and a single `DELETE` that touches only `schema_migrations` — so replaying it over a drifted database leaves every extra store, user, role, grant, and sale in place. The script drops and recreates the database, then replays the same migrations a new deployment would.
+
+**Dev only.** The script hard-refuses (no override) on `ENV=production`, a non-`localhost` `DB_HOST`, a `DB_NAME` other than `retail_pos`, or a port served by a container other than `postgres-dev`. The production volumes are never named. The container-identity check is skipped with a warning when `podman` is not on `PATH` (a native postgres on `localhost:5433` is a legitimate setup); the other three guards still apply.
+
+It ends by printing the manual steps the script cannot perform: restart the backend (in-memory caches survive a database swap), clear the browser's site data (the `refresh_token` cookie and `sessionStorage.access_token` point at the old database), and delete the Playwright token cache. Design rationale: `docs/design/dev-db-fresh-install-reset-plan.md`.
+
 ## Deployment
 
 ### Migration Ordering

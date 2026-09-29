@@ -109,3 +109,37 @@ accounts (or disable the ones this installation does not use) via
 `./seed-dev.sh` is for development databases only. The seeder **preserves**
 `must_change_password` on the six system accounts (the e2e workflow unflags its
 own test users instead). See `AGENTS.md` for seeder flags.
+
+## Resetting to first-install state
+
+Re-running `migrate` is **not** a reset. `000_baseline.sql` is purely additive —
+123 `ON CONFLICT` guards, forward-only `setval`, and a single `DELETE` that
+touches only `schema_migrations` — so replaying it over a database that has been
+used leaves every extra store, user, role, grant, and sale in place. A true
+first-install state requires dropping and recreating the database.
+
+```bash
+./scripts/reset-dev-db.sh        # or: make db-fresh
+```
+
+This reproduces this runbook end to end: drop, recreate, bootstrap, apply
+`database/migrations/*.sql`, then verify. It is **development only** — it refuses
+to run against `ENV=production`, a non-`localhost` `DB_HOST`, a `DB_NAME` other
+than `retail_pos`, or a port served by a container other than `postgres-dev`, and
+it never names the production volumes. The container-identity check is skipped
+with a warning if `podman` is not on `PATH`; the other three guards still apply.
+
+The script verifies the result and then prints the three steps it cannot perform
+itself:
+
+1. **Restart the backend** — the Ristretto (10 min) and branding (60 s) caches
+   survive a database swap.
+2. **Clear browser site data for `http://localhost:5173`** — the `refresh_token`
+   cookie and `sessionStorage.access_token` point at the old database.
+   `localStorage.clear(); sessionStorage.clear();` from the console is enough.
+3. **Delete the Playwright token cache** — `rm -f /tmp/retail-pos-e2e-tokens.v1.json`.
+
+After the reset, `GET /api/stores/1/readiness` reports `ready: false` with exactly
+the two blockers in step 4 below, and all six accounts are back behind the 428
+gate with `admin123`. Design rationale:
+`docs/design/dev-db-fresh-install-reset-plan.md`.

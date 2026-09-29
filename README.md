@@ -662,7 +662,7 @@ make build-all                       # Build backend + frontend images
 ./deploy/podman-deploy.sh restart    # Restart
 ```
 
-Or use the Makefile: `make deploy`, `make stop`, `make restart`, `make status`, `make logs`, `make db-backup`, `make db-restore`, `make db-shell`.
+Or use the Makefile: `make deploy`, `make stop`, `make restart`, `make status`, `make logs`, `make db-backup`, `make db-restore`, `make db-shell`, `make db-fresh` (reset the **dev** database to first-install state — destroys all data).
 
 #### Auto-start on boot (systemd + Quadlet)
 

@@ -2,6 +2,10 @@
 
 Status: implemented (deliverables A–F complete)
 Depends on: migration `050_store_onboarding.sql` (shipped), `StoreOnboardingWizard.svelte` (shipped)
+Related docs: `docs/design/dev-db-fresh-install-reset-plan.md` — resets a drifted
+dev database back to this document's first-install state. That plan is the
+complement to this one: this document owns the install *runbook* and the seeder
+revamp, the reset plan owns the *reset path*. The two do not overlap.
 
 ## Context
 

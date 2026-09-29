@@ -1,4 +1,4 @@
-.PHONY: help build-backend build-frontend build-all deploy start stop restart logs status clean test ci ci-backend ci-frontend
+.PHONY: help build-backend build-frontend build-all deploy start stop restart logs status clean test ci ci-backend ci-frontend db-fresh
 
 help: ## Show this help message
 	@echo 'Retail POS System - Commands:'
@@ -18,6 +18,7 @@ help: ## Show this help message
 	@echo '  make logs-db          Show database logs'
 	@echo '  make clean            Stop and remove all containers/volumes'
 	@echo '  make clean-images     Remove Docker images'
+	@echo '  make db-fresh         Reset the dev database to first-install state (DESTROYS ALL DATA)'
 	@echo ''
 
 # Build targets
@@ -123,6 +124,10 @@ db-restore: ## Restore database from file (usage: make db-restore FILE=backups/x
 
 db-shell: ## Open psql shell
 	podman exec -it postgres psql -U pos -d retail_pos
+
+db-fresh: ## Reset the dev database (postgres-dev) to first-install state (DESTROYS ALL DATA)
+	@chmod +x scripts/reset-dev-db.sh
+	./scripts/reset-dev-db.sh
 
 # Cleanup targets
 clean: stop ## Stop and remove containers and volumes
