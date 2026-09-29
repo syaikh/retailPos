@@ -89,6 +89,11 @@ DB_SSLMODE="${DB_SSLMODE:-require}"
 
 # Volume names
 POSTGRES_VOLUME="retail-pos-postgres-data"
+# Store logo uploads. The backend image sets WORKDIR /app and resolves the logo
+# directory as the relative path "uploads/logos" (see internal/appsettings/handler.go),
+# so without this volume the shop's logo is lost on every image rebuild. Created by
+# start_backend, which is the only component that mounts it.
+UPLOADS_VOLUME="retail-pos-uploads"
 
 # Colors for output
 RED='\033[0;31m'
@@ -292,10 +297,12 @@ start_backend() {
     # Secure cookies over http://localhost, so this is safe on a plain-HTTP test deploy.
     # COOKIE_DOMAIN is deliberately left unset: host-only is the correct default, and
     # setting it too broadly would share the refresh token across subdomains.
+    podman volume create "$UPLOADS_VOLUME" 2>/dev/null || true
     podman run -d \
         --pod "$POD_NAME" \
         --name backend \
         --env-file "$ENV_FILE" \
+        -v "$UPLOADS_VOLUME:/app/uploads" \
         -e DB_HOST=localhost \
         -e DB_PORT="$DB_PORT" \
         -e DB_USER="$DB_USER" \

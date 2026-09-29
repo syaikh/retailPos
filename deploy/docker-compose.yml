@@ -91,6 +91,11 @@ services:
       # a parent-domain value would share the refresh token across subdomains.
     networks:
       - retail-pos-network
+    # Store logo uploads. The backend image sets WORKDIR /app and resolves the logo
+    # directory as the relative path "uploads/logos" (internal/appsettings/handler.go).
+    # Without this mount the shop's logo dies with every image rebuild.
+    volumes:
+      - uploads_data:/app/uploads
     # The image installs curl, not wget, and the route registered in
     # cmd/server/main.go is /health (not /api/health).
     healthcheck:
@@ -136,6 +141,8 @@ services:
 volumes:
   postgres_data:
     name: retail-pos-postgres-data
+  uploads_data:
+    name: retail-pos-uploads
 
 networks:
   retail-pos-network:

@@ -274,8 +274,12 @@ sudo test -r /etc/retail-pos/backend.env || { echo "missing secret file"; exit 1
 #    published at all only so host-side psql/seed can connect.
 podman pod create --name retail-pos-pod -p 5173:8081 -p 127.0.0.1:8080:8080 -p 127.0.0.1:5432:5432
 
-# 2. Create persistent volume for Postgres
+# 2. Create persistent volumes
 podman volume create retail-pos-postgres-data
+# Store logo uploads, mounted at /app/uploads by the backend below. podman-deploy.sh
+# creates and mounts this for you; create it by hand only for this manual path and
+# for Quadlet, neither of which runs that script.
+podman volume create retail-pos-uploads
 
 # 3. Start PostgreSQL container
 #    POSTGRES_PASSWORD is passed without a value so it is read from the exported
@@ -297,6 +301,7 @@ podman run -d \
   --pod retail-pos-pod \
   --name backend \
   --env-file /etc/retail-pos/backend.env \
+  -v retail-pos-uploads:/app/uploads \
   -e DB_HOST=localhost \
   -e DB_PORT=5432 \
   -e DB_USER=pos \
@@ -603,6 +608,13 @@ podman volume export retail-pos-postgres-data > postgres-volume.tar
 
 # Restore volume
 podman volume import retail-pos-postgres-data postgres-volume.tar
+
+# Uploads (store logo) is a separate named volume and is NOT in the database
+# backup above. Back it up too, or the shop's logo is lost on a bare restore.
+podman volume export retail-pos-uploads > uploads-volume.tar
+
+# Restore volume
+podman volume import retail-pos-uploads uploads-volume.tar
 ```
 
 ---
@@ -768,8 +780,8 @@ podman build -t retail-pos-frontend:latest -f deploy/frontend/Dockerfile .
 # Remove images
 podman rmi retail-pos-frontend retail-pos-backend
 
-# Remove volume (WARNING: deletes all data!)
-podman volume rm retail-pos-postgres-data
+# Remove volumes (WARNING: deletes all data, including the store logo)
+podman volume rm retail-pos-postgres-data retail-pos-uploads
 
 # Remove network
 podman network rm retail-pos-network

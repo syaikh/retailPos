@@ -20,6 +20,12 @@ ContainerName=retail-pos-backend
 Pod=retail-pos.pod
 EnvironmentFile=/etc/retail-pos/backend.env
 
+# Store logo uploads. The backend image sets WORKDIR /app and resolves the logo
+# directory as the relative path "uploads/logos" (internal/appsettings/handler.go).
+# Without this mount the shop's logo dies with every image rebuild. Create it once
+# with: podman volume create retail-pos-uploads
+Volume=retail-pos-uploads:/app/uploads
+
 # Containers in a pod share a network namespace, so postgres is localhost.
 Environment=DB_HOST=localhost
 Environment=DB_PORT=5432

@@ -33,6 +33,17 @@ RUN addgroup -g 1000 -S retailpos && \
     adduser -u 1000 -S retailpos -G retailpos && \
     chown retailpos:retailpos /usr/local/bin/server
 
+# DO NOT change WORKDIR without updating internal/appsettings/handler.go.
+# NewHandler resolves the logo directory as the relative path "uploads/logos",
+# which is joined onto the process working directory. With no WORKDIR the runtime
+# stage inherits "/", so the path would resolve to /uploads/logos -- unwritable
+# by the retailpos user, whose MkdirAll failure is only a slog.Warn. Logo upload
+# then 500s at request time. /app is the working directory every orchestrator in
+# deploy/ expects, and the named volume is mounted at /app/uploads.
+WORKDIR /app
+RUN mkdir -p /app/uploads/logos && \
+    chown -R retailpos:retailpos /app
+
 USER retailpos
 
 EXPOSE 8080

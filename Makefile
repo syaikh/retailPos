@@ -128,6 +128,7 @@ db-shell: ## Open psql shell
 clean: stop ## Stop and remove containers and volumes
 	@echo "Removing volumes..."
 	podman volume rm retail-pos-postgres-data 2>/dev/null || true
+	podman volume rm retail-pos-uploads 2>/dev/null || true
 	@echo "Removing networks..."
 	podman network rm retail-pos-network 2>/dev/null || true
 	@echo "Clean complete!"
