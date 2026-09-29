@@ -111,6 +111,9 @@ session-*.md
 # Uploaded files (logos, etc.)
 uploads/
 
+# Database dumps from `make db-backup` (plain SQL, may contain customer data)
+backups/
+
 # Documentation files (except essential ones and docs/ directory)
 *.md
 !README.md
