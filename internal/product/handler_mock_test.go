@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -17,6 +18,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	// GetStockThresholds calls config.Load() to read the two stock thresholds,
+	// and config.Load panics when JWT_SECRET is unset. CI exports it for the whole
+	// job, but a local `go test ./internal/product/` did not, so the panic looked
+	// like a product failure rather than a missing test fixture.
+	_ = os.Setenv("JWT_SECRET", "test-secret-for-product-mock-tests")
+}
 
 type mockProductService struct {
 	getAllFn            func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int, brandIDs []int, ownershipType string) ([]Product, int, error)
