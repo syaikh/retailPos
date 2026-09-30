@@ -310,12 +310,13 @@ func (h *Handler) GetRule(c *gin.Context) {
 		return
 	}
 
-	rule, err := h.svc.GetByID(c.Request.Context(), id)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "pricing rule not found"})
-		return
-	}
-	if !authorizeStoreRule(c, rule) {
+	// The read path uses the same load-time guard as the mutating handlers
+	// (wave 2f). It used to check the store boundary itself, which meant two
+	// things: a second copy of the gate to keep in step, and a 404 for *any*
+	// load error, so a dropped connection reported "not found" instead of a
+	// failure.
+	rule, ok := h.ruleForAction(c, id, false)
+	if !ok {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": rule})
@@ -389,14 +390,12 @@ func (h *Handler) UpdateRule(c *gin.Context) {
 		return
 	}
 
-	// The existing rule must be loaded unconditionally now: the store boundary
-	// check runs against it, and the audit diff still needs the pre-update state.
-	existing, err := h.svc.GetByID(c.Request.Context(), id)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "pricing rule not found"})
-		return
-	}
-	if !authorizeStoreRule(c, existing) {
+	// The existing rule must be loaded unconditionally: the store boundary check
+	// runs against it, bindStoreScopedRule inherits its store, and the audit diff
+	// needs the pre-update state. Same load-time guard as every other route
+	// (wave 2f), so a non-notfound load error is a 500 rather than a 404.
+	existing, ok := h.ruleForAction(c, id, false)
+	if !ok {
 		return
 	}
 	var oldRule *Rule

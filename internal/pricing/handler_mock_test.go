@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -44,11 +43,17 @@ type mockPricingService struct {
 // GetByID defaults to not-found. The mutating handlers now load the target rule
 // to authorize it, and treat a missing rule as a tolerated no-op, so a test that
 // only cares about the downstream call can leave getByIDFn nil.
+//
+// The error must be ErrRuleNotFound, which is what Repository.GetByID returns
+// for a missing row. Returning pgx.ErrNoRows here (as this mock used to) is not
+// interchangeable: ruleForAction tolerates only the domain sentinel and turns
+// anything else into a 500, so a mock that disagreed with production would make
+// the not-found paths untestable.
 func (m *mockPricingService) GetByID(ctx context.Context, id int) (*Rule, error) {
 	if m.getByIDFn != nil {
 		return m.getByIDFn(ctx, id)
 	}
-	return nil, pgx.ErrNoRows
+	return nil, ErrRuleNotFound
 }
 func (m *mockPricingService) GetByProductID(ctx context.Context, productID int) ([]Rule, error) {
 	return m.getByProductIDFn(ctx, productID)
@@ -385,4 +390,40 @@ func TestPricingHandler_CheckConflicts_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, resp.Data)
 	assert.False(t, resp.HasConflicts)
+}
+
+// Wave 2f: GetRule and UpdateRule now share ruleForAction with the mutating
+// routes, so a load failure is no longer reported as a missing rule. The two
+// cases look alike from outside — both mean "you get no rule" — but they are
+// different events: a 404 is a normal outcome a client may cache or branch on,
+// while a 500 says the boundary could not be evaluated at all, and answering
+// 404 hides a database problem from both the user and the logs.
+func TestPricingHandler_LoadFailureIsNotReportedAsNotFound(t *testing.T) {
+	// The mock router runs as superadmin, so the store boundary is not what is
+	// under test here; the load outcome is.
+	for _, tc := range []struct {
+		name     string
+		err      error
+		wantCode int
+	}{
+		{"missing rule is a 404", ErrRuleNotFound, http.StatusNotFound},
+		{"load failure is a 500", assert.AnError, http.StatusInternalServerError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &mockPricingService{
+				getByIDFn: func(_ context.Context, _ int) (*Rule, error) { return nil, tc.err },
+				updateFn:  func(_ context.Context, _ *Rule) error { return nil },
+			}
+			r := setupPricingMockRouter(svc, nil, nil, nil)
+
+			for _, req := range []*http.Request{
+				httptest.NewRequest(http.MethodGet, "/pricing-rules/1", nil),
+				httptest.NewRequest(http.MethodPut, "/pricing-rules/1", strings.NewReader(`{"name":"R"}`)),
+			} {
+				w := httptest.NewRecorder()
+				r.ServeHTTP(w, req)
+				assert.Equal(t, tc.wantCode, w.Code, "%s %s", req.Method, req.URL.Path)
+			}
+		})
+	}
 }

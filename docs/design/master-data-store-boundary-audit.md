@@ -389,7 +389,29 @@ while pricing is being fixed.
       dev-only generator of *historical* sales, not a workflow entry point, and forcing its rules to
       pending would produce a dev database whose history references unapproved prices.
 
-- [ ] **2f `GetRule`'s existing post-hoc 403** (`:190-198`) becomes a load-time guard shared with 2b.
+- [x] **2f `GetRule`'s existing post-hoc 403** (`:190-198`) becomes a load-time guard shared with 2b.
+
+      `GetRule` and `UpdateRule` were the last two handlers that hand-rolled
+      "load the row, then check the store boundary" instead of calling
+      `ruleForAction`, so all seven single-rule routes now share one gate. The
+      duplication was not only a second copy to keep in step: both collapsed
+      *every* load error into a 404, so a dropped connection reported "pricing
+      rule not found" and the real error never reached the logs. `ruleForAction`
+      already had the right split — `ErrRuleNotFound` is a 404, anything else is
+      a 500 that stops the request.
+
+      The mock's `GetByID` returned `pgx.ErrNoRows` while production returns
+      `ErrRuleNotFound`. That divergence was harmless while the two handlers
+      only checked `err != nil`, and would have become a trap here:
+      `errors.Is(pgx.ErrNoRows, ErrRuleNotFound)` is false, so the mock would
+      have produced a 500 for every not-found case and made the 404 paths
+      untestable. The mock now returns the domain sentinel.
+      `TestPricingHandler_LoadFailureIsNotReportedAsNotFound` pins both outcomes
+      for `GET` and `PUT`.
+
+      This is the same shape as `requireOwnStore` in `internal/store/handler.go`
+      and the planned `ensureStoreScope` in the storage-location plan: the check
+      belongs at load, so a caller cannot observe a row before it is authorized.
 - [ ] Tests: matrix over (superadmin / manager-A / supervisor-A / cashier-A / manager-B) × (global
       rule / own / foreign) × (create / update / delete / submit / approve / reject), plus a supplier
       matrix asserting a cashier gets 403 on `GET /suppliers`.
