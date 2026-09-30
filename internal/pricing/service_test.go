@@ -274,8 +274,10 @@ func TestService_Update(t *testing.T) {
 			MinimumQuantity: 1,
 			IsActive:        true,
 		}
+		// Update reads the stored row to pin Status, so a missing rule surfaces as
+		// an error rather than a silent no-op that reported success.
 		err := svc.Update(ctx, rule)
-		assert.NoError(t, err)
+		assert.Error(t, err)
 	})
 
 	t.Run("validation fails", func(t *testing.T) {

@@ -31,6 +31,7 @@
     canEdit = false,
     canDelete = false,
     canCreate = false,
+    canApprove = false,
     pricingMethods = [],
     onsort = (_col: string) => {},
     onedit = (_rule: PricingRule) => {},
@@ -67,6 +68,8 @@
     onsubmitapproval?: (rule: PricingRule) => void;
     onapprove?: (rule: PricingRule) => void;
     onreject?: (rule: PricingRule) => void;
+    /** pricing.approve — approving/rejecting is separate from editing. */
+    canApprove?: boolean;
     onrowclick?: (rule: PricingRule) => void;
     targetNames?: Map<string, string>;
   } = $props();
@@ -352,7 +355,7 @@
                         {labels.submit}
                       </button>
                     {/if}
-                    {#if rule.status === "pending" && canEdit}
+                    {#if rule.status === "pending" && canApprove}
                       <button
                         type="button"
                         class="w-full flex items-center gap-3 px-3 py-2 text-sm text-success-light hover:bg-surface-hover transition-colors"

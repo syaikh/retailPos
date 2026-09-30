@@ -30,7 +30,12 @@ func testAuthMiddleware() gin.HandlerFunc {
 		c.Set("username", "testuser")
 		c.Set("roleID", 1)
 		c.Set("role", "superadmin")
-		c.Set("permissions", []string{"pricing.view", "pricing.create", "pricing.update", "pricing.delete"})
+		// Mirrors the superadmin grant list: every supplier.* code plus
+		// product.cost.view, which is what reveals a link's unit_cost.
+		c.Set("permissions", []string{
+			"supplier.view", "supplier.create", "supplier.update", "supplier.delete",
+			"product.cost.view",
+		})
 		c.Set("storeID", nil)
 		c.Next()
 	}

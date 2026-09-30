@@ -30,7 +30,7 @@ export const routePermissions: Record<string, string[]> = {
   "/admin/units-of-measure": [Permissions.product.view],
   "/pricing-rules": [Permissions.pricing.view],
   "/customer-groups": [Permissions.customerGroup.view],
-  "/suppliers": [Permissions.pricing.view],
+  "/suppliers": [Permissions.supplier.view],
   "/purchase-orders": [Permissions.purchaseOrder.view],
   "/shifts": [Permissions.shift.view],
   "/stock-opnames": [Permissions.stockOpname.view],

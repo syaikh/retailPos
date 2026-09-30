@@ -33,11 +33,11 @@
   const authStore = useAuthStore();
 
   const userPermissions = $derived(authStore.user?.permissions || []);
-  const canCreate = $derived(userPermissions.includes("pricing.create"));
-  const canUpdate = $derived(userPermissions.includes("pricing.update"));
-  const canDelete = $derived(userPermissions.includes("pricing.delete"));
-  const canExport = $derived(userPermissions.includes("pricing.view"));
-  const canImport = $derived(userPermissions.includes("pricing.create"));
+  const canCreate = $derived(userPermissions.includes("supplier.create"));
+  const canUpdate = $derived(userPermissions.includes("supplier.update"));
+  const canDelete = $derived(userPermissions.includes("supplier.delete"));
+  const canExport = $derived(userPermissions.includes("supplier.view"));
+  const canImport = $derived(userPermissions.includes("supplier.create"));
 
   let loading = $state(true);
   let suppliers = $state<Supplier[]>([]);

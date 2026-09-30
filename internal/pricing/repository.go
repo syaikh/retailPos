@@ -160,7 +160,8 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*Rule, error) {
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
 		       customer_group_id, store_id, recurrence_days, time_from, time_to,
-		       allow_combine, is_active, status, effective_from, effective_until, created_at, updated_at
+		       allow_combine, is_active, status, effective_from, effective_until, created_at, updated_at,
+		       created_by
 		FROM pricing_rules WHERE id = $1
 	`, id).Scan(
 		&rule.ID, &rule.ProductID, &rule.CategoryID, &rule.BrandID,
@@ -170,6 +171,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*Rule, error) {
 		&recurrenceDays, &timeFrom, &timeTo,
 		&rule.AllowCombine, &rule.IsActive, &rule.Status,
 		&effectiveFrom, &effectiveUntil, &createdAt, &updatedAt,
+		&rule.CreatedBy,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -340,14 +342,15 @@ func (r *Repository) Create(ctx context.Context, rule *Rule) error {
 		INSERT INTO pricing_rules (product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
 		       customer_group_id, store_id, recurrence_days, time_from, time_to,
-		       allow_combine, is_active, status, effective_from, effective_until)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+		       allow_combine, is_active, status, effective_from, effective_until, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
 		RETURNING id, created_at, updated_at
 	`, rule.ProductID, rule.CategoryID, rule.BrandID, rule.Type, rule.Method,
 		rule.PricingValue, rule.Name, rule.MinimumQuantity, rule.MaximumQuantity,
 		rule.Priority, rule.CustomerGroupID, rule.StoreID,
 		rule.RecurrenceDays, rule.TimeFrom, rule.TimeTo,
 		rule.AllowCombine, rule.IsActive, rule.Status, rule.EffectiveFrom, rule.EffectiveUntil,
+		rule.CreatedBy,
 	).Scan(&rule.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return fmt.Errorf("insert pricing rule: %w", err)
@@ -691,6 +694,9 @@ func (r *Repository) BulkInsertPricingRules(ctx context.Context, payloads []Rule
 
 	count := 0
 	for _, p := range payloads {
+		// is_active and status are pinned, not taken from p: an import is a
+		// create, and every create is pending+inactive until it is approved.
+		// Without this a manager could import rules straight into the till.
 		_, err := tx.Exec(ctx, `
 			INSERT INTO pricing_rules (product_id, category_id, brand_id, pricing_type, pricing_method,
 			       pricing_value, name, minimum_quantity, maximum_quantity, priority,
@@ -701,7 +707,7 @@ func (r *Repository) BulkInsertPricingRules(ctx context.Context, payloads []Rule
 			p.PricingValue, p.Name, p.MinimumQuantity, p.MaximumQuantity,
 			p.Priority, p.CustomerGroupID, p.StoreID,
 			p.RecurrenceDays, p.TimeFrom, p.TimeTo,
-			p.AllowCombine, p.IsActive, StatusApproved, p.EffectiveFrom, p.EffectiveUntil)
+			p.AllowCombine, false, StatusPending, p.EffectiveFrom, p.EffectiveUntil)
 		if err != nil {
 			return count, fmt.Errorf("insert pricing rule: %w", err)
 		}
@@ -727,18 +733,25 @@ func (r *Repository) BulkUpdatePricingRules(ctx context.Context, payloads []Rule
 
 	count := 0
 	for _, p := range payloads {
+		// status is deliberately absent from SET so an import can never move a
+		// rule into (or out of) approved — only Approve/Reject may. store_id is
+		// absent from SET for the same reason it is absent from insert: scope
+		// comes from the importer's claims, so a row can neither be re-homed to
+		// another store nor promoted to global. It is in the WHERE instead, so an
+		// update can only ever touch a rule in the importer's own scope.
 		tag, err := tx.Exec(ctx, `
 			UPDATE pricing_rules
 			SET category_id = $1, brand_id = $2, pricing_method = $3, pricing_value = $4, minimum_quantity = $5, maximum_quantity = $6,
 			    priority = $7, is_active = $8, effective_from = $9, effective_until = $10,
-			    customer_group_id = $11, store_id = $12, recurrence_days = $13, time_from = $14, time_to = $15,
-			    allow_combine = $16, status = $17, updated_at = NOW()
-			WHERE product_id = $18 AND pricing_type = $19 AND name = $20
+			    customer_group_id = $11, recurrence_days = $12, time_from = $13, time_to = $14,
+			    allow_combine = $15, updated_at = NOW()
+			WHERE product_id = $16 AND pricing_type = $17 AND name = $18
+			  AND store_id IS NOT DISTINCT FROM $19
 		`, p.CategoryID, p.BrandID, p.Method, p.PricingValue, p.MinimumQuantity, p.MaximumQuantity,
 			p.Priority, p.IsActive, p.EffectiveFrom, p.EffectiveUntil,
-			p.CustomerGroupID, p.StoreID, p.RecurrenceDays, p.TimeFrom, p.TimeTo,
-			p.AllowCombine, StatusApproved,
-			p.ProductID, p.Type, p.Name)
+			p.CustomerGroupID, p.RecurrenceDays, p.TimeFrom, p.TimeTo,
+			p.AllowCombine,
+			p.ProductID, p.Type, p.Name, p.StoreID)
 		if err != nil {
 			return count, fmt.Errorf("update pricing rule: %w", err)
 		}

@@ -174,10 +174,13 @@ ON CONFLICT (filename) DO NOTHING;`
 	}
 }
 
-// 000_baseline.sql is the only migration file. It runs inside one transaction
-// and leans on DO blocks for its idempotency guards, so both must survive the
-// split: a merged DO block would be re-executed as fragments, and a lost
-// BEGIN/COMMIT would stop the file from running on a single session.
+// 000_baseline.sql runs inside one transaction and leans on DO blocks for its
+// idempotency guards, so both must survive the split: a merged DO block would be
+// re-executed as fragments, and a lost BEGIN/COMMIT would stop the file from
+// running on a single session.
+//
+// It is not the only migration file any more — 054_pricing_rule_created_by.sql
+// and later ones are separate files that do not open a transaction.
 func TestSplitSQLStatements_BaselineMigration(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "database", "migrations", "000_baseline.sql"))
 	if err != nil {

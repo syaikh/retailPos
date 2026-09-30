@@ -74,6 +74,13 @@ export const Permissions = {
     create: "pricing.create",
     update: "pricing.update",
     delete: "pricing.delete",
+    approve: "pricing.approve",
+  },
+  supplier: {
+    view: "supplier.view",
+    create: "supplier.create",
+    update: "supplier.update",
+    delete: "supplier.delete",
   },
   inventory: {
     adjust: "inventory.adjust",
@@ -151,6 +158,7 @@ export const MASTER_DATA_MANAGE_PERMISSIONS = [
   Permissions.category.create,
   Permissions.customer.create,
   Permissions.pricing.create,
+  Permissions.supplier.create,
   Permissions.store.create,
   Permissions.customerGroup.create,
 ] as const;

@@ -36,6 +36,7 @@
   } from "$shared/ui";
   import { Loader2, AlertTriangle } from "lucide-svelte";
   import { labels, t } from "$shared/i18n";
+  import { getApiErrorMessage } from "$shared/utils/error-utils";
   import { Roles } from "$shared/constants/roles";
   import { useSortable } from "$shared/composables/useSortable.svelte";
   import PricingRulesToolbar from "./PricingRulesToolbar.svelte";
@@ -141,6 +142,11 @@
   );
   const canDelete = $derived(
     (authStore.user?.permissions || []).includes("pricing.delete"),
+  );
+  // Approving/rejecting a pending rule is a separate capability from editing
+  // one, so it has its own permission and its own flag.
+  const canApprove = $derived(
+    (authStore.user?.permissions || []).includes("pricing.approve"),
   );
 
   // Only superadmin may own a global (store_id IS NULL) pricing rule. A
@@ -832,22 +838,22 @@
   }
 
   async function handleApprove(rule: PricingRule) {
-    const ok = await approvePricingRule(rule.id);
-    if (ok) {
+    try {
+      await approvePricingRule(rule.id);
       toast.success(t("ruleApproved", { name: rule.name }));
       fetchRules();
-    } else {
-      toast.error(labels.failedToApproveRule);
+    } catch (e) {
+      toast.error(getApiErrorMessage(e, labels.failedToApproveRule));
     }
   }
 
   async function handleReject(rule: PricingRule) {
-    const ok = await rejectPricingRule(rule.id);
-    if (ok) {
+    try {
+      await rejectPricingRule(rule.id);
       toast.success(t("ruleRejected", { name: rule.name }));
       fetchRules();
-    } else {
-      toast.error(labels.failedToRejectRule);
+    } catch (e) {
+      toast.error(getApiErrorMessage(e, labels.failedToRejectRule));
     }
   }
 
@@ -934,6 +940,7 @@
       onsubmitapproval={handleSubmitApproval}
       onapprove={handleApprove}
       onreject={handleReject}
+      {canApprove}
       onrowclick={handleRowClick}
       {targetNames}
     />

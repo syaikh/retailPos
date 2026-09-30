@@ -44,22 +44,22 @@ func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
-	r.GET("/suppliers", auth, perm(permissions.PricingView), h.ListSuppliers)
-	r.GET("/suppliers/:id", auth, perm(permissions.PricingView), h.GetSupplier)
-	r.POST("/suppliers", auth, perm(permissions.PricingCreate), h.CreateSupplier)
-	r.PUT("/suppliers/:id", auth, perm(permissions.PricingUpdate), h.UpdateSupplier)
-	r.DELETE("/suppliers/:id", auth, perm(permissions.PricingDelete), h.DeleteSupplier)
+	r.GET("/suppliers", auth, perm(permissions.SupplierView), h.ListSuppliers)
+	r.GET("/suppliers/:id", auth, perm(permissions.SupplierView), h.GetSupplier)
+	r.POST("/suppliers", auth, perm(permissions.SupplierCreate), h.CreateSupplier)
+	r.PUT("/suppliers/:id", auth, perm(permissions.SupplierUpdate), h.UpdateSupplier)
+	r.DELETE("/suppliers/:id", auth, perm(permissions.SupplierDelete), h.DeleteSupplier)
 
-	r.PUT("/suppliers/bulk", auth, perm(permissions.PricingUpdate), h.BulkUpdate)
-	r.DELETE("/suppliers/bulk", auth, perm(permissions.PricingDelete), h.BulkDelete)
+	r.PUT("/suppliers/bulk", auth, perm(permissions.SupplierUpdate), h.BulkUpdate)
+	r.DELETE("/suppliers/bulk", auth, perm(permissions.SupplierDelete), h.BulkDelete)
 
-	r.GET("/suppliers/:id/products", auth, perm(permissions.PricingView), h.GetProductsBySupplier)
-	r.POST("/suppliers/:id/products", auth, perm(permissions.PricingUpdate), h.LinkProduct)
-	r.DELETE("/suppliers/:id/products/:productId", auth, perm(permissions.PricingUpdate), h.UnlinkProduct)
-	r.PUT("/suppliers/:id/products/:productId", auth, perm(permissions.PricingUpdate), h.UpdateProductSupplier)
-	r.POST("/suppliers/:id/products/:productId/preferred", auth, perm(permissions.PricingUpdate), h.SetPreferredSupplier)
+	r.GET("/suppliers/:id/products", auth, perm(permissions.SupplierView), h.GetProductsBySupplier)
+	r.POST("/suppliers/:id/products", auth, perm(permissions.SupplierUpdate), h.LinkProduct)
+	r.DELETE("/suppliers/:id/products/:productId", auth, perm(permissions.SupplierUpdate), h.UnlinkProduct)
+	r.PUT("/suppliers/:id/products/:productId", auth, perm(permissions.SupplierUpdate), h.UpdateProductSupplier)
+	r.POST("/suppliers/:id/products/:productId/preferred", auth, perm(permissions.SupplierUpdate), h.SetPreferredSupplier)
 
-	r.GET("/products/:id/suppliers", auth, perm(permissions.PricingView), h.GetSuppliersByProduct)
+	r.GET("/products/:id/suppliers", auth, perm(permissions.SupplierView), h.GetSuppliersByProduct)
 }
 
 // ListSuppliers godoc
@@ -311,7 +311,7 @@ func (h *Handler) GetProductsBySupplier(c *gin.Context) {
 	if products == nil {
 		products = []ProductSupplier{}
 	}
-	c.JSON(http.StatusOK, gin.H{"data": products})
+	c.JSON(http.StatusOK, gin.H{"data": presentProductSuppliers(products, canViewUnitCost(c))})
 }
 
 func (h *Handler) GetSuppliersByProduct(c *gin.Context) {
@@ -329,7 +329,7 @@ func (h *Handler) GetSuppliersByProduct(c *gin.Context) {
 	if suppliers == nil {
 		suppliers = []ProductSupplier{}
 	}
-	c.JSON(http.StatusOK, gin.H{"data": suppliers})
+	c.JSON(http.StatusOK, gin.H{"data": presentProductSuppliers(suppliers, canViewUnitCost(c))})
 }
 
 // LinkProduct godoc
@@ -377,7 +377,7 @@ func (h *Handler) LinkProduct(c *gin.Context) {
 			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
-	c.JSON(http.StatusCreated, gin.H{"data": ps})
+	c.JSON(http.StatusCreated, gin.H{"data": presentProductSupplier(ps, canViewUnitCost(c))})
 }
 
 func (h *Handler) UnlinkProduct(c *gin.Context) {
@@ -460,7 +460,7 @@ func (h *Handler) UpdateProductSupplier(c *gin.Context) {
 			StoreID:     middleware.StoreIDFromContext(c.Request.Context()),
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"data": ps})
+	c.JSON(http.StatusOK, gin.H{"data": presentProductSupplier(ps, canViewUnitCost(c))})
 }
 
 func (h *Handler) SetPreferredSupplier(c *gin.Context) {

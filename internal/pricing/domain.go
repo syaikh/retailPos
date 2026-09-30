@@ -94,6 +94,10 @@ type Rule struct {
 	EffectiveUntil  *time.Time `json:"effective_until,omitempty"  db:"effective_until"`
 	CreatedAt       string     `json:"created_at,omitempty"       db:"created_at"`
 	UpdatedAt       string     `json:"updated_at,omitempty"       db:"updated_at"`
+	// CreatedBy is the user who authored the rule. Set on create and never
+	// rewritten, so approval can refuse the rule's own author. NULL for rules
+	// that predate migration 054, which are not treated as self-approvals.
+	CreatedBy *int `json:"-" db:"created_by"`
 
 	// Scope fields populated on read (not stored in pricing_rules)
 	ScopeType string `json:"scope_type,omitempty" db:"scope_type"` // "product", "category", "brand"

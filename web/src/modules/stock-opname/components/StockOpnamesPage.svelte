@@ -31,6 +31,15 @@
   const canCreate = $derived(userPermissions.includes("stock_opname.create"));
   const canExport = $derived(userPermissions.includes("stock_opname.export"));
   const canReport = $derived(userPermissions.includes("stock_opname.report"));
+  const canViewSuppliers = $derived(userPermissions.includes("supplier.view"));
+  // Gate the scope picker per permission: each type below calls a different
+  // list endpoint, and a role can hold stock_opname.* without the read
+  // permission behind one of them.
+  const scopeTypes = $derived(
+    STOCK_OPNAME_SCOPE_TYPES.filter(
+      (type) => type !== "supplier" || canViewSuppliers,
+    ),
+  );
 
   interface CreateScopeRow {
     scope_type: StockOpnameScopeType;
@@ -59,6 +68,10 @@
 
   async function loadOptions(type: StockOpnameScopeType) {
     if (optionCache[type] || type === "manual") return;
+    // The supplier list is gated on supplier.view, which a cashier and inventory
+    // staff do not hold. Asking anyway only earns a 403 that the catch below
+    // turns into a silently empty dropdown, so skip the scope entirely.
+    if (type === "supplier" && !canViewSuppliers) return;
     optionsLoading = true;
     try {
       let loaded: { value: number; label: string }[] = [];
@@ -302,7 +315,7 @@
               bind:value={row.scope_type}
               onchange={() => onRowTypeChange(row)}
             >
-              {#each STOCK_OPNAME_SCOPE_TYPES as t (t)}
+              {#each scopeTypes as t (t)}
                 <option value={t}>{STOCK_OPNAME_SCOPE_LABELS[t]}</option>
               {/each}
             </Input>

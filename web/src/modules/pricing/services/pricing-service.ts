@@ -118,18 +118,28 @@ export async function submitPricingRule(id: number): Promise<boolean> {
   return r.ok;
 }
 
-export async function approvePricingRule(id: number): Promise<boolean> {
+// Both throw on failure rather than returning a bare boolean: a 403 from the
+// self-approval check carries a reason worth showing, and collapsing it to
+// false reduced a specific refusal to a generic "failed to approve" toast.
+export async function approvePricingRule(id: number): Promise<void> {
   const r = await apiFetch(`/api/pricing-rules/${id}/approve`, {
     method: "POST",
   });
-  return r.ok;
+  if (!r.ok) throw await toApiError(r, "Failed to approve pricing rule");
 }
 
-export async function rejectPricingRule(id: number): Promise<boolean> {
+export async function rejectPricingRule(id: number): Promise<void> {
   const r = await apiFetch(`/api/pricing-rules/${id}/reject`, {
     method: "POST",
   });
-  return r.ok;
+  if (!r.ok) throw await toApiError(r, "Failed to reject pricing rule");
+}
+
+async function toApiError(r: Response, fallback: string): Promise<Error> {
+  const err = await r.json().catch(() => null);
+  return new Error(
+    err?.error?.message || err?.error || err?.message || fallback,
+  );
 }
 
 export interface ResolveItem {

@@ -82,6 +82,29 @@ func authorizeStoreRule(c *gin.Context, rule *Rule) bool {
 	return true
 }
 
+// authorizeApproval is the separation-of-duties half of pricing.approve: the
+// `pricing.approve` permission says a caller may sign off on a pending rule, and
+// this says they may not sign off on their own work.
+//
+// The comparison is against the rule's author (pricing_rules.created_by), not its
+// most recent editor, because the author is the person who wrote the price. A
+// NULL author — a rule that predates migration 054_pricing_rule_created_by.sql —
+// is not a self-approval, so those stay approvable.
+//
+// Superadmin is exempt: it is the escalation path for a rule whose author left
+// or over-authored, and blocking it would make an unapprovable rule permanent.
+func authorizeApproval(c *gin.Context, rule *Rule) bool {
+	if isAdmin(c) {
+		return true
+	}
+	callerID := middleware.UserIDFromContext(c.Request.Context())
+	if rule.CreatedBy != nil && callerID != nil && *rule.CreatedBy == *callerID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "you cannot approve your own pricing rule"})
+		return false
+	}
+	return true
+}
+
 // ruleForAction loads the target rule and applies authorizeStoreRule. It returns
 // false when the request must not proceed, having already written the response.
 //
@@ -168,8 +191,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.DELETE("/pricing-rules/:id", auth, perm(permissions.PricingDelete), h.DeleteRule)
 	r.POST("/pricing-rules/check-conflicts", auth, perm(permissions.PricingView), h.CheckConflicts)
 	r.POST("/pricing-rules/:id/submit", auth, perm(permissions.PricingUpdate), h.SubmitForApproval)
-	r.POST("/pricing-rules/:id/approve", auth, perm(permissions.PricingUpdate), h.ApproveRule)
-	r.POST("/pricing-rules/:id/reject", auth, perm(permissions.PricingUpdate), h.RejectRule)
+	r.POST("/pricing-rules/:id/approve", auth, perm(permissions.PricingApprove), h.ApproveRule)
+	r.POST("/pricing-rules/:id/reject", auth, perm(permissions.PricingApprove), h.RejectRule)
 	r.POST("/pricing/resolve", auth, perm(permissions.PricingView), h.ResolvePrices)
 	r.GET("/products/search", auth, perm(permissions.PricingView), h.SearchProducts)
 }
@@ -319,6 +342,11 @@ func (h *Handler) CreateRule(c *gin.Context) {
 		return
 	}
 
+	// Author comes from the verified token, never the body, and only on create:
+	// Update never writes created_by, so a later edit cannot launder authorship
+	// and make the rule approvable by the person who rewrote it.
+	rule.CreatedBy = middleware.UserIDFromContext(c.Request.Context())
+
 	if err := h.svc.Create(c.Request.Context(), &rule); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -388,6 +416,14 @@ func (h *Handler) UpdateRule(c *gin.Context) {
 	if !bindStoreScopedRule(c, &rule, existing) {
 		return
 	}
+
+	// Status is a workflow output, not a user-editable field. Accepting it from the
+	// body would let a caller holding only pricing.update approve a rule by
+	// side-stepping both the pricing.approve route gate and authorizeApproval.
+	// is_active deliberately stays body-bound: deactivation is a legitimate edit,
+	// and on its own it cannot activate a rule because resolution also requires
+	// status = 'approved'.
+	rule.Status = existing.Status
 
 	if err := h.svc.Update(c.Request.Context(), &rule); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -515,7 +551,11 @@ func (h *Handler) ApproveRule(c *gin.Context) {
 		return
 	}
 
-	if _, ok := h.ruleForAction(c, id, false); !ok {
+	rule, ok := h.ruleForAction(c, id, false)
+	if !ok {
+		return
+	}
+	if !authorizeApproval(c, rule) {
 		return
 	}
 
@@ -543,7 +583,11 @@ func (h *Handler) RejectRule(c *gin.Context) {
 		return
 	}
 
-	if _, ok := h.ruleForAction(c, id, false); !ok {
+	rule, ok := h.ruleForAction(c, id, false)
+	if !ok {
+		return
+	}
+	if !authorizeApproval(c, rule) {
 		return
 	}
 

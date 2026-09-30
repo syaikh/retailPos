@@ -28,6 +28,17 @@ func (a *adapter) ValidateBusiness(_ context.Context, _ importexportshared.Modul
 }
 
 func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSchema, row map[string]interface{}) (interface{}, error) {
+	// Scope comes from the importer's claims, injected by the import engine as
+	// _store_id. It is absent from the CSV template on purpose: store_id must
+	// never be client-supplied for a store-scoped user, and the adapter would
+	// otherwise insert every imported rule as global.
+	var storeID *int
+	if sid, ok := row["_store_id"]; ok {
+		if v, ok2 := sid.(int); ok2 && v > 0 {
+			storeID = &v
+		}
+	}
+
 	var productID *int
 	if v, ok := row["ProductID"]; ok && v != nil {
 		n := floatToInt(v)
@@ -116,6 +127,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 		IsActive:        isActive,
 		EffectiveFrom:   effectiveFrom,
 		EffectiveUntil:  effectiveUntil,
+		StoreID:         storeID,
 	}, nil
 }
 
@@ -147,6 +159,7 @@ func (r *pricingRepoAdapter) Insert(ctx context.Context, entities []interface{})
 			IsActive:        row.IsActive,
 			EffectiveFrom:   row.EffectiveFrom,
 			EffectiveUntil:  row.EffectiveUntil,
+			StoreID:         row.StoreID,
 		})
 	}
 	return r.repo.BulkInsertPricingRules(ctx, payloads)
@@ -169,6 +182,7 @@ func (r *pricingRepoAdapter) Update(ctx context.Context, entities []interface{})
 			IsActive:        row.IsActive,
 			EffectiveFrom:   row.EffectiveFrom,
 			EffectiveUntil:  row.EffectiveUntil,
+			StoreID:         row.StoreID,
 		})
 	}
 	return r.repo.BulkUpdatePricingRules(ctx, payloads)

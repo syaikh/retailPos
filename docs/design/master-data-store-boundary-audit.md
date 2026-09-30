@@ -270,7 +270,7 @@ while pricing is being fixed.
       `ruleForAction` is the authorization gate, so it tolerates **only** `ErrRuleNotFound`: a transient DB
       error returns 500 and stops the request rather than being mistaken for a missing row and letting the
       caller through unchecked.
-- [ ] **2c Add real `supplier.*` permission codes** and re-gate `internal/supplier/handler.go:47-62`.
+- [x] **2c Add real `supplier.*` permission codes** and re-gate `internal/supplier/handler.go:47-62`.
       Seed in `000_baseline.sql` in dot notation. Suggested split mirroring the rest of the catalog:
 
       | Code | Grants |
@@ -281,21 +281,112 @@ while pricing is being fixed.
       | `supplier.delete` | `DELETE /suppliers/:id`, `DELETE /suppliers/bulk` |
       | `product.cost.view` | **already exists** — gate the `unit_cost` field in supplier/product-link responses on it (see below) |
 
-      Role mapping to confirm with the user; the safe default is manager + superadmin for
-      create/update/delete, manager + supervisor + superadmin for view, and **remove `pricing.*` from
-      the supervisor grant** (`000_baseline.sql:5046-5052`) so a shift lead stops rewriting global
-      pricing.
-- [ ] **2d Split approve/reject from edit.** `approve` and `reject` should not share `pricing.update`
-      (`handler.go:66-67`). Add `pricing.approve`, block self-approval, and grant it to manager +
-      superadmin only.
-- [ ] **2e `unit_cost` exposure.** `internal/shared/supplier.go` carries `UnitCost` in
-      `ProductSupplier`, and `internal/product/adapter.go:285` / `presenter.go:15` already gate cost
-      on `product.cost.view` for products. Confirm the supplier-side paths apply the same gate;
-      otherwise `supplier.view` alone would expose unit cost.
+      Role mapping **confirmed with the user** and applied: manager + superadmin for
+      create/update/delete, manager + supervisor + superadmin for view, and `pricing.create` /
+      `pricing.update` / `pricing.delete` **removed from the supervisor grant** (it keeps
+      `pricing.view`) so a shift lead stops rewriting global pricing. Cashier, finance, and
+      inventory staff get no supplier code.
+
+      Implemented. Grants: cashier 19, finance 6, inventory 17, manager 84, superadmin 90,
+      supervisor 56 — 272 total. `TestBaselineRoleGrantsMatchPolicy`
+      (`internal/permissions/baseline_test.go`) pins this so a later seed edit that re-grants
+      pricing.write to a shift lead fails in CI rather than in production.
+- [x] **2d Split approve/reject from edit.** `approve` and `reject` no longer share `pricing.update`;
+      both now demand `pricing.approve` (manager + superadmin).
+
+      Self-approval is blocked on **`pricing_rules.created_by`**, the rule's author — not its last
+      editor, since the author is who wrote the price. The column did not exist, so
+      `054_pricing_rule_created_by.sql` adds it as a nullable FK `ON DELETE SET NULL`: nullable so
+      pre-existing rules stay approvable (a NULL author is not a self-approval), and `SET NULL` so
+      deleting a user cannot leave an unapprovable rule or block the user delete. `CreateRule` sets
+      it from the verified token; `Repository.Update` never writes it, so a later edit cannot
+      launder authorship and make the rule approvable by whoever rewrote it.
+
+      Superadmin is exempt: it is the escalation path for a rule whose author over-authored it, and
+      blocking it would strand a rule permanently. `authorizeApproval`
+      (`internal/pricing/handler.go`) implements this; `TestAuthorizeApproval` covers all six
+      caller/author pairings including the NULL-author legacy case.
+
+      **The edit route was a second way in, and is now closed.** `Rule.Status` carries a
+      `json:"status"` tag, so `PUT /api/pricing-rules/:id` bound the status from the request body and
+      wrote it straight through — a caller holding only `pricing.update` could approve their own rule
+      with `{"status":"approved"}` and never reach either the `pricing.approve` gate or
+      `authorizeApproval`. Since manager holds both codes, the new control was inert against exactly
+      the role it targets. `UpdateRule` now takes `Status` from the already-loaded `existing` row, and
+      `service.Update` re-reads it unconditionally rather than only when the caller left the field
+      blank, so no caller can reintroduce it. `is_active` deliberately stays body-bound: deactivation
+      is a legitimate edit and cannot activate a rule alone, since resolution requires
+      `is_active = true AND status = 'approved'`. `TestUpdateCannotGrantApproval` covers both
+      directions and pins the deactivation behaviour.
+
+      This is also why `service.Update` no longer swallows a missing row: it previously discarded a
+      `GetByID` error and reported success for a rule that did not exist.
+- [x] **2e `unit_cost` exposure.** Confirmed leaking: four supplier responses serialized
+      `ProductSupplier` directly (`GetProductsBySupplier`, `GetSuppliersByProduct`, `LinkProduct`,
+      `UpdateProductSupplier`), so `supplier.view` alone exposed a purchase price.
+
+      It was latent rather than live — every role currently holding `supplier.view` also holds
+      `product.cost.view` — but the grants are unrelated and would diverge the moment a role is
+      added. `internal/supplier/presenter.go` now mirrors `internal/product/presenter.go`: the field
+      is **omitted**, not nulled, when the caller lacks `product.cost.view`, so a consumer cannot
+      distinguish a hidden cost from a zero one. There is no superadmin bypass here; the seed
+      grants superadmin `product.cost.view` already.
+- [x] **2g Every rule starts `pending` and inactive.** Decided: creation never grants approval, and
+      there is no immediate-active bypass on any path. `service.Create` no longer defaults an empty
+      status to `approved`; it pins `StatusPending` + `IsActive = false` and ignores both in the body
+      rather than rejecting the request, so a client round-tripping a rule object is not punished for
+      echoing back the status it was given. The frontend create form omits `status` entirely, which is
+      precisely how a UI-created rule used to land approved and active. `Approve` is the only
+      transition that activates: `pending → approved` with `IsActive = true`. `Reject` also pins
+      inactive, so a rejected rule cannot reach the till even if a later change made a pending rule
+      active. Resolution (`GetActiveRules`) already required `is_active = true AND status = 'approved'`,
+      which is what makes the self-approval check meaningful; `TestGetActiveRulesRequiresApprovedNotJustActive`
+      forces `is_active` on behind the service's back to prove `status` alone is the gate.
+
+      **The import path was a triple bypass, and it was the worst of the three.** `pricing_rules:import`
+      is gated on `pricing.create`, so a *manager* can import. The adapter never populated
+      `RuleImportPayload.StoreID` (the struct had the field; `MapToEntity` ignored the engine's
+      injected `_store_id`), so every imported rule was inserted with `store_id = NULL` — a *global*
+      rule, created by a store-scoped role, which is the thing 2a exists to prevent. And
+      `BulkInsertPricingRules` hardcoded `StatusApproved` while taking `is_active` straight from the
+      CSV, so imports skipped the approval workflow and activated on insert. `MapToEntity` now reads
+      `_store_id` the way `internal/customer/adapter.go` and `internal/product/adapter.go` do, and the
+      bulk insert pins pending + inactive.
+
+      `BulkUpdatePricingRules` was worse than the insert, in a way the create-path decision does not
+      name but the same two invariants cover. It wrote `status = 'approved'` and `store_id` **from the
+      payload** — so an import could approve a pending rule, and since the adapter left `StoreID` nil it
+      also *re-homed* an approved rule to global — and its `WHERE product_id = ? AND pricing_type = ?
+      AND name = ?` had **no store predicate at all**, so a manager could update a rule belonging to
+      any store by name. `status` is now absent from `SET` (only `Approve`/`Reject` may move it) and
+      `store_id` moved from `SET` into the `WHERE` as `store_id IS NOT DISTINCT FROM $n`, so an import
+      can only ever touch a rule inside the importer's own scope and can neither approve nor re-home it.
+
+      **The schema default was the loophole under all of the code.** `pricing_rules.status` defaulted
+      to `'approved'` and `is_active` to `true`, so any `INSERT` omitting the two columns — a future
+      service, a `psql` fix, a script — produced an approved and active rule on insert. Every Go path
+      now pins the values explicitly, which left the default unreachable from the application and
+      reachable from the database, i.e. a strictly larger hole than the one just closed.
+      `055_pricing_rule_new_rows_start_pending.sql` sets both defaults to `'pending'`/`false`, and the
+      baseline `CREATE TABLE` is amended to match so a fresh install agrees. Changing a default touches
+      new rows only, so already-approved rules stay active — the "existing rules remain until replaced"
+      half of the decision, and it needs no data backfill.
+
+      `repo.Create` still honours a caller-supplied status, and that is deliberate: its only production
+      caller is `service.Create`, which pins both fields, and the test fixtures need to create
+      approved rules directly. Pinning it in the repository would buy nothing and cost every
+      fixture. `cmd/dummy`'s seeder also still writes approved active rules through raw SQL — it is a
+      dev-only generator of *historical* sales, not a workflow entry point, and forcing its rules to
+      pending would produce a dev database whose history references unapproved prices.
+
 - [ ] **2f `GetRule`'s existing post-hoc 403** (`:190-198`) becomes a load-time guard shared with 2b.
 - [ ] Tests: matrix over (superadmin / manager-A / supervisor-A / cashier-A / manager-B) × (global
       rule / own / foreign) × (create / update / delete / submit / approve / reject), plus a supplier
       matrix asserting a cashier gets 403 on `GET /suppliers`.
+      *Partly landed:* `internal/pricing/routes_permission_test.go` now asserts every pricing route
+      demands *exactly* its own code (grant all-but-one → 403), which is the route-level half of the
+      matrix, plus a dedicated unauthorized-approval case. `workflow_test.go` covers the state machine
+      and both import paths. The full cross-role × cross-store matrix is still open.
 
 **Exit criteria:** pricing and supplier are internally consistent; `CheckConflicts` can no longer be
 bypassed; no sub-manager role can mutate either module.
@@ -372,7 +463,7 @@ limited to roles that should have them.
 
 ### Wave 6 — Schema integrity (FK gaps)
 
-- [ ] New migration `054_store_fk_integrity.sql`. Per AGENTS.md the baseline is amended in place, but
+- [ ] New migration `056_store_fk_integrity.sql` (054 and 055 are taken by the pricing author column and the pricing status defaults). Per AGENTS.md the baseline is amended in place, but
   new migrations start at `054_*.sql`; a *constraint* added post-baseline belongs in a new migration so
   it replays in lexical order on every runner.
 - [ ] Add `REFERENCES stores(id)` to `customers`, `users`, `goods_receipts`, `purchase_orders`.
@@ -538,7 +629,13 @@ scoping decision.
     the store field to the user's own store, so the form cannot claim a global scope that create/update
     will pin to one store.
   - Wave 2c changes what a cashier can see in the supplier UI, so a role-visibility pass over
-    `web/src/modules/supplier/` is expected alongside it.
+    `web/src/modules/supplier/` is expected alongside it. Done: `SuppliersPage.svelte` now reads
+    `supplier.create/update/delete/view` instead of the borrowed `pricing.*`, and the `/suppliers`
+    route gate is `supplier.view`.
+  - Wave 2d adds a `pricing.approve` capability the pricing table has no prop for. Done:
+    `PricingRulesTable.svelte` takes `canApprove` and gates the approve/reject menu items on it,
+    leaving `canEdit` for submit. (Submit is intentionally still `pricing.update` — submitting your
+    own draft is the point of drafting.)
 - **Permission catalog beyond Wave 2c/2d** — `role-permission-audit.md` is updated in Wave 0, but
   no other module's role mapping is reworked here. The supervisor over-grant on
   `shift.audit`/`shift.review` (Wave 4) is flagged, not fixed.
@@ -585,3 +682,41 @@ a release note, and the first two need a decision on how to handle existing rows
   so a future optimization does not remove the handler-side one and silently reopen the hole.
 
 **Never auto-commit.**
+- **Supervisors lose pricing write access.** `pricing.create` / `pricing.update` / `pricing.delete`
+  are removed from the supervisor grant, and cashiers, finance, and inventory staff lose the supplier
+  routes they reached through the borrowed `pricing.*` codes. Supervisors keep `pricing.view` and
+  `supplier.view`. Intended, but it is a capability removal for an existing role — worth a release note
+  and a check that no shift-lead workflow depended on authoring pricing.
+- **Pricing rules authored before `054_pricing_rule_created_by.sql` have no recorded author**, so a
+  manager may approve them even if they wrote it. This is a deliberate trade: recording an author for
+  historical rows would mean trusting `audit_logs`, which are deletable and record the last editor as
+  well as the creator. The window closes for any rule created after the migration.
+- **Managers can no longer approve a rule they authored**, and the UI does not hide the button — the
+  response is a 403 with `you cannot approve your own pricing rule`. `created_by` is `json:"-"`, so the
+  client cannot know who to disable the action for. If this proves noisy, exposing the author id to
+  the client is the fix; the server-side check is the part that matters.
+
+## 9. `sale.lookup` is intentionally absent from superadmin (not a defect)
+
+`RequirePermission` does not bypass for superadmin (`internal/middleware/auth.go:100-119`) — it reads
+the caller's grant list and nothing else. Superadmin holds 90 of 91 codes: **`sale.lookup` is
+absent**, and `GET /sales/lookup` is gated strictly on it (`internal/sale/handler.go:81`). So
+superadmin gets a 403 on cross-cashier lookup.
+
+That is **correct, and was recorded as a decision** in `031_revoke_sale_lookup_manager.sql`
+(preserved in `database/migrations/archive/pre-squash-migrations.tar.gz`):
+
+> Find Transaction is a cashier-only capability. Managers, admins, and superadmins already see every
+> cashier's sales in "My Transactions" via `report.view` (`ownership.CanAccessAll`), so the Find
+> Transaction tab is both redundant and a weaker redacted subset for them. The frontend hides the tab
+> bar entirely for `report.view` holders; this migration removes the now-unused manager grant so the
+> permission is cashier-only.
+
+Both halves of that decision are live: `TransactionsPage.svelte:48` gates the tab on `sale.lookup` and
+hides the whole tab bar for `report.view` holders, and `useRBAC.test.ts:12` asserts superadmin's
+matrix as `ALL_PERMISSIONS` minus `sale.lookup`. No supported client ever calls the route as
+superadmin, so the 403 is unreachable in normal use — and granting it would widen the API surface
+against a deliberate decision.
+
+`TestBaselineRoleGrantsMatchPolicy` now *asserts the exclusion* (`notGranted(superadmin, SaleLookup)`)
+rather than tolerating it as a gap, so the decision cannot be quietly reversed in either direction.

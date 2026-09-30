@@ -1,8 +1,10 @@
 // Package permissions is the single source of truth for permission codes on
 // the backend.
 //
-// Sync source: database (permissions table, 86 live codes) — see
-// docs/audits/permission-matrix-final.md (updated 2026-09-02).
+// Sync source: database (permissions table, 91 live codes). The audit doc
+// docs/audits/permission-matrix-final.md predates the supplier/pricing codes
+// added for the master-data store audit; baseline_test.go is the enforced
+// invariant, not that document.
 //
 // Rules:
 //   - Do NOT add/remove/rename permission codes here without a migration.
@@ -80,6 +82,15 @@ const (
 	PricingCreate Code = "pricing.create"
 	PricingUpdate Code = "pricing.update"
 	PricingDelete Code = "pricing.delete"
+	// PricingApprove gates the approve/reject transitions. Split from
+	// PricingUpdate so authoring a rule and signing it off are separate
+	// capabilities: a manager can draft and submit, but cannot approve their own.
+	PricingApprove Code = "pricing.approve"
+
+	SupplierView   Code = "supplier.view"
+	SupplierCreate Code = "supplier.create"
+	SupplierUpdate Code = "supplier.update"
+	SupplierDelete Code = "supplier.delete"
 
 	InventoryAdjust Code = "inventory.adjust"
 
@@ -163,7 +174,8 @@ func All() []Code {
 		SaleView, SaleCreate, SalePark, SaleLookup, SaleDetail, ReceiptPrint,
 		ShiftView, ShiftCreate, ShiftReview, ShiftAudit, ShiftCashMovement,
 		CustomerView, CustomerCreate, CustomerUpdate, CustomerDelete, CustomerExport, CustomerImport,
-		PricingView, PricingCreate, PricingUpdate, PricingDelete,
+		PricingView, PricingCreate, PricingUpdate, PricingDelete, PricingApprove,
+		SupplierView, SupplierCreate, SupplierUpdate, SupplierDelete,
 		InventoryAdjust,
 		StoreView, StoreCreate, StoreUpdate, StoreDelete,
 		CustomerGroupView, CustomerGroupCreate, CustomerGroupUpdate, CustomerGroupDelete,

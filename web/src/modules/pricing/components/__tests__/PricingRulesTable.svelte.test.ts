@@ -255,7 +255,9 @@ describe("PricingRulesTable.svelte source-structure guards", () => {
 
   it("kebab menu items are conditional on permissions", () => {
     expect(src).toContain('rule.status === "draft" && canEdit');
-    expect(src).toContain('rule.status === "pending" && canEdit');
+    // Approve/reject is gated on pricing.approve, not the edit capability, so
+    // holding pricing.update alone can no longer surface these actions.
+    expect(src).toContain('rule.status === "pending" && canApprove');
     expect(src).toContain("{#if canEdit}");
     expect(src).toContain("{#if canCreate}");
     expect(src).toContain("{#if canDelete}");

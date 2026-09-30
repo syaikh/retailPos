@@ -11,6 +11,63 @@ describe("pricing-service", () => {
     vi.clearAllMocks();
   });
 
+  describe("approve/reject", () => {
+    it("resolves without throwing on success", async () => {
+      mockApiFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const { approvePricingRule, rejectPricingRule } =
+        await import("../pricing-service");
+
+      await expect(approvePricingRule(1)).resolves.toBeUndefined();
+      await expect(rejectPricingRule(1)).resolves.toBeUndefined();
+    });
+
+    // The self-approval check answers 403 with a reason; returning a bare
+    // boolean used to discard it and show a generic toast instead.
+    it("throws the server's reason so the UI can surface it", async () => {
+      mockApiFetch.mockResolvedValue({
+        ok: false,
+        json: () =>
+          Promise.resolve({
+            error: "you cannot approve your own pricing rule",
+          }),
+      });
+
+      const { approvePricingRule } = await import("../pricing-service");
+
+      await expect(approvePricingRule(1)).rejects.toThrow(
+        "you cannot approve your own pricing rule",
+      );
+    });
+
+    it("reads a nested error object", async () => {
+      mockApiFetch.mockResolvedValue({
+        ok: false,
+        json: () => Promise.resolve({ error: { message: "rule not found" } }),
+      });
+
+      const { rejectPricingRule } = await import("../pricing-service");
+
+      await expect(rejectPricingRule(1)).rejects.toThrow("rule not found");
+    });
+
+    it("falls back when the body is not JSON", async () => {
+      mockApiFetch.mockResolvedValue({
+        ok: false,
+        json: () => Promise.reject(new Error("not json")),
+      });
+
+      const { approvePricingRule } = await import("../pricing-service");
+
+      await expect(approvePricingRule(1)).rejects.toThrow(
+        "Failed to approve pricing rule",
+      );
+    });
+  });
+
   describe("getPricingRules", () => {
     it("builds basic query params", async () => {
       mockApiFetch.mockResolvedValueOnce({

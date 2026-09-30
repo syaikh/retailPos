@@ -54,10 +54,15 @@ func (s *service) Create(ctx context.Context, rule *Rule) error {
 	if len(conflicts) > 0 {
 		return ErrRuleConflict
 	}
-	// Default status to approved if not set (backward compat)
-	if rule.Status == "" {
-		rule.Status = StatusApproved
-	}
+	// Every new rule starts `pending` and inactive, and neither is taken from
+	// caller input. Checkout resolution requires status='approved' AND
+	// is_active, so a rule cannot reach the till until Approve sets both — that
+	// is what makes the creator-cannot-approve-own check in authorizeApproval
+	// meaningful, and it holds for superadmin-created rules too. The request
+	// body is ignored rather than rejected: a client that round-trips a rule
+	// object should not get a 400 for sending the status it was given.
+	rule.Status = StatusPending
+	rule.IsActive = false
 	return s.repo.Create(ctx, rule)
 }
 
@@ -72,13 +77,15 @@ func (s *service) Update(ctx context.Context, rule *Rule) error {
 	if exists {
 		return ErrDuplicateName
 	}
-	// Preserve existing status if not provided
-	if rule.Status == "" {
-		existing, err := s.repo.GetByID(ctx, rule.ID)
-		if err == nil {
-			rule.Status = existing.Status
-		}
+	// Status is a workflow output owned by Approve/Reject, so it is never taken
+	// from caller input. Read it from the stored row unconditionally instead of
+	// only when the caller left it blank, which would otherwise let any Update
+	// caller approve a rule without holding pricing.approve.
+	existing, err := s.repo.GetByID(ctx, rule.ID)
+	if err != nil {
+		return err
 	}
+	rule.Status = existing.Status
 	return s.repo.Update(ctx, rule)
 }
 
@@ -128,6 +135,10 @@ func (s *service) Reject(ctx context.Context, id int) error {
 		return fmt.Errorf("%w: can only reject pending rules, current status: %s", ErrInvalidRule, rule.Status)
 	}
 	rule.Status = StatusRejected
+	// Belt and braces: a rejected rule must not reach the till. Reject only ever
+	// sees a pending rule today, and Create pins pending rules inactive, but
+	// pinning it here keeps the invariant local to the transition that breaks it.
+	rule.IsActive = false
 	return s.repo.Update(ctx, rule)
 }
 
