@@ -3,6 +3,7 @@ package audit
 import (
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -16,6 +17,7 @@ import (
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -117,9 +119,16 @@ func (h *Handler) GetAuditLog(c *gin.Context) {
 		return
 	}
 
-	log, err := h.svc.GetAuditLogByID(c.Request.Context(), id)
+	log, err := h.svc.GetAuditLogByID(c.Request.Context(), id, shared.GetStoreID(c))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "audit log not found"})
+		// A foreign store's row is filtered in SQL and surfaces as ErrNoRows, so it
+		// is indistinguishable from a genuinely missing id (404) — the endpoint
+		// cannot be used to probe which audit-log ids exist in other stores.
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "audit log not found"})
+			return
+		}
+		shared.InternalError(c, err)
 		return
 	}
 

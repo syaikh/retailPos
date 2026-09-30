@@ -31,13 +31,20 @@ func skipIfNoDB(t *testing.T) {
 }
 
 func testAuthMiddleware() gin.HandlerFunc {
+	return testAuthMiddlewareWithStore(nil, "superadmin")
+}
+
+// testAuthMiddlewareWithStore builds a store-scoped auth context. storeID nil
+// models superadmin (no store claim); a non-nil id models a manager pinned to
+// one store, which is the only way a caller can be denied a foreign audit log.
+func testAuthMiddlewareWithStore(storeID *int, role string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set("userID", 1)
 		c.Set("username", "testuser")
 		c.Set("roleID", 1)
-		c.Set("role", "superadmin")
+		c.Set("role", role)
 		c.Set("permissions", []string{"audit.view"})
-		c.Set("storeID", nil)
+		c.Set("storeID", storeID)
 		c.Next()
 	}
 }
@@ -49,6 +56,13 @@ func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 }
 
 func setupAuditRouter() *gin.Engine {
+	return setupAuditRouterWithStore(nil, "superadmin")
+}
+
+// setupAuditRouterWithStore wires the real repository behind either a superadmin
+// context (no store claim) or a store-scoped one, so the read-by-id store filter
+// is exercised through the handler rather than only at the repository layer.
+func setupAuditRouterWithStore(storeID *int, role string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
 	// testAuthMiddleware acts as user id=1; ensure that row exists so the
@@ -62,7 +76,7 @@ func setupAuditRouter() *gin.Engine {
 	h := NewHandler(svc)
 
 	r := gin.New()
-	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
+	h.RegisterRoutes(r.Group("/"), testAuthMiddlewareWithStore(storeID, role), testPermMiddleware)
 	return r
 }
 
@@ -290,6 +304,71 @@ func TestHandler_GetAuditLog(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// TestHandler_GetAuditLog_StoreBoundary proves the boundary holds through the
+// handler, not just in SQL. A store-scoped caller gets 404 (not 403) for another
+// store's row: 403 would confirm the id exists and turn this endpoint into an
+// existence oracle for audit-log ids across the whole chain.
+func TestHandler_GetAuditLog_StoreBoundary(t *testing.T) {
+	skipIfNoDB(t)
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+
+	newStore := func(t *testing.T, name string) int {
+		t.Helper()
+		var id int
+		require.NoError(t, dbPool.QueryRow(ctx,
+			`INSERT INTO stores (name, is_active) VALUES ($1, true) RETURNING id`, name).Scan(&id))
+		return id
+	}
+	ownStore := newStore(t, "audit_handler_own")
+	otherStore := newStore(t, "audit_handler_other")
+
+	var userID int
+	require.NoError(t, dbPool.QueryRow(ctx, `
+		INSERT INTO users (username, email, password_hash, role_id)
+		VALUES ('audit_handler_user', 'audit_handler@test.com', 'hash', 1)
+		ON CONFLICT (username) DO UPDATE SET email = excluded.email RETURNING id`).Scan(&userID))
+
+	repo := NewRepository(dbPool)
+	mkLog := func(t *testing.T, action string, storeID *int) *Log {
+		t.Helper()
+		al := &Log{UserID: &userID, StoreID: storeID, Role: "manager", Action: action, EntityType: "product"}
+		require.NoError(t, repo.CreateAuditLog(ctx, al))
+		return al
+	}
+	own := mkLog(t, "test_action_handler_own", &ownStore)
+	other := mkLog(t, "test_action_handler_other", &otherStore)
+	global := mkLog(t, "test_action_handler_global", nil)
+
+	managerRouter := setupAuditRouterWithStore(&ownStore, "manager")
+	superRouter := setupAuditRouter()
+
+	get := func(r *gin.Engine, id int) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/audit-logs/"+strconv.Itoa(id), nil)
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	t.Run("own store row is 200", func(t *testing.T) {
+		assert.Equal(t, http.StatusOK, get(managerRouter, own.ID).Code)
+	})
+
+	t.Run("foreign store row is 404 not 403", func(t *testing.T) {
+		assert.Equal(t, http.StatusNotFound, get(managerRouter, other.ID).Code)
+	})
+
+	t.Run("global row is visible to store scoped caller", func(t *testing.T) {
+		assert.Equal(t, http.StatusOK, get(managerRouter, global.ID).Code)
+	})
+
+	t.Run("superadmin reads every store", func(t *testing.T) {
+		assert.Equal(t, http.StatusOK, get(superRouter, own.ID).Code)
+		assert.Equal(t, http.StatusOK, get(superRouter, other.ID).Code)
+		assert.Equal(t, http.StatusOK, get(superRouter, global.ID).Code)
 	})
 }
 

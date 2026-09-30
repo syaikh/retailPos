@@ -1352,6 +1352,7 @@ export const id = {
   showingRange: "Menampilkan {from} sampai {to} dari {total} aturan harga.",
   semuaGroupHint: 'Pilih "Semua Grup" untuk semua pelanggan.',
   semuaOutletHint: 'Pilih "Semua Outlet" untuk semua toko.',
+  outletPinnedHint: "Harga atasan terikat ke outlet Anda sendiri.",
   emptyUnusedFields: "Kosongkan field yang tidak digunakan.",
   priorityLabel: "Prioritas: {value}",
   emptyMeansForever: "Kosong = berlaku selamanya.",

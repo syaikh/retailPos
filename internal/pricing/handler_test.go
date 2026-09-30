@@ -3,6 +3,7 @@ package pricing
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -657,7 +658,10 @@ func TestHandler_GetRule_StoreScoped(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
 
-	t.Run("store-scoped user can view global rule", func(t *testing.T) {
+	t.Run("store-scoped user cannot view global rule", func(t *testing.T) {
+		// A global (store_id IS NULL) rule applies to every store at the point of
+		// sale, so it must be superadmin-only for management. Otherwise any store
+		// manager could read or edit a chain-wide price.
 		gin.SetMode(gin.TestMode)
 		r := gin.New()
 		r.Use(func(c *gin.Context) {
@@ -667,6 +671,29 @@ func TestHandler_GetRule_StoreScoped(t *testing.T) {
 			c.Set("role", "manager")
 			c.Set("permissions", []string{"pricing.view"})
 			c.Set("storeID", &storeA)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules/"+strconv.Itoa(globalRule.ID), nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("superadmin can view global rule", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "root")
+			c.Set("roleID", 1)
+			c.Set("role", "superadmin")
+			c.Set("permissions", []string{"pricing.view"})
+			c.Set("storeID", nil)
 			c.Next()
 		})
 		h := NewHandler(NewService(repo), nil, nil)
@@ -1143,5 +1170,253 @@ func TestHandler_CheckConflicts_StoreScoped(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, resp.HasConflicts)
 		assert.GreaterOrEqual(t, len(resp.Data), 3)
+	})
+}
+
+// TestHandler_MutationStoreBoundary covers the store boundary on the six
+// mutating pricing endpoints, which previously ran entirely unscoped: a
+// store-scoped manager could update, delete, submit, approve, or reject another
+// store's rule, and could create or move a rule into the global (store_id IS
+// NULL) scope that only superadmin may manage.
+func TestHandler_MutationStoreBoundary(t *testing.T) {
+	skipIfNoDB(t)
+	gin.SetMode(gin.TestMode)
+
+	repo := newWiredRepo()
+	productID := insertTestProduct(t.Context(), t, "MUT-SB-"+time.Now().Format("0102150405"), "Mutation Boundary Product", 15000)
+	storeA := insertTestStore(t.Context(), t, "MutSB A "+time.Now().Format("0102150405.000"))
+	storeB := insertTestStore(t.Context(), t, "MutSB B "+time.Now().Format("0102150405.000"))
+
+	seq := 0
+	mkRule := func(storeID *int, name string) *Rule {
+		seq++
+		rule := &Rule{
+			ProductID:       &productID,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
+			PricingValue:    10000,
+			Name:            fmt.Sprintf("%s %d %d", name, time.Now().UnixNano(), seq),
+			MinimumQuantity: 1,
+			IsActive:        true,
+			Status:          StatusDraft,
+			StoreID:         storeID,
+		}
+		require.NoError(t, repo.Create(t.Context(), rule))
+		return rule
+	}
+
+	// router builds a request context as a manager of claimsStore.
+	router := func(claimsStore *int) *gin.Engine {
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 2)
+			c.Set("username", "mgr")
+			c.Set("roleID", 2)
+			c.Set("role", "manager")
+			c.Set("permissions", []string{"pricing.view", "pricing.create", "pricing.update", "pricing.delete"})
+			c.Set("storeID", claimsStore)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+		return r
+	}
+
+	do := func(r *gin.Engine, method, path, body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		var req *http.Request
+		if body == "" {
+			req, _ = http.NewRequest(method, path, nil)
+		} else {
+			req, _ = http.NewRequest(method, path, strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+		}
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	nameSeq := 0
+	updateBody := func(value int, storeID *int) string {
+		nameSeq++
+		s := fmt.Sprintf(`{"product_id":%d,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":%d,"minimum_quantity":1,"name":"MutSB upd %d %d"`, productID, value, time.Now().UnixNano(), nameSeq)
+		if storeID != nil {
+			s += fmt.Sprintf(`,"store_id":%d`, *storeID)
+		}
+		return s + "}"
+	}
+
+	t.Run("update: foreign store rule is forbidden", func(t *testing.T) {
+		ruleB := mkRule(&storeB, "MutSB foreign update")
+		w := do(router(&storeA), "PUT", "/pricing-rules/"+strconv.Itoa(ruleB.ID), updateBody(5555, &storeB))
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		after, err := repo.GetByID(t.Context(), ruleB.ID)
+		require.NoError(t, err)
+		assert.InDelta(t, 10000, after.PricingValue, 0.001, "value must be unchanged")
+	})
+
+	t.Run("update: global rule is forbidden", func(t *testing.T) {
+		global := mkRule(nil, "MutSB global update")
+		w := do(router(&storeA), "PUT", "/pricing-rules/"+strconv.Itoa(global.ID), updateBody(5555, nil))
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		after, err := repo.GetByID(t.Context(), global.ID)
+		require.NoError(t, err)
+		assert.InDelta(t, 10000, after.PricingValue, 0.001)
+	})
+
+	t.Run("update: own store rule succeeds and cannot be moved to store B", func(t *testing.T) {
+		ruleA := mkRule(&storeA, "MutSB own update")
+		r := router(&storeA)
+
+		w := do(r, "PUT", "/pricing-rules/"+strconv.Itoa(ruleA.ID), updateBody(7777, &storeA))
+		assert.Equal(t, http.StatusOK, w.Code)
+		after, err := repo.GetByID(t.Context(), ruleA.ID)
+		require.NoError(t, err)
+		assert.InDelta(t, 7777, after.PricingValue, 0.001)
+
+		// Same rule, same caller, but the body now targets store B: rejected.
+		w = do(r, "PUT", "/pricing-rules/"+strconv.Itoa(ruleA.ID), updateBody(8888, &storeB))
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		after, err = repo.GetByID(t.Context(), ruleA.ID)
+		require.NoError(t, err)
+		assert.InDelta(t, 7777, after.PricingValue, 0.001)
+	})
+
+	t.Run("update: omitting store_id keeps the rule in its own store", func(t *testing.T) {
+		ruleA := mkRule(&storeA, "MutSB inherit store")
+		w := do(router(&storeA), "PUT", "/pricing-rules/"+strconv.Itoa(ruleA.ID), updateBody(9999, nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		after, err := repo.GetByID(t.Context(), ruleA.ID)
+		require.NoError(t, err)
+		require.NotNil(t, after.StoreID, "an omitted store_id must not clear the scope")
+		assert.Equal(t, storeA, *after.StoreID)
+		assert.InDelta(t, 9999, after.PricingValue, 0.001)
+	})
+
+	t.Run("delete: foreign and global rules are forbidden", func(t *testing.T) {
+		ruleB := mkRule(&storeB, "MutSB foreign delete")
+		global := mkRule(nil, "MutSB global delete")
+		r := router(&storeA)
+
+		assert.Equal(t, http.StatusForbidden, do(r, "DELETE", "/pricing-rules/"+strconv.Itoa(ruleB.ID), "").Code)
+		assert.Equal(t, http.StatusForbidden, do(r, "DELETE", "/pricing-rules/"+strconv.Itoa(global.ID), "").Code)
+
+		_, err := repo.GetByID(t.Context(), ruleB.ID)
+		assert.NoError(t, err, "foreign rule must survive")
+		_, err = repo.GetByID(t.Context(), global.ID)
+		assert.NoError(t, err, "global rule must survive")
+	})
+
+	t.Run("delete: own store rule succeeds", func(t *testing.T) {
+		ruleA := mkRule(&storeA, "MutSB own delete")
+		assert.Equal(t, http.StatusOK, do(router(&storeA), "DELETE", "/pricing-rules/"+strconv.Itoa(ruleA.ID), "").Code)
+		_, err := repo.GetByID(t.Context(), ruleA.ID)
+		assert.Error(t, err)
+	})
+
+	t.Run("submit/approve/reject: foreign and global rules are forbidden", func(t *testing.T) {
+		ruleB := mkRule(&storeB, "MutSB foreign approve")
+		global := mkRule(nil, "MutSB global approve")
+		r := router(&storeA)
+		for _, id := range []int{ruleB.ID, global.ID} {
+			for _, action := range []string{"submit", "approve", "reject"} {
+				assert.Equal(t, http.StatusForbidden,
+					do(r, "POST", "/pricing-rules/"+strconv.Itoa(id)+"/"+action, "").Code,
+					"id=%d action=%s", id, action)
+			}
+			after, err := repo.GetByID(t.Context(), id)
+			require.NoError(t, err)
+			assert.Equal(t, StatusDraft, after.Status, "id=%d status must not change", id)
+		}
+	})
+
+	t.Run("submit/approve/reject: own store rule is allowed", func(t *testing.T) {
+		// Store scope only. This still lets one role author, submit, and approve
+		// its own rule, which Wave 2d removes by splitting pricing.approve out of
+		// pricing.update and blocking self-approval; do not read the 200s below
+		// as endorsing that, they only assert the store check passes.
+		ruleA := mkRule(&storeA, "MutSB own approve")
+		r := router(&storeA)
+		p := "/pricing-rules/" + strconv.Itoa(ruleA.ID)
+		assert.Equal(t, http.StatusOK, do(r, "POST", p+"/submit", "").Code)
+		assert.Equal(t, http.StatusOK, do(r, "POST", p+"/approve", "").Code)
+		after, err := repo.GetByID(t.Context(), ruleA.ID)
+		require.NoError(t, err)
+		assert.Equal(t, StatusApproved, after.Status)
+	})
+
+	t.Run("create: store-scoped role is pinned to its own store", func(t *testing.T) {
+		// A fresh product per successful create: the service rejects a second rule
+		// covering the same product/type/method as a conflict.
+		freshProduct := func(tag string) int {
+			return insertTestProduct(t.Context(), t, "MUT-CREATE-"+tag+"-"+time.Now().Format("0102150405.000000"), "Create "+tag, 15000)
+		}
+
+		// Omitted store_id -> caller's store.
+		w := do(router(&storeA), "POST", "/pricing-rules", fmt.Sprintf(
+			`{"product_id":%d,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":1234,"minimum_quantity":1,"name":"MutSB create implicit %d"}`, freshProduct("implicit"), time.Now().UnixNano()))
+		if w.Code != http.StatusCreated {
+			t.Fatalf("create failed: status=%d body=%s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			Data Rule `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		require.NotNil(t, resp.Data.StoreID)
+		assert.Equal(t, storeA, *resp.Data.StoreID)
+
+		// Explicit foreign store_id -> rejected outright.
+		w = do(router(&storeA), "POST", "/pricing-rules", fmt.Sprintf(
+			`{"product_id":%d,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":1234,"minimum_quantity":1,"name":"MutSB create cross %d","store_id":%d}`, freshProduct("cross"), time.Now().UnixNano(), storeB))
+		assert.Equal(t, http.StatusForbidden, w.Code)
+
+		// An explicit "store_id": null is indistinguishable from omitting it, so
+		// the rule is accepted but silently scoped to the caller's store. The
+		// security property under test is that a store-scoped role can never
+		// *produce* a global (store_id IS NULL) rule.
+		w = do(router(&storeA), "POST", "/pricing-rules", fmt.Sprintf(
+			`{"product_id":%d,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":1234,"minimum_quantity":1,"name":"MutSB create null %d","store_id":null}`, freshProduct("null"), time.Now().UnixNano()))
+		if w.Code != http.StatusCreated {
+			t.Fatalf("null-store create failed: status=%d body=%s", w.Code, w.Body.String())
+		}
+		var nullResp struct {
+			Data Rule `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &nullResp))
+		require.NotNil(t, nullResp.Data.StoreID, "a store-scoped role must not create a global rule")
+		assert.Equal(t, storeA, *nullResp.Data.StoreID)
+	})
+
+	t.Run("create: superadmin may create a global rule", func(t *testing.T) {
+		superProduct := insertTestProduct(t.Context(), t, "MUT-CREATE-super-"+time.Now().Format("0102150405.000000"), "Create super", 15000)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "root")
+			c.Set("roleID", 1)
+			c.Set("role", "superadmin")
+			c.Set("permissions", []string{"pricing.view", "pricing.create"})
+			c.Set("storeID", nil)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules", strings.NewReader(fmt.Sprintf(
+			`{"product_id":%d,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":1234,"minimum_quantity":1,"name":"MutSB superadmin global %d"}`, superProduct, time.Now().UnixNano())))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("superadmin global create failed: status=%d body=%s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			Data Rule `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Nil(t, resp.Data.StoreID, "superadmin must still be able to create a global rule")
 	})
 }

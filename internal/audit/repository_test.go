@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -216,7 +217,7 @@ func TestAuditRepository_StoreAttribution(t *testing.T) {
 		}
 		require.NoError(t, repo.CreateAuditLog(ctx, al))
 
-		got, err := repo.GetAuditLogByID(ctx, al.ID)
+		got, err := repo.GetAuditLogByID(ctx, al.ID, nil)
 		require.NoError(t, err)
 		require.NotNil(t, got.StoreID)
 		assert.Equal(t, storeID, *got.StoreID)
@@ -232,10 +233,76 @@ func TestAuditRepository_StoreAttribution(t *testing.T) {
 		}
 		require.NoError(t, repo.CreateAuditLog(ctx, al))
 
-		got, err := repo.GetAuditLogByID(ctx, al.ID)
+		got, err := repo.GetAuditLogByID(ctx, al.ID, nil)
 		require.NoError(t, err)
 		assert.Nil(t, got.StoreID)
 		assert.Empty(t, got.StoreName)
+	})
+}
+
+// TestAuditRepository_GetAuditLogByID_StoreBoundary covers the read-by-id store
+// boundary: a store-scoped caller sees its own store's rows and the
+// pre-attribution (NULL store) rows, but not another store's row. A foreign row
+// must surface as pgx.ErrNoRows so the endpoint cannot be used as an existence
+// oracle for audit-log ids belonging to other stores.
+func TestAuditRepository_GetAuditLogByID_StoreBoundary(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	newStore := func(t *testing.T, name string) int {
+		t.Helper()
+		var id int
+		err := dbPool.QueryRow(ctx, `INSERT INTO stores (name, is_active) VALUES ($1, true) RETURNING id`, name).Scan(&id)
+		require.NoError(t, err)
+		return id
+	}
+	ownStore := newStore(t, "audit_scope_own")
+	otherStore := newStore(t, "audit_scope_other")
+
+	var userID int
+	err := dbPool.QueryRow(ctx, `INSERT INTO users (username, email, password_hash, role_id) VALUES ('audit_scope_user', 'audit_scope@test.com', 'hash', 1) ON CONFLICT (username) DO UPDATE SET email = excluded.email RETURNING id`).Scan(&userID)
+	require.NoError(t, err)
+
+	mkLog := func(t *testing.T, action string, storeID *int) *Log {
+		t.Helper()
+		al := &Log{UserID: &userID, StoreID: storeID, Role: "manager", Action: action, EntityType: "product"}
+		require.NoError(t, repo.CreateAuditLog(ctx, al))
+		return al
+	}
+	own := mkLog(t, "test_action_scope_own", &ownStore)
+	other := mkLog(t, "test_action_scope_other", &otherStore)
+	global := mkLog(t, "test_action_scope_global", nil)
+
+	t.Run("own store row is visible to own store", func(t *testing.T) {
+		got, err := repo.GetAuditLogByID(ctx, own.ID, &ownStore)
+		require.NoError(t, err)
+		require.Equal(t, own.ID, got.ID)
+	})
+
+	t.Run("foreign store row is ErrNoRows, not a distinct error", func(t *testing.T) {
+		_, err := repo.GetAuditLogByID(ctx, other.ID, &ownStore)
+		require.ErrorIs(t, err, pgx.ErrNoRows)
+	})
+
+	t.Run("NULL store row stays visible to a store-scoped caller", func(t *testing.T) {
+		got, err := repo.GetAuditLogByID(ctx, global.ID, &ownStore)
+		require.NoError(t, err)
+		require.Equal(t, global.ID, got.ID)
+	})
+
+	t.Run("superadmin nil store sees every row", func(t *testing.T) {
+		for _, id := range []int{own.ID, other.ID, global.ID} {
+			got, err := repo.GetAuditLogByID(ctx, id, nil)
+			require.NoError(t, err, "row %d must be visible to superadmin", id)
+			require.Equal(t, id, got.ID)
+		}
+	})
+
+	t.Run("unknown id is ErrNoRows under either scope", func(t *testing.T) {
+		_, err := repo.GetAuditLogByID(ctx, 99999999, &ownStore)
+		require.ErrorIs(t, err, pgx.ErrNoRows)
+		_, err = repo.GetAuditLogByID(ctx, 99999999, nil)
+		require.ErrorIs(t, err, pgx.ErrNoRows)
 	})
 }
 
@@ -370,7 +437,7 @@ func TestAuditRepository_GetAuditLogByID_CreatedAtJakartaTimezone(t *testing.T) 
 	require.NoError(t, repo.CreateAuditLog(ctx, al))
 	require.Greater(t, al.ID, 0)
 
-	got, err := repo.GetAuditLogByID(ctx, al.ID)
+	got, err := repo.GetAuditLogByID(ctx, al.ID, nil)
 	require.NoError(t, err)
 
 	createdAt := got.CreatedAt
@@ -408,7 +475,7 @@ func TestAuditRepository_CreateAuditLog_DanglingUserFallback(t *testing.T) {
 	require.NoError(t, repo.CreateAuditLog(ctx, al))
 	require.Greater(t, al.ID, 0)
 
-	got, err := repo.GetAuditLogByID(ctx, al.ID)
+	got, err := repo.GetAuditLogByID(ctx, al.ID, nil)
 	require.NoError(t, err)
 	assert.Nil(t, got.UserID, "dangling user reference must be stored as NULL")
 	assert.Equal(t, "manager", got.Role, "the stored role column must be preserved on fallback")
@@ -446,7 +513,7 @@ func TestAuditRepository_CorrelationID(t *testing.T) {
 		require.NoError(t, repo.CreateAuditLog(ctx, al))
 		require.Greater(t, al.ID, 0)
 
-		got, err := repo.GetAuditLogByID(ctx, al.ID)
+		got, err := repo.GetAuditLogByID(ctx, al.ID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "req-trace-123", got.CorrelationID)
 	})
@@ -455,7 +522,7 @@ func TestAuditRepository_CorrelationID(t *testing.T) {
 		al := &Log{Role: "manager", Action: "corr_explicit", EntityType: "system", CorrelationID: "explicit-xyz"}
 		require.NoError(t, repo.CreateAuditLog(ctx, al))
 
-		got, err := repo.GetAuditLogByID(ctx, al.ID)
+		got, err := repo.GetAuditLogByID(ctx, al.ID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "explicit-xyz", got.CorrelationID)
 	})

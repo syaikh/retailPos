@@ -328,7 +328,7 @@ func TestService_EditReceipt(t *testing.T) {
 				Price:       12000,
 			}},
 			Reason: "supplier delivered extra",
-		}, userID, "127.0.0.1")
+		}, userID, "127.0.0.1", nil)
 		require.NoError(t, err)
 		require.Equal(t, 15, updated.Items[0].AcceptedQty)
 		require.Equal(t, 12000, updated.Items[0].Price)
@@ -362,7 +362,7 @@ func TestService_EditReceipt(t *testing.T) {
 			}},
 			Notes:  &notes,
 			Reason: "note update",
-		}, userID, "127.0.0.1")
+		}, userID, "127.0.0.1", nil)
 		require.NoError(t, err)
 		require.Equal(t, "updated notes", updated.Notes)
 		// Stock unchanged.
@@ -387,7 +387,7 @@ func TestService_EditReceipt(t *testing.T) {
 				Price:       10000,
 			}},
 			Reason: "supplier recalled some",
-		}, userID, "127.0.0.1")
+		}, userID, "127.0.0.1", nil)
 		require.NoError(t, err)
 		require.Equal(t, 3, updated.Items[0].AcceptedQty)
 		require.Equal(t, 3, globalStockQty(ctx, t, product))
@@ -407,7 +407,7 @@ func TestService_EditReceipt(t *testing.T) {
 		_, err = svc.EditReceipt(ctx, rec.ID, EditReceiptInput{
 			Items:  []EditReceiptItemInput{{ID: rec.Items[0].ID, AcceptedQty: 5, Price: 10000}},
 			Reason: "",
-		}, userID, "127.0.0.1")
+		}, userID, "127.0.0.1", nil)
 		require.ErrorIs(t, err, ErrEditReasonRequired)
 	})
 
@@ -419,7 +419,7 @@ func TestService_EditReceipt(t *testing.T) {
 		_, err := svc.EditReceipt(ctx, 999999, EditReceiptInput{
 			Items:  []EditReceiptItemInput{{ID: 1, AcceptedQty: 1, Price: 10000}},
 			Reason: "test",
-		}, userID, "127.0.0.1")
+		}, userID, "127.0.0.1", nil)
 		require.ErrorIs(t, err, ErrReceiptNotFound)
 	})
 
@@ -437,7 +437,7 @@ func TestService_EditReceipt(t *testing.T) {
 		_, err = svc.EditReceipt(ctx, rec.ID, EditReceiptInput{
 			Items:  []EditReceiptItemInput{{ID: 999999, AcceptedQty: 5, Price: 10000}},
 			Reason: "bad item",
-		}, userID, "127.0.0.1")
+		}, userID, "127.0.0.1", nil)
 		require.ErrorIs(t, err, ErrReceiptEditItemNotFound)
 	})
 
@@ -463,7 +463,7 @@ func TestService_EditReceipt(t *testing.T) {
 		_, err = svc.EditReceipt(ctx, rec.ID, EditReceiptInput{
 			Items:  []EditReceiptItemInput{{ID: rec.Items[0].ID, AcceptedQty: 10, Price: 12000}},
 			Reason: "price bump",
-		}, userID, "127.0.0.1")
+		}, userID, "127.0.0.1", nil)
 		require.ErrorIs(t, err, ErrReceiptHasSales)
 	})
 
@@ -488,7 +488,7 @@ func TestService_EditReceipt(t *testing.T) {
 		_, err = svc.EditReceipt(ctx, rec.ID, EditReceiptInput{
 			Items:  []EditReceiptItemInput{{ID: rec.Items[0].ID, AcceptedQty: 8, Price: 10000}},
 			Reason: "qty change",
-		}, userID, "127.0.0.1")
+		}, userID, "127.0.0.1", nil)
 		require.ErrorIs(t, err, ErrReceiptHasSales)
 	})
 
@@ -511,7 +511,7 @@ func TestService_EditReceipt(t *testing.T) {
 		_, err = svc.EditReceipt(ctx, rec.ID, EditReceiptInput{
 			Items:  []EditReceiptItemInput{{ID: rec.Items[0].ID, AcceptedQty: 7, Price: 10000}},
 			Reason: "pending ret block",
-		}, userID, "127.0.0.1")
+		}, userID, "127.0.0.1", nil)
 		require.ErrorIs(t, err, ErrReceiptHasPendingReturns)
 	})
 
@@ -542,7 +542,7 @@ func TestService_EditReceipt(t *testing.T) {
 		_, err = svc.EditReceipt(ctx, rec.ID, EditReceiptInput{
 			Items:  []EditReceiptItemInput{{ID: rec.Items[0].ID, AcceptedQty: 10, Price: 10000}},
 			Reason: "settled",
-		}, userID, "127.0.0.1")
+		}, userID, "127.0.0.1", nil)
 		require.ErrorIs(t, err, ErrReceiptIsSettled)
 	})
 
@@ -567,7 +567,7 @@ func TestService_EditReceipt(t *testing.T) {
 		_, err = svc.EditReceipt(ctx, rec.ID, EditReceiptInput{
 			Items:  []EditReceiptItemInput{{ID: rec.Items[0].ID, AcceptedQty: 0, Price: 10000}},
 			Reason: "negative",
-		}, userID, "127.0.0.1")
+		}, userID, "127.0.0.1", nil)
 		require.ErrorIs(t, err, ErrNegativeStock)
 	})
 
@@ -589,7 +589,7 @@ func TestService_EditReceipt(t *testing.T) {
 				Price:       15000,
 			}},
 			Reason: "audit test",
-		}, userID, "10.0.0.1")
+		}, userID, "10.0.0.1", nil)
 		require.NoError(t, err)
 
 		// Check audit trail entries exist.
@@ -628,7 +628,7 @@ func TestService_EditReceipt(t *testing.T) {
 			Items:  []EditReceiptItemInput{{ID: rec.Items[0].ID, AcceptedQty: 5, Price: 10000}},
 			Notes:  &notes,
 			Reason: "notes only",
-		}, userID, "127.0.0.1")
+		}, userID, "127.0.0.1", nil)
 		require.NoError(t, err)
 
 		var count int
@@ -807,5 +807,73 @@ func TestService_ListReceipts_PaginationAndSearch(t *testing.T) {
 		_, missTotal, err := svc.ListReceipts(ctx, sup, &store, nil, "NO-SUCH-PRODUCT-XYZ", 2, 0)
 		require.NoError(t, err)
 		require.Equal(t, 0, missTotal)
+	})
+}
+
+// TestService_EditReceipt_StoreBoundary locks the store boundary that
+// EditReceipt lacked before the master-data audit: a store-scoped caller must not
+// be able to rewrite another store's receipt, and the check must run before the
+// edit-window guard so a foreign receipt cannot be probed for window state.
+func TestService_EditReceipt_StoreBoundary(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	// Each subtest needs its own product: TruncateTestData runs once for the whole
+	// test, and products.sku is unique, so a shared SKU would collide.
+	newReceipt := func(t *testing.T, tag string) (*Service, *Receipt, int, int) {
+		t.Helper()
+		product := insertTestProduct(ctx, t, "EDT-SCOPE-"+tag)
+		svc, _, store := setupArrangement(t, product)
+		userID := insertTestUser(ctx, t)
+		rec, err := svc.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svc, store),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 10}},
+		}, userID, &store)
+		require.NoError(t, err)
+		require.Len(t, rec.Items, 1)
+		return svc, rec, userID, store
+	}
+
+	editInput := func(rec *Receipt) EditReceiptInput {
+		return EditReceiptInput{
+			Items:  []EditReceiptItemInput{{ID: rec.Items[0].ID, AcceptedQty: 5, Price: 10000}},
+			Reason: "cross-store attempt",
+		}
+	}
+
+	t.Run("foreign store is forbidden and writes nothing", func(t *testing.T) {
+		svc, rec, userID, _ := newReceipt(t, "foreign")
+		other := insertTestStore(ctx, t)
+
+		in := editInput(rec)
+		_, err := svc.EditReceipt(ctx, rec.ID, in, userID, "127.0.0.1", &other)
+		require.ErrorIs(t, err, ErrStoreForbidden)
+
+		// The rejected edit must not have moved quantity or price. The read path
+		// independently rejects the same foreign receipt, so assert through the
+		// repository rather than the guarded read.
+		_, err = svc.GetReceipt(ctx, rec.ID, &other)
+		require.ErrorIs(t, err, ErrStoreForbidden)
+
+		fresh, err := svc.repo.GetReceiptForEdit(ctx, svc.repo.db, rec.ID)
+		require.NoError(t, err)
+		require.Equal(t, 10, fresh.Items[0].AcceptedQty)
+		require.Equal(t, 10000, fresh.Items[0].Price)
+	})
+
+	t.Run("own store may edit", func(t *testing.T) {
+		svc, rec, userID, store := newReceipt(t, "own")
+
+		updated, err := svc.EditReceipt(ctx, rec.ID, editInput(rec), userID, "127.0.0.1", &store)
+		require.NoError(t, err)
+		require.Equal(t, 5, updated.Items[0].AcceptedQty)
+	})
+
+	t.Run("superadmin nil store bypasses", func(t *testing.T) {
+		svc, rec, userID, _ := newReceipt(t, "super")
+
+		updated, err := svc.EditReceipt(ctx, rec.ID, editInput(rec), userID, "127.0.0.1", nil)
+		require.NoError(t, err)
+		require.Equal(t, 5, updated.Items[0].AcceptedQty)
 	})
 }

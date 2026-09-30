@@ -272,7 +272,7 @@ func (h *Handler) EditReceipt(c *gin.Context) {
 		return
 	}
 	ipAddress := c.ClientIP()
-	rec, err := h.svc.EditReceipt(c.Request.Context(), id, input, uid, ipAddress)
+	rec, err := h.svc.EditReceipt(c.Request.Context(), id, input, uid, ipAddress, shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
 		return

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -40,8 +41,14 @@ type mockPricingService struct {
 	rejectFn               func(ctx context.Context, id int) error
 }
 
+// GetByID defaults to not-found. The mutating handlers now load the target rule
+// to authorize it, and treat a missing rule as a tolerated no-op, so a test that
+// only cares about the downstream call can leave getByIDFn nil.
 func (m *mockPricingService) GetByID(ctx context.Context, id int) (*Rule, error) {
-	return m.getByIDFn(ctx, id)
+	if m.getByIDFn != nil {
+		return m.getByIDFn(ctx, id)
+	}
+	return nil, pgx.ErrNoRows
 }
 func (m *mockPricingService) GetByProductID(ctx context.Context, productID int) ([]Rule, error) {
 	return m.getByProductIDFn(ctx, productID)
@@ -227,6 +234,11 @@ func TestPricingHandler_SearchProducts_SearcherError(t *testing.T) {
 
 func TestPricingHandler_UpdateRule_ServiceError(t *testing.T) {
 	svc := &mockPricingService{
+		// UpdateRule loads the target to authorize it before writing, so the rule
+		// must resolve for the update error to be the one under test.
+		getByIDFn: func(ctx context.Context, id int) (*Rule, error) {
+			return &Rule{ID: id, Name: "Existing"}, nil
+		},
 		updateFn: func(ctx context.Context, rule *Rule) error {
 			return assert.AnError
 		},
@@ -266,21 +278,25 @@ func TestPricingHandler_DeleteRule_WithAudit(t *testing.T) {
 	assert.True(t, auditCalled, "audit log should be created")
 }
 
+// GetByID is now the store authorization gate, not just the source of an audit
+// description. A load failure must therefore fail closed: reporting 500 and
+// skipping the delete, rather than treating the error as "no such rule" and
+// executing an unauthorized write.
 func TestPricingHandler_DeleteRule_WithAuditGetByIDError(t *testing.T) {
 	auditCalled := false
+	deleted := false
 	svc := &mockPricingService{
 		getByIDFn: func(ctx context.Context, id int) (*Rule, error) {
 			return nil, assert.AnError
 		},
 		deleteFn: func(ctx context.Context, id int) error {
+			deleted = true
 			return nil
 		},
 	}
 	auditSvc := &mockAuditCreator{
 		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
-			assert.Equal(t, "delete", log.Action)
-			assert.Contains(t, log.Description, "Deleted pricing rule #1")
 			return nil
 		},
 	}
@@ -288,8 +304,9 @@ func TestPricingHandler_DeleteRule_WithAuditGetByIDError(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("DELETE", "/pricing-rules/1", nil)
 	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, auditCalled, "audit log should be created")
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.False(t, deleted, "delete must not run when the store check could not be made")
+	assert.False(t, auditCalled, "no audit log for a request that did not mutate")
 }
 
 func TestPricingHandler_CreateRule_WithAudit(t *testing.T) {

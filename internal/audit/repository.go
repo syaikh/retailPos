@@ -295,15 +295,28 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, cursor
 	return logs, total, next, nil
 }
 
-func (r *Repository) GetAuditLogByID(ctx context.Context, id int) (*Log, error) {
+// GetAuditLogByID returns one audit log by id. When storeID is non-nil (any
+// role except superadmin) the read is constrained to the caller's own store,
+// matching the list/export filter: rows with a NULL store (pre-store
+// attribution) stay visible, a foreign store's row does not.
+//
+// A foreign store's row is reported as pgx.ErrNoRows, not as a distinct error, so
+// the endpoint cannot be used to probe which audit-log ids exist in other stores.
+func (r *Repository) GetAuditLogByID(ctx context.Context, id int, storeID *int) (*Log, error) {
 	var al Log
-	err := r.db.QueryRow(ctx, `
+	query := `
 		SELECT al.id, al.user_id, al.store_id, COALESCE(s.name, ''), COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb), COALESCE(al.correlation_id, ''), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, '')
 		FROM audit_logs al
 		LEFT JOIN users u ON al.user_id = u.id
 		LEFT JOIN stores s ON al.store_id = s.id
-		WHERE al.id = $1
-	`, id).Scan(&al.ID, &al.UserID, &al.StoreID, &al.StoreName, &al.Username, &al.Role, &al.Action, &al.EntityType, &al.EntityID, &al.IPAddress, &al.UserAgent, &al.OldValues, &al.NewValues, &al.CorrelationID, &al.CreatedAt, &al.Description)
+		WHERE al.id = $1`
+	args := []interface{}{id}
+	if storeID != nil {
+		query += " AND (al.store_id IS NULL OR al.store_id = $2)"
+		args = append(args, *storeID)
+	}
+
+	err := r.db.QueryRow(ctx, query, args...).Scan(&al.ID, &al.UserID, &al.StoreID, &al.StoreName, &al.Username, &al.Role, &al.Action, &al.EntityType, &al.EntityID, &al.IPAddress, &al.UserAgent, &al.OldValues, &al.NewValues, &al.CorrelationID, &al.CreatedAt, &al.Description)
 	if err != nil {
 		return nil, err
 	}

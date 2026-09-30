@@ -50,6 +50,111 @@ func isAdmin(c *gin.Context) bool {
 	return role == permissions.RoleSuperadmin
 }
 
+// authorizeStoreRule enforces the management-side store boundary for a single
+// pricing rule.
+//
+// A rule with a NULL store_id is a *global* rule. Global rules still apply at the
+// point of sale for every store (Repository.GetActiveRules matches
+// `store_id IS NULL OR store_id = $n`), but only superadmin may create, read, or
+// change them — otherwise any store manager could edit a chain-wide price by
+// clearing store_id. A store-scoped role may act only on its own store's rules.
+//
+// Fails closed on a missing store claim: middleware guarantees every
+// non-superadmin has one, so an absent claim must never be read as an implicit
+// HQ bypass.
+func authorizeStoreRule(c *gin.Context, rule *Rule) bool {
+	if isAdmin(c) {
+		return true
+	}
+	claimsStore := shared.GetStoreID(c)
+	if claimsStore == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "store scope is required for pricing rules"})
+		return false
+	}
+	if rule.StoreID == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "global pricing rule requires superadmin"})
+		return false
+	}
+	if *rule.StoreID != *claimsStore {
+		c.JSON(http.StatusForbidden, gin.H{"error": "store is not in your store"})
+		return false
+	}
+	return true
+}
+
+// ruleForAction loads the target rule and applies authorizeStoreRule. It returns
+// false when the request must not proceed, having already written the response.
+//
+// notFoundOK preserves the mutating handlers' existing contract of treating a
+// missing target as a no-op (TestHandler_DeleteRule_NotFound expects 200), while
+// read paths get a proper 404.
+//
+// Only ErrRuleNotFound is tolerated. Every other error is a 500 that stops the
+// request: this call is the authorization gate, so a transient DB failure must
+// not be mistaken for a missing row and let the caller through unchecked.
+func (h *Handler) ruleForAction(c *gin.Context, id int, notFoundOK bool) (*Rule, bool) {
+	rule, err := h.svc.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if !errors.Is(err, ErrRuleNotFound) {
+			shared.InternalError(c, fmt.Errorf("load pricing rule %d: %w", id, err))
+			return nil, false
+		}
+		if notFoundOK {
+			return nil, true
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": "pricing rule not found"})
+		return nil, false
+	}
+	if !authorizeStoreRule(c, rule) {
+		return nil, false
+	}
+	return rule, true
+}
+
+// bindStoreScopedRule pins a create/update payload to the caller's own store.
+// A store-scoped role cannot create a global rule, cannot create a rule for
+// another store, and cannot move an existing rule to another store. Superadmin
+// is unrestricted.
+func bindStoreScopedRule(c *gin.Context, rule *Rule, existing *Rule) bool {
+	if isAdmin(c) {
+		return true
+	}
+	claimsStore := shared.GetStoreID(c)
+	if claimsStore == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "store scope is required for pricing rules"})
+		return false
+	}
+
+	// A body that names a different store than the caller is a cross-store write
+	// attempt, not a field to be silently corrected.
+	if rule.StoreID != nil && *rule.StoreID != *claimsStore {
+		c.JSON(http.StatusForbidden, gin.H{"error": "store is not in your store"})
+		return false
+	}
+
+	// On update, the rule's store is fixed by the row being edited: inheriting the
+	// existing store also stops an omitted store_id from turning a store rule
+	// into a global one.
+	if existing != nil {
+		if existing.StoreID == nil || *existing.StoreID != *claimsStore {
+			// existing is foreign or global — authorizeStoreRule already rejected
+			// this path; guard defensively so a rule can never change store here.
+			if existing.StoreID == nil {
+				c.JSON(http.StatusForbidden, gin.H{"error": "global pricing rule requires superadmin"})
+			} else {
+				c.JSON(http.StatusForbidden, gin.H{"error": "store is not in your store"})
+			}
+			return false
+		}
+		store := existing.StoreID
+		rule.StoreID = store
+		return true
+	}
+
+	rule.StoreID = claimsStore
+	return true
+}
+
 // SetProductSearcher sets the optional product search provider.
 func (h *Handler) SetProductSearcher(s ProductSearcher) {
 	h.searcher = s
@@ -187,14 +292,8 @@ func (h *Handler) GetRule(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "pricing rule not found"})
 		return
 	}
-	if !isAdmin(c) {
-		claimsStore := shared.GetStoreID(c)
-		if claimsStore != nil {
-			if rule.StoreID != nil && *rule.StoreID != *claimsStore {
-				c.JSON(http.StatusForbidden, gin.H{"error": "store is not in your store"})
-				return
-			}
-		}
+	if !authorizeStoreRule(c, rule) {
+		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": rule})
 }
@@ -213,6 +312,10 @@ func (h *Handler) CreateRule(c *gin.Context) {
 	var rule Rule
 	if err := c.ShouldBindJSON(&rule); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !bindStoreScopedRule(c, &rule, nil) {
 		return
 	}
 
@@ -258,9 +361,19 @@ func (h *Handler) UpdateRule(c *gin.Context) {
 		return
 	}
 
+	// The existing rule must be loaded unconditionally now: the store boundary
+	// check runs against it, and the audit diff still needs the pre-update state.
+	existing, err := h.svc.GetByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "pricing rule not found"})
+		return
+	}
+	if !authorizeStoreRule(c, existing) {
+		return
+	}
 	var oldRule *Rule
 	if h.auditSvc != nil {
-		oldRule, _ = h.svc.GetByID(c.Request.Context(), id)
+		oldRule = existing
 	}
 
 	var rule Rule
@@ -269,6 +382,12 @@ func (h *Handler) UpdateRule(c *gin.Context) {
 		return
 	}
 	rule.ID = id
+
+	// existing is already authorized, so a cross-store/global body store_id is
+	// rejected and an omitted one inherits the existing store.
+	if !bindStoreScopedRule(c, &rule, existing) {
+		return
+	}
 
 	if err := h.svc.Update(c.Request.Context(), &rule); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -314,10 +433,12 @@ func (h *Handler) DeleteRule(c *gin.Context) {
 	}
 
 	var oldRuleName string
-	if h.auditSvc != nil {
-		if r, err := h.svc.GetByID(c.Request.Context(), id); err == nil {
-			oldRuleName = r.Name
-		}
+	oldRule, ok := h.ruleForAction(c, id, true)
+	if !ok {
+		return
+	}
+	if oldRule != nil {
+		oldRuleName = oldRule.Name
 	}
 
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
@@ -366,6 +487,10 @@ func (h *Handler) SubmitForApproval(c *gin.Context) {
 		return
 	}
 
+	if _, ok := h.ruleForAction(c, id, false); !ok {
+		return
+	}
+
 	if err := h.svc.SubmitForApproval(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -390,6 +515,10 @@ func (h *Handler) ApproveRule(c *gin.Context) {
 		return
 	}
 
+	if _, ok := h.ruleForAction(c, id, false); !ok {
+		return
+	}
+
 	if err := h.svc.Approve(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -411,6 +540,10 @@ func (h *Handler) RejectRule(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rule id"})
+		return
+	}
+
+	if _, ok := h.ruleForAction(c, id, false); !ok {
 		return
 	}
 

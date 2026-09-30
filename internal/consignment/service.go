@@ -716,7 +716,11 @@ func (s *Service) ListReceipts(ctx context.Context, supplierID int, claimsStore 
 // the 7-day edit window, checks downstream activity, calculates stock deltas,
 // and writes an immutable audit trail entry. Both product_stock and
 // consignment_stock are updated atomically in the same transaction.
-func (s *Service) EditReceipt(ctx context.Context, receiptID int, input EditReceiptInput, userID int, ipAddress string) (*Receipt, error) {
+//
+// claimsStore is the caller's store from the JWT; nil (superadmin) bypasses the
+// boundary. The receipt's store is checked before the edit window so a foreign
+// receipt reports 403 rather than leaking whether the window has expired.
+func (s *Service) EditReceipt(ctx context.Context, receiptID int, input EditReceiptInput, userID int, ipAddress string, claimsStore *int) (*Receipt, error) {
 	if input.Reason == "" {
 		return nil, ErrEditReasonRequired
 	}
@@ -727,7 +731,12 @@ func (s *Service) EditReceipt(ctx context.Context, receiptID int, input EditRece
 		return nil, err
 	}
 
-	// 2. Check edit window (7 days from receipt date).
+	// 2. Store boundary: a store-scoped caller may only edit its own receipts.
+	if claimsStore != nil && rec.StoreID != *claimsStore {
+		return nil, ErrStoreForbidden
+	}
+
+	// 3. Check edit window (7 days from receipt date).
 	receivedAt, err := time.Parse(time.RFC3339, rec.ReceivedAt)
 	if err != nil {
 		return nil, fmt.Errorf("parse receipt date: %w", err)
@@ -736,7 +745,7 @@ func (s *Service) EditReceipt(ctx context.Context, receiptID int, input EditRece
 		return nil, ErrEditWindowExpired
 	}
 
-	// 3. Build old-items lookup and validate input structure (outside tx).
+	// 4. Build old-items lookup and validate input structure (outside tx).
 	oldItems := make(map[int]*ReceiptItem)
 	for i := range rec.Items {
 		oldItems[rec.Items[i].ID] = &rec.Items[i]
@@ -754,20 +763,20 @@ func (s *Service) EditReceipt(ctx context.Context, receiptID int, input EditRece
 		}
 	}
 
-	// 4. Begin transaction for atomicity.
+	// 5. Begin transaction for atomicity.
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// 5. Re-check downstream activity inside the transaction to prevent TOCTOU.
+	// 6. Re-check downstream activity inside the transaction to prevent TOCTOU.
 	downstream, err := s.repo.CheckDownstreamActivity(ctx, tx, receiptID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 6. Validate edits against downstream constraints (inside tx).
+	// 7. Validate edits against downstream constraints (inside tx).
 	for _, editItem := range input.Items {
 		oldItem := oldItems[editItem.ID]
 		qtyChanged := editItem.AcceptedQty != oldItem.AcceptedQty
@@ -787,7 +796,7 @@ func (s *Service) EditReceipt(ctx context.Context, receiptID int, input EditRece
 		}
 	}
 
-	// 7. Process each edited item: update item, calculate delta, update ledgers.
+	// 8. Process each edited item: update item, calculate delta, update ledgers.
 	for _, editItem := range input.Items {
 		oldItem := oldItems[editItem.ID]
 		delta := editItem.AcceptedQty - oldItem.AcceptedQty
@@ -872,7 +881,7 @@ func (s *Service) EditReceipt(ctx context.Context, receiptID int, input EditRece
 		}
 	}
 
-	// 7. Update receipt-level notes if changed.
+	// 9. Update receipt-level notes if changed.
 	if input.Notes != nil && *input.Notes != rec.Notes {
 		if err := s.repo.UpdateReceiptNotes(ctx, tx, receiptID, *input.Notes); err != nil {
 			return nil, err
@@ -890,17 +899,17 @@ func (s *Service) EditReceipt(ctx context.Context, receiptID int, input EditRece
 		}
 	}
 
-	// 8. Touch arrangement visit timestamp.
+	// 10. Touch arrangement visit timestamp.
 	if err := s.repo.TouchVisit(ctx, tx, rec.ArrangementID); err != nil {
 		return nil, err
 	}
 
-	// 9. Commit transaction.
+	// 11. Commit transaction.
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
-	// 10. Return updated receipt with hydrated names.
+	// 12. Return updated receipt with hydrated names.
 	updated, err := s.repo.GetReceiptByID(ctx, s.repo.db, receiptID)
 	if err != nil {
 		return nil, err

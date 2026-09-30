@@ -12,7 +12,7 @@ import (
 type Repo interface {
 	CreateAuditLog(ctx context.Context, log *Log) error
 	CreateAuditLogTx(ctx context.Context, tx pgx.Tx, log *Log) error
-	GetAuditLogByID(ctx context.Context, id int) (*Log, error)
+	GetAuditLogByID(ctx context.Context, id int, storeID *int) (*Log, error)
 	GetAuditLogs(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, userID *int, search string, action string, entityType string, entityID *int, startDate *time.Time, endDate *time.Time, storeID *int) ([]LogListItem, int, *shared.KeysetCursor, error)
 	GetDistinctEntityTypes(ctx context.Context) ([]string, error)
 }
@@ -37,8 +37,8 @@ func (s *Service) GetEntityTypes(ctx context.Context) ([]string, error) {
 	return s.repo.GetDistinctEntityTypes(ctx)
 }
 
-func (s *Service) GetAuditLogByID(ctx context.Context, id int) (*Log, error) {
-	return s.repo.GetAuditLogByID(ctx, id)
+func (s *Service) GetAuditLogByID(ctx context.Context, id int, storeID *int) (*Log, error) {
+	return s.repo.GetAuditLogByID(ctx, id, storeID)
 }
 
 func (s *Service) GetAuditLogs(ctx context.Context, limit, offset int, cursor *shared.KeysetCursor, userID *int, search, action, entityType string, entityID *int, startDate, endDate string, storeID *int) ([]LogListItem, int, *shared.KeysetCursor, error) {

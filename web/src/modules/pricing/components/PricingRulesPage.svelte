@@ -36,6 +36,7 @@
   } from "$shared/ui";
   import { Loader2, AlertTriangle } from "lucide-svelte";
   import { labels, t } from "$shared/i18n";
+  import { Roles } from "$shared/constants/roles";
   import { useSortable } from "$shared/composables/useSortable.svelte";
   import PricingRulesToolbar from "./PricingRulesToolbar.svelte";
   import PricingRulesTable from "./PricingRulesTable.svelte";
@@ -141,6 +142,12 @@
   const canDelete = $derived(
     (authStore.user?.permissions || []).includes("pricing.delete"),
   );
+
+  // Only superadmin may own a global (store_id IS NULL) pricing rule. A
+  // store-scoped role's rules are always pinned to its own store by the API, so
+  // offering "All Stores" in the form would let them pick an option that silently
+  // becomes store-scoped on save. Hide it rather than misreport the saved scope.
+  const isSuperadmin = $derived(authStore.user?.role === Roles.superadmin);
 
   const pricingTypes = [
     {
@@ -271,7 +278,9 @@
       maximum_quantity: "",
       priority: 0,
       customer_group_id: null,
-      store_id: null,
+      // A store-scoped role defaults to its own store: the API pins it there
+      // anyway, and defaulting avoids a submit with an unset global scope.
+      store_id: isSuperadmin ? null : (authStore.user?.store_id ?? null),
       recurrence_days: [],
       time_from: "",
       time_to: "",
@@ -1139,12 +1148,14 @@
             bind:value={form.store_id}
             class="w-full rounded-xl border border-border-default px-3 py-2 text-sm bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-default/30 h-9 transition-colors"
           >
-            <option value={null}>{labels.semuaOutlet}</option>
+            {#if isSuperadmin}
+              <option value={null}>{labels.semuaOutlet}</option>
+            {/if}
             {#each stores as s (s.id || s)}<option value={s.id}>{s.name}</option
               >{/each}
           </select>
           <p class="mt-0.5 text-xs leading-tight text-text-muted">
-            {labels.semuaOutletHint}
+            {isSuperadmin ? labels.semuaOutletHint : labels.outletPinnedHint}
           </p>
         </div>
       </div>

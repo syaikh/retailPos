@@ -1342,6 +1342,7 @@ export const en: Labels = {
   showingRange: "Showing {from} to {to} of {total} rules.",
   semuaGroupHint: 'Select "All Groups" to apply to all customers.',
   semuaOutletHint: 'Select "All Outlets" to apply to all stores.',
+  outletPinnedHint: "Pricing rules are scoped to your own store.",
   emptyUnusedFields: "Leave unused fields empty.",
   priorityLabel: "Priority: {value}",
   emptyMeansForever: "Empty = applies forever.",
