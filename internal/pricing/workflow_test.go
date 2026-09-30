@@ -218,6 +218,75 @@ func TestMapToEntityTakesStoreFromInjectedClaim(t *testing.T) {
 	assert.Nil(t, imported.StoreID)
 }
 
+// The importer's identity, like their store, comes from the token. It has to
+// reach created_by, because approval compares the caller against the rule's
+// author: a NULL author is treated as legacy and is approvable by anyone, so an
+// unstamped import would let the person who wrote the price approve it.
+func TestMapToEntityTakesAuthorFromInjectedClaim(t *testing.T) {
+	a := &adapter{}
+	ctx := context.Background()
+
+	row := map[string]interface{}{
+		"_row":         2,
+		"Type":         string(PricingTypePromotion),
+		"Method":       string(PricingMethodFixedPrice),
+		"PricingValue": float64(10000),
+		"Name":         "Imported Rule",
+		"ProductID":    float64(1),
+		"_user_id":     42,
+	}
+
+	entity, err := a.MapToEntity(ctx, importexportshared.ModuleSchema{}, row)
+	require.NoError(t, err)
+	imported := entity.(RuleImportRow)
+	require.NotNil(t, imported.CreatedBy, "import must not drop the importer's id")
+	assert.Equal(t, 42, *imported.CreatedBy)
+
+	// The CSV template has no such column, so an id the engine did not inject
+	// must not be invented.
+	delete(row, "_user_id")
+	entity, err = a.MapToEntity(ctx, importexportshared.ModuleSchema{}, row)
+	require.NoError(t, err)
+	imported = entity.(RuleImportRow)
+	assert.Nil(t, imported.CreatedBy)
+}
+
+func TestBulkInsertPricingRulesRecordsTheAuthor(t *testing.T) {
+	skipIfNoDB(t)
+	repo := newWiredRepo()
+	ctx := t.Context()
+	productID := newWorkflowProduct(ctx, t, "AUTHOR")
+
+	// created_by is an FK to users, and the test database has none seeded.
+	// The other three required columns are unconstrained here.
+	var authorID int
+	require.NoError(t, dbPool.QueryRow(ctx,
+		`INSERT INTO users (username, email, password_hash, role_id)
+		 SELECT 'WF-IMPORT-AUTHOR', 'wf-import-author@example.invalid', 'x', id FROM roles WHERE name = 'manager'
+		 RETURNING id`,
+	).Scan(&authorID))
+
+	ruleName := uniqueRuleName("author")
+	n, err := repo.BulkInsertPricingRules(ctx, []RuleImportPayload{{
+		ProductID:       &productID,
+		Type:            string(PricingTypePromotion),
+		Method:          string(PricingMethodFixedPrice),
+		PricingValue:    10000,
+		Name:            ruleName,
+		MinimumQuantity: 1,
+		CreatedBy:       &authorID,
+	}})
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	var gotAuthor *int
+	require.NoError(t, dbPool.QueryRow(ctx,
+		`SELECT created_by FROM pricing_rules WHERE name = $1`, ruleName,
+	).Scan(&gotAuthor))
+	require.NotNil(t, gotAuthor, "an imported rule must record its author, or approval cannot refuse it")
+	assert.Equal(t, authorID, *gotAuthor)
+}
+
 func TestBulkInsertPricingRulesPinsPendingAndInactive(t *testing.T) {
 	skipIfNoDB(t)
 	repo := newWiredRepo()

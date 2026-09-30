@@ -653,6 +653,7 @@ type RuleImportRow struct {
 	EffectiveUntil  *time.Time
 	CustomerGroupID *int
 	StoreID         *int
+	CreatedBy       *int
 	RecurrenceDays  []string
 	TimeFrom        *string
 	TimeTo          *string
@@ -675,6 +676,7 @@ type RuleImportPayload struct {
 	EffectiveUntil  *time.Time
 	CustomerGroupID *int
 	StoreID         *int
+	CreatedBy       *int
 	RecurrenceDays  []string
 	TimeFrom        *string
 	TimeTo          *string
@@ -697,15 +699,18 @@ func (r *Repository) BulkInsertPricingRules(ctx context.Context, payloads []Rule
 		// is_active and status are pinned, not taken from p: an import is a
 		// create, and every create is pending+inactive until it is approved.
 		// Without this a manager could import rules straight into the till.
+		// created_by is stamped so the author is recorded and the self-approval
+		// guard applies to imported rules too; a NULL author reads as legacy and
+		// is approvable by anyone, which would let an importer approve their own.
 		_, err := tx.Exec(ctx, `
 			INSERT INTO pricing_rules (product_id, category_id, brand_id, pricing_type, pricing_method,
 			       pricing_value, name, minimum_quantity, maximum_quantity, priority,
-			       customer_group_id, store_id, recurrence_days, time_from, time_to,
+			       customer_group_id, store_id, created_by, recurrence_days, time_from, time_to,
 			       allow_combine, is_active, status, effective_from, effective_until)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
 		`, p.ProductID, p.CategoryID, p.BrandID, p.Type, p.Method,
 			p.PricingValue, p.Name, p.MinimumQuantity, p.MaximumQuantity,
-			p.Priority, p.CustomerGroupID, p.StoreID,
+			p.Priority, p.CustomerGroupID, p.StoreID, p.CreatedBy,
 			p.RecurrenceDays, p.TimeFrom, p.TimeTo,
 			p.AllowCombine, false, StatusPending, p.EffectiveFrom, p.EffectiveUntil)
 		if err != nil {

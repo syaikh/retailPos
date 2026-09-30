@@ -39,6 +39,17 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 		}
 	}
 
+	// Authorship, same provenance as storeID: injected by the import engine from
+	// the token, absent from the template. Stamping it keeps an imported rule
+	// inside the self-approval guard; leaving it NULL would make the rule look
+	// legacy and let the importer approve their own.
+	var createdBy *int
+	if uid, ok := row["_user_id"]; ok {
+		if v, ok2 := uid.(int); ok2 && v > 0 {
+			createdBy = &v
+		}
+	}
+
 	var productID *int
 	if v, ok := row["ProductID"]; ok && v != nil {
 		n := floatToInt(v)
@@ -128,6 +139,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 		EffectiveFrom:   effectiveFrom,
 		EffectiveUntil:  effectiveUntil,
 		StoreID:         storeID,
+		CreatedBy:       createdBy,
 	}, nil
 }
 
@@ -160,6 +172,7 @@ func (r *pricingRepoAdapter) Insert(ctx context.Context, entities []interface{})
 			EffectiveFrom:   row.EffectiveFrom,
 			EffectiveUntil:  row.EffectiveUntil,
 			StoreID:         row.StoreID,
+			CreatedBy:       row.CreatedBy,
 		})
 	}
 	return r.repo.BulkInsertPricingRules(ctx, payloads)

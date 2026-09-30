@@ -302,6 +302,16 @@ while pricing is being fixed.
       it from the verified token; `Repository.Update` never writes it, so a later edit cannot
       launder authorship and make the rule approvable by whoever rewrote it.
 
+      **Imports stamp it too.** `BulkInsertPricingRules` reads the author off the payload, and the
+      import engine injects the importer's id into each row as `_user_id` beside the existing
+      `_store_id` — same provenance, same reasoning: the identity comes from the token, never the
+      CSV, which has no such column. Without this an imported rule would have a NULL author, which
+      the guard reads as *legacy* and therefore approvable by anyone, making the import path a way
+      to mint a price and then approve it yourself. `BulkUpdatePricingRules` still never writes
+      `created_by`, so a re-import cannot reattribute an existing rule to whoever ran it. Covered by
+      `TestMapToEntityTakesAuthorFromInjectedClaim` and
+      `TestBulkInsertPricingRulesRecordsTheAuthor`.
+
       Superadmin is exempt: it is the escalation path for a rule whose author over-authored it, and
       blocking it would strand a rule permanently. `authorizeApproval`
       (`internal/pricing/handler.go`) implements this; `TestAuthorizeApproval` covers all six
@@ -463,7 +473,7 @@ limited to roles that should have them.
 
 ### Wave 6 — Schema integrity (FK gaps)
 
-- [ ] New migration `056_store_fk_integrity.sql` (054 and 055 are taken by the pricing author column and the pricing status defaults). Per AGENTS.md the baseline is amended in place, but
+- [ ] New migration `057_store_fk_integrity.sql` (054, 055, and 056 are taken by the pricing author column, the pricing status defaults, and the supervisor pricing-grant revoke). Per AGENTS.md the baseline is amended in place, but
   new migrations start at `054_*.sql`; a *constraint* added post-baseline belongs in a new migration so
   it replays in lexical order on every runner.
 - [ ] Add `REFERENCES stores(id)` to `customers`, `users`, `goods_receipts`, `purchase_orders`.

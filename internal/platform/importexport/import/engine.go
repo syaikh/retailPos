@@ -229,6 +229,13 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 		if state.StoreID > 0 {
 			state.Rows[rowIdx]["_store_id"] = state.StoreID
 		}
+		// Same reasoning as _store_id: who ran the import comes from the token,
+		// never the CSV. Modules that record an author (pricing_rules.created_by)
+		// read this to stamp it, so an imported rule is subject to the same
+		// self-approval guard as one created through the API.
+		if state.UserID > 0 {
+			state.Rows[rowIdx]["_user_id"] = state.UserID
+		}
 
 		status := pr.Status
 		if status == "error" {
