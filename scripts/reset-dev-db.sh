@@ -428,9 +428,13 @@ cat <<EOF
 
  4. Verify the first-install experience:
       - log in as superadmin / admin123
+      - the field takes the USERNAME 'superadmin', not the email address
       - expect the HTTP 428 forced-rotation dialog
         (internal/middleware/auth.go:23-55)
-      - GET /api/stores/1/readiness should report ready: false with exactly
-        two blockers: storage_location and catalog
+      - rotate the password first: the 428 gate covers every protected route
+        except /api/change-password, /api/logout and /api/validate, so
+        /api/stores/1/readiness also answers 428 until the rotation lands
+      - only then does GET /api/stores/1/readiness report ready: false with
+        exactly two blockers: storage_location and catalog
         (internal/store/service.go:174-225)
 EOF

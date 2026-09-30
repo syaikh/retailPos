@@ -139,7 +139,10 @@ itself:
    `localStorage.clear(); sessionStorage.clear();` from the console is enough.
 3. **Delete the Playwright token cache** — `rm -f /tmp/retail-pos-e2e-tokens.v1.json`.
 
-After the reset, `GET /api/stores/1/readiness` reports `ready: false` with exactly
-the two blockers in step 4 below, and all six accounts are back behind the 428
-gate with `admin123`. Design rationale:
+After the reset, all six accounts are back behind the 428 gate with `admin123`.
+Rotate the password first (step 3): the gate answers 428 for every protected
+route except `/api/change-password`, `/api/logout` and `/api/validate`, so
+`GET /api/stores/1/readiness` also returns 428 until the rotation lands. Once you
+are past the gate, readiness reports `ready: false` with exactly the two blockers
+described in step 4 — `storage_location` and `catalog`. Design rationale:
 `docs/design/dev-db-fresh-install-reset-plan.md`.
