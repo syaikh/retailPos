@@ -30,8 +30,6 @@ func skipIfNoDB(t *testing.T) {
 	}
 }
 
-
-
 // testAuthMiddlewareWithStore builds a store-scoped auth context. storeID nil
 // models superadmin (no store claim); a non-nil id models a manager pinned to
 // one store, which is the only way a caller can be denied a foreign audit log.

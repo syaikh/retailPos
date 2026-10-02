@@ -51,7 +51,6 @@ type mockSupplierServiceForAudit struct {
 // Recorded store scopes, so a test can assert the handler resolved the claim
 // rather than silently passing nil (which every query reads as "every store").
 
-
 func (m *mockSupplierServiceForAudit) GetByID(ctx context.Context, id int) (*Supplier, error) {
 	if m.getByIDFn != nil {
 		return m.getByIDFn(ctx, id)
