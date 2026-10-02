@@ -123,7 +123,7 @@ func TestMain(m *testing.M) {
 	// Seed the superadmin user in case migrations ran previously and data was truncated
 	_, _ = pool.Exec(context.Background(),
 		`INSERT INTO users (username, email, password_hash, role_id, is_active)
-		 VALUES ('superadmin', 'superadmin@retailpos.local', crypt('admin123', gen_salt('bf', 14)), (SELECT id FROM roles WHERE name='superadmin'), true)
+             VALUES ('superadmin', 'superadmin@retailpos.local', '$2a$14$siHE.dJhi5basdsIKS8nXOjd/ETPAO1q7.ZNshHQnlhl.uxUmx.Rq', (SELECT id FROM roles WHERE name='superadmin'), true)
 		 ON CONFLICT (username) DO NOTHING`)
 
 	// Re-assign all permissions to superadmin (migration 012 removes dot-notation permissions)

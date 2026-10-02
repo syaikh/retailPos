@@ -4997,22 +4997,22 @@ ON CONFLICT DO NOTHING;
 --   which is true exactly for hashes made this way.
 
 INSERT INTO public.users (id, username, email, password_hash, role_id, store_id, is_active, reports_to, language, theme, must_change_password)
-VALUES (1, 'superadmin', 'superadmin@retailpos.local', crypt('admin123', gen_salt('bf', 14)), 1, NULL, TRUE, NULL, 'id', 'light', TRUE)
+VALUES (1, 'superadmin', 'superadmin@retailpos.local', '$2a$14$siHE.dJhi5basdsIKS8nXOjd/ETPAO1q7.ZNshHQnlhl.uxUmx.Rq', 1, NULL, TRUE, NULL, 'id', 'light', TRUE)
 ON CONFLICT DO NOTHING;
 INSERT INTO public.users (id, username, email, password_hash, role_id, store_id, is_active, reports_to, language, theme, must_change_password)
-VALUES (2, 'manager', 'manager@retailpos.local', crypt('admin123', gen_salt('bf', 14)), 2, 1, TRUE, NULL, 'id', 'light', TRUE)
+VALUES (2, 'manager', 'manager@retailpos.local', '$2a$14$siHE.dJhi5basdsIKS8nXOjd/ETPAO1q7.ZNshHQnlhl.uxUmx.Rq', 2, 1, TRUE, NULL, 'id', 'light', TRUE)
 ON CONFLICT DO NOTHING;
 INSERT INTO public.users (id, username, email, password_hash, role_id, store_id, is_active, reports_to, language, theme, must_change_password)
-VALUES (3, 'supervisor', 'supervisor@retailpos.local', crypt('admin123', gen_salt('bf', 14)), 3, 1, TRUE, NULL, 'id', 'light', TRUE)
+VALUES (3, 'supervisor', 'supervisor@retailpos.local', '$2a$14$siHE.dJhi5basdsIKS8nXOjd/ETPAO1q7.ZNshHQnlhl.uxUmx.Rq', 3, 1, TRUE, NULL, 'id', 'light', TRUE)
 ON CONFLICT DO NOTHING;
 INSERT INTO public.users (id, username, email, password_hash, role_id, store_id, is_active, reports_to, language, theme, must_change_password)
-VALUES (4, 'cashier', 'cashier@retailpos.local', crypt('admin123', gen_salt('bf', 14)), 4, 1, TRUE, NULL, 'id', 'light', TRUE)
+VALUES (4, 'cashier', 'cashier@retailpos.local', '$2a$14$siHE.dJhi5basdsIKS8nXOjd/ETPAO1q7.ZNshHQnlhl.uxUmx.Rq', 4, 1, TRUE, NULL, 'id', 'light', TRUE)
 ON CONFLICT DO NOTHING;
 INSERT INTO public.users (id, username, email, password_hash, role_id, store_id, is_active, reports_to, language, theme, must_change_password)
-VALUES (5, 'inventory_staff', 'inventory_staff@retailpos.local', crypt('admin123', gen_salt('bf', 14)), 5, 1, TRUE, 3, 'id', 'light', TRUE)
+VALUES (5, 'inventory_staff', 'inventory_staff@retailpos.local', '$2a$14$siHE.dJhi5basdsIKS8nXOjd/ETPAO1q7.ZNshHQnlhl.uxUmx.Rq', 5, 1, TRUE, 3, 'id', 'light', TRUE)
 ON CONFLICT DO NOTHING;
 INSERT INTO public.users (id, username, email, password_hash, role_id, store_id, is_active, reports_to, language, theme, must_change_password)
-VALUES (6, 'finance', 'finance@retailpos.local', crypt('admin123', gen_salt('bf', 14)), 6, 1, TRUE, NULL, 'id', 'light', TRUE)
+VALUES (6, 'finance', 'finance@retailpos.local', '$2a$14$siHE.dJhi5basdsIKS8nXOjd/ETPAO1q7.ZNshHQnlhl.uxUmx.Rq', 6, 1, TRUE, NULL, 'id', 'light', TRUE)
 ON CONFLICT DO NOTHING;
 
 -- role_permissions (272 rows across 6 roles), resolved by role name and
