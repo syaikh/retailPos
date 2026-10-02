@@ -25,6 +25,12 @@ const (
 	loginFailureWindow          = 15 * time.Minute
 )
 
+// bcryptCost is the work factor for password hashing. It is a variable so the
+// package tests can lower it to bcrypt.MinCost: under the race detector the
+// production cost (14) dominates the package runtime and pushes it against the
+// go test timeout. Production always uses 14.
+var bcryptCost = 14
+
 var (
 	ErrInvalidCredentials = errors.New("invalid username or password")
 	ErrUserNotFound       = errors.New("user not found")
@@ -240,7 +246,7 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID int, currentPas
 		return "", "", ErrInvalidPassword
 	}
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), 14)
+	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcryptCost)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -293,7 +299,7 @@ func (s *AuthService) logFailure(ctx context.Context, username, ip, ua, reason s
 }
 
 func (s *AuthService) HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		return "", fmt.Errorf("failed to hash password: %w", err)
 	}

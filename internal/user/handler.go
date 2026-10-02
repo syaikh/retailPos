@@ -291,7 +291,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), 14)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcryptCost)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
 		return
@@ -427,7 +427,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		existing.Email = *req.Email
 	}
 	if req.Password != nil {
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*req.Password), 14)
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcryptCost)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
 			return

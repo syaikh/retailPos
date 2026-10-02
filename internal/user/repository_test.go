@@ -33,6 +33,11 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	// Hashing at the production work factor makes this package the slowest in
+	// the race-detector run and has pushed it past go test's 5m timeout. Tests
+	// only need a valid hash to compare against, so use the cheapest cost.
+	bcryptCost = bcrypt.MinCost
+
 	os.Exit(m.Run())
 }
 
