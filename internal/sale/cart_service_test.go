@@ -642,7 +642,7 @@ func TestCartService_UpdateCartCustomer(t *testing.T) {
 
 	cashierID := insertTestCashier(ctx, t)
 	var customerID int
-	err := dbPool.QueryRow(ctx, `INSERT INTO customers (name, email, phone) VALUES ('Cart Customer', 'cart@test.com', '08123') RETURNING id`).Scan(&customerID)
+	err := dbPool.QueryRow(ctx, `INSERT INTO customers (name, email, phone, store_id) VALUES ('Cart Customer', 'cart@test.com', '08123', 1) RETURNING id`).Scan(&customerID)
 	require.NoError(t, err)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)

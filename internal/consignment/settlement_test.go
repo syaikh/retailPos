@@ -27,7 +27,7 @@ func insertTestCustomer(ctx context.Context, t *testing.T) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx, `
-		INSERT INTO customers (name, phone, email) VALUES ($1, $2, $3)
+		INSERT INTO customers (name, phone, email, store_id) VALUES ($1, $2, $3, 1)
 		ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name
 		RETURNING id
 	`, "Walk-in", "consignment-walkin", "consignment-walkin@test.com").Scan(&id)

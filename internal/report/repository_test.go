@@ -57,7 +57,7 @@ func seedSaleAt(ctx context.Context, t *testing.T, createdAt time.Time) (saleID 
 	custSKU := uniqueSKU("CUST")
 	var customerID int
 	err = dbPool.QueryRow(ctx,
-		`INSERT INTO customers (name, phone, email, is_walk_in, is_active) VALUES ($1, $2, $3, true, true) RETURNING id`,
+		`INSERT INTO customers (name, phone, email, is_walk_in, is_active, store_id) VALUES ($1, $2, $3, true, true, 1) RETURNING id`,
 		"Test "+custSKU, fmt.Sprintf("%010d", productCounter.Add(1)), custSKU+"@test.com",
 	).Scan(&customerID)
 	require.NoError(t, err)
@@ -164,7 +164,7 @@ func TestReportRepository_PeriodComparison_PreviousHasAnyData(t *testing.T) {
 	custSKU := uniqueSKU("PHD")
 	var customerID int
 	err = dbPool.QueryRow(ctx,
-		`INSERT INTO customers (name, phone, email, is_walk_in, is_active) VALUES ($1, $2, $3, true, true) RETURNING id`,
+		`INSERT INTO customers (name, phone, email, is_walk_in, is_active, store_id) VALUES ($1, $2, $3, true, true, 1) RETURNING id`,
 		"Test "+custSKU, fmt.Sprintf("%010d", productCounter.Add(1)), custSKU+"@test.com",
 	).Scan(&customerID)
 	require.NoError(t, err)
@@ -454,7 +454,7 @@ func TestReportRepository_WithCacheAndStoreID(t *testing.T) {
 	custSKU := uniqueSKU("CACHE")
 	var customerID int
 	err = dbPool.QueryRow(ctx,
-		`INSERT INTO customers (name, phone, email, is_walk_in, is_active) VALUES ($1, $2, $3, true, true) RETURNING id`,
+		`INSERT INTO customers (name, phone, email, is_walk_in, is_active, store_id) VALUES ($1, $2, $3, true, true, 1) RETURNING id`,
 		"Test "+custSKU, fmt.Sprintf("%010d", productCounter.Add(1)), custSKU+"@test.com",
 	).Scan(&customerID)
 	require.NoError(t, err)

@@ -429,8 +429,8 @@ func TestShiftRepository_CloseShift_WithStore(t *testing.T) {
 
 	var custID int
 	err = dbPool.QueryRow(ctx, `
-		INSERT INTO customers (name, email, phone)
-		VALUES ('Shift Customer', 'shift@test.com', '08111111111')
+		INSERT INTO customers (name, email, phone, store_id)
+		VALUES ('Shift Customer', 'shift@test.com', '08111111111', 1)
 		RETURNING id
 	`).Scan(&custID)
 	require.NoError(t, err)
@@ -457,8 +457,8 @@ func TestShiftRepository_GetActiveShiftByUserID_LiveSales(t *testing.T) {
 
 	var custID int
 	err := dbPool.QueryRow(ctx, `
-		INSERT INTO customers (name, email, phone)
-		VALUES ('Shift Customer', 'shift@test.com', '08111111111')
+		INSERT INTO customers (name, email, phone, store_id)
+		VALUES ('Shift Customer', 'shift@test.com', '08111111111', 1)
 		RETURNING id
 	`).Scan(&custID)
 	require.NoError(t, err)
@@ -694,8 +694,8 @@ func TestShiftRepository_CloseShift_SalesSummary(t *testing.T) {
 
 	var custID int
 	err := dbPool.QueryRow(ctx, `
-		INSERT INTO customers (name, email, phone)
-		VALUES ('Shift Customer', 'shift@test.com', '08111111111')
+		INSERT INTO customers (name, email, phone, store_id)
+		VALUES ('Shift Customer', 'shift@test.com', '08111111111', 1)
 		RETURNING id
 	`).Scan(&custID)
 	require.NoError(t, err)
