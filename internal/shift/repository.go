@@ -525,7 +525,6 @@ func (r *Repository) GetShiftByID(ctx context.Context, scope ownership.Scope, sh
 	if ownerID, restricted := scope.OwnID(); restricted {
 		query += fmt.Sprintf(" AND s.user_id = $%d", argIdx)
 		args = append(args, ownerID)
-		argIdx++
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(

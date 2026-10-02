@@ -30,9 +30,7 @@ func skipIfNoDB(t *testing.T) {
 	}
 }
 
-func testAuthMiddleware() gin.HandlerFunc {
-	return testAuthMiddlewareWithStore(nil, "superadmin")
-}
+
 
 // testAuthMiddlewareWithStore builds a store-scoped auth context. storeID nil
 // models superadmin (no store claim); a non-nil id models a manager pinned to

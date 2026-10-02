@@ -50,12 +50,7 @@ type mockSupplierServiceForAudit struct {
 
 // Recorded store scopes, so a test can assert the handler resolved the claim
 // rather than silently passing nil (which every query reads as "every store").
-func (m *mockSupplierServiceForAudit) linkWriteScope() *int {
-	if m.lastLinkWriteStoreID != nil && *m.lastLinkWriteStoreID > 0 {
-		return m.lastLinkWriteStoreID
-	}
-	return nil
-}
+
 
 func (m *mockSupplierServiceForAudit) GetByID(ctx context.Context, id int) (*Supplier, error) {
 	if m.getByIDFn != nil {
