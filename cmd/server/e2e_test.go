@@ -126,7 +126,6 @@ func TestMain(m *testing.M) {
              VALUES ('superadmin', 'superadmin@retailpos.local', '$2a$14$siHE.dJhi5basdsIKS8nXOjd/ETPAO1q7.ZNshHQnlhl.uxUmx.Rq', (SELECT id FROM roles WHERE name='superadmin'), true, false)
 		 ON CONFLICT (username) DO NOTHING`)
 
-
 	// Seed other system users (manager, supervisor, cashier, finance, admin, warehouse_manager) with bcrypt hashes
 	_, _ = pool.Exec(context.Background(),
 		`INSERT INTO users (username, email, password_hash, role_id, store_id, is_active)
