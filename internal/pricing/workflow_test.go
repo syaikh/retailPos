@@ -40,7 +40,6 @@ func TestServiceCreateStartsPendingAndInactive(t *testing.T) {
 		{"status omitted", "", false},
 		{"client asks for approved", StatusApproved, true},
 		{"client asks for rejected", StatusRejected, true},
-		{"client asks for draft", StatusDraft, true},
 	}
 
 	for _, tc := range tests {

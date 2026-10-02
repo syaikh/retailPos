@@ -111,13 +111,6 @@ export async function deletePricingRule(id: number): Promise<boolean> {
   return r.ok;
 }
 
-export async function submitPricingRule(id: number): Promise<boolean> {
-  const r = await apiFetch(`/api/pricing-rules/${id}/submit`, {
-    method: "POST",
-  });
-  return r.ok;
-}
-
 // Both throw on failure rather than returning a bare boolean: a 403 from the
 // self-approval check carries a reason worth showing, and collapsing it to
 // false reduced a specific refusal to a generic "failed to approve" toast.

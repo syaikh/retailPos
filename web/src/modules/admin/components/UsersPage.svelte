@@ -210,6 +210,8 @@
     sortDir = "asc";
   }
 
+  const isSuperadmin = $derived(authStore.user?.role === Roles.superadmin);
+
   function openAdd() {
     modalMode = "add";
     form = {
@@ -217,6 +219,9 @@
       email: "",
       password: "",
       role_id: 0,
+      // A store-scoped caller is pinned to its own store by the API, so the form
+      // opens on that store rather than "None".
+      store_id: isSuperadmin ? null : (authStore.user?.store_id ?? null),
       is_active: true,
       reports_to: null,
     };
@@ -231,6 +236,7 @@
       email: user.email,
       password: "",
       role_id: user.role_id,
+      store_id: user.store_id ?? null,
       is_active: user.is_active,
       reports_to: user.reports_to ?? null,
     };

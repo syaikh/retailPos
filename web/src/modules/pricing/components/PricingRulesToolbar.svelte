@@ -43,7 +43,6 @@
   } = $props();
 
   const approvalLabels: Record<string, string> = {
-    draft: labels.statusDraft,
     pending: labels.statusPending,
     approved: labels.statusApproved,
     rejected: labels.statusRejected,
@@ -213,14 +212,6 @@
           checked: approvalFilter === "all",
           onclick: () => {
             approvalFilter = "all";
-            handleFilterChange();
-          },
-        },
-        {
-          label: labels.statusDraft,
-          checked: approvalFilter === "draft",
-          onclick: () => {
-            approvalFilter = "draft";
             handleFilterChange();
           },
         },

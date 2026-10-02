@@ -159,7 +159,8 @@ describe("PricingRuleDetailDrawer.svelte source-structure guards", () => {
     expect(src).toContain("return labels.statusApproved");
     expect(src).toContain("return labels.statusPending");
     expect(src).toContain("return labels.statusRejected");
-    expect(src).toContain("return labels.statusDraft");
+    // No draft fallback; an unset status reads as pending.
+    expect(src).toContain("return labels.statusPending");
   });
 
   it("has dayShort function for day chip abbreviations", () => {

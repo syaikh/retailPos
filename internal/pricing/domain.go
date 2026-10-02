@@ -59,10 +59,14 @@ const (
 )
 
 // RuleStatus tracks the approval workflow state.
+//
+// There is no pre-approval "draft" state: a rule is created pending and is
+// activated only by Approve. A draft state existed once, but Create has always
+// overwritten the caller's status with pending, so nothing could reach it and
+// the submit route built around it could only ever return 400.
 type RuleStatus string
 
 const (
-	StatusDraft    RuleStatus = "draft"
 	StatusPending  RuleStatus = "pending"
 	StatusApproved RuleStatus = "approved"
 	StatusRejected RuleStatus = "rejected"

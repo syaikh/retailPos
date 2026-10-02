@@ -10,7 +10,11 @@
 - **Go role constants** updated in `internal/permissions/permissions.go`
 - **`AdminOnly()`** and **`RequireStoreID()`** middleware added and wired into `protected` route group
 - **`Caller.IsSupervisor()`** added; `IsManager()` updated for store-boss role
-- **User creation/update** validates store_id for operational roles
+- **User creation/update** validates store_id for operational roles. *This checks that a store is
+  present, not that it is the caller's own* — the store-scope side of the same check landed later in
+  Wave 3 of the [Master-Data Store Boundary Audit](./master-data-store-boundary-audit.md): a
+  non-superadmin may only create under, or move a user into, its own store, and a global
+  (`store_id IS NULL`) HQ user can be read and edited but never captured by naming a store.
 - **Cart handler** maps `ErrStoreRequired` → 400
 - **Seeder files** updated with new role names
 - **Frontend** UserFormModal (store_id), UserTable (role labels), i18n (role names)

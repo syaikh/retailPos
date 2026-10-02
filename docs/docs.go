@@ -195,7 +195,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.LoginRequest"
+                            "$ref": "#/definitions/internal_user.LoginRequest"
                         }
                     }
                 ],
@@ -342,7 +342,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/customergroup.CreateRequest"
+                            "$ref": "#/definitions/internal_customergroup.CreateRequest"
                         }
                     }
                 ],
@@ -503,7 +503,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/customergroup.UpdateRequest"
+                            "$ref": "#/definitions/internal_customergroup.UpdateRequest"
                         }
                     }
                 ],
@@ -730,7 +730,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/inventory.LocationStockItem"
+                                "$ref": "#/definitions/internal_inventory.LocationStockItem"
                             }
                         }
                     }
@@ -915,7 +915,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/sale.AddCartItemRequest"
+                            "$ref": "#/definitions/internal_sale.AddCartItemRequest"
                         }
                     }
                 ],
@@ -990,7 +990,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/sale.UpdateCartItemQuantityRequest"
+                            "$ref": "#/definitions/internal_sale.UpdateCartItemQuantityRequest"
                         }
                     }
                 ],
@@ -1151,7 +1151,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/sale.UpdateCartCustomerRequest"
+                            "$ref": "#/definitions/internal_sale.UpdateCartCustomerRequest"
                         }
                     }
                 ],
@@ -1323,7 +1323,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Filter by approval status (draft|pending|approved|rejected)",
+                        "description": "Filter by approval status (pending|approved|rejected)",
                         "name": "status",
                         "in": "query"
                     }
@@ -1362,7 +1362,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/pricing.Rule"
+                            "$ref": "#/definitions/internal_pricing.Rule"
                         }
                     }
                 ],
@@ -1402,7 +1402,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/pricing.checkConflictsRequest"
+                            "$ref": "#/definitions/internal_pricing.checkConflictsRequest"
                         }
                     }
                 ],
@@ -1485,7 +1485,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/pricing.Rule"
+                            "$ref": "#/definitions/internal_pricing.Rule"
                         }
                     }
                 ],
@@ -1612,44 +1612,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/pricing-rules/{id}/submit": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Transition a draft rule to pending status",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Pricing"
-                ],
-                "summary": "Submit rule for approval",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Rule ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
         "/pricing/resolve": {
             "post": {
                 "security": [
@@ -1675,7 +1637,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/pricing.resolveRequest"
+                            "$ref": "#/definitions/internal_pricing.resolveRequest"
                         }
                     }
                 ],
@@ -1795,7 +1757,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/product.Product"
+                            "$ref": "#/definitions/internal_product.Product"
                         }
                     }
                 ],
@@ -1918,7 +1880,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/product.Product"
+                            "$ref": "#/definitions/internal_product.Product"
                         }
                     }
                 ],
@@ -2563,7 +2525,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/storagelocation.CreateRequest"
+                            "$ref": "#/definitions/internal_storagelocation.CreateRequest"
                         }
                     }
                 ],
@@ -2724,7 +2686,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/storagelocation.UpdateRequest"
+                            "$ref": "#/definitions/internal_storagelocation.UpdateRequest"
                         }
                     }
                 ],
@@ -2855,7 +2817,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/store.CreateRequest"
+                            "$ref": "#/definitions/internal_store.CreateRequest"
                         }
                     }
                 ],
@@ -2967,7 +2929,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/store.UpdateRequest"
+                            "$ref": "#/definitions/internal_store.UpdateRequest"
                         }
                     }
                 ],
@@ -3132,7 +3094,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/supplier.Supplier"
+                            "$ref": "#/definitions/internal_supplier.Supplier"
                         }
                     }
                 ],
@@ -3287,7 +3249,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/supplier.Supplier"
+                            "$ref": "#/definitions/internal_supplier.Supplier"
                         }
                     }
                 ],
@@ -3405,7 +3367,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/supplier.ProductSupplier"
+                            "$ref": "#/definitions/internal_supplier.ProductSupplier"
                         }
                     }
                 ],
@@ -3458,7 +3420,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "customergroup.CreateRequest": {
+        "internal_customergroup.CreateRequest": {
             "type": "object",
             "required": [
                 "name"
@@ -3476,7 +3438,7 @@ const docTemplate = `{
                 }
             }
         },
-        "customergroup.UpdateRequest": {
+        "internal_customergroup.UpdateRequest": {
             "type": "object",
             "properties": {
                 "color": {
@@ -3494,7 +3456,7 @@ const docTemplate = `{
                 }
             }
         },
-        "inventory.LocationStockItem": {
+        "internal_inventory.LocationStockItem": {
             "type": "object",
             "properties": {
                 "location_code": {
@@ -3520,7 +3482,7 @@ const docTemplate = `{
                 }
             }
         },
-        "pricing.Method": {
+        "internal_pricing.Method": {
             "type": "string",
             "enum": [
                 "fixed_price",
@@ -3535,7 +3497,7 @@ const docTemplate = `{
                 "PricingMethodMarkupPct"
             ]
         },
-        "pricing.ResolveItem": {
+        "internal_pricing.ResolveItem": {
             "type": "object",
             "properties": {
                 "customer_group_id": {
@@ -3552,7 +3514,7 @@ const docTemplate = `{
                 }
             }
         },
-        "pricing.Rule": {
+        "internal_pricing.Rule": {
             "type": "object",
             "required": [
                 "name",
@@ -3606,7 +3568,7 @@ const docTemplate = `{
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/pricing.Method"
+                            "$ref": "#/definitions/internal_pricing.Method"
                         }
                     ]
                 },
@@ -3617,7 +3579,7 @@ const docTemplate = `{
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/pricing.Type"
+                            "$ref": "#/definitions/internal_pricing.Type"
                         }
                     ]
                 },
@@ -3642,7 +3604,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "$ref": "#/definitions/pricing.RuleStatus"
+                    "$ref": "#/definitions/internal_pricing.RuleStatus"
                 },
                 "store_id": {
                     "type": "integer"
@@ -3658,22 +3620,20 @@ const docTemplate = `{
                 }
             }
         },
-        "pricing.RuleStatus": {
+        "internal_pricing.RuleStatus": {
             "type": "string",
             "enum": [
-                "draft",
                 "pending",
                 "approved",
                 "rejected"
             ],
             "x-enum-varnames": [
-                "StatusDraft",
                 "StatusPending",
                 "StatusApproved",
                 "StatusRejected"
             ]
         },
-        "pricing.Type": {
+        "internal_pricing.Type": {
             "type": "string",
             "enum": [
                 "normal",
@@ -3694,7 +3654,7 @@ const docTemplate = `{
                 "PricingTypePromotion"
             ]
         },
-        "pricing.checkConflictsRequest": {
+        "internal_pricing.checkConflictsRequest": {
             "type": "object",
             "required": [
                 "pricing_method",
@@ -3717,10 +3677,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "pricing_method": {
-                    "$ref": "#/definitions/pricing.Method"
+                    "$ref": "#/definitions/internal_pricing.Method"
                 },
                 "pricing_type": {
-                    "$ref": "#/definitions/pricing.Type"
+                    "$ref": "#/definitions/internal_pricing.Type"
                 },
                 "pricing_value": {
                     "type": "number"
@@ -3733,7 +3693,7 @@ const docTemplate = `{
                 }
             }
         },
-        "pricing.resolveRequest": {
+        "internal_pricing.resolveRequest": {
             "type": "object",
             "required": [
                 "items"
@@ -3743,12 +3703,12 @@ const docTemplate = `{
                     "type": "array",
                     "minItems": 1,
                     "items": {
-                        "$ref": "#/definitions/pricing.ResolveItem"
+                        "$ref": "#/definitions/internal_pricing.ResolveItem"
                     }
                 }
             }
         },
-        "product.Product": {
+        "internal_product.Product": {
             "type": "object",
             "properties": {
                 "barcode": {
@@ -3828,7 +3788,7 @@ const docTemplate = `{
                 }
             }
         },
-        "sale.AddCartItemRequest": {
+        "internal_sale.AddCartItemRequest": {
             "type": "object",
             "required": [
                 "product_id",
@@ -3856,7 +3816,7 @@ const docTemplate = `{
                 }
             }
         },
-        "sale.UpdateCartCustomerRequest": {
+        "internal_sale.UpdateCartCustomerRequest": {
             "type": "object",
             "properties": {
                 "customer_id": {
@@ -3864,7 +3824,7 @@ const docTemplate = `{
                 }
             }
         },
-        "sale.UpdateCartItemQuantityRequest": {
+        "internal_sale.UpdateCartItemQuantityRequest": {
             "type": "object",
             "required": [
                 "quantity"
@@ -3876,7 +3836,7 @@ const docTemplate = `{
                 }
             }
         },
-        "storagelocation.CreateRequest": {
+        "internal_storagelocation.CreateRequest": {
             "type": "object",
             "required": [
                 "code",
@@ -3902,7 +3862,7 @@ const docTemplate = `{
                 }
             }
         },
-        "storagelocation.UpdateRequest": {
+        "internal_storagelocation.UpdateRequest": {
             "type": "object",
             "properties": {
                 "code": {
@@ -3927,7 +3887,7 @@ const docTemplate = `{
                 }
             }
         },
-        "store.CreateRequest": {
+        "internal_store.CreateRequest": {
             "type": "object",
             "required": [
                 "name"
@@ -3945,7 +3905,7 @@ const docTemplate = `{
                 }
             }
         },
-        "store.UpdateRequest": {
+        "internal_store.UpdateRequest": {
             "type": "object",
             "properties": {
                 "address": {
@@ -3963,7 +3923,7 @@ const docTemplate = `{
                 }
             }
         },
-        "supplier.ProductSupplier": {
+        "internal_supplier.ProductSupplier": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -4013,7 +3973,7 @@ const docTemplate = `{
                 }
             }
         },
-        "supplier.Supplier": {
+        "internal_supplier.Supplier": {
             "type": "object",
             "required": [
                 "code",
@@ -4064,7 +4024,7 @@ const docTemplate = `{
                 }
             }
         },
-        "user.LoginRequest": {
+        "internal_user.LoginRequest": {
             "type": "object",
             "properties": {
                 "password": {
@@ -4075,24 +4035,17 @@ const docTemplate = `{
                 }
             }
         }
-    },
-    "securityDefinitions": {
-        "BearerAuth": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header"
-        }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
-	Host:             "localhost:9095",
-	BasePath:         "/api",
+	Version:          "",
+	Host:             "",
+	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "Retail POS System API",
-	Description:      "REST API for Retail POS System",
+	Title:            "",
+	Description:      "",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

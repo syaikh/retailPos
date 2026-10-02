@@ -12,7 +12,6 @@
     Pencil,
     Trash2,
     Copy,
-    Send,
     Check,
     X,
     Power,
@@ -40,7 +39,6 @@
     onbulkactivate = (_ids: number[]) => {},
     onbulkdeactivate = (_ids: number[]) => {},
     onbulkdelete = (_ids: number[]) => {},
-    onsubmitapproval = (_rule: PricingRule) => {},
     onapprove = (_rule: PricingRule) => {},
     onreject = (_rule: PricingRule) => {},
     onrowclick = (_rule: PricingRule) => {},
@@ -65,7 +63,6 @@
     onbulkdeactivate?: (ids: number[]) => void;
     onbulkdelete?: (ids: number[]) => void;
     oncreate?: () => void;
-    onsubmitapproval?: (rule: PricingRule) => void;
     onapprove?: (rule: PricingRule) => void;
     onreject?: (rule: PricingRule) => void;
     /** pricing.approve — approving/rejecting is separate from editing. */
@@ -166,7 +163,7 @@
       case "rejected":
         return labels.statusRejected;
       default:
-        return labels.statusDraft;
+        return labels.statusPending;
     }
   }
 
@@ -329,8 +326,8 @@
             >
             <td class="px-4 py-4"
               ><Badge
-                variant={approvalVariant(rule.status || "draft")}
-                size="sm">{approvalLabel(rule.status || "draft")}</Badge
+                variant={approvalVariant(rule.status || "pending")}
+                size="sm">{approvalLabel(rule.status || "pending")}</Badge
               ></td
             >
             <td class="px-4 py-4" onclick={(e) => e.stopPropagation()}>
@@ -341,20 +338,6 @@
               >
                 <Dropdown placement="bottom-end" items={[]}>
                   {#snippet content({ close })}
-                    {#if rule.status === "draft" && canEdit}
-                      <button
-                        type="button"
-                        class="w-full flex items-center gap-3 px-3 py-2 text-sm text-primary-light hover:bg-surface-hover transition-colors"
-                        role="menuitem"
-                        onclick={() => {
-                          onsubmitapproval(rule);
-                          close();
-                        }}
-                      >
-                        <Send size={14} />
-                        {labels.submit}
-                      </button>
-                    {/if}
                     {#if rule.status === "pending" && canApprove}
                       <button
                         type="button"

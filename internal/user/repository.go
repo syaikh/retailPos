@@ -368,11 +368,21 @@ func (r *Repository) DeleteUser(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *Repository) GetSubordinates(ctx context.Context, managerID int) ([]User, error) {
-	rows, err := r.db.Query(ctx, `
+// claimsStore is the caller's store. When non-nil the result is limited to
+// `(store_id IS NULL OR store_id = $n)`, the same permissive shape GetAllUsers
+// uses, so a store-scoped caller sees its own staff plus global (HQ) accounts
+// and never another store's.
+func (r *Repository) GetSubordinates(ctx context.Context, managerID int, claimsStore *int) ([]User, error) {
+	query := `
 		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, language, theme, created_at, updated_at, last_login, must_change_password
-		FROM users WHERE reports_to = $1 AND deleted_at IS NULL ORDER BY username
-	`, managerID)
+		FROM users WHERE reports_to = $1 AND deleted_at IS NULL`
+	args := []interface{}{managerID}
+	if claimsStore != nil {
+		query += ` AND (store_id IS NULL OR store_id = $2)`
+		args = append(args, *claimsStore)
+	}
+	query += ` ORDER BY username`
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query subordinates: %w", err)
 	}
@@ -414,19 +424,27 @@ func (r *Repository) GetSubordinates(ctx context.Context, managerID int) ([]User
 	return subordinates, rows.Err()
 }
 
-func (r *Repository) GetManager(ctx context.Context, userID int) (*User, error) {
+// A manager outside the caller's store is reported as ErrManagerNotFound
+// rather than forbidden, so this endpoint cannot be used to probe which user
+// ids belong to another store.
+func (r *Repository) GetManager(ctx context.Context, userID int, claimsStore *int) (*User, error) {
 	var u User
 	var storeID sql.NullInt64
 	var reportsTo sql.NullInt64
 	var createdAt, updatedAt time.Time
 	var lastLogin sql.NullTime
 
-	err := r.db.QueryRow(ctx, `
+	query := `
 		SELECT m.id, m.username, m.email, m.password_hash, m.role_id, m.store_id, m.reports_to, m.is_active, m.language, m.theme, m.created_at, m.updated_at, m.last_login, m.must_change_password
 		FROM users u
 		JOIN users m ON m.id = u.reports_to
-		WHERE u.id = $1 AND u.deleted_at IS NULL AND m.deleted_at IS NULL
-	`, userID).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &u.Language, &u.Theme, &createdAt, &updatedAt, &lastLogin, &u.MustChangePassword)
+		WHERE u.id = $1 AND u.deleted_at IS NULL AND m.deleted_at IS NULL`
+	args := []interface{}{userID}
+	if claimsStore != nil {
+		query += ` AND (m.store_id IS NULL OR m.store_id = $2)`
+		args = append(args, *claimsStore)
+	}
+	err := r.db.QueryRow(ctx, query, args...).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &u.Language, &u.Theme, &createdAt, &updatedAt, &lastLogin, &u.MustChangePassword)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -456,8 +474,12 @@ func (r *Repository) GetManager(ctx context.Context, userID int) (*User, error) 
 	return &u, nil
 }
 
-func (r *Repository) GetOrgChart(ctx context.Context) ([]User, error) {
-	rows, err := r.db.Query(ctx, `
+// The store filter applies to the outer SELECT, not the recursive CTE. The walk
+// still traverses the whole hierarchy — including a foreign node that a
+// store-scoped caller will not see listed — so filtering the output cannot
+// truncate the tree of the rows that are shown.
+func (r *Repository) GetOrgChart(ctx context.Context, claimsStore *int) ([]User, error) {
+	orgQuery := `
 		WITH RECURSIVE org_tree AS (
 			SELECT id, username, email, role_id, store_id, reports_to, is_active, language, theme, created_at, updated_at, last_login, must_change_password, 0 AS level
 			FROM users WHERE reports_to IS NULL AND deleted_at IS NULL
@@ -468,8 +490,15 @@ func (r *Repository) GetOrgChart(ctx context.Context) ([]User, error) {
 			WHERE u.deleted_at IS NULL
 		)
 		SELECT id, username, email, role_id, store_id, reports_to, is_active, language, theme, created_at, updated_at, last_login, must_change_password
-		FROM org_tree ORDER BY level, username
-	`)
+		FROM org_tree`
+	args := []interface{}{}
+	if claimsStore != nil {
+		orgQuery += ` WHERE (store_id IS NULL OR store_id = $1)`
+		args = append(args, *claimsStore)
+	}
+	orgQuery += ` ORDER BY level, username`
+
+	rows, err := r.db.Query(ctx, orgQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query org chart: %w", err)
 	}

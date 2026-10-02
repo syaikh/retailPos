@@ -100,10 +100,14 @@ Consequences:
    NULL-store rule that overrides pricing in every store.
 2. All six routes gate on a single permission each (`handler.go:61-67`): `approve`, `reject`, and
    `submit` all require only `pricing.update`. There is **no separation of duties** — a store-scoped
-   manager can author, submit, and approve their own rule.
+   manager can author, submit, and approve their own rule. *Fixed by 2c/2d + `054_pricing_rule_created_by.sql`:
+   approve/reject need their own codes, and a creator can no longer approve their own rule.
+   `submit` is gone entirely — see 2g.*
 3. `CheckConflicts` is scoped but `Create` is not, so conflict detection is advisory: posting straight
-   to `POST /pricing-rules` bypasses it entirely.
-4. A manager can `PUT`/`DELETE`/`approve` a **foreign** store's rule by id.
+   to `POST /pricing-rules` bypasses it entirely. *Fixed by 2h's reset: a rule only becomes live via
+   approval, and approval is where `CheckConflicts` runs.*
+4. A manager can `PUT`/`DELETE`/`approve` a **foreign** store's rule by id. *Fixed by 2b
+   (`authorizeStoreRule`) and 2f (`ruleForAction` on every single-rule route).*
 5. **The permission that unlocks this is held below manager.** From the baseline grants
    (`000_baseline.sql:5046-5052`): **supervisor** holds `pricing.create`, `pricing.update`, and
    `pricing.delete`. So a shift lead — not a store boss — can rewrite pricing globally. This is the
@@ -203,17 +207,19 @@ is independently shippable, independently revertable, and ends green.
 Three business decisions are needed before Waves 2 and 5. Record them here so they are not decided
 implicitly inside a diff.
 
-- [ ] **D1 — Pricing global rules** (§3.1 / Wave 2a). Who may create a `store_id IS NULL` pricing
+- [x] **D1 — Pricing global rules** (§3.1 / Wave 2a). *Answered and implemented — see 2a:* Who may create a `store_id IS NULL` pricing
       rule? Proposed: superadmin only.
-- [ ] **D2 — Supplier role mapping** (§3.2 / Wave 2c). Which role may read, and which may
+- [x] **D2 — Supplier role mapping** (§3.2 / Wave 2c). *Answered and implemented — see 2c:* Which role may read, and which may
       create/update/delete suppliers? Proposed: `supplier.view` to manager + supervisor +
       superadmin; create/update/delete to manager + superadmin.
 - [ ] **D3 — Supplier store scoping** (§5). Option A / B / C. *Can be deferred until after Wave 2c
       lands* — see the sequencing note in §5.
-- [ ] **D4 — Was cross-store user creation a supported practice?** (Wave 3) Manager holds
+- [x] **D4 — Was cross-store user creation a supported practice?** (Wave 3) Manager holds
       `user.create`/`user.update`; if HQ used managers to provision users in other branches, enforcing
-      the boundary changes a workflow, not just a bug.
-- [ ] Add a `store_id` scoping note to `docs/design/role-permission-audit.md` and
+      the boundary changes a workflow, not just a bug. **Answered: no.** It is not a supported
+      workflow, so the boundary is a bug fix rather than a workflow change. Enforced in Wave 3 as
+      `bindStoreScopedUser` — see that wave for the exact rules.
+- [x] Add a `store_id` scoping note to `docs/design/role-permission-audit.md` and
       `store-first-and-finance-role.md` stating the enforced rule: **all roles except superadmin are
       scoped to their assigned store** (already true of `RequireStoreID`; this documents it).
 - [ ] Record which of the 4 FK-gap tables hold orphaned `store_id` values today
@@ -389,6 +395,36 @@ while pricing is being fixed.
       dev-only generator of *historical* sales, not a workflow entry point, and forcing its rules to
       pending would produce a dev database whose history references unapproved prices.
 
+- [x] **2g `draft` retirement + approval state machine.** Found while implementing 2b, not a
+      store-boundary bug: `SubmitRule` existed so a creator could send a `draft` for approval, but
+      nothing else used `draft` — `CreateRule` inserted `approved`, and nothing could ever create
+      one. So the "submit" path was reachable only by rows that predated the default, and the
+      workflow had three states where two were real.
+
+      **Decided:** `draft` and `submit` are retired, leaving `pending` / `approved` / `rejected`.
+      A new rule is created `pending` + `is_active = false` and becomes live on approval, so the
+      one row that actually exists in production — `approved` on create — is the invariant being
+      fixed, not preserved.
+      - `057_pricing_retire_draft_status.sql` drops the `chk_pricing_status` check and re-adds it
+        over `(pending, approved, rejected)`. A `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT`
+        pair rather than `ALTER ... DROP CONSTRAINT` so a second runner pass is a no-op; the
+        constraint is verified in replay by re-inserting a `draft` row, which the new definition
+        rejects. `055_pricing_rule_new_rows_start_pending.sql` had already moved the column
+        defaults, so this migration only narrows the enum the check accepts.
+      - `statusDraft`, `SubmitRule`, the `POST /pricing-rules/{id}/submit` route and the whole
+        `dokumentasi/7-submit-flow.md` walkthrough go with it. Regenerating Swagger confirmed the
+        route is the only removed path and the `status` enum is the only parameter change.
+      - Frontend: the table's submit action, the draft status pill, the draft filter and the
+        `submitPricingRule` service method are gone; `statusDraft`/`submit`/`ruleSubmittedApproval`/
+        `failedToSubmitApproval` had no other consumer, so the i18n keys went too.
+- [x] **2h `UpdateRule` does not demote an approved rule.** The inverse hole: `UpdateRule` wrote
+      whatever the body said, so an approved rule could be re-saved with new economics and stay
+      `approved` + `is_active` — approval bypassed by editing, with no second reviewer.
+      **Decided:** an economic edit on an approved rule resets it to `pending` + `is_active = false`;
+      a non-economic edit (name, description, priority) keeps its state. "Economic" is the same
+      field set the audit's §3.1 notes call out as price-affecting, so the rule is stated in one
+      place in the service rather than duplicated in the handler. The service is the enforcement
+      point because the import path writes through it, so an import cannot demote silently either.
 - [x] **2f `GetRule`'s existing post-hoc 403** (`:190-198`) becomes a load-time guard shared with 2b.
 
       `GetRule` and `UpdateRule` were the last two handlers that hand-rolled
@@ -413,7 +449,7 @@ while pricing is being fixed.
       and the planned `ensureStoreScope` in the storage-location plan: the check
       belongs at load, so a caller cannot observe a row before it is authorized.
 - [ ] Tests: matrix over (superadmin / manager-A / supervisor-A / cashier-A / manager-B) × (global
-      rule / own / foreign) × (create / update / delete / submit / approve / reject), plus a supplier
+      rule / own / foreign) × (create / update / delete / approve / reject), plus a supplier
       matrix asserting a cashier gets 403 on `GET /suppliers`.
       *Partly landed:* `internal/pricing/routes_permission_test.go` now asserts every pricing route
       demands *exactly* its own code (grant all-but-one → 403), which is the route-level half of the
@@ -429,22 +465,63 @@ and a `role-permission-audit.md` update.
 
 ### Wave 3 — `user` store assignment (authz)
 
-- [ ] **3a `CreateUser`** (`handler.go:220`) — stamp `StoreID` from claims for store-scoped callers;
-      a body `store_id` that names another store → 403. Superadmin may set any store. Preserve the
-      existing "required for operational role" check (`:199`) and the HQ/global-user case
-      (`store_id IS NULL` for non-operational roles).
-- [ ] **3b `UpdateUser`** (`:341-342`) — same comparison, and keep the existing "cannot remove
-      `store_id` from an operational role" guard.
-- [ ] **3c Read paths** — `DeleteUser:498`, `GetSubordinates:533`, `GetManager:550`,
-      `GetOrgChart:563` gain a store filter, reusing `ListUsers:161`'s permissive
-      `(u.store_id IS NULL OR u.store_id = $n)` shape.
-- [ ] Tests: manager-A cannot create/update/delete/list a manager-B user; can still see global
-      (HQ) users.
+One helper, `bindStoreScopedUser(c, requested, existing)` (`handler.go`), carries 3a and 3b. It is
+deliberately **not** a copy of pricing's `bindStoreScopedRule`, because a user with `store_id IS
+NULL` is a legitimate *global* (HQ) identity while a global pricing rule is superadmin-only:
+`ListUsers` already exposes `store_id IS NULL` rows to every store-scoped caller, and
+`permissions.OperationalRoles` treats a store-less non-operational account as valid. So a global row
+is *in scope* here, and what is forbidden is writing a store that is not the caller's own.
 
-**Exit criteria:** no identity can be created or moved outside the caller's store.
+| Case | Superadmin | Store-scoped caller |
+|------|-----------|---------------------|
+| Create, `store_id` omitted | global (HQ) user | pinned to the caller's store |
+| Create, `store_id` = own | allowed | allowed |
+| Create, `store_id` = foreign | allowed | **403** |
+| Update own-store row, `store_id` omitted | store preserved | store preserved |
+| Update own-store row, `store_id` = foreign | allowed (moves it) | **403** |
+| Update own-store row, `store_id` = own | allowed | allowed |
+| Update **global** row, `store_id` omitted | stays global | stays global |
+| Update **global** row, `store_id` = any store | allowed | **403** "global user requires superadmin" |
+| Update a foreign row | allowed | **403** |
+| No store claim | n/a | **403** (fails closed) |
 
-**Risk:** Medium — the "manager can create a user in another store" path may be in use as an HQ
-convenience. Confirm before enforcing.
+- [x] **3a `CreateUser`** — `bindStoreScopedUser` runs *before* the "required for operational role"
+      check, so a manager provisioning a cashier is stamped with their own store instead of being
+      400'd for omitting a field they may not choose. The check itself is preserved and still
+      governs superadmin's global creates.
+- [x] **3b `UpdateUser`** — the bound value replaces the old
+      `if req.StoreID != nil { existing.StoreID = req.StoreID }`. Two behaviours fell out of routing
+      both paths through one helper:
+      - **A global row is not captured by naming a store.** The first cut only rejected a *foreign*
+        store on a global row, which let a manager pull an HQ account into their own store by naming
+        it — the exact escalation the rule exists to stop, one account at a time. Any named store on
+        a global row is now refused.
+      - **An omitted `store_id` inherits, for superadmin too.** JSON cannot distinguish an omitted
+        field from an explicit `null`, so the superadmin path originally cleared the store on every
+        partial update and tripped the operational-role guard. This was caught by the pre-existing
+        `TestHandler_UpdateUser` suite, not by a new test.
+      The "cannot remove `store_id` from an operational role" guard is kept, now reading the
+      already-resolved effective store.
+- [x] **3c Read paths** — `GetSubordinates`, `GetManager` and `GetOrgChart` take `claimsStore *int`
+      through handler → service → repository, matching the Wave 1a naming. Each adds
+      `(store_id IS NULL OR store_id = $n)`, reusing `ListUsers`' permissive shape.
+      - `GetOrgChart` filters the **outer** `SELECT`, not the recursive CTE: the walk still
+        traverses foreign nodes so filtering output cannot truncate the shown tree.
+      - A foreign `GetManager` row is reported as `ErrManagerNotFound` → **404, not 403**, matching
+        Wave 1b so the endpoint is not an existence oracle for user ids across stores.
+      - `DeleteUser` is guarded in the handler, not the SQL: it now loads the target and refuses a
+        foreign store **403** (it is a write, not a probe), and a load failure returns 404 without
+        deleting. This changes a pre-existing tolerance — the load used to be best-effort, only for
+        the audit description, so `TestAuditHandler_DeleteUser_GetUserError` asserted 200 and had to
+        be rewritten to assert the delete does not run.
+- [x] UI: `UserFormModal.svelte` disables the store select for non-superadmin and lists only the
+      caller's own store; `UsersPage.svelte` opens the form on that store. Same treatment as Wave 2a,
+      same caveat: the backend 403 is the control, the UI is not.
+- [x] Tests — `TestUserRepository_StoreBoundary` (own-store + global returned, foreign dropped, nil
+      claim unscoped, foreign manager 404) and `TestMockHandler_{Create,Update,Delete}User_StoreBoundary`
+      + `TestMockHandler_ReadPaths_PassStoreClaim`.
+
+**Exit criteria:** no identity can be created or moved outside the caller's store. Met.
 
 ### Wave 4 — `shift` store boundary
 
@@ -495,7 +572,9 @@ limited to roles that should have them.
 
 ### Wave 6 — Schema integrity (FK gaps)
 
-- [ ] New migration `057_store_fk_integrity.sql` (054, 055, and 056 are taken by the pricing author column, the pricing status defaults, and the supervisor pricing-grant revoke). Per AGENTS.md the baseline is amended in place, but
+- [ ] New migration `058_store_fk_integrity.sql`. Per AGENTS.md the baseline is amended in place, but
+      the number is not free: 054–057 are taken by the pricing author column, the pricing status
+      defaults, the supervisor pricing-grant revoke, and the `draft` status retirement. Per AGENTS.md the baseline is amended in place, but
   new migrations start at `054_*.sql`; a *constraint* added post-baseline belongs in a new migration so
   it replays in lexical order on every runner.
 - [ ] Add `REFERENCES stores(id)` to `customers`, `users`, `goods_receipts`, `purchase_orders`.
@@ -666,8 +745,8 @@ scoping decision.
     route gate is `supplier.view`.
   - Wave 2d adds a `pricing.approve` capability the pricing table has no prop for. Done:
     `PricingRulesTable.svelte` takes `canApprove` and gates the approve/reject menu items on it,
-    leaving `canEdit` for submit. (Submit is intentionally still `pricing.update` — submitting your
-    own draft is the point of drafting.)
+    leaving `canEdit` for submit. (At the time of 2d, submit was intentionally still
+    `pricing.update`; 2g retired the submit path entirely, so only `canApprove` remains.)
 - **Permission catalog beyond Wave 2c/2d** — `role-permission-audit.md` is updated in Wave 0, but
   no other module's role mapping is reworked here. The supervisor over-grant on
   `shift.audit`/`shift.review` (Wave 4) is flagged, not fixed.

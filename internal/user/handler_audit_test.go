@@ -414,17 +414,25 @@ func TestAuditHandler_UpdateUser_ServiceError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+// The load that precedes a delete is the store-scope check, not just a lookup
+// for the audit description. A caller that cannot resolve the target's store
+// must not be able to remove it, so the failure blocks the delete.
 func TestAuditHandler_DeleteUser_GetUserError(t *testing.T) {
+	deleted := false
 	svc := &mockUserService{
 		getByIDFn: func(ctx context.Context, id int) (*User, error) {
-			return nil, errors.New("not found")
+			return nil, errors.New("db error")
 		},
-		deleteUserFn: func(ctx context.Context, id int) error { return nil },
+		deleteUserFn: func(ctx context.Context, id int) error {
+			deleted = true
+			return nil
+		},
 	}
 	r := setupMockUserRouterWithAudit(svc)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/admin/users/99", nil))
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.False(t, deleted, "delete must not run when the target store cannot be resolved")
 }
 
 func TestAuditHandler_CreateRole_ServiceError(t *testing.T) {

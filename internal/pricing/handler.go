@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
@@ -24,7 +26,6 @@ type Service interface {
 	Update(ctx context.Context, rule *Rule) error
 	Delete(ctx context.Context, id int) error
 	FindConflictsForRule(ctx context.Context, rule *Rule, excludeID int) ([]Rule, error)
-	SubmitForApproval(ctx context.Context, id int) error
 	Approve(ctx context.Context, id int) error
 	Reject(ctx context.Context, id int) error
 }
@@ -93,6 +94,59 @@ func authorizeStoreRule(c *gin.Context, rule *Rule) bool {
 //
 // Superadmin is exempt: it is the escalation path for a rule whose author left
 // or over-authored, and blocking it would make an unapprovable rule permanent.
+// ptrEq compares two optional values, treating "both absent" as equal. Generic so
+// it covers the *int, *string and *time.Time fields the comparison needs.
+func ptrEq[T comparable](a, b *T) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+// timePtrEq compares optional timestamps with Equal rather than ==, so a time
+// read from Postgres and the same instant parsed from the request body are not
+// treated as different because their monotonic reading or location differs.
+func timePtrEq(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Equal(*b)
+}
+
+// economicChange reports whether an edit would change the amount a rule charges,
+// the population it applies to, the window it applies in, or which rule wins a
+// conflict.
+//
+// The approval gate protects the status *field*; this protects the number. The
+// review that introduced it found that a caller holding only pricing.update
+// could PUT a new pricing_value onto an already-approved, live rule — status
+// stayed `approved`, so the new price reached the till immediately, with no
+// pricing.approve and no self-approval check. The same caller could also flip
+// is_active back to true on a rule a superadmin had deliberately deactivated.
+//
+// Name is deliberately excluded: it is cosmetic, and dragging a rule back to
+// pending for a rename would make the workflow tedious without adding safety.
+// StoreID is excluded because bindStoreScopedRule has already rejected any
+// cross-store change, and a superadmin re-homing a rule is not a price edit.
+func economicChange(old, updated *Rule) bool {
+	return old.PricingValue != updated.PricingValue ||
+		old.Method != updated.Method ||
+		old.Type != updated.Type ||
+		old.MinimumQuantity != updated.MinimumQuantity ||
+		old.Priority != updated.Priority ||
+		old.AllowCombine != updated.AllowCombine ||
+		!ptrEq(old.MaximumQuantity, updated.MaximumQuantity) ||
+		!ptrEq(old.ProductID, updated.ProductID) ||
+		!ptrEq(old.CategoryID, updated.CategoryID) ||
+		!ptrEq(old.BrandID, updated.BrandID) ||
+		!ptrEq(old.CustomerGroupID, updated.CustomerGroupID) ||
+		!ptrEq(old.TimeFrom, updated.TimeFrom) ||
+		!ptrEq(old.TimeTo, updated.TimeTo) ||
+		!timePtrEq(old.EffectiveFrom, updated.EffectiveFrom) ||
+		!timePtrEq(old.EffectiveUntil, updated.EffectiveUntil) ||
+		!slices.Equal(old.RecurrenceDays, updated.RecurrenceDays)
+}
+
 func authorizeApproval(c *gin.Context, rule *Rule) bool {
 	if isAdmin(c) {
 		return true
@@ -190,7 +244,6 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.PUT("/pricing-rules/:id", auth, perm(permissions.PricingUpdate), h.UpdateRule)
 	r.DELETE("/pricing-rules/:id", auth, perm(permissions.PricingDelete), h.DeleteRule)
 	r.POST("/pricing-rules/check-conflicts", auth, perm(permissions.PricingView), h.CheckConflicts)
-	r.POST("/pricing-rules/:id/submit", auth, perm(permissions.PricingUpdate), h.SubmitForApproval)
 	r.POST("/pricing-rules/:id/approve", auth, perm(permissions.PricingApprove), h.ApproveRule)
 	r.POST("/pricing-rules/:id/reject", auth, perm(permissions.PricingApprove), h.RejectRule)
 	r.POST("/pricing/resolve", auth, perm(permissions.PricingView), h.ResolvePrices)
@@ -215,7 +268,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 // @Param        customer_group_id query   int     false  "Filter by customer group ID"
 // @Param        store_id          query   int     false  "Filter by store ID"
 // @Param        is_active         query   bool    false  "Filter by active status"
-// @Param        status            query   string  false  "Filter by approval status (draft|pending|approved|rejected)"
+// @Param        status            query   string  false  "Filter by approval status (pending|approved|rejected)"
 // @Success      200  {object}  map[string]interface{}
 // @Router       /pricing-rules [get]
 func (h *Handler) ListRules(c *gin.Context) {
@@ -273,13 +326,22 @@ func (h *Handler) ListRules(c *gin.Context) {
 
 	claimsStore := shared.GetStoreID(c)
 	if !isAdmin(c) {
-		if claimsStore != nil && storeID != nil && *storeID != *claimsStore {
+		// Fails closed on a missing store claim, matching authorizeStoreRule.
+		// A nil claim used to fall through every branch here, leaving storeID
+		// nil so GetAll ran unfiltered and returned every store's rules — a
+		// caller who was then refused by GetRule on every one of them. The list
+		// must not be a way around the detail path's boundary.
+		if claimsStore == nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "store scope is required for pricing rules"})
+			return
+		}
+		// A store-scoped caller is always narrowed to its own store, so an
+		// explicit foreign store_id is rejected and the claim always wins.
+		if storeID != nil && *storeID != *claimsStore {
 			c.JSON(http.StatusForbidden, gin.H{"error": "store is not in your store"})
 			return
 		}
-		if claimsStore != nil && storeID == nil {
-			storeID = claimsStore
-		}
+		storeID = claimsStore
 	}
 
 	rules, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, productID, pricingType, pricingMethod, categoryID, brandID, customerGroupID, storeID, isActive, status)
@@ -419,9 +481,10 @@ func (h *Handler) UpdateRule(c *gin.Context) {
 	// Status is a workflow output, not a user-editable field. Accepting it from the
 	// body would let a caller holding only pricing.update approve a rule by
 	// side-stepping both the pricing.approve route gate and authorizeApproval.
-	// is_active deliberately stays body-bound: deactivation is a legitimate edit,
-	// and on its own it cannot activate a rule because resolution also requires
-	// status = 'approved'.
+	//
+	// The authoritative copy of that rule, plus the rule that an economic edit to
+	// an approved rule invalidates the approval, lives in service.Update — it owns
+	// status, and the pin it performs would otherwise overwrite anything set here.
 	rule.Status = existing.Status
 
 	if err := h.svc.Update(c.Request.Context(), &rule); err != nil {
@@ -503,34 +566,6 @@ func (h *Handler) DeleteRule(c *gin.Context) {
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
-}
-
-// SubmitForApproval godoc
-// @Summary      Submit rule for approval
-// @Description  Transition a draft rule to pending status
-// @Tags         Pricing
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        id   path      int  true  "Rule ID"
-// @Success      200  {object}  map[string]interface{}
-// @Router       /pricing-rules/{id}/submit [post]
-func (h *Handler) SubmitForApproval(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rule id"})
-		return
-	}
-
-	if _, ok := h.ruleForAction(c, id, false); !ok {
-		return
-	}
-
-	if err := h.svc.SubmitForApproval(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"status": "pending"})
 }
 
 // ApproveRule godoc
@@ -657,6 +692,14 @@ func (h *Handler) CheckConflicts(c *gin.Context) {
 	if conflicts == nil {
 		conflicts = []Rule{}
 	}
+	// Filters out *other stores'* rules but deliberately keeps global ones
+	// (conflict.StoreID == nil). A store manager must be able to see that a
+	// chain-wide rule will block their own, or the conflict prompt would
+	// recommend creating a rule that can never take effect. This is the one
+	// path by which a store-scoped caller sees a global rule, and it is
+	// intentional: read-only conflict information, not a global rule they could
+	// open, since GetRule 403s it. Do not "fix" this to match ListRules, which
+	// hides globals entirely.
 	if !isAdmin(c) {
 		claimsStore := shared.GetStoreID(c)
 		if claimsStore != nil {

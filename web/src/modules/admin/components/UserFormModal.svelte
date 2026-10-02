@@ -8,6 +8,8 @@
     UserRoundCog,
   } from "lucide-svelte";
   import { getUsers } from "$modules/admin";
+  import { useAuthStore } from "$modules/auth";
+  import { Roles } from "$shared/constants/roles";
   import { labels } from "$shared/i18n";
   import type { Role, User } from "../types";
 
@@ -48,6 +50,18 @@
     canAssignManager?: boolean;
     onsave?: () => void;
   } = $props();
+
+  const authStore = useAuthStore();
+
+  // Superadmin provisions staff in any store (or none, for an HQ account).
+  // Every other role is scoped to its own store by the API, so offering the
+  // full store list would only let a manager pick an option that 403s.
+  const isSuperadmin = $derived(authStore.user?.role === Roles.superadmin);
+  const ownStoreID = $derived(authStore.user?.store_id ?? null);
+  // A store-scoped caller sees only its own store; superadmin sees all of them.
+  const selectableStores = $derived(
+    isSuperadmin ? stores : stores.filter((s) => s.id === ownStoreID),
+  );
 
   let showFormRoleDropdown = $state(false);
   let showReportsToDropdown = $state(false);
@@ -272,15 +286,21 @@
         </label>
         <select
           id="store-select"
-          class="w-full px-3 h-10 rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
+          class="w-full px-3 h-10 rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           bind:value={form.store_id}
           required={isOperationalRole}
+          disabled={!isSuperadmin}
         >
           <option value={null}>{labels.none}</option>
-          {#each stores as store (store.id)}
+          {#each selectableStores as store (store.id)}
             <option value={store.id}>{store.name}</option>
           {/each}
         </select>
+        {#if !isSuperadmin}
+          <p class="mt-0.5 text-xs leading-tight text-text-muted">
+            {labels.outletPinnedHint}
+          </p>
+        {/if}
       </div>
 
       <div>

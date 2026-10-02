@@ -866,7 +866,7 @@ func TestRepository_GetSubordinates_Success(t *testing.T) {
 	mock.ExpectQuery("SELECT id, username, email").WithArgs(1).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	subs, err := repo.GetSubordinates(context.Background(), 1)
+	subs, err := repo.GetSubordinates(context.Background(), 1, nil)
 	require.NoError(t, err)
 	assert.Len(t, subs, 1)
 	assert.Equal(t, "sub1", subs[0].Username)
@@ -882,7 +882,7 @@ func TestRepository_GetSubordinates_Empty(t *testing.T) {
 	mock.ExpectQuery("SELECT id, username, email").WithArgs(1).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	subs, err := repo.GetSubordinates(context.Background(), 1)
+	subs, err := repo.GetSubordinates(context.Background(), 1, nil)
 	require.NoError(t, err)
 	assert.Empty(t, subs)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -899,7 +899,7 @@ func TestRepository_GetManager_Success(t *testing.T) {
 	mock.ExpectQuery("SELECT m.id, m.username, m.email").WithArgs(2).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	mgr, err := repo.GetManager(context.Background(), 2)
+	mgr, err := repo.GetManager(context.Background(), 2, nil)
 	require.NoError(t, err)
 	require.NotNil(t, mgr)
 	assert.Equal(t, "mgr", mgr.Username)
@@ -914,7 +914,7 @@ func TestRepository_GetManager_NotFound(t *testing.T) {
 	mock.ExpectQuery("SELECT m.id, m.username, m.email").WithArgs(1).WillReturnError(pgx.ErrNoRows)
 
 	repo := NewRepository(mock)
-	_, err = repo.GetManager(context.Background(), 1)
+	_, err = repo.GetManager(context.Background(), 1, nil)
 	assert.ErrorContains(t, err, "manager not found")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -931,7 +931,7 @@ func TestRepository_GetOrgChart_Success(t *testing.T) {
 	mock.ExpectQuery("WITH RECURSIVE org_tree").WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	users, err := repo.GetOrgChart(context.Background())
+	users, err := repo.GetOrgChart(context.Background(), nil)
 	require.NoError(t, err)
 	assert.Len(t, users, 2)
 	assert.True(t, users[0].MustChangePassword)

@@ -195,11 +195,22 @@ func TestUpdateCannotGrantApproval(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			storeID := 1
+			productID := 1
+			// The stored rule mirrors the request body exactly. These cases are
+			// about whether a body-supplied status can change the rule's workflow
+			// state; if the stored rule differed economically, the approved-rule
+			// reset (service.Update sends an economically edited approved rule back
+			// to pending) would fire and mask what is being asserted.
 			repo := &statusIgnoringRepo{existing: &Rule{
-				ID:       1,
-				StoreID:  &storeID,
-				Status:   tc.existingStatus,
-				IsActive: true,
+				ID:              1,
+				StoreID:         &storeID,
+				ProductID:       &productID,
+				Type:            PricingTypePromotion,
+				Method:          PricingMethodFixedPrice,
+				PricingValue:    10,
+				MinimumQuantity: 1,
+				Status:          tc.existingStatus,
+				IsActive:        true,
 			}}
 			svc := &service{repo: repo}
 			h := &Handler{svc: svc}

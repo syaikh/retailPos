@@ -24,9 +24,9 @@ type mockUserService struct {
 	createUserFn         func(ctx context.Context, user *User) error
 	updateUserFn         func(ctx context.Context, user *User) error
 	deleteUserFn         func(ctx context.Context, id int) error
-	getSubordinatesFn    func(ctx context.Context, managerID int) ([]User, error)
-	getManagerFn         func(ctx context.Context, userID int) (*User, error)
-	getOrgChartFn        func(ctx context.Context) ([]User, error)
+	getSubordinatesFn    func(ctx context.Context, managerID int, claimsStore *int) ([]User, error)
+	getManagerFn         func(ctx context.Context, userID int, claimsStore *int) (*User, error)
+	getOrgChartFn        func(ctx context.Context, claimsStore *int) ([]User, error)
 	isSubordinateFn      func(ctx context.Context, managerID, userID int) (bool, error)
 	getAllRolesFn        func(ctx context.Context) ([]Role, error)
 	getRoleByIDFn        func(ctx context.Context, id int) (*Role, error)
@@ -61,14 +61,14 @@ func (m *mockUserService) UpdateUser(ctx context.Context, user *User) error {
 func (m *mockUserService) DeleteUser(ctx context.Context, id int) error {
 	return m.deleteUserFn(ctx, id)
 }
-func (m *mockUserService) GetSubordinates(ctx context.Context, managerID int) ([]User, error) {
-	return m.getSubordinatesFn(ctx, managerID)
+func (m *mockUserService) GetSubordinates(ctx context.Context, managerID int, claimsStore *int) ([]User, error) {
+	return m.getSubordinatesFn(ctx, managerID, claimsStore)
 }
-func (m *mockUserService) GetManager(ctx context.Context, userID int) (*User, error) {
-	return m.getManagerFn(ctx, userID)
+func (m *mockUserService) GetManager(ctx context.Context, userID int, claimsStore *int) (*User, error) {
+	return m.getManagerFn(ctx, userID, claimsStore)
 }
-func (m *mockUserService) GetOrgChart(ctx context.Context) ([]User, error) {
-	return m.getOrgChartFn(ctx)
+func (m *mockUserService) GetOrgChart(ctx context.Context, claimsStore *int) ([]User, error) {
+	return m.getOrgChartFn(ctx, claimsStore)
 }
 func (m *mockUserService) IsSubordinate(ctx context.Context, managerID, userID int) (bool, error) {
 	if m.isSubordinateFn != nil {
@@ -475,6 +475,7 @@ func TestMockHandler_UpdateUser(t *testing.T) {
 func TestMockHandler_DeleteUser(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockUserService{
+			getByIDFn:    func(ctx context.Context, id int) (*User, error) { return &User{ID: id, Username: "cashier"}, nil },
 			deleteUserFn: func(ctx context.Context, id int) error { return nil },
 		}
 		r := setupMockUserRouter(svc)
@@ -492,6 +493,7 @@ func TestMockHandler_DeleteUser(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockUserService{
+			getByIDFn:    func(ctx context.Context, id int) (*User, error) { return &User{ID: id, Username: "cashier"}, nil },
 			deleteUserFn: func(ctx context.Context, id int) error { return errors.New("fail") },
 		}
 		r := setupMockUserRouter(svc)
@@ -698,7 +700,7 @@ func TestMockHandler_ListPermissions(t *testing.T) {
 func TestMockHandler_GetSubordinates(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockUserService{
-			getSubordinatesFn: func(ctx context.Context, managerID int) ([]User, error) {
+			getSubordinatesFn: func(ctx context.Context, managerID int, _ *int) ([]User, error) {
 				assert.Equal(t, 1, managerID)
 				return []User{{ID: 2, Username: "staff1", ReportsToID: intPtr(1)}}, nil
 			},
@@ -718,7 +720,7 @@ func TestMockHandler_GetSubordinates(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockUserService{
-			getSubordinatesFn: func(ctx context.Context, managerID int) ([]User, error) {
+			getSubordinatesFn: func(ctx context.Context, managerID int, _ *int) ([]User, error) {
 				return nil, errors.New("db error")
 			},
 		}
@@ -732,7 +734,7 @@ func TestMockHandler_GetSubordinates(t *testing.T) {
 func TestMockHandler_GetManager(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockUserService{
-			getManagerFn: func(ctx context.Context, userID int) (*User, error) {
+			getManagerFn: func(ctx context.Context, userID int, _ *int) (*User, error) {
 				assert.Equal(t, 2, userID)
 				return &User{ID: 1, Username: "manager"}, nil
 			},
@@ -745,7 +747,7 @@ func TestMockHandler_GetManager(t *testing.T) {
 
 	t.Run("no manager", func(t *testing.T) {
 		svc := &mockUserService{
-			getManagerFn: func(ctx context.Context, userID int) (*User, error) {
+			getManagerFn: func(ctx context.Context, userID int, _ *int) (*User, error) {
 				return nil, nil
 			},
 		}
@@ -764,7 +766,7 @@ func TestMockHandler_GetManager(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockUserService{
-			getManagerFn: func(ctx context.Context, userID int) (*User, error) {
+			getManagerFn: func(ctx context.Context, userID int, _ *int) (*User, error) {
 				return nil, errors.New("db error")
 			},
 		}
@@ -778,7 +780,7 @@ func TestMockHandler_GetManager(t *testing.T) {
 func TestMockHandler_GetOrgChart(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockUserService{
-			getOrgChartFn: func(ctx context.Context) ([]User, error) {
+			getOrgChartFn: func(ctx context.Context, _ *int) ([]User, error) {
 				return []User{
 					{ID: 1, Username: "superadmin"},
 					{ID: 2, Username: "manager1", ReportsToID: intPtr(1)},
@@ -793,7 +795,7 @@ func TestMockHandler_GetOrgChart(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockUserService{
-			getOrgChartFn: func(ctx context.Context) ([]User, error) {
+			getOrgChartFn: func(ctx context.Context, _ *int) ([]User, error) {
 				return nil, errors.New("db error")
 			},
 		}
@@ -1004,5 +1006,297 @@ func TestMockHandler_UpdatePreferences(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// setupStoreScopedUserRouter builds a router whose caller is a store-scoped
+// role (manager) holding claimsStore, which is what activates bindStoreScopedUser
+// and the read-path filters. setupMockUserRouter's superadmin caller bypasses
+// both, so it cannot exercise the boundary.
+func setupStoreScopedUserRouter(svc Service, claimsStore *int) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "manager")
+		c.Set("role", "manager")
+		if claimsStore != nil {
+			c.Set("storeID", claimsStore)
+		}
+		c.Next()
+	})
+	h := NewHandler(svc, nil)
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	return r
+}
+
+func TestMockHandler_CreateUser_StoreBoundary(t *testing.T) {
+	// A manager in store 1 must not be able to provision an identity in store 2.
+	t.Run("rejects a body naming another store", func(t *testing.T) {
+		created := false
+		svc := &mockUserService{
+			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+				return &Role{ID: 3, Name: "cashier"}, nil
+			},
+			getByUsernameFn: func(ctx context.Context, username string) (*User, error) {
+				return nil, errors.New("no such user")
+			},
+			createUserFn: func(ctx context.Context, u *User) error {
+				created = true
+				return nil
+			},
+		}
+		r := setupStoreScopedUserRouter(svc, intPtr(1))
+		body := `{"username":"newbie","email":"newbie@test.com","password":"password123","role_id":3,"store_id":2}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/admin/users", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.False(t, created, "cross-store create must not reach the service")
+	})
+
+	// Omitting store_id is the same as naming a foreign one, from the caller's
+	// point of view: the identity is stamped with their own store.
+	t.Run("stamps an omitted store with the caller's own", func(t *testing.T) {
+		var got *int
+		svc := &mockUserService{
+			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+				return &Role{ID: 3, Name: "cashier"}, nil
+			},
+			getByUsernameFn: func(ctx context.Context, username string) (*User, error) {
+				return nil, errors.New("no such user")
+			},
+			createUserFn: func(ctx context.Context, u *User) error {
+				got = u.StoreID
+				return nil
+			},
+		}
+		r := setupStoreScopedUserRouter(svc, intPtr(1))
+		body := `{"username":"newbie","email":"newbie@test.com","password":"password123","role_id":3}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/admin/users", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+		require.NotNil(t, got, "store-scoped create must be stamped, not left NULL")
+		assert.Equal(t, 1, *got)
+	})
+
+	// A non-superadmin with no store claim must fail closed rather than be
+	// treated as an implicit HQ bypass.
+	t.Run("refuses a caller with no store claim", func(t *testing.T) {
+		svc := &mockUserService{
+			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+				return &Role{ID: 3, Name: "cashier"}, nil
+			},
+			getByUsernameFn: func(ctx context.Context, username string) (*User, error) {
+				return nil, errors.New("no such user")
+			},
+		}
+		r := setupStoreScopedUserRouter(svc, nil)
+		body := `{"username":"newbie","email":"newbie@test.com","password":"password123","role_id":3}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/admin/users", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	// Superadmin provisions HQ staff: a global identity is a legitimate target.
+	t.Run("superadmin may still create a global user", func(t *testing.T) {
+		var got *int
+		svc := &mockUserService{
+			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+				return &Role{ID: 2, Name: "admin"}, nil
+			},
+			getByUsernameFn: func(ctx context.Context, username string) (*User, error) {
+				return nil, errors.New("no such user")
+			},
+			createUserFn: func(ctx context.Context, u *User) error {
+				got = u.StoreID
+				return nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		body := `{"username":"hquser","email":"hq@test.com","password":"password123","role_id":2}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/admin/users", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+		assert.Nil(t, got, "superadmin omitting store_id creates a global user")
+	})
+}
+
+func TestMockHandler_UpdateUser_StoreBoundary(t *testing.T) {
+	storeOneUser := func() *User { return &User{ID: 5, Username: "a_cashier", StoreID: intPtr(1)} }
+	storeTwoUser := func() *User { return &User{ID: 6, Username: "b_cashier", StoreID: intPtr(2)} }
+	globalUser := func() *User { return &User{ID: 7, Username: "hq_admin", StoreID: nil} }
+
+	t.Run("rejects editing a user in another store", func(t *testing.T) {
+		updated := false
+		svc := &mockUserService{
+			getByIDFn: func(ctx context.Context, id int) (*User, error) { return storeTwoUser(), nil },
+			updateUserFn: func(ctx context.Context, u *User) error {
+				updated = true
+				return nil
+			},
+		}
+		r := setupStoreScopedUserRouter(svc, intPtr(1))
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/admin/users/6", strings.NewReader(`{"email":"x@test.com"}`))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.False(t, updated, "cross-store update must not reach the service")
+	})
+
+	t.Run("rejects moving a user out of the caller's store", func(t *testing.T) {
+		updated := false
+		svc := &mockUserService{
+			getByIDFn: func(ctx context.Context, id int) (*User, error) { return storeOneUser(), nil },
+			updateUserFn: func(ctx context.Context, u *User) error {
+				updated = true
+				return nil
+			},
+		}
+		r := setupStoreScopedUserRouter(svc, intPtr(1))
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/admin/users/5", strings.NewReader(`{"store_id":2}`))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.False(t, updated, "a user must not be movable into another store")
+	})
+
+	// Global (HQ) identities are in scope — ListUsers already shows them — so a
+	// manager may edit one. But pulling it into their own store would capture an
+	// HQ account as a side effect, so naming a store is refused.
+	t.Run("allows editing a global user but not claiming it", func(t *testing.T) {
+		var got *int
+		svc := &mockUserService{
+			getByIDFn: func(ctx context.Context, id int) (*User, error) { return globalUser(), nil },
+			getRoleByIDFn: func(ctx context.Context, id int) (*Role, error) {
+				return &Role{ID: 2, Name: "admin"}, nil
+			},
+			updateUserFn: func(ctx context.Context, u *User) error {
+				got = u.StoreID
+				return nil
+			},
+		}
+		r := setupStoreScopedUserRouter(svc, intPtr(1))
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/admin/users/7", strings.NewReader(`{"email":"hq@test.com"}`))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Nil(t, got, "a global user must stay global when store_id is omitted")
+
+		svc.updateUserFn = func(ctx context.Context, u *User) error {
+			got = u.StoreID
+			return nil
+		}
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest("PUT", "/admin/users/7", strings.NewReader(`{"store_id":1}`))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+}
+
+func TestMockHandler_DeleteUser_StoreBoundary(t *testing.T) {
+	t.Run("rejects deleting a user in another store", func(t *testing.T) {
+		deleted := false
+		svc := &mockUserService{
+			getByIDFn: func(ctx context.Context, id int) (*User, error) {
+				return &User{ID: 6, Username: "b_cashier", StoreID: intPtr(2)}, nil
+			},
+			deleteUserFn: func(ctx context.Context, id int) error {
+				deleted = true
+				return nil
+			},
+		}
+		r := setupStoreScopedUserRouter(svc, intPtr(1))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("DELETE", "/admin/users/6", nil))
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.False(t, deleted, "cross-store delete must not reach the service")
+	})
+
+	t.Run("allows deleting a user in the caller's own store", func(t *testing.T) {
+		deleted := false
+		svc := &mockUserService{
+			getByIDFn: func(ctx context.Context, id int) (*User, error) {
+				return &User{ID: 5, Username: "a_cashier", StoreID: intPtr(1)}, nil
+			},
+			deleteUserFn: func(ctx context.Context, id int) error {
+				deleted = true
+				return nil
+			},
+		}
+		r := setupStoreScopedUserRouter(svc, intPtr(1))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("DELETE", "/admin/users/5", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.True(t, deleted)
+	})
+}
+
+// The three read paths cannot be filtered by the handler, so what the handler
+// owns is passing the claim through. The SQL side is pinned by
+// TestUserRepository_StoreBoundary.
+func TestMockHandler_ReadPaths_PassStoreClaim(t *testing.T) {
+	claim := intPtr(1)
+
+	t.Run("GetSubordinates", func(t *testing.T) {
+		var got *int
+		svc := &mockUserService{
+			getSubordinatesFn: func(ctx context.Context, managerID int, claimsStore *int) ([]User, error) {
+				got = claimsStore
+				return nil, nil
+			},
+		}
+		r := setupStoreScopedUserRouter(svc, claim)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users/5/subordinates", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		require.NotNil(t, got)
+		assert.Equal(t, 1, *got)
+	})
+
+	t.Run("GetManager", func(t *testing.T) {
+		var got *int
+		svc := &mockUserService{
+			getManagerFn: func(ctx context.Context, userID int, claimsStore *int) (*User, error) {
+				got = claimsStore
+				return &User{ID: 1}, nil
+			},
+		}
+		r := setupStoreScopedUserRouter(svc, claim)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users/5/manager", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		require.NotNil(t, got)
+		assert.Equal(t, 1, *got)
+	})
+
+	t.Run("GetOrgChart", func(t *testing.T) {
+		var got *int
+		svc := &mockUserService{
+			getOrgChartFn: func(ctx context.Context, claimsStore *int) ([]User, error) {
+				got = claimsStore
+				return nil, nil
+			},
+		}
+		r := setupStoreScopedUserRouter(svc, claim)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users/org-chart", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		require.NotNil(t, got)
+		assert.Equal(t, 1, *got)
 	})
 }

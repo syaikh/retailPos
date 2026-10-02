@@ -367,3 +367,19 @@ role labels, seeder files, and E2E tests all reflect the new naming.
 - Superadmin sees all stores (no filter applied)
 - Affected modules: audit logs, users, shifts, storage locations
 - See [Store Scoping All Roles](./store-scoping-all-roles.md) for details
+
+### Writes are scoped too, and `users` needed it
+
+The bullet above is about *reads*, and it was over-claimed for `users`: a store-scoped caller with
+`user.create`/`user.update` could name any `store_id` in the body and create or **move** a user
+into or out of a store they do not belong to. `GetSubordinates`, `GetManager` and `GetOrgChart` also
+returned foreign-store rows, so the "only see their own store" claim did not hold on those three
+routes either. Enforced in Wave 3 of
+[Master-Data Store Boundary Audit](./master-data-store-boundary-audit.md) — `bindStoreScopedUser`
+for create/update/delete, `claimsStore *int` through the three read paths. See that doc for the
+full behaviour table, including the deliberate exception: a **global** user (`store_id IS NULL`) is
+an HQ identity that stays visible and editable by a store-scoped caller, but naming a store on one
+is refused, because that would capture it rather than edit it.
+
+**Practical rule for a non-superadmin:** the only store id you may create under, move a user into,
+or see in a hierarchical read is your own.

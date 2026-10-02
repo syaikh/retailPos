@@ -58,9 +58,8 @@ func newGatedRouter(t *testing.T, perms ...string) *gin.Engine {
 		findConflictsForRuleFn: func(_ context.Context, _ *Rule, _ int) ([]Rule, error) {
 			return nil, errDenying
 		},
-		submitForApprovalFn: func(_ context.Context, _ int) error { return errDenying },
-		approveFn:           func(_ context.Context, _ int) error { return errDenying },
-		rejectFn:            func(_ context.Context, _ int) error { return errDenying },
+		approveFn: func(_ context.Context, _ int) error { return errDenying },
+		rejectFn:  func(_ context.Context, _ int) error { return errDenying },
 	}
 
 	h := NewHandler(svc, nil, nil)
@@ -85,7 +84,6 @@ func pricingRouteCases() []routeCase {
 		{http.MethodPut, "/pricing-rules/1", `{"name":"R"}`, permissions.PricingUpdate, "update pricing rule"},
 		{http.MethodDelete, "/pricing-rules/1", "", permissions.PricingDelete, "delete pricing rule"},
 		{http.MethodPost, "/pricing-rules/check-conflicts", `{"name":"R"}`, permissions.PricingView, "check pricing conflicts"},
-		{http.MethodPost, "/pricing-rules/1/submit", "", permissions.PricingUpdate, "submit pricing rule for approval"},
 		{http.MethodPost, "/pricing-rules/1/approve", "", permissions.PricingApprove, "approve pricing rule"},
 		{http.MethodPost, "/pricing-rules/1/reject", "", permissions.PricingApprove, "reject pricing rule"},
 		{http.MethodPost, "/pricing/resolve", `{"items":[]}`, permissions.PricingView, "resolve prices"},

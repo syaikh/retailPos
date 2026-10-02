@@ -26,9 +26,9 @@ type Repo interface {
 	UpdateRole(ctx context.Context, role *Role) error
 	UpdateRolePermissions(ctx context.Context, roleID int, permissionIDs []int) error
 	DeleteRole(ctx context.Context, id int) error
-	GetManager(ctx context.Context, userID int) (*User, error)
-	GetOrgChart(ctx context.Context) ([]User, error)
-	GetSubordinates(ctx context.Context, managerID int) ([]User, error)
+	GetManager(ctx context.Context, userID int, claimsStore *int) (*User, error)
+	GetOrgChart(ctx context.Context, claimsStore *int) ([]User, error)
+	GetSubordinates(ctx context.Context, managerID int, claimsStore *int) ([]User, error)
 	IsSubordinate(ctx context.Context, managerID, userID int) (bool, error)
 }
 
@@ -106,16 +106,16 @@ func (s *service) DeleteUser(ctx context.Context, id int) error {
 	return s.repo.DeleteUser(ctx, id)
 }
 
-func (s *service) GetSubordinates(ctx context.Context, managerID int) ([]User, error) {
-	return s.repo.GetSubordinates(ctx, managerID)
+func (s *service) GetSubordinates(ctx context.Context, managerID int, claimsStore *int) ([]User, error) {
+	return s.repo.GetSubordinates(ctx, managerID, claimsStore)
 }
 
-func (s *service) GetManager(ctx context.Context, userID int) (*User, error) {
-	return s.repo.GetManager(ctx, userID)
+func (s *service) GetManager(ctx context.Context, userID int, claimsStore *int) (*User, error) {
+	return s.repo.GetManager(ctx, userID, claimsStore)
 }
 
-func (s *service) GetOrgChart(ctx context.Context) ([]User, error) {
-	return s.repo.GetOrgChart(ctx)
+func (s *service) GetOrgChart(ctx context.Context, claimsStore *int) ([]User, error) {
+	return s.repo.GetOrgChart(ctx, claimsStore)
 }
 
 func (s *service) IsSubordinate(ctx context.Context, managerID, userID int) (bool, error) {

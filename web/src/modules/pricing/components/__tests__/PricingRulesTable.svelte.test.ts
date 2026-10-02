@@ -245,7 +245,8 @@ describe("PricingRulesTable.svelte source-structure guards", () => {
     expect(src).toContain("return labels.statusPending");
     expect(src).toContain('case "rejected"');
     expect(src).toContain("return labels.statusRejected");
-    expect(src).toContain("return labels.statusDraft");
+    // An unset status renders as pending; there is no draft state to fall back to.
+    expect(src).toContain("return labels.statusPending");
   });
 
   it("uses Dropdown for kebab action menu", () => {
@@ -254,7 +255,6 @@ describe("PricingRulesTable.svelte source-structure guards", () => {
   });
 
   it("kebab menu items are conditional on permissions", () => {
-    expect(src).toContain('rule.status === "draft" && canEdit');
     // Approve/reject is gated on pricing.approve, not the edit capability, so
     // holding pricing.update alone can no longer surface these actions.
     expect(src).toContain('rule.status === "pending" && canApprove');
@@ -264,7 +264,8 @@ describe("PricingRulesTable.svelte source-structure guards", () => {
   });
 
   it("kebab menu has labeled actions without Audit", () => {
-    expect(src).toContain("{labels.submit}");
+    // No submit action: the draft state it belonged to was retired.
+    expect(src).not.toContain("{labels.submit}");
     expect(src).toContain("{labels.approve}");
     expect(src).toContain("{labels.reject}");
     expect(src).toContain("{labels.edit}");

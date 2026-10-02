@@ -8,7 +8,6 @@
     createPricingRule,
     updatePricingRule,
     deletePricingRule,
-    submitPricingRule,
     approvePricingRule,
     rejectPricingRule,
     searchProducts,
@@ -827,16 +826,6 @@
     fetchRules();
   }
 
-  async function handleSubmitApproval(rule: PricingRule) {
-    const ok = await submitPricingRule(rule.id);
-    if (ok) {
-      toast.success(t("ruleSubmittedApproval", { name: rule.name }));
-      fetchRules();
-    } else {
-      toast.error(labels.failedToSubmitApproval);
-    }
-  }
-
   async function handleApprove(rule: PricingRule) {
     try {
       await approvePricingRule(rule.id);
@@ -937,7 +926,6 @@
       onbulkdeactivate={handleBulkDeactivate}
       onbulkdelete={handleBulkDelete}
       oncreate={openAdd}
-      onsubmitapproval={handleSubmitApproval}
       onapprove={handleApprove}
       onreject={handleReject}
       {canApprove}

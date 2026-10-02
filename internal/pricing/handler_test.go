@@ -344,66 +344,6 @@ func TestHandler_SearchProducts(t *testing.T) {
 	})
 }
 
-func TestHandler_SubmitForApproval(t *testing.T) {
-	skipIfNoDB(t)
-	r := setupPricingRouter()
-	repo := newWiredRepo()
-
-	productID := insertTestProduct(t.Context(), t, "HDL-SUB-"+time.Now().Format("0102150405"), "Submit Test Product", 15000)
-
-	t.Run("submit draft rule", func(t *testing.T) {
-		rule := &Rule{
-			ProductID:       &productID,
-			Type:            PricingTypePromotion,
-			Method:          PricingMethodFixedPrice,
-			PricingValue:    12000,
-			Name:            "Submit Test Rule " + time.Now().Format("0102150405.000"),
-			MinimumQuantity: 1,
-			IsActive:        true,
-			Status:          StatusDraft,
-		}
-		require.NoError(t, repo.Create(t.Context(), rule))
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/pricing-rules/"+strconv.Itoa(rule.ID)+"/submit", nil)
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		var resp map[string]string
-		err := json.Unmarshal(w.Body.Bytes(), &resp)
-		require.NoError(t, err)
-		assert.Equal(t, "pending", resp["status"])
-	})
-
-	t.Run("invalid id", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/pricing-rules/abc/submit", nil)
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("submit non-draft rule fails", func(t *testing.T) {
-		rule := &Rule{
-			ProductID:       &productID,
-			Type:            PricingTypePromotion,
-			Method:          PricingMethodFixedPrice,
-			PricingValue:    11000,
-			Name:            "Non-Draft Submit " + time.Now().Format("0102150405.000"),
-			MinimumQuantity: 1,
-			IsActive:        true,
-			Status:          StatusApproved,
-		}
-		require.NoError(t, repo.Create(t.Context(), rule))
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/pricing-rules/"+strconv.Itoa(rule.ID)+"/submit", nil)
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-}
-
 func TestHandler_ApproveRule(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
@@ -441,10 +381,10 @@ func TestHandler_ApproveRule(t *testing.T) {
 			Type:            PricingTypePromotion,
 			Method:          PricingMethodFixedPrice,
 			PricingValue:    11000,
-			Name:            "Draft Approve " + time.Now().Format("0102150405.000"),
+			Name:            "Rejected Approve " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
 			IsActive:        true,
-			Status:          StatusDraft,
+			Status:          StatusRejected,
 		}
 		require.NoError(t, repo.Create(t.Context(), rule))
 
@@ -493,10 +433,10 @@ func TestHandler_RejectRule(t *testing.T) {
 			Type:            PricingTypePromotion,
 			Method:          PricingMethodFixedPrice,
 			PricingValue:    11000,
-			Name:            "Draft Reject " + time.Now().Format("0102150405.000"),
+			Name:            "Rejected Reject " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
 			IsActive:        true,
-			Status:          StatusDraft,
+			Status:          StatusRejected,
 		}
 		require.NoError(t, repo.Create(t.Context(), rule))
 
@@ -584,7 +524,7 @@ func TestHandler_GetRule_StoreScoped(t *testing.T) {
 		Name:            "Global Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
 		IsActive:        true,
-		Status:          StatusDraft,
+		Status:          StatusPending,
 	}
 	ruleStoreA := &Rule{
 		ProductID:       &productID,
@@ -594,7 +534,7 @@ func TestHandler_GetRule_StoreScoped(t *testing.T) {
 		Name:            "Store A Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
 		IsActive:        true,
-		Status:          StatusDraft,
+		Status:          StatusPending,
 		StoreID:         &storeA,
 	}
 	ruleStoreB := &Rule{
@@ -605,7 +545,7 @@ func TestHandler_GetRule_StoreScoped(t *testing.T) {
 		Name:            "Store B Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
 		IsActive:        true,
-		Status:          StatusDraft,
+		Status:          StatusPending,
 		StoreID:         &storeB,
 	}
 	require.NoError(t, repo.Create(t.Context(), globalRule))
@@ -722,7 +662,7 @@ func TestHandler_ListRules_WithFilters(t *testing.T) {
 		Name:            "Filter Test Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
 		IsActive:        true,
-		Status:          StatusDraft,
+		Status:          StatusPending,
 	}
 	require.NoError(t, repo.Create(t.Context(), rule))
 
@@ -847,7 +787,7 @@ func TestHandler_ListRules_StoreScoped(t *testing.T) {
 		Name:            "Store A Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
 		IsActive:        true,
-		Status:          StatusDraft,
+		Status:          StatusPending,
 		StoreID:         &storeA,
 	}
 	ruleStoreB := &Rule{
@@ -858,7 +798,7 @@ func TestHandler_ListRules_StoreScoped(t *testing.T) {
 		Name:            "Store B Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
 		IsActive:        true,
-		Status:          StatusDraft,
+		Status:          StatusPending,
 		StoreID:         &storeB,
 	}
 	require.NoError(t, repo.Create(t.Context(), ruleStoreA))
@@ -931,6 +871,60 @@ func TestHandler_ListRules_StoreScoped(t *testing.T) {
 		req, _ := http.NewRequest("GET", "/pricing-rules", nil)
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	// A non-superadmin whose token carries no store claim used to fall through
+	// every branch in ListRules, leaving store_id nil so GetAll ran unfiltered
+	// and returned store B's rules. GetRule 403s the very same caller on detail,
+	// so the list was a way around the boundary it had just been given.
+	t.Run("store-scoped role with no store claim is refused, not unfiltered", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "store_user")
+			c.Set("roleID", 2)
+			c.Set("role", "manager")
+			c.Set("permissions", []string{"pricing.view"})
+			c.Set("storeID", nil) // no store on the token
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.NotContains(t, w.Body.String(), "Store B Rule", "must not leak another store's rules")
+	})
+
+	// The fail-closed list must not cost superadmin its unrestricted view, which
+	// is the whole point of the nil claim being legal for them.
+	t.Run("superadmin still lists across stores", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "root")
+			c.Set("roleID", 1)
+			c.Set("role", "superadmin")
+			c.Set("permissions", []string{"pricing.view"})
+			c.Set("storeID", nil)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?search=Store B Rule", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Store B Rule")
 	})
 }
 
@@ -1173,11 +1167,11 @@ func TestHandler_CheckConflicts_StoreScoped(t *testing.T) {
 	})
 }
 
-// TestHandler_MutationStoreBoundary covers the store boundary on the six
-// mutating pricing endpoints, which previously ran entirely unscoped: a
-// store-scoped manager could update, delete, submit, approve, or reject another
-// store's rule, and could create or move a rule into the global (store_id IS
-// NULL) scope that only superadmin may manage.
+// TestHandler_MutationStoreBoundary covers the store boundary on the mutating
+// pricing endpoints, which previously ran entirely unscoped: a store-scoped
+// manager could update, delete, approve, or reject another store's rule, and
+// could create or move a rule into the global (store_id IS NULL) scope that only
+// superadmin may manage.
 func TestHandler_MutationStoreBoundary(t *testing.T) {
 	skipIfNoDB(t)
 	gin.SetMode(gin.TestMode)
@@ -1198,7 +1192,7 @@ func TestHandler_MutationStoreBoundary(t *testing.T) {
 			Name:            fmt.Sprintf("%s %d %d", name, time.Now().UnixNano(), seq),
 			MinimumQuantity: 1,
 			IsActive:        true,
-			Status:          StatusDraft,
+			Status:          StatusPending,
 			StoreID:         storeID,
 		}
 		require.NoError(t, repo.Create(t.Context(), rule))
@@ -1315,31 +1309,29 @@ func TestHandler_MutationStoreBoundary(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("submit/approve/reject: foreign and global rules are forbidden", func(t *testing.T) {
+	t.Run("approve/reject: foreign and global rules are forbidden", func(t *testing.T) {
 		ruleB := mkRule(&storeB, "MutSB foreign approve")
 		global := mkRule(nil, "MutSB global approve")
 		r := router(&storeA)
 		for _, id := range []int{ruleB.ID, global.ID} {
-			for _, action := range []string{"submit", "approve", "reject"} {
+			for _, action := range []string{"approve", "reject"} {
 				assert.Equal(t, http.StatusForbidden,
 					do(r, "POST", "/pricing-rules/"+strconv.Itoa(id)+"/"+action, "").Code,
 					"id=%d action=%s", id, action)
 			}
 			after, err := repo.GetByID(t.Context(), id)
 			require.NoError(t, err)
-			assert.Equal(t, StatusDraft, after.Status, "id=%d status must not change", id)
+			assert.Equal(t, StatusPending, after.Status, "id=%d status must not change", id)
 		}
 	})
 
-	t.Run("submit/approve/reject: own store rule is allowed", func(t *testing.T) {
-		// Store scope only. This still lets one role author, submit, and approve
-		// its own rule, which Wave 2d removes by splitting pricing.approve out of
-		// pricing.update and blocking self-approval; do not read the 200s below
-		// as endorsing that, they only assert the store check passes.
+	t.Run("approve/reject: own store rule is allowed", func(t *testing.T) {
+		// Store scope only. This still lets one role author and approve its own
+		// rule, which Wave 2d removes by blocking self-approval; do not read the
+		// 200s below as endorsing that, they only assert the store check passes.
 		ruleA := mkRule(&storeA, "MutSB own approve")
 		r := router(&storeA)
 		p := "/pricing-rules/" + strconv.Itoa(ruleA.ID)
-		assert.Equal(t, http.StatusOK, do(r, "POST", p+"/submit", "").Code)
 		assert.Equal(t, http.StatusOK, do(r, "POST", p+"/approve", "").Code)
 		after, err := repo.GetByID(t.Context(), ruleA.ID)
 		require.NoError(t, err)
@@ -1418,5 +1410,205 @@ func TestHandler_MutationStoreBoundary(t *testing.T) {
 		}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 		assert.Nil(t, resp.Data.StoreID, "superadmin must still be able to create a global rule")
+	})
+}
+
+// The approval gate protected the status field but not the number: a caller
+// holding only pricing.update could rewrite pricing_value on an approved, live
+// rule, and because status stayed `approved` the new price reached the till with
+// no pricing.approve and no self-approval check. The same request could flip
+// is_active back on for a rule a superadmin had switched off.
+func TestHandler_UpdateRule_EconomicEditOnApprovedRuleRequiresReapproval(t *testing.T) {
+	skipIfNoDB(t)
+	repo := newWiredRepo()
+
+	// Global (store_id NULL) so only superadmin reaches it, and rebuilt per
+	// subtest so no subtest can inherit another's status from the shared row.
+	mkRule := func(t *testing.T) *Rule {
+		t.Helper()
+		productID := insertTestProduct(t.Context(), t, "HDL-ECON-"+time.Now().Format("0102150405.000"), "Economic Product", 15000)
+		r := &Rule{
+			ProductID:       &productID,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
+			PricingValue:    10000,
+			Name:            "Approved " + time.Now().Format("0102150405.000"),
+			MinimumQuantity: 1,
+			IsActive:        true,
+			Status:          StatusApproved,
+		}
+		require.NoError(t, repo.Create(t.Context(), r))
+		t.Cleanup(func() { _ = repo.Delete(t.Context(), r.ID) })
+		return r
+	}
+
+	// updater holds pricing.update but deliberately not pricing.approve: this is
+	// the caller the approval workflow is supposed to constrain.
+	router := func() *gin.Engine {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userID", 1)
+			c.Set("username", "root")
+			c.Set("roleID", 1)
+			c.Set("role", "superadmin")
+			c.Set("permissions", []string{"pricing.view", "pricing.update"})
+			c.Set("storeID", nil)
+			c.Next()
+		})
+		h := NewHandler(NewService(repo), nil, nil)
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+			return func(c *gin.Context) { c.Next() }
+		})
+		return r
+	}
+
+	put := func(t *testing.T, r *gin.Engine, rule *Rule, overrides string) map[string]any {
+		t.Helper()
+		body := fmt.Sprintf(
+			`{"product_id":%d,"pricing_type":"promotion","pricing_method":"fixed_price","name":"%s","minimum_quantity":1,"pricing_value":%v%s}`,
+			*rule.ProductID, rule.Name, rule.PricingValue, overrides)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/pricing-rules/"+strconv.Itoa(rule.ID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			Data map[string]any `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		return resp.Data
+	}
+
+	t.Run("changing the price sends the rule back to pending and inactive", func(t *testing.T) {
+		rule := mkRule(t)
+		got := put(t, router(), rule, `,"pricing_value":7500`)
+		assert.Equal(t, "pending", got["status"])
+		assert.Equal(t, false, got["is_active"])
+	})
+
+	// Deliberate scope: the reset keys on an *economic* change, so a caller that
+	// only flips is_active on an unchanged approved rule is not sent back to
+	// pending. The price is the thing that was signed off, and a bare
+	// activate/deactivate does not alter it — otherwise re-enabling an approved
+	// rule after a temporary pause would need a second approver for no gain.
+	// The combination is still refused, because there the price did change.
+	t.Run("an economic edit wins over a simultaneous is_active:true", func(t *testing.T) {
+		rule := mkRule(t)
+		rule.IsActive = false
+		require.NoError(t, repo.Update(t.Context(), rule))
+
+		got := put(t, router(), rule, `,"pricing_value":7500,"is_active":true`)
+		assert.Equal(t, "pending", got["status"])
+		assert.Equal(t, false, got["is_active"], "is_active must not be resurrectable alongside an economic edit")
+	})
+
+	t.Run("deactivating an approved rule without an economic change is allowed", func(t *testing.T) {
+		// Switching a live rule off is legitimate housekeeping and must not
+		// require re-approval, otherwise an urgent price pull becomes a workflow.
+		rule := mkRule(t)
+		got := put(t, router(), rule, `,"is_active":false`)
+		assert.Equal(t, "approved", got["status"])
+		assert.Equal(t, false, got["is_active"])
+	})
+
+	t.Run("a cosmetic rename keeps the approval", func(t *testing.T) {
+		rule := mkRule(t)
+		renamed := "Renamed " + time.Now().Format("0102150405.000")
+		got := put(t, router(), rule, ``)
+		require.Equal(t, "approved", got["status"])
+
+		// Rename via a second update now that we know the round-trip is clean.
+		rule.Name = renamed
+		require.NoError(t, repo.Update(t.Context(), rule))
+		got = put(t, router(), rule, ``)
+		assert.Equal(t, "approved", got["status"], "a rename must not require re-approval")
+		assert.Equal(t, renamed, got["name"])
+	})
+}
+
+// economicChange is the field set that decides whether an edit invalidates an
+// approval, so it is pinned directly rather than only through the HTTP path.
+func TestEconomicChange(t *testing.T) {
+	i := func(v int) *int { return &v }
+	base := func() *Rule {
+		return &Rule{
+			ProductID:       i(10),
+			CategoryID:      i(20),
+			BrandID:         i(30),
+			CustomerGroupID: i(40),
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
+			PricingValue:    10000,
+			Name:            "Rule",
+			MinimumQuantity: 1,
+			MaximumQuantity: i(5),
+			Priority:        3,
+			RecurrenceDays:  []string{"mon", "tue"},
+			AllowCombine:    true,
+			IsActive:        true,
+			Status:          StatusApproved,
+		}
+	}
+
+	t.Run("identical rules are not a change", func(t *testing.T) {
+		updated := base()
+		assert.False(t, economicChange(base(), updated))
+	})
+
+	t.Run("every economic field is caught", func(t *testing.T) {
+		for _, tc := range []struct {
+			name  string
+			mutot func(*Rule)
+		}{
+			{"pricing_value", func(r *Rule) { r.PricingValue = 9999 }},
+			{"pricing_method", func(r *Rule) { r.Method = PricingMethodDiscountPct }},
+			{"pricing_type", func(r *Rule) { r.Type = PricingTypeSpecialPrice }},
+			{"minimum_quantity", func(r *Rule) { r.MinimumQuantity = 2 }},
+			{"maximum_quantity", func(r *Rule) { r.MaximumQuantity = i(9) }},
+			{"priority", func(r *Rule) { r.Priority = 7 }},
+			{"allow_combine", func(r *Rule) { r.AllowCombine = false }},
+			{"product", func(r *Rule) { r.ProductID = i(11) }},
+			{"category", func(r *Rule) { r.CategoryID = i(21) }},
+			{"brand", func(r *Rule) { r.BrandID = i(31) }},
+			{"customer_group", func(r *Rule) { r.CustomerGroupID = i(41) }},
+			{"recurrence_days", func(r *Rule) { r.RecurrenceDays = []string{"wed"} }},
+			{"time_from", func(r *Rule) { s := "10:00"; r.TimeFrom = &s }},
+			{"time_to", func(r *Rule) { s := "12:00"; r.TimeTo = &s }},
+			{"effective_from", func(r *Rule) { ts := time.Now(); r.EffectiveFrom = &ts }},
+			{"effective_until", func(r *Rule) { ts := time.Now().Add(time.Hour); r.EffectiveUntil = &ts }},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				updated := base()
+				tc.mutot(updated)
+				assert.True(t, economicChange(base(), updated), "%s must invalidate the approval", tc.name)
+			})
+		}
+	})
+
+	t.Run("cosmetic and workflow fields do not", func(t *testing.T) {
+		// A rename is housekeeping; making an admin re-approve a rule for a typo
+		// fix would be the "punishment" the exclusion exists to avoid.
+		updated := base()
+		updated.Name = "Renamed"
+		assert.False(t, economicChange(base(), updated))
+
+		// is_active and status are not compared here. The caller supplies them,
+		// and the reset that follows sets both itself.
+		updated = base()
+		updated.IsActive = false
+		updated.Status = StatusRejected
+		assert.False(t, economicChange(base(), updated))
+	})
+
+	t.Run("a cleared optional field counts as a change", func(t *testing.T) {
+		updated := base()
+		updated.MaximumQuantity = nil
+		assert.True(t, economicChange(base(), updated))
+		updated = base()
+		updated.ProductID = nil
+		assert.True(t, economicChange(base(), updated))
 	})
 }

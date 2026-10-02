@@ -86,6 +86,27 @@ func (s *service) Update(ctx context.Context, rule *Rule) error {
 		return err
 	}
 	rule.Status = existing.Status
+
+	// The pin above is necessary but not sufficient: it protects the status
+	// *field* while leaving the amount the rule charges freely editable. A caller
+	// holding only pricing.update could rewrite pricing_value on an approved,
+	// live rule and, because status stayed `approved`, the new price took effect
+	// at the till with no pricing.approve and no self-approval check — and could
+	// set is_active back to true on a rule a superadmin had deactivated.
+	//
+	// So an economic edit to an approved rule invalidates the approval: it goes
+	// back to pending and inactive, and must be approved again before it can
+	// charge anything. This keeps one invariant — pending is the only way in,
+	// approve is the only way out. It lives here rather than in the handler
+	// because the handler's own status assignment is overwritten by the pin
+	// above, and because the service is what every caller (handler, import
+	// adapter, future internal use) actually goes through.
+	//
+	// Cosmetic edits (rename) keep the approval.
+	if existing.Status == StatusApproved && economicChange(existing, rule) {
+		rule.Status = StatusPending
+		rule.IsActive = false
+	}
 	return s.repo.Update(ctx, rule)
 }
 
@@ -96,19 +117,6 @@ func (s *service) Delete(ctx context.Context, id int) error {
 // FindConflictsForRule returns active rules that conflict with the given rule.
 func (s *service) FindConflictsForRule(ctx context.Context, rule *Rule, excludeID int) ([]Rule, error) {
 	return s.repo.FindConflicts(ctx, rule, excludeID)
-}
-
-// SubmitForApproval transitions a rule from draft to pending.
-func (s *service) SubmitForApproval(ctx context.Context, id int) error {
-	rule, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	if rule.Status != StatusDraft {
-		return fmt.Errorf("%w: can only submit draft rules, current status: %s", ErrInvalidRule, rule.Status)
-	}
-	rule.Status = StatusPending
-	return s.repo.Update(ctx, rule)
 }
 
 // Approve transitions a rule from pending to approved.

@@ -35,7 +35,6 @@ type mockPricingService struct {
 	updateFn               func(ctx context.Context, rule *Rule) error
 	deleteFn               func(ctx context.Context, id int) error
 	findConflictsForRuleFn func(ctx context.Context, rule *Rule, excludeID int) ([]Rule, error)
-	submitForApprovalFn    func(ctx context.Context, id int) error
 	approveFn              func(ctx context.Context, id int) error
 	rejectFn               func(ctx context.Context, id int) error
 }
@@ -72,9 +71,6 @@ func (m *mockPricingService) Delete(ctx context.Context, id int) error {
 }
 func (m *mockPricingService) FindConflictsForRule(ctx context.Context, rule *Rule, excludeID int) ([]Rule, error) {
 	return m.findConflictsForRuleFn(ctx, rule, excludeID)
-}
-func (m *mockPricingService) SubmitForApproval(ctx context.Context, id int) error {
-	return m.submitForApprovalFn(ctx, id)
 }
 func (m *mockPricingService) Approve(ctx context.Context, id int) error {
 	return m.approveFn(ctx, id)

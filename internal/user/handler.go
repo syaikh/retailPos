@@ -43,6 +43,89 @@ func storeIDFromGin(c *gin.Context) *int {
 	return nil
 }
 
+// isAdmin reports whether the caller is superadmin, the one role that is not
+// scoped to a store.
+func isAdmin(c *gin.Context) bool {
+	return shared.GetRole(c) == permissions.RoleSuperadmin
+}
+
+// bindStoreScopedUser resolves the store a user row may be written to.
+//
+// A user with store_id IS NULL is a legitimate *global* (HQ) identity, unlike a
+// global pricing rule: ListUsers already exposes those to every store-scoped
+// caller through `(store_id IS NULL OR store_id = $n)`, and a non-operational
+// role is allowed to have no store. So a global row is in scope rather than
+// superadmin-only. What a store-scoped caller may never do is write a store
+// that is not its own, or touch a row belonging to another store.
+//
+// existing is the row being updated, or nil on create. Superadmin is
+// unrestricted: it may name any store, or NULL for an HQ user.
+//
+// Fails closed on a missing store claim: middleware guarantees every
+// non-superadmin has one, so an absent claim must never read as an implicit HQ
+// bypass.
+func bindStoreScopedUser(c *gin.Context, requested *int, existing *User) (*int, bool) {
+	admin := isAdmin(c)
+
+	if existing == nil {
+		// Create: superadmin may name any store, or none at all for an HQ user.
+		if admin {
+			return requested, true
+		}
+		claim := shared.GetStoreID(c)
+		if claim == nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "store scope is required for user management"})
+			return nil, false
+		}
+		// A body naming another store is a cross-store write attempt, not a
+		// field to silently correct. An omitted store pins to the caller's
+		// own, so a store-scoped role can never mint a new global identity.
+		if requested != nil && *requested != *claim {
+			c.JSON(http.StatusForbidden, gin.H{"error": "store is not in your store"})
+			return nil, false
+		}
+		return claim, true
+	}
+
+	if !admin {
+		claim := shared.GetStoreID(c)
+		if claim == nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "store scope is required for user management"})
+			return nil, false
+		}
+		// A global identity is in scope to edit, but naming a store would move
+		// it — pulling an HQ account into the caller's own store is a capture,
+		// not an edit. Reject any named store here, not just a foreign one, or a
+		// manager could absorb HQ staff one account at a time.
+		if existing.StoreID == nil {
+			if requested != nil {
+				c.JSON(http.StatusForbidden, gin.H{"error": "global user requires superadmin"})
+				return nil, false
+			}
+			return nil, true
+		}
+		// Update: the row being edited must already be in the caller's scope.
+		if *existing.StoreID != *claim {
+			c.JSON(http.StatusForbidden, gin.H{"error": "store is not in your store"})
+			return nil, false
+		}
+		if requested != nil && *requested != *claim {
+			c.JSON(http.StatusForbidden, gin.H{"error": "store is not in your store"})
+			return nil, false
+		}
+	}
+
+	// No store was named, so the row keeps its own — a global row stays
+	// global and a store row cannot be cleared by an edit that omits it.
+	// This applies to superadmin too: JSON cannot distinguish an omitted
+	// store_id from an explicit null, and treating either as "clear it" would
+	// silently strip a store on every partial update.
+	if requested == nil {
+		return existing.StoreID, true
+	}
+	return requested, true
+}
+
 type Service interface {
 	GetUserByID(ctx context.Context, id int) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
@@ -51,9 +134,9 @@ type Service interface {
 	UpdateUser(ctx context.Context, user *User) error
 	UpdatePreferences(ctx context.Context, userID int, language, theme string) error
 	DeleteUser(ctx context.Context, id int) error
-	GetSubordinates(ctx context.Context, managerID int) ([]User, error)
-	GetManager(ctx context.Context, userID int) (*User, error)
-	GetOrgChart(ctx context.Context) ([]User, error)
+	GetSubordinates(ctx context.Context, managerID int, claimsStore *int) ([]User, error)
+	GetManager(ctx context.Context, userID int, claimsStore *int) (*User, error)
+	GetOrgChart(ctx context.Context, claimsStore *int) ([]User, error)
 	IsSubordinate(ctx context.Context, managerID, userID int) (bool, error)
 	GetAllRoles(ctx context.Context) ([]Role, error)
 	GetRoleByID(ctx context.Context, id int) (*Role, error)
@@ -196,7 +279,14 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role"})
 		return
 	}
-	if permissions.OperationalRoles[role.Name] && req.StoreID == nil {
+	// Resolve the effective store before the operational-role check below, so a
+	// store-scoped caller is stamped with its own store instead of being
+	// rejected for omitting one it is not allowed to choose.
+	storeID, ok := bindStoreScopedUser(c, req.StoreID, nil)
+	if !ok {
+		return
+	}
+	if permissions.OperationalRoles[role.Name] && storeID == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "store_id is required for this role"})
 		return
 	}
@@ -217,7 +307,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		Email:       req.Email,
 		Password:    string(hashedPassword),
 		RoleID:      req.RoleID,
-		StoreID:     req.StoreID,
+		StoreID:     storeID,
 		ReportsToID: req.ReportsToID,
 		IsActive:    isActive,
 	}
@@ -295,6 +385,15 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 
+	// Scope-check the row being edited before any field is applied, so a
+	// store-scoped caller can neither modify an identity in another store nor
+	// move one out of its own.
+	storeID, ok := bindStoreScopedUser(c, req.StoreID, existing)
+	if !ok {
+		return
+	}
+	existing.StoreID = storeID
+
 	oldRoleID := existing.RoleID
 	oldIsActive := existing.IsActive
 
@@ -338,10 +437,6 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	if req.RoleID != nil {
 		existing.RoleID = *req.RoleID
 	}
-	if req.StoreID != nil {
-		existing.StoreID = req.StoreID
-	}
-
 	// Prevent removing store_id from operational roles.
 	{
 		// Determine the effective role (may be changing in this update).
@@ -351,11 +446,9 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		}
 		role, err := h.svc.GetRoleByID(c.Request.Context(), effectiveRoleID)
 		if err == nil && role != nil && permissions.OperationalRoles[role.Name] {
-			// Determine the effective store_id (may be changing in this update).
+			// existing.StoreID already holds the effective store:
+			// bindStoreScopedUser resolved the body against the caller's scope.
 			effectiveStoreID := existing.StoreID
-			if req.StoreID != nil {
-				effectiveStoreID = req.StoreID
-			}
 			if effectiveStoreID == nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "store_id is required for this role"})
 				return
@@ -488,12 +581,19 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	var oldUsername string
-	if h.auditSvc != nil {
-		if u, err := h.svc.GetUserByID(c.Request.Context(), id); err == nil {
-			oldUsername = u.Username
-		}
+	// Load the target first and refuse a foreign store. DeleteUser itself takes
+	// only an id, so without this a store-scoped caller holding user.delete
+	// could remove any identity in the system.
+	target, err := h.svc.GetUserByID(c.Request.Context(), id)
+	if err != nil || target == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
 	}
+	if _, ok := bindStoreScopedUser(c, nil, target); !ok {
+		return
+	}
+
+	oldUsername := target.Username
 
 	if err := h.svc.DeleteUser(c.Request.Context(), id); err != nil {
 		shared.InternalError(c, err)
@@ -530,7 +630,7 @@ func (h *Handler) GetSubordinates(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
-	subordinates, err := h.svc.GetSubordinates(c.Request.Context(), id)
+	subordinates, err := h.svc.GetSubordinates(c.Request.Context(), id, shared.GetStoreID(c))
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -547,7 +647,7 @@ func (h *Handler) GetManager(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
-	manager, err := h.svc.GetManager(c.Request.Context(), id)
+	manager, err := h.svc.GetManager(c.Request.Context(), id, shared.GetStoreID(c))
 	if err != nil {
 		if errors.Is(err, ErrManagerNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "manager not found"})
@@ -560,7 +660,7 @@ func (h *Handler) GetManager(c *gin.Context) {
 }
 
 func (h *Handler) GetOrgChart(c *gin.Context) {
-	users, err := h.svc.GetOrgChart(c.Request.Context())
+	users, err := h.svc.GetOrgChart(c.Request.Context(), shared.GetStoreID(c))
 	if err != nil {
 		shared.InternalError(c, err)
 		return

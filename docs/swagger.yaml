@@ -1,6 +1,5 @@
-basePath: /api
 definitions:
-  customergroup.CreateRequest:
+  internal_customergroup.CreateRequest:
     properties:
       color:
         type: string
@@ -12,7 +11,7 @@ definitions:
     required:
     - name
     type: object
-  customergroup.UpdateRequest:
+  internal_customergroup.UpdateRequest:
     properties:
       color:
         type: string
@@ -24,7 +23,7 @@ definitions:
         maxLength: 100
         type: string
     type: object
-  inventory.LocationStockItem:
+  internal_inventory.LocationStockItem:
     properties:
       location_code:
         type: string
@@ -41,7 +40,7 @@ definitions:
       sku:
         type: string
     type: object
-  pricing.Method:
+  internal_pricing.Method:
     enum:
     - fixed_price
     - discount_percent
@@ -53,7 +52,7 @@ definitions:
     - PricingMethodDiscountPct
     - PricingMethodDiscountAmt
     - PricingMethodMarkupPct
-  pricing.ResolveItem:
+  internal_pricing.ResolveItem:
     properties:
       customer_group_id:
         type: integer
@@ -64,7 +63,7 @@ definitions:
       store_id:
         type: integer
     type: object
-  pricing.Rule:
+  internal_pricing.Rule:
     properties:
       allow_combine:
         type: boolean
@@ -93,7 +92,7 @@ definitions:
         type: string
       pricing_method:
         allOf:
-        - $ref: '#/definitions/pricing.Method'
+        - $ref: '#/definitions/internal_pricing.Method'
         enum:
         - fixed_price
         - discount_percent
@@ -101,7 +100,7 @@ definitions:
         - markup_percent
       pricing_type:
         allOf:
-        - $ref: '#/definitions/pricing.Type'
+        - $ref: '#/definitions/internal_pricing.Type'
         enum:
         - special_price
         - promotion
@@ -120,7 +119,7 @@ definitions:
         description: Scope fields populated on read (not stored in pricing_rules)
         type: string
       status:
-        $ref: '#/definitions/pricing.RuleStatus'
+        $ref: '#/definitions/internal_pricing.RuleStatus'
       store_id:
         type: integer
       time_from:
@@ -134,19 +133,17 @@ definitions:
     - pricing_method
     - pricing_type
     type: object
-  pricing.RuleStatus:
+  internal_pricing.RuleStatus:
     enum:
-    - draft
     - pending
     - approved
     - rejected
     type: string
     x-enum-varnames:
-    - StatusDraft
     - StatusPending
     - StatusApproved
     - StatusRejected
-  pricing.Type:
+  internal_pricing.Type:
     enum:
     - normal
     - special_price
@@ -162,7 +159,7 @@ definitions:
     - PricingTypeNormal
     - PricingTypeSpecialPrice
     - PricingTypePromotion
-  pricing.checkConflictsRequest:
+  internal_pricing.checkConflictsRequest:
     properties:
       brand_id:
         type: integer
@@ -175,9 +172,9 @@ definitions:
       minimum_quantity:
         type: integer
       pricing_method:
-        $ref: '#/definitions/pricing.Method'
+        $ref: '#/definitions/internal_pricing.Method'
       pricing_type:
-        $ref: '#/definitions/pricing.Type'
+        $ref: '#/definitions/internal_pricing.Type'
       pricing_value:
         type: number
       priority:
@@ -188,17 +185,17 @@ definitions:
     - pricing_method
     - pricing_type
     type: object
-  pricing.resolveRequest:
+  internal_pricing.resolveRequest:
     properties:
       items:
         items:
-          $ref: '#/definitions/pricing.ResolveItem'
+          $ref: '#/definitions/internal_pricing.ResolveItem'
         minItems: 1
         type: array
     required:
     - items
     type: object
-  product.Product:
+  internal_product.Product:
     properties:
       barcode:
         type: string
@@ -251,7 +248,7 @@ definitions:
       weight_grams:
         type: integer
     type: object
-  sale.AddCartItemRequest:
+  internal_sale.AddCartItemRequest:
     properties:
       customer_group_id:
         type: integer
@@ -270,12 +267,12 @@ definitions:
     - product_id
     - quantity
     type: object
-  sale.UpdateCartCustomerRequest:
+  internal_sale.UpdateCartCustomerRequest:
     properties:
       customer_id:
         type: integer
     type: object
-  sale.UpdateCartItemQuantityRequest:
+  internal_sale.UpdateCartItemQuantityRequest:
     properties:
       quantity:
         minimum: 1
@@ -283,7 +280,7 @@ definitions:
     required:
     - quantity
     type: object
-  storagelocation.CreateRequest:
+  internal_storagelocation.CreateRequest:
     properties:
       code:
         maxLength: 50
@@ -301,7 +298,7 @@ definitions:
     - code
     - name
     type: object
-  storagelocation.UpdateRequest:
+  internal_storagelocation.UpdateRequest:
     properties:
       code:
         maxLength: 50
@@ -318,7 +315,7 @@ definitions:
       warehouse_id:
         type: integer
     type: object
-  store.CreateRequest:
+  internal_store.CreateRequest:
     properties:
       address:
         type: string
@@ -330,7 +327,7 @@ definitions:
     required:
     - name
     type: object
-  store.UpdateRequest:
+  internal_store.UpdateRequest:
     properties:
       address:
         type: string
@@ -342,7 +339,7 @@ definitions:
       phone:
         type: string
     type: object
-  supplier.ProductSupplier:
+  internal_supplier.ProductSupplier:
     properties:
       created_at:
         type: string
@@ -376,7 +373,7 @@ definitions:
       updated_at:
         type: string
     type: object
-  supplier.Supplier:
+  internal_supplier.Supplier:
     properties:
       address:
         type: string
@@ -410,19 +407,15 @@ definitions:
     - code
     - name
     type: object
-  user.LoginRequest:
+  internal_user.LoginRequest:
     properties:
       password:
         type: string
       username:
         type: string
     type: object
-host: localhost:9095
 info:
   contact: {}
-  description: REST API for Retail POS System
-  title: Retail POS System API
-  version: "1.0"
 paths:
   /audit-logs:
     get:
@@ -540,7 +533,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/user.LoginRequest'
+          $ref: '#/definitions/internal_user.LoginRequest'
       produces:
       - application/json
       responses:
@@ -635,7 +628,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/customergroup.CreateRequest'
+          $ref: '#/definitions/internal_customergroup.CreateRequest'
       produces:
       - application/json
       responses:
@@ -711,7 +704,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/customergroup.UpdateRequest'
+          $ref: '#/definitions/internal_customergroup.UpdateRequest'
       produces:
       - application/json
       responses:
@@ -886,7 +879,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/inventory.LocationStockItem'
+              $ref: '#/definitions/internal_inventory.LocationStockItem'
             type: array
       security:
       - BearerAuth: []
@@ -1062,7 +1055,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/sale.UpdateCartCustomerRequest'
+          $ref: '#/definitions/internal_sale.UpdateCartCustomerRequest'
       produces:
       - application/json
       responses:
@@ -1143,7 +1136,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/sale.AddCartItemRequest'
+          $ref: '#/definitions/internal_sale.AddCartItemRequest'
       produces:
       - application/json
       responses:
@@ -1190,7 +1183,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/sale.UpdateCartItemQuantityRequest'
+          $ref: '#/definitions/internal_sale.UpdateCartItemQuantityRequest'
       produces:
       - application/json
       responses:
@@ -1256,7 +1249,7 @@ paths:
         in: query
         name: is_active
         type: boolean
-      - description: Filter by approval status (draft|pending|approved|rejected)
+      - description: Filter by approval status (pending|approved|rejected)
         in: query
         name: status
         type: string
@@ -1284,7 +1277,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/pricing.Rule'
+          $ref: '#/definitions/internal_pricing.Rule'
       produces:
       - application/json
       responses:
@@ -1360,7 +1353,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/pricing.Rule'
+          $ref: '#/definitions/internal_pricing.Rule'
       produces:
       - application/json
       responses:
@@ -1422,30 +1415,6 @@ paths:
       summary: Reject a pricing rule
       tags:
       - Pricing
-  /pricing-rules/{id}/submit:
-    post:
-      consumes:
-      - application/json
-      description: Transition a draft rule to pending status
-      parameters:
-      - description: Rule ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Submit rule for approval
-      tags:
-      - Pricing
   /pricing-rules/check-conflicts:
     post:
       consumes:
@@ -1457,7 +1426,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/pricing.checkConflictsRequest'
+          $ref: '#/definitions/internal_pricing.checkConflictsRequest'
       produces:
       - application/json
       responses:
@@ -1483,7 +1452,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/pricing.resolveRequest'
+          $ref: '#/definitions/internal_pricing.resolveRequest'
       produces:
       - application/json
       responses:
@@ -1562,7 +1531,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/product.Product'
+          $ref: '#/definitions/internal_product.Product'
       produces:
       - application/json
       responses:
@@ -1625,7 +1594,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/product.Product'
+          $ref: '#/definitions/internal_product.Product'
       produces:
       - application/json
       responses:
@@ -2069,7 +2038,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/storagelocation.CreateRequest'
+          $ref: '#/definitions/internal_storagelocation.CreateRequest'
       produces:
       - application/json
       responses:
@@ -2145,7 +2114,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/storagelocation.UpdateRequest'
+          $ref: '#/definitions/internal_storagelocation.UpdateRequest'
       produces:
       - application/json
       responses:
@@ -2255,7 +2224,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/store.CreateRequest'
+          $ref: '#/definitions/internal_store.CreateRequest'
       produces:
       - application/json
       responses:
@@ -2331,7 +2300,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/store.UpdateRequest'
+          $ref: '#/definitions/internal_store.UpdateRequest'
       produces:
       - application/json
       responses:
@@ -2437,7 +2406,7 @@ paths:
         name: supplier
         required: true
         schema:
-          $ref: '#/definitions/supplier.Supplier'
+          $ref: '#/definitions/internal_supplier.Supplier'
       produces:
       - application/json
       responses:
@@ -2522,7 +2491,7 @@ paths:
         name: supplier
         required: true
         schema:
-          $ref: '#/definitions/supplier.Supplier'
+          $ref: '#/definitions/internal_supplier.Supplier'
       produces:
       - application/json
       responses:
@@ -2576,7 +2545,7 @@ paths:
         name: product
         required: true
         schema:
-          $ref: '#/definitions/supplier.ProductSupplier'
+          $ref: '#/definitions/internal_supplier.ProductSupplier'
       produces:
       - application/json
       responses:
@@ -2657,9 +2626,4 @@ paths:
       summary: List warehouses
       tags:
       - Stores
-securityDefinitions:
-  BearerAuth:
-    in: header
-    name: Authorization
-    type: apiKey
 swagger: "2.0"

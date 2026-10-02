@@ -171,7 +171,7 @@
       case "rejected":
         return labels.statusRejected;
       default:
-        return labels.statusDraft;
+        return labels.statusPending;
     }
   }
 

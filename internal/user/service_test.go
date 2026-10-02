@@ -147,20 +147,20 @@ func TestUserService_HierarchyOperations(t *testing.T) {
 	require.NoError(t, svc.CreateUser(ctx, sub2))
 
 	t.Run("GetSubordinates", func(t *testing.T) {
-		subs, err := svc.GetSubordinates(ctx, mgr.ID)
+		subs, err := svc.GetSubordinates(ctx, mgr.ID, nil)
 		require.NoError(t, err)
 		assert.Len(t, subs, 2)
 	})
 
 	t.Run("GetManager", func(t *testing.T) {
-		m, err := svc.GetManager(ctx, sub1.ID)
+		m, err := svc.GetManager(ctx, sub1.ID, nil)
 		require.NoError(t, err)
 		require.NotNil(t, m)
 		assert.Equal(t, mgr.ID, m.ID)
 	})
 
 	t.Run("GetOrgChart", func(t *testing.T) {
-		users, err := svc.GetOrgChart(ctx)
+		users, err := svc.GetOrgChart(ctx, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, users)
 	})

@@ -381,7 +381,7 @@ func TestUserRepository_ReportsToHierarchy(t *testing.T) {
 	})
 
 	t.Run("GetSubordinates returns direct reports", func(t *testing.T) {
-		subs, err := repo.GetSubordinates(ctx, managerID)
+		subs, err := repo.GetSubordinates(ctx, managerID, nil)
 		require.NoError(t, err)
 		assert.Len(t, subs, 2)
 		ids := []int{subs[0].ID, subs[1].ID}
@@ -390,25 +390,25 @@ func TestUserRepository_ReportsToHierarchy(t *testing.T) {
 	})
 
 	t.Run("GetSubordinates empty when none", func(t *testing.T) {
-		subs, err := repo.GetSubordinates(ctx, sub1ID)
+		subs, err := repo.GetSubordinates(ctx, sub1ID, nil)
 		require.NoError(t, err)
 		assert.Empty(t, subs)
 	})
 
 	t.Run("GetManager returns manager", func(t *testing.T) {
-		mgr, err := repo.GetManager(ctx, sub1ID)
+		mgr, err := repo.GetManager(ctx, sub1ID, nil)
 		require.NoError(t, err)
 		require.NotNil(t, mgr)
 		assert.Equal(t, managerID, mgr.ID)
 	})
 
 	t.Run("GetManager returns error for top-level user", func(t *testing.T) {
-		_, err := repo.GetManager(ctx, managerID)
+		_, err := repo.GetManager(ctx, managerID, nil)
 		assert.ErrorContains(t, err, "manager not found")
 	})
 
 	t.Run("GetOrgChart returns all users ordered by level", func(t *testing.T) {
-		users, err := repo.GetOrgChart(ctx)
+		users, err := repo.GetOrgChart(ctx, nil)
 		require.NoError(t, err)
 		require.NotEmpty(t, users)
 		foundMgr := false
@@ -562,5 +562,99 @@ func TestUserRepository_PermissionCRUD(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, len(got))
 		assert.Equal(t, perms[0].Code, got[0].Code)
+	})
+}
+
+// TestUserRepository_StoreBoundary pins the read-path filters for Wave 3. A
+// store-scoped caller (claimsStore non-nil) must see its own store's staff plus
+// global (HQ) identities, and nothing from another store. A nil claimsStore is
+// the superadmin/unscoped case and still sees everything.
+func TestUserRepository_StoreBoundary(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	hash := testPasswordHash()
+
+	newStore := func(t *testing.T, name string) int {
+		t.Helper()
+		var id int
+		err := dbPool.QueryRow(ctx, `INSERT INTO stores (name, is_active) VALUES ($1, true) RETURNING id`, name).Scan(&id)
+		require.NoError(t, err)
+		return id
+	}
+	ownStore := newStore(t, "user_scope_own")
+	otherStore := newStore(t, "user_scope_other")
+
+	mkUser := func(uname string, storeID *int, reportsTo *int) *User {
+		u := &User{
+			Username:    uname,
+			Email:       uname + "@test.com",
+			Password:    hash,
+			RoleID:      1,
+			StoreID:     storeID,
+			ReportsToID: reportsTo,
+			IsActive:    true,
+		}
+		require.NoError(t, repo.CreateUser(ctx, u))
+		return u
+	}
+
+	// Manager A (own store) and manager B (other store) each have one report,
+	// plus one global report under manager A. The global row is what proves the
+	// filter is permissive about NULL rather than rejecting it.
+	mgrA := mkUser("user_scope_mgr_a", &ownStore, nil)
+	mgrB := mkUser("user_scope_mgr_b", &otherStore, nil)
+	subA := mkUser("user_scope_sub_a", &ownStore, &mgrA.ID)
+	mkUser("user_scope_sub_b", &otherStore, &mgrB.ID)
+	globalSub := mkUser("user_scope_sub_global", nil, &mgrA.ID)
+
+	ids := func(users []User) []int {
+		out := make([]int, 0, len(users))
+		for _, u := range users {
+			out = append(out, u.ID)
+		}
+		return out
+	}
+
+	t.Run("GetSubordinates keeps own store and global, drops other store", func(t *testing.T) {
+		subs, err := repo.GetSubordinates(ctx, mgrA.ID, &ownStore)
+		require.NoError(t, err)
+		got := ids(subs)
+		assert.Contains(t, got, subA.ID)
+		assert.Contains(t, got, globalSub.ID)
+		assert.NotContains(t, got, mustUserID(t, "user_scope_sub_b"))
+	})
+
+	t.Run("GetSubordinates with nil claim is unscoped", func(t *testing.T) {
+		subs, err := repo.GetSubordinates(ctx, mgrA.ID, nil)
+		require.NoError(t, err)
+		assert.Len(t, subs, 2)
+	})
+
+	t.Run("GetManager returns a manager in the caller's store", func(t *testing.T) {
+		mgr, err := repo.GetManager(ctx, subA.ID, &ownStore)
+		require.NoError(t, err)
+		assert.Equal(t, mgrA.ID, mgr.ID)
+	})
+
+	t.Run("GetManager hides a manager from another store as not found", func(t *testing.T) {
+		otherSubID := mustUserID(t, "user_scope_sub_b")
+		_, err := repo.GetManager(ctx, otherSubID, &ownStore)
+		require.ErrorIs(t, err, ErrManagerNotFound)
+	})
+
+	t.Run("GetOrgChart excludes other-store rows but keeps global", func(t *testing.T) {
+		users, err := repo.GetOrgChart(ctx, &ownStore)
+		require.NoError(t, err)
+		got := ids(users)
+		assert.Contains(t, got, mgrA.ID)
+		assert.Contains(t, got, subA.ID)
+		assert.Contains(t, got, globalSub.ID)
+		assert.NotContains(t, got, mgrB.ID)
+	})
+
+	t.Run("GetOrgChart with nil claim is unscoped", func(t *testing.T) {
+		users, err := repo.GetOrgChart(ctx, nil)
+		require.NoError(t, err)
+		assert.Contains(t, ids(users), mgrB.ID)
 	})
 }
