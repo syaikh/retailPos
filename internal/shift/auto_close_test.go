@@ -337,8 +337,8 @@ func TestAutoCloser_Integration(t *testing.T) {
 		// Insert a completed cash sale
 		var custID int
 		err = dbPool.QueryRow(ctx, `
-			INSERT INTO customers (name, email, phone)
-			VALUES ('AutoClose Customer', 'autoclose@test.com', '0899')
+			INSERT INTO customers (name, email, phone, store_id)
+			VALUES ('AutoClose Customer', 'autoclose@test.com', '0899', 1)
 			RETURNING id
 		`).Scan(&custID)
 		require.NoError(t, err)

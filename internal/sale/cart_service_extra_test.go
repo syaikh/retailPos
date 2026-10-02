@@ -119,7 +119,7 @@ func TestCartService_UpdateCartCustomer_Branches(t *testing.T) {
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 	var customerID int
-	err = dbPool.QueryRow(ctx, `INSERT INTO customers (name, email, phone) VALUES ('Cart Branch Customer', 'cartbranch@test.com', '08123') RETURNING id`).Scan(&customerID)
+	err = dbPool.QueryRow(ctx, `INSERT INTO customers (name, email, phone, store_id) VALUES ('Cart Branch Customer', 'cartbranch@test.com', '08123', 1) RETURNING id`).Scan(&customerID)
 	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
