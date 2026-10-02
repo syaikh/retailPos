@@ -675,6 +675,27 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		}
 	}()
 
+	// Snapshot the six default accounts before truncating.
+	//
+	// Migration 059 added users.store_id REFERENCES stores(id). That makes the
+	// `TRUNCATE stores … CASCADE` below cascade into `users`, silently deleting
+	// the very accounts this seeder preserves. Without this snapshot a fresh
+	// migrate + seed leaves an empty users table and every login returns 401.
+	// The rows are put back after truncation with store_id cleared (stores is
+	// empty at that point; run() re-assigns operational roles to a fresh store).
+	if _, err := conn.ExecContext(ctx, `DROP TABLE IF EXISTS _preserved_system_users`); err != nil {
+		return fmt.Errorf("failed to reset system user snapshot: %w", err)
+	}
+	if _, err := conn.ExecContext(ctx, `
+		CREATE TEMP TABLE _preserved_system_users AS
+		SELECT id, username, email, password_hash, role_id, store_id, is_active,
+		       last_login, created_at, updated_at, deleted_at, reports_to,
+		       language, theme, must_change_password
+		FROM users
+		WHERE username IN ('superadmin', 'manager', 'supervisor', 'cashier', 'inventory_staff', 'finance')`); err != nil {
+		return fmt.Errorf("failed to snapshot system users: %w", err)
+	}
+
 	// Truncate tables in correct order (children first).
 	//
 	// `users` is deliberately NOT in this list: the six default accounts
@@ -682,7 +703,8 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 	// IDs, email, store_id and flags survive the seed — and only stray
 	// accounts are deleted afterwards. Every table that references `users` is
 	// either listed below or cascades from `shifts`/`stock_opnames`, so no
-	// dangling reference is left behind.
+	// dangling reference is left behind. The stores cascade still empties
+	// `users`; the snapshot above restores it below.
 	tables := []string{
 		// Consignment child tables first
 		"consignment_settlement_items",
@@ -746,6 +768,27 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		DELETE FROM users
 		WHERE username NOT IN ('superadmin', 'manager', 'supervisor', 'cashier', 'inventory_staff', 'finance')`); err != nil {
 		return fmt.Errorf("failed to delete non-system users: %w", err)
+	}
+
+	// Restore the six default accounts the stores cascade removed. store_id is
+	// deliberately NULL here: stores was just truncated and run() re-assigns an
+	// active store to the operational roles later. The unique key is the id, so
+	// a database where the cascade did not reach users (pre-059) is a no-op.
+	if _, err := conn.ExecContext(ctx, `
+		INSERT INTO users (id, username, email, password_hash, role_id, store_id,
+		                   is_active, last_login, created_at, updated_at, deleted_at,
+		                   reports_to, language, theme, must_change_password)
+		SELECT id, username, email, password_hash, role_id, NULL,
+		       is_active, last_login, created_at, updated_at, NULL,
+		       reports_to, language, theme, must_change_password
+		FROM _preserved_system_users
+		ON CONFLICT (id) DO NOTHING`); err != nil {
+		return fmt.Errorf("failed to restore system users: %w", err)
+	}
+
+	if _, err := conn.ExecContext(ctx,
+		`SELECT setval('users_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM users), 1))`); err != nil {
+		log.Printf("failed to resync users_id_seq: %v", err)
 	}
 
 	return nil

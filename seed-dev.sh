@@ -20,10 +20,3 @@ export DATABASE_URL
 
 echo "Seeding dummy data to postgres-dev (port ${DATABASE_PORT:-5433})..."
 go run ./cmd/dummy "$@"
-# Ensure system users have correct bcrypt hashes
-if command -v psql >/dev/null 2>&1; then
-  PGPASSWORD="${DB_PASSWORD:-admin123}" psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5433}" -U "${DB_USER:-pos}" -d "${DB_NAME:-retail_pos}" -c "
-    UPDATE users SET password_hash = '\$2a\$14\$siHE.dJhi5basdsIKS8nXOjd/ETPAO1q7.ZNshHQnlhl.uxUmx.Rq'
-    WHERE username IN ('superadmin','admin','manager','supervisor','cashier','finance','warehouse_manager')
-  " >/dev/null 2>&1 || true
-fi
