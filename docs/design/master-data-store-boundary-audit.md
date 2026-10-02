@@ -685,7 +685,7 @@ are limited to roles that should have them.
       `059_*.sql`; a *constraint* added post-baseline belongs in a new migration so it replays in
       lexical order on every runner.
 - [ ] Add `REFERENCES stores(id)` to `customers`, `users`, `goods_receipts`, `purchase_orders`.
-  **Must be re-runnable** (foreign keys follow existing conventions by table: 11 tables use RESTRICT/NO ACTION, 10 use SET NULL; see pg_constraint for the four targets), guarded with a
+  **Must be re-runnable** (`ON DELETE SET NULL` to match the 21 existing conventions, guarded with a
   `DO $$ ... IF NOT EXISTS (SELECT 1 FROM pg_constraint ...) $$` block, or `ALTER TABLE ... DROP
   CONSTRAINT IF EXISTS` then re-add).
 - [x] Confirmed `customers.store_id` really does carry `DEFAULT 1` in the live schema (the other

@@ -34,8 +34,8 @@ func TestShiftSummary_SplitPayment_DoesNotInflateTotalSales(t *testing.T) {
 	userID := insertTestUser(t)
 	var custID int
 	err := dbPool.QueryRow(ctx, `
-		INSERT INTO customers (name, email, phone, store_id)
-		VALUES ('Summary Customer', 'summary@test.com', '0812', 1)
+		INSERT INTO customers (name, email, phone)
+		VALUES ('Summary Customer', 'summary@test.com', '0812')
 		RETURNING id
 	`).Scan(&custID)
 	require.NoError(t, err)

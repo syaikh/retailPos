@@ -3810,15 +3810,6 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	numCustomers := 50 + rand.Intn(51) // 50-100
 	fmt.Printf("   🎲 Generating %d customers\n", numCustomers)
 
-	// customers.store_id is NOT NULL and carries a FK to stores, so every
-	// customer needs a real store. It previously relied on the column's
-	// DEFAULT 1, which silently pinned all of them to one store regardless of
-	// the store they belonged to. Spread them across the estate instead.
-	storeIDs := getIDs(ctx, db, "stores")
-	if len(storeIDs) == 0 {
-		return fmt.Errorf("inject customers: no stores to attach customers to")
-	}
-
 	// Look up customer group IDs from the database (all groups seeded by ensureCustomerGroups)
 	groupIDs := make(map[string]int)
 	rows, err := db.QueryContext(ctx, `SELECT id, LOWER(name) FROM customer_groups`)
@@ -3844,8 +3835,8 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	}()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, store_id, customer_group_id, created_at)
-		 VALUES ($1, $2, $3, $4, $5, true, false, $6, $7, $8)`)
+		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, customer_group_id, created_at)
+		 VALUES ($1, $2, $3, $4, $5, true, false, $6, $7)`)
 	if err != nil {
 		return fmt.Errorf("prepare: %w", err)
 	}
@@ -3856,11 +3847,10 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	// Insert a walk-in/general customer first
 	walkInID := 0
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, store_id, customer_group_id, created_at)
-		 VALUES ('Walk-in / General', '', '', NULL, NULL, true, true, $1, $2, $3)
+		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, customer_group_id, created_at)
+		 VALUES ('Walk-in / General', '', '', NULL, NULL, true, true, $1, $2)
 		 ON CONFLICT (phone) DO NOTHING
 		 RETURNING id`,
-		storeIDs[0],
 		nullableInt(groupIDs["walk-in"]),
 		ref,
 	).Scan(&walkInID)
@@ -3925,12 +3915,7 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 			groupID = groupIDs["online"]
 		}
 
-		// Each customer gets a store of its own, matching how a sale resolves
-		// the cashier's store, so store-scoped customer reads see the rows a
-		// store-scoped sale would look for.
-		custStoreID := randElemInt(storeIDs)
-
-		if _, err := stmt.ExecContext(ctx, name, phone, email, address, note, custStoreID, nullableInt(groupID), createdAt); err != nil {
+		if _, err := stmt.ExecContext(ctx, name, phone, email, address, note, nullableInt(groupID), createdAt); err != nil {
 			fmt.Printf("   ⚠️  Skipped customer %s: %v\n", name, err)
 			continue
 		}

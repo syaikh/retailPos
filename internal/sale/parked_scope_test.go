@@ -168,7 +168,7 @@ func TestSaleRepository_ParkedSaleReturnsCustomerAndNote(t *testing.T) {
 	prodID := insertTestProduct(ctx, t, "NOTE-PROD-001", "Note Product", 10000, 50)
 
 	var customerID int
-	err := dbPool.QueryRow(ctx, `INSERT INTO customers (name, phone, email, store_id) VALUES ('Parked Caller', '0812-PARKED', 'parked@test.com', 1) RETURNING id`).Scan(&customerID)
+	err := dbPool.QueryRow(ctx, `INSERT INTO customers (name, phone, email) VALUES ('Parked Caller', '0812-PARKED', 'parked@test.com') RETURNING id`).Scan(&customerID)
 	require.NoError(t, err)
 
 	tx, err := repo.BeginTx(ctx)

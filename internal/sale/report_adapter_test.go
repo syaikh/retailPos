@@ -44,8 +44,8 @@ func insertParityCustomer(ctx context.Context, t *testing.T) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
-		`INSERT INTO customers (name, phone, email, is_walk_in, is_active, store_id)
-		 VALUES ('Parity Customer', '08123', 'parity@test.com', true, true, 1) RETURNING id`,
+		`INSERT INTO customers (name, phone, email, is_walk_in, is_active)
+		 VALUES ('Parity Customer', '08123', 'parity@test.com', true, true) RETURNING id`,
 	).Scan(&id)
 	require.NoError(t, err)
 	return id
