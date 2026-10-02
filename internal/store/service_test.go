@@ -304,6 +304,10 @@ func TestService_Update_PhoneOnly(t *testing.T) {
 func TestService_GetAll_Empty(t *testing.T) {
 	skipIfNoDB(t)
 	_ = shared.TruncateTestData(dbPool)
+	// TruncateTestData restores the baseline Default Store (stores.id = 1),
+	// which customers.store_id's DEFAULT depends on. This test wants a genuinely
+	// empty table, so the reference row has to go deliberately.
+	_, _ = dbPool.Exec(context.Background(), `DELETE FROM stores WHERE id = 1`)
 	repo := NewRepository(dbPool)
 	svc := NewService(repo)
 	ctx := context.Background()

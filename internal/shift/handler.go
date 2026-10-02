@@ -27,19 +27,18 @@ type Service interface {
 	CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
 	CloseShiftTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
 	GetActiveShift(ctx context.Context, userID int) (*Shift, error)
-	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string, storeID *int) ([]Shift, int, error)
+	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
-	ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
+	ReviewShift(ctx context.Context, scope ownership.Scope, shiftID, reviewerID int) (*Shift, error)
 	FlagForReview(ctx context.Context, shiftID int) error
 	GetDiscrepancyThreshold(ctx context.Context) int
 	SetSettingsProvider(p SettingsProvider)
-	AuditShift(ctx context.Context, shiftID int) (*Shift, int, error)
-	ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, storeID *int) ([]Shift, error)
-	CreateCashMovement(ctx context.Context, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
-	CreateCashMovementTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
-	ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error)
+	AuditShift(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, int, error)
+	ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
+	CreateCashMovement(ctx context.Context, scope ownership.Scope, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
+	ListCashMovements(ctx context.Context, scope ownership.Scope, shiftID int) ([]CashMovement, error)
 	ShiftCashMovementSummary(ctx context.Context, shiftID int) (CashMovementSummary, error)
-	GetShiftReportData(ctx context.Context, shiftID int) (*ReportData, error)
+	GetShiftReportData(ctx context.Context, scope ownership.Scope, shiftID int) (*ReportData, error)
 	InTx(ctx context.Context, fn func(tx pgx.Tx) error) error
 }
 
@@ -59,11 +58,20 @@ func NewHandler(svc Service, auditSvc audit.TxCreator) *Handler {
 // optional user_id filter from the request — honored only for all-access
 // callers, never used to widen a restricted caller's view.
 func (h *Handler) shiftScope(c *gin.Context, requestedUserID *int) ownership.Scope {
-	return ownership.Resolve(
+	scope := ownership.Resolve(
 		middleware.GetUserID(c),
 		ownership.CanAccessAll(middleware.GetPermissions(c), permissions.ShiftReview),
 		requestedUserID,
 	)
+	// shift.review grants all-access on the *user* dimension only. The store
+	// dimension is independent and comes from claims, so a supervisor reviewing
+	// shifts is unrestricted across its own users and restricted to its store.
+	scope.StoreID = shared.GetStoreID(c)
+	return scope
+}
+
+func isSuperadmin(c *gin.Context) bool {
+	return shared.GetRole(c) == string(permissions.RoleSuperadmin)
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
@@ -97,12 +105,39 @@ func (h *Handler) OpenShift(c *gin.Context) {
 		return
 	}
 
+	// The store is the caller's, not the body's. A cashier holding shift.create
+	// could otherwise open a shift in any store by naming it, and the shift
+	// would then be reconciled by -- and pay out from -- a store they do not
+	// belong to. Superadmin provisions in any store; everyone else is pinned.
+	// Reject rather than silently overwrite: a client sending a foreign store
+	// has a bug worth surfacing, and quietly opening in a different store than
+	// requested is how a till opens against the wrong drawer.
+	storeID := shared.GetStoreID(c)
+	if !isSuperadmin(c) {
+		// Fail closed on a missing claim. RequireStoreID already rejects
+		// store-less non-superadmins upstream, but a handler that silently
+		// falls through to store_id IS NULL would mint a global shift -- one
+		// every store can then read -- the moment this route is mounted
+		// without that middleware.
+		if storeID == nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "store not configured for this user"})
+			return
+		}
+		if req.StoreID != nil && *req.StoreID != *storeID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "store is not in your store"})
+			return
+		}
+	}
+	if req.StoreID != nil && isSuperadmin(c) {
+		storeID = req.StoreID
+	}
+
 	var shift *Shift
 	var err error
 	if h.auditSvc != nil {
 		err = h.svc.InTx(c.Request.Context(), func(tx pgx.Tx) error {
 			var e error
-			shift, e = h.svc.OpenShiftTx(c.Request.Context(), tx, uid, req.StoreID, req.OpeningBalance)
+			shift, e = h.svc.OpenShiftTx(c.Request.Context(), tx, uid, storeID, req.OpeningBalance)
 			if e != nil {
 				return e
 			}
@@ -113,7 +148,7 @@ func (h *Handler) OpenShift(c *gin.Context) {
 				Action:      "shift_opened",
 				EntityType:  "shift",
 				EntityID:    &shift.ID,
-				NewValues:   shared.ToJSONMap(map[string]interface{}{"opening_balance": req.OpeningBalance, "store_id": req.StoreID}),
+				NewValues:   shared.ToJSONMap(map[string]interface{}{"opening_balance": req.OpeningBalance, "store_id": storeID}),
 				IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 				UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 				Description: "Opened shift",
@@ -121,7 +156,7 @@ func (h *Handler) OpenShift(c *gin.Context) {
 			})
 		})
 	} else {
-		shift, err = h.svc.OpenShift(c.Request.Context(), uid, req.StoreID, req.OpeningBalance)
+		shift, err = h.svc.OpenShift(c.Request.Context(), uid, storeID, req.OpeningBalance)
 	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -231,7 +266,7 @@ func (h *Handler) ListShifts(c *gin.Context) {
 		needsReview = &val
 	}
 
-	shifts, total, err := h.svc.ListShifts(c.Request.Context(), h.shiftScope(c, userID), status, needsReview, discFilter, limit, offset, sortBy, sortDir, shared.GetStoreID(c))
+	shifts, total, err := h.svc.ListShifts(c.Request.Context(), h.shiftScope(c, userID), status, needsReview, discFilter, limit, offset, sortBy, sortDir)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -259,7 +294,7 @@ func (h *Handler) ExportShifts(c *gin.Context) {
 	}
 
 	scope := h.shiftScope(c, userID)
-	shifts, err := h.svc.ExportShifts(c.Request.Context(), scope, status, needsReview, discFilter, shared.GetStoreID(c))
+	shifts, err := h.svc.ExportShifts(c.Request.Context(), scope, status, needsReview, discFilter)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -430,7 +465,7 @@ func (h *Handler) ReviewShift(c *gin.Context) {
 		return
 	}
 
-	shift, err := h.svc.ReviewShift(c.Request.Context(), shiftID, reviewerID)
+	shift, err := h.svc.ReviewShift(c.Request.Context(), h.shiftScope(c, nil), shiftID, reviewerID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -470,7 +505,7 @@ func (h *Handler) AuditShift(c *gin.Context) {
 		return
 	}
 
-	shift, cashSales, err := h.svc.AuditShift(c.Request.Context(), shiftID)
+	shift, cashSales, err := h.svc.AuditShift(c.Request.Context(), h.shiftScope(c, nil), shiftID)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -537,7 +572,7 @@ func (h *Handler) CreateCashMovement(c *gin.Context) {
 		return
 	}
 
-	mov, err := h.svc.CreateCashMovement(c.Request.Context(), shiftID, userID, req.Type, req.Amount, req.Description)
+	mov, err := h.svc.CreateCashMovement(c.Request.Context(), h.shiftScope(c, nil), shiftID, userID, req.Type, req.Amount, req.Description)
 	if err != nil {
 		if errors.Is(err, ErrShiftClosed) || errors.Is(err, ErrInvalidMovementType) || errors.Is(err, ErrNotShiftOwner) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -573,7 +608,7 @@ func (h *Handler) ListCashMovements(c *gin.Context) {
 		return
 	}
 
-	movements, err := h.svc.ListCashMovements(c.Request.Context(), shiftID)
+	movements, err := h.svc.ListCashMovements(c.Request.Context(), h.shiftScope(c, nil), shiftID)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -589,7 +624,7 @@ func (h *Handler) GetShiftReport(c *gin.Context) {
 		return
 	}
 
-	report, err := h.svc.GetShiftReportData(c.Request.Context(), shiftID)
+	report, err := h.svc.GetShiftReportData(c.Request.Context(), h.shiftScope(c, nil), shiftID)
 	if err != nil {
 		shared.InternalError(c, err)
 		return

@@ -948,7 +948,23 @@ func TestE2E_PricingResolver(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
 		router.ServeHTTP(w, req)
-		require.Equal(t, http.StatusCreated, w.Code)
+		require.Equal(t, http.StatusCreated, w.Code, "body: %s", w.Body.String())
+		var created struct {
+			Data pricing.Rule `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &created))
+
+		// Creating a rule leaves it pending and inactive (migration 055), and the
+		// resolver only reads status = 'approved'. Approving is a separate step:
+		// superadmin may approve its own rule, so this actor can complete it.
+		require.Equal(t, pricing.StatusPending, created.Data.Status)
+		require.False(t, created.Data.IsActive)
+
+		w = httptest.NewRecorder()
+		req, _ = http.NewRequest("POST", fmt.Sprintf("/api/pricing-rules/%d/approve", created.Data.ID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
 
 		// Now resolve
 		body := fmt.Sprintf(`{"items":[{"product_id":%d,"quantity":1}]}`, productID)
@@ -1541,7 +1557,9 @@ func seedE2ESupplier(t *testing.T) int {
 	return id
 }
 
-func seedE2EStore(t *testing.T) {
+// seedE2EStore guarantees at least one store exists and returns its id.
+// Callers that only need the side effect may ignore the return value.
+func seedE2EStore(t *testing.T) int {
 	t.Helper()
 	if e2ePool == nil {
 		t.Skip("no database connection")
@@ -1558,6 +1576,11 @@ func seedE2EStore(t *testing.T) {
 		UPDATE users SET store_id = (SELECT id FROM stores LIMIT 1)
 		WHERE username = 'superadmin' AND store_id IS NULL`)
 	require.NoError(t, err)
+	// Ordering is stable and the count is non-zero, so this always resolves.
+	var storeID int
+	require.NoError(t, e2ePool.QueryRow(context.Background(),
+		"SELECT id FROM stores ORDER BY id LIMIT 1").Scan(&storeID))
+	return storeID
 }
 
 func TestE2E_PurchaseOrders(t *testing.T) {
@@ -1974,12 +1997,18 @@ func TestE2E_UserHierarchy(t *testing.T) {
 	router := setupE2ERouter(t)
 	token := loginAs(t, router, "superadmin", "admin123")
 
+	// Manager and cashier are operational roles, so CreateUser rejects an account
+	// created without a store_id: RequireStoreID would 403 that account on every
+	// protected route, leaving it unable to ever self-repair. Superadmin may name
+	// any store, so point both new users at an existing one.
+	storeID := seedE2EStore(t)
+
 	var managerID int
 	var staffID int
 
 	t.Run("create manager user", func(t *testing.T) {
 		username := fmt.Sprintf("e2emgr%d", time.Now().UnixNano())
-		body := fmt.Sprintf(`{"username":"%s","email":"%s@test.com","password":"password123","role_id":3}`, username, username)
+		body := fmt.Sprintf(`{"username":"%s","email":"%s@test.com","password":"password123","role_id":3,"store_id":%d}`, username, username, storeID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/admin/users", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -1998,7 +2027,7 @@ func TestE2E_UserHierarchy(t *testing.T) {
 	t.Run("create staff with reports_to", func(t *testing.T) {
 		require.Greater(t, managerID, 0)
 		username := fmt.Sprintf("e2estaff%d", time.Now().UnixNano())
-		body := fmt.Sprintf(`{"username":"%s","email":"%s@test.com","password":"password123","role_id":4,"reports_to":%d}`, username, username, managerID)
+		body := fmt.Sprintf(`{"username":"%s","email":"%s@test.com","password":"password123","role_id":4,"store_id":%d,"reports_to":%d}`, username, username, storeID, managerID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/admin/users", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")

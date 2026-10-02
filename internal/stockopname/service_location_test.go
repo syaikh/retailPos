@@ -189,7 +189,9 @@ func TestRepository_LocationScope_ProductUniverse(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	ids, err := repo.ScopeProductIDs(ctx, tx, Scope{ScopeType: "location", ScopeID: int64(locID)})
+	// nil store: a "location" scope is resolved by the inventory-owned provider
+	// over product_stock, which takes no store and is unaffected by supplier terms.
+	ids, err := repo.ScopeProductIDs(ctx, tx, Scope{ScopeType: "location", ScopeID: int64(locID)}, nil)
 	require.NoError(t, err)
 	assert.Contains(t, ids, onRack)
 	assert.NotContains(t, ids, globalOnly, "global-only product must not be in location scope")

@@ -22,7 +22,12 @@ func authWith(perms ...string) gin.HandlerFunc {
 		c.Set("username", "tester")
 		c.Set("role", "manager")
 		c.Set("permissions", perms)
-		c.Set("storeID", 1)
+		// A *int, as middleware/auth.go sets from the JWT claim. An int here
+		// would be silently read as "no store" by shared.GetStoreID, which the
+		// link routes refuse — a manager with no claim is exactly the fail-closed
+		// case, so the fixture would be asserting the wrong thing.
+		storeID := 1
+		c.Set("storeID", &storeID)
 		c.Next()
 	}
 }
@@ -63,21 +68,21 @@ func (denyingRepo) Create(context.Context, *Supplier) error             { return
 func (denyingRepo) Update(context.Context, *Supplier) error             { return errDenying }
 func (denyingRepo) Delete(context.Context, int) error                   { return errDenying }
 func (denyingRepo) LinkProduct(context.Context, *ProductSupplier) error { return errDenying }
-func (denyingRepo) UnlinkProduct(context.Context, int, int) error       { return errDenying }
-func (denyingRepo) GetProductSupplier(context.Context, int, int) (*ProductSupplier, error) {
+func (denyingRepo) UnlinkProduct(context.Context, int, int, *int) error { return errDenying }
+func (denyingRepo) GetProductSupplier(context.Context, int, int, *int) (*ProductSupplier, error) {
 	return nil, errDenying
 }
-func (denyingRepo) GetPreferredSupplier(context.Context, int) (*ProductSupplier, error) {
+func (denyingRepo) GetPreferredSupplier(context.Context, int, *int) (*ProductSupplier, error) {
 	return nil, errDenying
 }
-func (denyingRepo) SetPreferredSupplier(context.Context, int, int) error { return errDenying }
-func (denyingRepo) UpdateProductSupplier(context.Context, *ProductSupplier) error {
+func (denyingRepo) SetPreferredSupplier(context.Context, int, int, *int) error { return errDenying }
+func (denyingRepo) UpdateProductSupplier(context.Context, *ProductSupplier, *int) error {
 	return errDenying
 }
-func (denyingRepo) GetSuppliersByProductID(context.Context, int) ([]ProductSupplier, error) {
+func (denyingRepo) GetSuppliersByProductID(context.Context, int, *int) ([]ProductSupplier, error) {
 	return nil, errDenying
 }
-func (denyingRepo) GetProductsBySupplierID(context.Context, int) ([]ProductSupplier, error) {
+func (denyingRepo) GetProductsBySupplierID(context.Context, int, *int) ([]ProductSupplier, error) {
 	return nil, errDenying
 }
 func (denyingRepo) BulkUpdate(context.Context, []int, bool) (int, error) { return 0, errDenying }

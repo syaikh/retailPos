@@ -230,9 +230,13 @@ func TestReportService_GetDualMonthlyReport(t *testing.T) {
 	require.NoError(t, err)
 
 	var custID int
+	// Name the store explicitly rather than leaning on customers.store_id's
+	// DEFAULT 1: the default is only valid because TruncateTestData restores the
+	// baseline Default Store, and an implicit reference hides which store the
+	// fixture belongs to.
 	err = dbPool.QueryRow(ctx, `
-		INSERT INTO customers (name, phone, email, is_walk_in, is_active)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO customers (name, phone, email, is_walk_in, is_active, store_id)
+		VALUES ($1, $2, $3, $4, $5, (SELECT id FROM stores WHERE id = 1))
 		ON CONFLICT (phone) DO UPDATE SET phone = customers.phone
 		RETURNING id
 	`, "Report Customer", "0819999999", "report@test.com", false, true).Scan(&custID)

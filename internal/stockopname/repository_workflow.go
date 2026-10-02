@@ -60,8 +60,8 @@ func (r *Repository) ResolveScopeName(ctx context.Context, db shared.DBPool, sco
 // (store/category/brand/supplier/product/manual) through the product-owned
 // ProductScopeProvider, stock-scoped scopes (warehouse/location) through the
 // inventory-owned StockSnapshotProvider.
-func (r *Repository) ScopeProductIDs(ctx context.Context, db shared.DBPool, scope Scope) ([]int, error) {
-	return r.scopeProductIDs(ctx, db, scope)
+func (r *Repository) ScopeProductIDs(ctx context.Context, db shared.DBPool, scope Scope, storeID *int) ([]int, error) {
+	return r.scopeProductIDs(ctx, db, scope, storeID)
 }
 
 // InsertSessionScopes persists the scope list of a session.

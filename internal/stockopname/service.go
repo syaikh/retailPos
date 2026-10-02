@@ -65,7 +65,7 @@ type Repo interface {
 	NextCountSequence(ctx context.Context, tx pgx.Tx, itemID int) (int, error)
 	ResolveScopeName(ctx context.Context, db shared.DBPool, scopeType string, scopeID int64) (string, error)
 	SaveCount(ctx context.Context, tx pgx.Tx, itemID, seq int, qty float64, userID int, remarks string) error
-	ScopeProductIDs(ctx context.Context, db shared.DBPool, scope Scope) ([]int, error)
+	ScopeProductIDs(ctx context.Context, db shared.DBPool, scope Scope, storeID *int) ([]int, error)
 	UpdateAssignmentRole(ctx context.Context, tx pgx.Tx, sessionID, assignmentID int, role string) error
 	UpdateItemAdjustment(ctx context.Context, tx pgx.Tx, itemID int, expected, diff, adj float64, reason string) error
 	UpdateItemAdjustments(ctx context.Context, tx pgx.Tx, updates []ItemAdjustmentUpdate) error
@@ -239,7 +239,7 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 			name = n
 		}
 		sessionScopes = append(sessionScopes, SessionScope{ScopeType: sc.ScopeType, ScopeID: sc.ScopeID, ScopeName: name})
-		ids, err := s.repo.ScopeProductIDs(ctx, tx, sc)
+		ids, err := s.repo.ScopeProductIDs(ctx, tx, sc, claimsStore)
 		if err != nil {
 			return nil, err
 		}
@@ -280,7 +280,7 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 				continue
 			}
 			scopeSeen[sc] = struct{}{}
-			ids, err := s.repo.ScopeProductIDs(ctx, tx, sc)
+			ids, err := s.repo.ScopeProductIDs(ctx, tx, sc, claimsStore)
 			if err != nil {
 				return nil, err
 			}

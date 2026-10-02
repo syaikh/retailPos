@@ -1429,6 +1429,20 @@ The **Suppliers** page manages the vendors you purchase from.
 
 Suppliers are used by Purchase Orders — when creating a PO you pick a supplier and choose only products linked to that supplier.
 
+**Store scope (supplier vs. its terms):** a supplier is a single global record — one vendor, one contact
+list, visible to every store that trades with it. Its **commercial terms are per store**: the unit cost
+and lead time you record against a product are your store's own numbers.
+
+- Terms left without a store are the **estate-wide default**, inherited by every store.
+- A store can add its **own** terms for the same product/supplier pair; they override the default for
+  that store alone and are invisible to the others.
+- Editing or deleting terms that a store has inherited (rather than negotiated) is refused. To use
+  your own price, add the product to the supplier **for your store** first, then edit that row.
+- **Preferred supplier** is a per-store choice, so two stores can buy the same product from different
+  suppliers. To prefer one, link it for your store before selecting it.
+
+Only superadmin can edit the estate-wide default terms.
+
 ---
 
 ### 10. Storage Locations

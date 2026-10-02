@@ -82,7 +82,7 @@ func TestShiftService_ReviewShift(t *testing.T) {
 		assert.True(t, closed.NeedsReview)
 
 		reviewerID := insertTestUser(ctx, t, 2)
-		reviewed, err := svc.ReviewShift(ctx, closed.ID, reviewerID)
+		reviewed, err := svc.ReviewShift(ctx, ownership.Scope{}, closed.ID, reviewerID)
 		require.NoError(t, err)
 		assert.False(t, reviewed.NeedsReview)
 		require.NotNil(t, reviewed.ReviewedBy)
@@ -90,7 +90,7 @@ func TestShiftService_ReviewShift(t *testing.T) {
 	})
 
 	t.Run("review non-existent shift returns error", func(t *testing.T) {
-		_, err := svc.ReviewShift(ctx, 999999, 1)
+		_, err := svc.ReviewShift(ctx, ownership.Scope{}, 999999, 1)
 		assert.Error(t, err)
 	})
 }
@@ -142,7 +142,7 @@ func TestShiftService_ListShifts(t *testing.T) {
 	userID := insertTestUser(ctx, t, 1)
 	createOpenShift(ctx, t, repo, userID)
 
-	shifts, total, err := svc.ListShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", 10, 0, "opened_at", "DESC", nil)
+	shifts, total, err := svc.ListShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", 10, 0, "opened_at", "DESC")
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, total, 1)
 	assert.NotEmpty(t, shifts)
@@ -160,7 +160,7 @@ func TestShiftService_AuditShift(t *testing.T) {
 	userID := insertTestUser(ctx, t, 1)
 	shift := createOpenShift(ctx, t, repo, userID)
 
-	_, _, err := svc.AuditShift(ctx, shift.ID)
+	_, _, err := svc.AuditShift(ctx, ownership.Scope{}, shift.ID)
 	require.NoError(t, err)
 }
 
@@ -176,7 +176,7 @@ func TestShiftService_ExportShifts(t *testing.T) {
 	userID := insertTestUser(ctx, t, 1)
 	createOpenShift(ctx, t, repo, userID)
 
-	shifts, err := svc.ExportShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", nil)
+	shifts, err := svc.ExportShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "")
 	require.NoError(t, err)
 	assert.NotEmpty(t, shifts)
 }
@@ -315,16 +315,16 @@ func TestShiftService_CashMovements(t *testing.T) {
 		require.NoError(t, err)
 
 		desc := "service movement"
-		m, err := svc.CreateCashMovement(ctx, shift.ID, userID, "cash_drop", 75000, &desc)
+		m, err := svc.CreateCashMovement(ctx, ownership.Scope{}, shift.ID, userID, "cash_drop", 75000, &desc)
 		require.NoError(t, err)
 		assert.Equal(t, shift.ID, m.ShiftID)
 		assert.Equal(t, "cash_drop", m.Type)
 		assert.Equal(t, 75000, m.Amount)
 
-		_, err = svc.CreateCashMovement(ctx, shift.ID, userID, "paid_in", 15000, nil)
+		_, err = svc.CreateCashMovement(ctx, ownership.Scope{}, shift.ID, userID, "paid_in", 15000, nil)
 		require.NoError(t, err)
 
-		list, err := svc.ListCashMovements(ctx, shift.ID)
+		list, err := svc.ListCashMovements(ctx, ownership.Scope{}, shift.ID)
 		require.NoError(t, err)
 		require.Len(t, list, 2)
 		assert.NotEmpty(t, list[0].Username)
@@ -342,7 +342,7 @@ func TestShiftService_CashMovements(t *testing.T) {
 		shift, err := svc.OpenShift(ctx, userID, nil, 100000)
 		require.NoError(t, err)
 
-		_, err = svc.CreateCashMovement(ctx, shift.ID, userID, "paid_in", 0, nil)
+		_, err = svc.CreateCashMovement(ctx, ownership.Scope{}, shift.ID, userID, "paid_in", 0, nil)
 		assert.ErrorContains(t, err, "amount must be greater than zero")
 	})
 
@@ -351,10 +351,10 @@ func TestShiftService_CashMovements(t *testing.T) {
 		shift, err := svc.OpenShift(ctx, userID, nil, 100000)
 		require.NoError(t, err)
 
-		_, err = svc.CreateCashMovement(ctx, shift.ID, userID, "paid_out", 20000, nil)
+		_, err = svc.CreateCashMovement(ctx, ownership.Scope{}, shift.ID, userID, "paid_out", 20000, nil)
 		require.NoError(t, err)
 
-		report, err := svc.GetShiftReportData(ctx, shift.ID)
+		report, err := svc.GetShiftReportData(ctx, ownership.Scope{}, shift.ID)
 		require.NoError(t, err)
 		require.NotNil(t, report)
 		assert.Equal(t, 0, report.CashMovementSummary.CashDrops)

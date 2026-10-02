@@ -2,6 +2,7 @@ package supplier
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -23,13 +24,13 @@ type Service interface {
 	Update(ctx context.Context, supplier *Supplier) error
 	Delete(ctx context.Context, id int) error
 	LinkProduct(ctx context.Context, ps *ProductSupplier) error
-	UnlinkProduct(ctx context.Context, productID, supplierID int) error
-	GetProductSupplier(ctx context.Context, productID, supplierID int) (*ProductSupplier, error)
-	GetPreferredSupplier(ctx context.Context, productID int) (*ProductSupplier, error)
-	SetPreferredSupplier(ctx context.Context, productID, supplierID int) error
-	UpdateProductSupplier(ctx context.Context, ps *ProductSupplier) error
-	GetSuppliersByProductID(ctx context.Context, productID int) ([]ProductSupplier, error)
-	GetProductsBySupplierID(ctx context.Context, supplierID int) ([]ProductSupplier, error)
+	UnlinkProduct(ctx context.Context, productID, supplierID int, storeID *int) error
+	GetProductSupplier(ctx context.Context, productID, supplierID int, storeID *int) (*ProductSupplier, error)
+	GetPreferredSupplier(ctx context.Context, productID int, storeID *int) (*ProductSupplier, error)
+	SetPreferredSupplier(ctx context.Context, productID, supplierID int, storeID *int) error
+	UpdateProductSupplier(ctx context.Context, ps *ProductSupplier, storeID *int) error
+	GetSuppliersByProductID(ctx context.Context, productID int, storeID *int) ([]ProductSupplier, error)
+	GetProductsBySupplierID(ctx context.Context, supplierID int, storeID *int) ([]ProductSupplier, error)
 	BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error)
 	BulkDelete(ctx context.Context, ids []int) (int, error)
 }
@@ -41,6 +42,79 @@ type Handler struct {
 
 func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
+}
+
+// isAdmin reports whether the caller bypasses store scoping on supplier terms.
+// The supplier itself is global under audit D3 Option C, so this governs only
+// product_suppliers -- but the unit cost and preferred-supplier choice living
+// there are the commercially sensitive part, so they get the same treatment
+// pricing rules already get.
+func isAdmin(c *gin.Context) bool {
+	return shared.GetRole(c) == permissions.RoleSuperadmin
+}
+
+// linkScope resolves the store scope for a product-supplier link operation: nil
+// is unrestricted (superadmin), non-nil is the caller's own store.
+//
+// It fails closed on a missing claim. Every query below reads a nil scope as
+// "every store", so a nil claim falling through would hand a store-scoped caller
+// every store's negotiated cost -- the same trap pricing's ListRules documents.
+func linkScope(c *gin.Context) (*int, bool) {
+	if isAdmin(c) {
+		return nil, true
+	}
+	claim := shared.GetStoreID(c)
+	if claim == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "store scope is required for supplier links"})
+		return nil, false
+	}
+	return claim, true
+}
+
+// authorizeLink refuses a store-scoped caller changing a global terms row.
+//
+// The write SQL already refuses it (writes match the store column exactly), but
+// an inherited global link is *visible* to this caller, so a bare not-found
+// would read as "this supplier is not linked to this product" while the link
+// sits on screen. This is the accurate answer, and it matches pricing's
+// authorizeStoreRule, which refuses a store-scoped caller editing a global rule.
+func authorizeLink(c *gin.Context, link *ProductSupplier) bool {
+	if isAdmin(c) || link.StoreID != nil {
+		return true
+	}
+	c.JSON(http.StatusForbidden, gin.H{
+		"error": "these supplier terms are the global default and apply to every store; " +
+			"link the supplier for your store first to set your own terms",
+	})
+	return false
+}
+
+// linkNotFound answers a link the caller's store neither owns nor inherits.
+func linkNotFound(c *gin.Context) {
+	c.JSON(http.StatusNotFound, gin.H{"error": "product-supplier link not found"})
+}
+
+// authorizeLinkWrite loads the link a write names and checks the caller may
+// change it. It reports the outcome itself, so a caller cannot forget the check.
+func (h *Handler) authorizeLinkWrite(c *gin.Context, productID, supplierID int, scope *int) bool {
+	link, err := h.svc.GetProductSupplier(c.Request.Context(), productID, supplierID, scope)
+	if err != nil {
+		if errors.Is(err, ErrProductSupplierNotFound) {
+			linkNotFound(c)
+			return false
+		}
+		shared.InternalError(c, err)
+		return false
+	}
+	if link == nil {
+		// A nil link with no error is a broken store, but treating it as "allowed"
+		// would turn it into an authorization bypass, and dereferencing it would
+		// take the request down. Answer 404 and make the write happen anyway is
+		// never acceptable, so this returns without writing.
+		linkNotFound(c)
+		return false
+	}
+	return authorizeLink(c, link)
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
@@ -303,7 +377,12 @@ func (h *Handler) GetProductsBySupplier(c *gin.Context) {
 		return
 	}
 
-	products, err := h.svc.GetProductsBySupplierID(c.Request.Context(), id)
+	scope, ok := linkScope(c)
+	if !ok {
+		return
+	}
+
+	products, err := h.svc.GetProductsBySupplierID(c.Request.Context(), id, scope)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -321,7 +400,12 @@ func (h *Handler) GetSuppliersByProduct(c *gin.Context) {
 		return
 	}
 
-	suppliers, err := h.svc.GetSuppliersByProductID(c.Request.Context(), id)
+	scope, ok := linkScope(c)
+	if !ok {
+		return
+	}
+
+	suppliers, err := h.svc.GetSuppliersByProductID(c.Request.Context(), id, scope)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -356,6 +440,21 @@ func (h *Handler) LinkProduct(c *gin.Context) {
 		return
 	}
 	ps.SupplierID = supplierID
+
+	scope, ok := linkScope(c)
+	if !ok {
+		return
+	}
+	// A store-scoped caller writes its own store's terms. A body-supplied store
+	// is rejected rather than honoured, so the claim always wins and a store
+	// cannot write terms into somebody else's price list.
+	if scope != nil {
+		if ps.StoreID != nil && *ps.StoreID != *scope {
+			c.JSON(http.StatusForbidden, gin.H{"error": "store is not in your store"})
+			return
+		}
+		ps.StoreID = scope
+	}
 
 	if err := h.svc.LinkProduct(c.Request.Context(), &ps); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -392,7 +491,19 @@ func (h *Handler) UnlinkProduct(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.UnlinkProduct(c.Request.Context(), productID, supplierID); err != nil {
+	scope, ok := linkScope(c)
+	if !ok {
+		return
+	}
+	if !h.authorizeLinkWrite(c, productID, supplierID, scope) {
+		return
+	}
+
+	if err := h.svc.UnlinkProduct(c.Request.Context(), productID, supplierID, scope); err != nil {
+		if errors.Is(err, ErrProductSupplierNotFound) {
+			linkNotFound(c)
+			return
+		}
 		shared.InternalError(c, err)
 		return
 	}
@@ -426,11 +537,14 @@ func (h *Handler) UpdateProductSupplier(c *gin.Context) {
 		return
 	}
 
-	var oldPS *ProductSupplier
-	if h.auditSvc != nil {
-		oldPS, _ = h.svc.GetProductSupplier(c.Request.Context(), productID, supplierID)
+	scope, ok := linkScope(c)
+	if !ok {
+		return
 	}
 
+	// The body is parsed before the link lookup on purpose: a malformed payload
+	// is a bad request whatever the state of the link, and answering 400 without
+	// a query keeps the error about what the caller actually got wrong.
 	var ps ProductSupplier
 	if err := c.ShouldBindJSON(&ps); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -439,7 +553,31 @@ func (h *Handler) UpdateProductSupplier(c *gin.Context) {
 	ps.ProductID = productID
 	ps.SupplierID = supplierID
 
-	if err := h.svc.UpdateProductSupplier(c.Request.Context(), &ps); err != nil {
+	// Validated here as well as in the service, because the payload is checked
+	// before the link lookup: unit_cost of -5 is a bad request whether or not
+	// this caller may edit the row it names. The service still validates, so
+	// non-HTTP callers keep the same guarantee.
+	if err := validateProductSupplier(&ps); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !h.authorizeLinkWrite(c, productID, supplierID, scope) {
+		return
+	}
+
+	// The pre-edit row is read after authorization so the audit trail records
+	// what was actually replaced, and only for the store that may change it.
+	var oldPS *ProductSupplier
+	if h.auditSvc != nil {
+		oldPS, _ = h.svc.GetProductSupplier(c.Request.Context(), productID, supplierID, scope)
+	}
+
+	if err := h.svc.UpdateProductSupplier(c.Request.Context(), &ps, scope); err != nil {
+		if errors.Is(err, ErrProductSupplierNotFound) {
+			linkNotFound(c)
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -475,7 +613,19 @@ func (h *Handler) SetPreferredSupplier(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.SetPreferredSupplier(c.Request.Context(), productID, supplierID); err != nil {
+	scope, ok := linkScope(c)
+	if !ok {
+		return
+	}
+	if !h.authorizeLinkWrite(c, productID, supplierID, scope) {
+		return
+	}
+
+	if err := h.svc.SetPreferredSupplier(c.Request.Context(), productID, supplierID, scope); err != nil {
+		if errors.Is(err, ErrProductSupplierNotFound) {
+			linkNotFound(c)
+			return
+		}
 		shared.InternalError(c, err)
 		return
 	}

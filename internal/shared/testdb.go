@@ -285,6 +285,13 @@ func TruncateTestData(pool *pgxpool.Pool) error {
 		"pricing_rules",
 		"users", "refresh_tokens",
 		"sales", "sale_items", "sale_payments",
+		// These two are the only store-scoped tables that do not yet carry a
+		// FK to stores, so truncating stores does not cascade into them. Left
+		// out, every test that created one before a store was truncated leaves
+		// an orphan row behind — which is exactly the residue
+		// scripts/audit-store-fk-orphans.sh exists to detect. 059 adds the
+		// missing FKs; these entries become redundant but stay harmless.
+		"purchase_orders", "goods_receipts",
 		"inventory_movements",
 		"stock_opnames",
 		"storage_locations",
@@ -302,7 +309,36 @@ func TruncateTestData(pool *pgxpool.Pool) error {
 		"consignment_terms",
 		"consignment_arrangements",
 	}
-	return TruncateAll(pool, tables...)
+	if err := TruncateAll(pool, tables...); err != nil {
+		return err
+	}
+	return restoreBaselineStore(pool)
+}
+
+// restoreBaselineStore re-inserts the Default Store (stores.id = 1) that
+// 000_baseline.sql seeds as a reference row.
+//
+// Truncating `stores` removes it permanently: the baseline is recorded in
+// schema_migrations and never replays, so nothing else brings the row back.
+// That matters because `customers.store_id` carries DEFAULT 1 — with the store
+// gone, every customer insert that omits store_id silently produces a row
+// pointing at a store that does not exist. It is invisible until something
+// reads the orphan back: Wave 6 adds REFERENCES stores(id) to customers, which
+// turns the silent row into a hard FK violation, and reports that group
+// customers by store_id would count it against a store that isn't there.
+//
+// Restoring the row keeps the test database at the invariant the baseline
+// describes. Tests that genuinely need an empty stores table must delete it
+// themselves (see TestService_GetAll_Empty) rather than rely on truncation.
+func restoreBaselineStore(pool *pgxpool.Pool) error {
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO stores (id, name, address, phone, is_active)
+		VALUES (1, 'Default Store', 'Alamat toko default', '0000000000', TRUE)
+		ON CONFLICT (id) DO NOTHING
+	`); err != nil {
+		return fmt.Errorf("restore default store: %w", err)
+	}
+	return nil
 }
 
 func getEnv(key, fallback string) string {

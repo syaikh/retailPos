@@ -14,8 +14,42 @@ import "retail-pos-system/internal/permissions"
 //
 //   - UserID == nil: no user restriction (caller has all-access).
 //   - UserID == &X: the caller may only access rows owned by user X.
+//   - StoreID == nil: no store restriction (caller is superadmin).
+//   - StoreID == &X: the caller may only access rows in store X.
+//
+// The two dimensions are independent and both must pass: a supervisor with
+// shift.review holds an all-access permission on the user dimension but is
+// still scoped to its own store, so it is unrestricted across users and
+// restricted across stores. Adding the field rather than widening UserID
+// keeps the dimensions from being conflated, and keeps the existing callers
+// of Resolve/OwnID/CanAccessAll compiling unchanged.
 type Scope struct {
-	UserID *int
+	UserID  *int
+	StoreID *int
+}
+
+// ResolveStore returns the scope's store restriction, or nil when the caller
+// is unrestricted. Restricted callers must apply it in their query.
+func (s Scope) ResolveStore() *int {
+	return s.StoreID
+}
+
+// CanAccessStore reports whether the caller may access a row in storeID.
+//
+// A row with no store (store_id IS NULL) belongs to nobody in particular and
+// is in reach of every store-scoped caller. That matches ListUsers and
+// ListShifts, which have always shown store-less rows to store-scoped callers;
+// rejecting them here would make this filter stricter than the list endpoints
+// the same caller can already see, so a row could be visible in a list and
+// invisible when opened.
+func (s Scope) CanAccessStore(storeID *int) bool {
+	if s.StoreID == nil {
+		return true
+	}
+	if storeID == nil {
+		return true
+	}
+	return *storeID == *s.StoreID
 }
 
 // Resolve computes the effective row-level scope for a request.

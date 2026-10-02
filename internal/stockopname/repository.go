@@ -209,13 +209,13 @@ func (r *Repository) fillUOMNames(ctx context.Context, db shared.DBPool, items [
 // modules: product-scoped scopes (store/category/brand/supplier/product/
 // manual) via the product-owned ProductScopeProvider, stock-scoped scopes
 // (warehouse/location) via the inventory-owned StockSnapshotProvider.
-func (r *Repository) scopeProductIDs(ctx context.Context, db shared.DBPool, scope Scope) ([]int, error) {
+func (r *Repository) scopeProductIDs(ctx context.Context, db shared.DBPool, scope Scope, storeID *int) ([]int, error) {
 	switch scope.ScopeType {
 	case "store", "category", "brand", "supplier", "product", "manual":
 		if r.productScopeProvider == nil {
 			return nil, errors.New("stockopname repository: product scope provider not wired; call SetProductScopeProvider")
 		}
-		return r.productScopeProvider.ScopeProductIDs(ctx, db, scope.ScopeType, scope.ScopeID)
+		return r.productScopeProvider.ScopeProductIDs(ctx, db, scope.ScopeType, scope.ScopeID, storeID)
 	case "warehouse", "location":
 		if r.stockSnapshotProvider == nil {
 			return nil, errors.New("stockopname repository: stock snapshot provider not wired; call SetStockSnapshotProvider")

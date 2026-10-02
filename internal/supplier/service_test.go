@@ -399,7 +399,7 @@ func TestService_LinkProduct(t *testing.T) {
 	require.NoError(t, err)
 	assert.Greater(t, ps.ID, 0)
 
-	err = svc.UnlinkProduct(ctx, productID, s.ID)
+	err = svc.UnlinkProduct(ctx, productID, s.ID, nil)
 	require.NoError(t, err)
 }
 
@@ -436,14 +436,14 @@ func TestService_GetProductSupplier(t *testing.T) {
 	}
 	require.NoError(t, repo.LinkProduct(ctx, ps))
 
-	got, err := svc.GetProductSupplier(ctx, productID, s.ID)
+	got, err := svc.GetProductSupplier(ctx, productID, s.ID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 3000, got.UnitCost)
 
-	_, err = svc.GetProductSupplier(ctx, -1, -1)
+	_, err = svc.GetProductSupplier(ctx, -1, -1, nil)
 	assert.Error(t, err)
 
-	require.NoError(t, svc.UnlinkProduct(ctx, productID, s.ID))
+	require.NoError(t, svc.UnlinkProduct(ctx, productID, s.ID, nil))
 }
 
 func TestService_GetPreferredSupplier(t *testing.T) {
@@ -469,11 +469,11 @@ func TestService_GetPreferredSupplier(t *testing.T) {
 	}
 	require.NoError(t, repo.LinkProduct(ctx, ps))
 
-	got, err := svc.GetPreferredSupplier(ctx, productID)
+	got, err := svc.GetPreferredSupplier(ctx, productID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, s.ID, got.SupplierID)
 
-	require.NoError(t, svc.UnlinkProduct(ctx, productID, s.ID))
+	require.NoError(t, svc.UnlinkProduct(ctx, productID, s.ID, nil))
 }
 
 func TestService_SetPreferredSupplier(t *testing.T) {
@@ -502,15 +502,15 @@ func TestService_SetPreferredSupplier(t *testing.T) {
 	require.NoError(t, repo.LinkProduct(ctx, ps1))
 	require.NoError(t, repo.LinkProduct(ctx, ps2))
 
-	err := svc.SetPreferredSupplier(ctx, productID, s2.ID)
+	err := svc.SetPreferredSupplier(ctx, productID, s2.ID, nil)
 	require.NoError(t, err)
 
-	got, err := svc.GetPreferredSupplier(ctx, productID)
+	got, err := svc.GetPreferredSupplier(ctx, productID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, s2.ID, got.SupplierID)
 
-	require.NoError(t, svc.UnlinkProduct(ctx, productID, s1.ID))
-	require.NoError(t, svc.UnlinkProduct(ctx, productID, s2.ID))
+	require.NoError(t, svc.UnlinkProduct(ctx, productID, s1.ID, nil))
+	require.NoError(t, svc.UnlinkProduct(ctx, productID, s2.ID, nil))
 }
 
 func TestService_UpdateProductSupplier(t *testing.T) {
@@ -533,15 +533,15 @@ func TestService_UpdateProductSupplier(t *testing.T) {
 
 	ps.UnitCost = 5500
 	ps.LeadTimeDays = 10
-	err := svc.UpdateProductSupplier(ctx, ps)
+	err := svc.UpdateProductSupplier(ctx, ps, nil)
 	require.NoError(t, err)
 
-	got, err := svc.GetProductSupplier(ctx, productID, s.ID)
+	got, err := svc.GetProductSupplier(ctx, productID, s.ID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 5500, got.UnitCost)
 	assert.Equal(t, 10, got.LeadTimeDays)
 
-	require.NoError(t, svc.UnlinkProduct(ctx, productID, s.ID))
+	require.NoError(t, svc.UnlinkProduct(ctx, productID, s.ID, nil))
 }
 
 func TestService_UpdateProductSupplier_ValidationFails(t *testing.T) {
@@ -551,7 +551,7 @@ func TestService_UpdateProductSupplier_ValidationFails(t *testing.T) {
 	ctx := context.Background()
 
 	ps := &ProductSupplier{ProductID: 0, SupplierID: 0, UnitCost: -1}
-	err := svc.UpdateProductSupplier(ctx, ps)
+	err := svc.UpdateProductSupplier(ctx, ps, nil)
 	assert.Error(t, err)
 }
 
@@ -573,11 +573,11 @@ func TestService_GetSuppliersByProductID(t *testing.T) {
 	ps := &ProductSupplier{ProductID: productID, SupplierID: s.ID, UnitCost: 7000}
 	require.NoError(t, repo.LinkProduct(ctx, ps))
 
-	suppliers, err := svc.GetSuppliersByProductID(ctx, productID)
+	suppliers, err := svc.GetSuppliersByProductID(ctx, productID, nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, suppliers)
 
-	require.NoError(t, svc.UnlinkProduct(ctx, productID, s.ID))
+	require.NoError(t, svc.UnlinkProduct(ctx, productID, s.ID, nil))
 }
 
 func TestService_GetProductsBySupplierID(t *testing.T) {
@@ -598,11 +598,11 @@ func TestService_GetProductsBySupplierID(t *testing.T) {
 	ps := &ProductSupplier{ProductID: productID, SupplierID: s.ID, UnitCost: 8000}
 	require.NoError(t, repo.LinkProduct(ctx, ps))
 
-	products, err := svc.GetProductsBySupplierID(ctx, s.ID)
+	products, err := svc.GetProductsBySupplierID(ctx, s.ID, nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, products)
 
-	require.NoError(t, svc.UnlinkProduct(ctx, productID, s.ID))
+	require.NoError(t, svc.UnlinkProduct(ctx, productID, s.ID, nil))
 }
 
 func TestService_BulkUpdate(t *testing.T) {

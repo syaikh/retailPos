@@ -69,6 +69,21 @@ func insertTestUser(ctx context.Context, t *testing.T, roleID int) int {
 	return id
 }
 
+var storeSeq int
+
+func insertTestStore(ctx context.Context, t *testing.T) int {
+	t.Helper()
+	storeSeq++
+	var id int
+	err := dbPool.QueryRow(ctx, `
+		INSERT INTO stores (name)
+		VALUES ($1)
+		RETURNING id
+	`, fmt.Sprintf("Shift Test Store %d", storeSeq)).Scan(&id)
+	require.NoError(t, err)
+	return id
+}
+
 func createOpenShift(ctx context.Context, t *testing.T, repo *Repository, userID int) *Shift {
 	t.Helper()
 	shift, err := repo.OpenShift(ctx, userID, nil, 100000)
@@ -226,7 +241,7 @@ func TestShiftRepository_ListShifts(t *testing.T) {
 		userID := insertTestUser(ctx, t, 1)
 		createOpenShift(ctx, t, repo, userID)
 
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "opened_at", "DESC", nil)
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(shifts), 1)
@@ -236,7 +251,7 @@ func TestShiftRepository_ListShifts(t *testing.T) {
 		userID := insertTestUser(ctx, t, 1)
 		createOpenShift(ctx, t, repo, userID)
 
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", 10, 0, "opened_at", "DESC", nil)
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, s := range shifts {
@@ -278,7 +293,7 @@ func TestShiftRepository_ListShifts_OwnershipScope(t *testing.T) {
 	shiftB := createOpenShift(ctx, t, repo, userB)
 
 	t.Run("all-access scope returns shifts for every user", func(t *testing.T) {
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "opened_at", "DESC", nil)
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 2)
 		foundA, foundB := false, false
@@ -295,7 +310,7 @@ func TestShiftRepository_ListShifts_OwnershipScope(t *testing.T) {
 	})
 
 	t.Run("restricted scope only returns own shifts", func(t *testing.T) {
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{UserID: &userA}, "", nil, "", 10, 0, "opened_at", "DESC", nil)
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{UserID: &userA}, "", nil, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		require.Len(t, shifts, 1)
@@ -345,7 +360,7 @@ func TestShiftRepository_ReviewShift(t *testing.T) {
 		assert.True(t, closed.NeedsReview)
 
 		reviewerID := insertTestUser(ctx, t, 2)
-		reviewed, err := repo.ReviewShift(ctx, closed.ID, reviewerID)
+		reviewed, err := repo.ReviewShift(ctx, ownership.Scope{}, closed.ID, reviewerID)
 		require.NoError(t, err)
 		assert.False(t, reviewed.NeedsReview)
 		require.NotNil(t, reviewed.ReviewedBy)
@@ -354,7 +369,7 @@ func TestShiftRepository_ReviewShift(t *testing.T) {
 	})
 
 	t.Run("review non-existent shift", func(t *testing.T) {
-		_, err := repo.ReviewShift(ctx, 999999, 1)
+		_, err := repo.ReviewShift(ctx, ownership.Scope{}, 999999, 1)
 		assert.Error(t, err)
 	})
 
@@ -366,10 +381,10 @@ func TestShiftRepository_ReviewShift(t *testing.T) {
 		require.NoError(t, err)
 
 		reviewerID := insertTestUser(ctx, t, 2)
-		_, err = repo.ReviewShift(ctx, closed.ID, reviewerID)
+		_, err = repo.ReviewShift(ctx, ownership.Scope{}, closed.ID, reviewerID)
 		require.NoError(t, err)
 
-		_, err = repo.ReviewShift(ctx, closed.ID, reviewerID)
+		_, err = repo.ReviewShift(ctx, ownership.Scope{}, closed.ID, reviewerID)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not pending review")
 	})
@@ -378,7 +393,7 @@ func TestShiftRepository_ReviewShift(t *testing.T) {
 		userID := insertTestUser(ctx, t, 1)
 		shift := createOpenShift(ctx, t, repo, userID)
 
-		_, err := repo.ReviewShift(ctx, shift.ID, 1)
+		_, err := repo.ReviewShift(ctx, ownership.Scope{}, shift.ID, 1)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not pending review")
 	})
@@ -489,7 +504,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("filter by status", func(t *testing.T) {
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "closed", nil, "", 10, 0, "opened_at", "DESC", nil)
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "closed", nil, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.Equal(t, 3, total)
 		assert.Len(t, shifts, 3)
@@ -500,7 +515,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 
 	t.Run("filter by needs_review", func(t *testing.T) {
 		val := true
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", &val, "", 10, 0, "opened_at", "DESC", nil)
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", &val, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Len(t, shifts, 1)
@@ -508,11 +523,11 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 	})
 
 	reviewerID := insertTestUser(ctx, t, 2)
-	_, err = repo.ReviewShift(ctx, surplus.ID, reviewerID)
+	_, err = repo.ReviewShift(ctx, ownership.Scope{}, surplus.ID, reviewerID)
 	require.NoError(t, err)
 
 	t.Run("filter by balanced discrepancy", func(t *testing.T) {
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "balanced", 10, 0, "opened_at", "DESC", nil)
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "balanced", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, s := range shifts {
@@ -521,7 +536,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 	})
 
 	t.Run("filter by surplus discrepancy", func(t *testing.T) {
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "surplus", 10, 0, "opened_at", "DESC", nil)
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "surplus", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, s := range shifts {
@@ -530,7 +545,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 	})
 
 	t.Run("filter by shortage discrepancy", func(t *testing.T) {
-		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "shortage", 10, 0, "opened_at", "DESC", nil)
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "shortage", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, s := range shifts {
@@ -544,7 +559,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 			storeID, "list notes", balanced.ID).Scan(&updatedID)
 		require.NoError(t, err)
 
-		shifts, _, err := repo.ListShifts(ctx, ownership.Scope{}, "closed", nil, "", 10, 0, "opened_at", "DESC", nil)
+		shifts, _, err := repo.ListShifts(ctx, ownership.Scope{}, "closed", nil, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		var found Shift
 		for _, s := range shifts {
@@ -568,7 +583,7 @@ func TestShiftRepository_ListShifts_InvalidSort(t *testing.T) {
 	userID := insertTestUser(ctx, t, 1)
 	createOpenShift(ctx, t, repo, userID)
 
-	shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "bogus_col", "sideways", nil)
+	shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "bogus_col", "sideways")
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, total, 1)
 	assert.GreaterOrEqual(t, len(shifts), 1)
@@ -601,7 +616,7 @@ func TestShiftRepository_GetShiftWithLiveSales_NotFound(t *testing.T) {
 	repo := newTestRepo(t)
 	ctx := context.Background()
 
-	_, _, err := repo.GetShiftWithLiveSales(ctx, 999999)
+	_, _, err := repo.GetShiftWithLiveSales(ctx, ownership.Scope{}, 999999)
 	assert.Error(t, err)
 }
 
@@ -1017,7 +1032,7 @@ func TestShiftRepository_GetShiftReportData_AggregatesCashMovements(t *testing.T
 	createCashMovementTx(ctx, t, repo, shift.ID, userID, "paid_out", 25000, nil)
 	createCashMovementTx(ctx, t, repo, shift.ID, userID, "paid_in", 10000, nil)
 
-	report, err := repo.GetShiftReportData(ctx, shift.ID)
+	report, err := repo.GetShiftReportData(ctx, ownership.Scope{}, shift.ID)
 	require.NoError(t, err)
 	require.NotNil(t, report)
 	assert.Equal(t, shift.ID, report.ID)
@@ -1025,4 +1040,94 @@ func TestShiftRepository_GetShiftReportData_AggregatesCashMovements(t *testing.T
 	assert.Equal(t, 10000, report.CashMovementSummary.PaidIns)
 	assert.Equal(t, 25000, report.CashMovementSummary.PaidOuts)
 	assert.Equal(t, -115000, report.CashMovementSummary.NetEffect)
+}
+
+// Wave 4: the store dimension on ownership.Scope, proven against the SQL rather
+// than against the handler. A threaded-through claim that no query reads is
+// the same bug with extra steps.
+func TestShiftRepository_StoreScope(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := newTestRepo(t)
+	ctx := context.Background()
+
+	storeA := insertTestStore(ctx, t)
+	storeB := insertTestStore(ctx, t)
+
+	// One open shift per user, so each store needs its own user.
+	userA := insertTestUser(ctx, t, 1)
+	userB := insertTestUser(ctx, t, 1)
+	userC := insertTestUser(ctx, t, 1)
+
+	shiftA := createOpenShift(ctx, t, repo, userA) // store_id IS NULL
+	shiftB, err := repo.OpenShift(ctx, userB, &storeA, 100000)
+	require.NoError(t, err)
+	shiftC, err := repo.OpenShift(ctx, userC, &storeB, 100000)
+	require.NoError(t, err)
+
+	// A supervisor with shift.review holds all-access on the user dimension:
+	// no UserID in the scope. The store dimension must still bite.
+	allUsersInStoreA := ownership.Scope{StoreID: &storeA}
+
+	t.Run("own store readable", func(t *testing.T) {
+		got, err := repo.GetShiftByID(ctx, allUsersInStoreA, shiftB.ID)
+		require.NoError(t, err)
+		assert.Equal(t, shiftB.ID, got.ID)
+	})
+
+	t.Run("foreign store not readable by id", func(t *testing.T) {
+		_, err := repo.GetShiftByID(ctx, allUsersInStoreA, shiftC.ID)
+		assert.Error(t, err, "a store-scoped caller must not open another store's shift by id")
+	})
+
+	t.Run("store-less shift stays reachable", func(t *testing.T) {
+		got, err := repo.GetShiftByID(ctx, allUsersInStoreA, shiftA.ID)
+		require.NoError(t, err, "store_id IS NULL rows belong to nobody in particular, matching ListShifts")
+		assert.Equal(t, shiftA.ID, got.ID)
+	})
+
+	t.Run("nil store scope is unrestricted", func(t *testing.T) {
+		got, err := repo.GetShiftByID(ctx, ownership.Scope{}, shiftC.ID)
+		require.NoError(t, err, "superadmin must still read any store")
+		assert.Equal(t, shiftC.ID, got.ID)
+	})
+
+	t.Run("both dimensions apply together", func(t *testing.T) {
+		// userA owns nothing in store B, so this must miss on the user filter
+		// even though the store filter would pass.
+		_, err := repo.GetShiftByID(ctx, ownership.Scope{UserID: &userA, StoreID: &storeB}, shiftC.ID)
+		assert.Error(t, err)
+	})
+
+	t.Run("list filters on store", func(t *testing.T) {
+		rows, _, err := repo.ListShifts(ctx, allUsersInStoreA, "", nil, "", 100, 0, "opened_at", "DESC")
+		require.NoError(t, err)
+		ids := map[int]bool{}
+		for _, r := range rows {
+			ids[r.ID] = true
+		}
+		assert.True(t, ids[shiftA.ID], "store-less shift listed")
+		assert.True(t, ids[shiftB.ID], "own store listed")
+		assert.False(t, ids[shiftC.ID], "foreign store must not be listed")
+	})
+
+	t.Run("review does not touch a foreign store's shift", func(t *testing.T) {
+		// FlagForReview only applies to a closed shift, so close it first --
+		// otherwise this subtest would pass against an already-unflagged row
+		// and prove nothing about the store filter.
+		_, closeErr := repo.CloseShift(ctx, shiftC.ID, userC, 100000, nil)
+		require.NoError(t, closeErr)
+		require.NoError(t, repo.FlagForReview(ctx, shiftC.ID))
+
+		_, err := repo.ReviewShift(ctx, allUsersInStoreA, shiftC.ID, userA)
+		// Assert the refusal's *reason*. A bare assert.Error also passes when the
+		// statement never ran at all (bad placeholder count, say), which is a
+		// different bug wearing the same green checkmark.
+		require.Error(t, err, "review must refuse a foreign store's shift")
+		assert.Contains(t, err.Error(), "not pending review or not found")
+
+		got, err := repo.GetShiftByID(ctx, ownership.Scope{}, shiftC.ID)
+		require.NoError(t, err)
+		assert.True(t, got.NeedsReview, "the foreign shift must still be flagged for review")
+		assert.Nil(t, got.ReviewedBy, "the reviewer must not be stamped on it")
+	})
 }

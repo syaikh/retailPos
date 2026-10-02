@@ -24,6 +24,13 @@ var ErrProductSupplierNotFound = errors.New("product-supplier link not found")
 // enrichment populated by whichever side owns the joined table:
 // SupplierName/SupplierCode by internal/supplier on its own suppliers table,
 // ProductName/ProductSKU by internal/product on products.
+//
+// StoreID carries the store whose commercial terms this row holds, and nil
+// means *global* terms that apply to every store (migration
+// 058_supplier_terms_store_scope.sql). The supplier itself is deliberately
+// global — one distributor is one row — so this is the only store dimension on
+// the link, and it makes IsPreferred store-relative: each store picks its own
+// preferred supplier for a product.
 type ProductSupplier struct {
 	ID           int     `json:"id"             db:"id"`
 	ProductID    int     `json:"product_id"     db:"product_id"     validate:"gt=0"`
@@ -32,6 +39,7 @@ type ProductSupplier struct {
 	UnitCost     int     `json:"unit_cost"      db:"unit_cost"      validate:"gte=0"`
 	LeadTimeDays int     `json:"lead_time_days" db:"lead_time_days" validate:"gte=0"`
 	IsPreferred  bool    `json:"is_preferred"   db:"is_preferred"`
+	StoreID      *int    `json:"store_id,omitempty" db:"store_id"`
 	Notes        *string `json:"notes,omitempty" db:"notes"`
 	CreatedAt    string  `json:"created_at,omitempty" db:"created_at"`
 	UpdatedAt    string  `json:"updated_at,omitempty" db:"updated_at"`

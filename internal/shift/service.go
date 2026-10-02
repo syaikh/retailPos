@@ -13,16 +13,16 @@ import (
 type Repo interface {
 	OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
 	CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
-	ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
+	ReviewShift(ctx context.Context, scope ownership.Scope, shiftID, reviewerID int) (*Shift, error)
 	FlagForReview(ctx context.Context, shiftID int) error
 	GetActiveShiftByUserID(ctx context.Context, userID int) (*Shift, error)
 	GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
-	GetShiftWithLiveSales(ctx context.Context, shiftID int) (*Shift, int, error)
-	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string, storeID *int) ([]Shift, int, error)
+	GetShiftWithLiveSales(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, int, error)
+	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	CreateCashMovement(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error)
 	ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error)
 	ShiftCashMovementSummary(ctx context.Context, shiftID int) (CashMovementSummary, error)
-	GetShiftReportData(ctx context.Context, shiftID int) (*ReportData, error)
+	GetShiftReportData(ctx context.Context, scope ownership.Scope, shiftID int) (*ReportData, error)
 }
 
 type SettingsProvider interface {
@@ -113,13 +113,13 @@ func (s *service) GetActiveShift(ctx context.Context, userID int) (*Shift, error
 	return s.repo.GetActiveShiftByUserID(ctx, userID)
 }
 
-func (s *service) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string, storeID *int) ([]Shift, int, error) {
-	return s.repo.ListShifts(ctx, scope, status, needsReview, discrepancyFilter, limit, offset, sortBy, sortDir, storeID)
+func (s *service) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+	return s.repo.ListShifts(ctx, scope, status, needsReview, discrepancyFilter, limit, offset, sortBy, sortDir)
 }
 
-func (s *service) ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, storeID *int) ([]Shift, error) {
+func (s *service) ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
 	const maxExportRows = 10000
-	shifts, _, err := s.repo.ListShifts(ctx, scope, status, needsReview, discrepancyFilter, maxExportRows, 0, "opened_at", "DESC", storeID)
+	shifts, _, err := s.repo.ListShifts(ctx, scope, status, needsReview, discrepancyFilter, maxExportRows, 0, "opened_at", "DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -130,35 +130,51 @@ func (s *service) GetShiftByID(ctx context.Context, scope ownership.Scope, shift
 	return s.repo.GetShiftByID(ctx, scope, shiftID)
 }
 
-func (s *service) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
-	return s.repo.ReviewShift(ctx, shiftID, reviewerID)
+func (s *service) ReviewShift(ctx context.Context, scope ownership.Scope, shiftID, reviewerID int) (*Shift, error) {
+	return s.repo.ReviewShift(ctx, scope, shiftID, reviewerID)
 }
 
 func (s *service) FlagForReview(ctx context.Context, shiftID int) error {
 	return s.repo.FlagForReview(ctx, shiftID)
 }
 
-func (s *service) CreateCashMovement(ctx context.Context, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error) {
+func (s *service) CreateCashMovement(ctx context.Context, scope ownership.Scope, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error) {
 	if amount <= 0 {
 		return nil, fmt.Errorf("amount must be greater than zero")
+	}
+	// Authorize the parent shift before the movement is written: this is the
+	// route that pays money in and out of a drawer, so an unverified shift id
+	// is the one that must not pass.
+	if _, err := s.repo.GetShiftByID(ctx, scope, shiftID); err != nil {
+		return nil, err
 	}
 	var movement *CashMovement
 	err := s.InTx(ctx, func(tx pgx.Tx) error {
 		var err error
-		movement, err = s.CreateCashMovementTx(ctx, tx, shiftID, userID, movementType, amount, description)
+		movement, err = s.createCashMovementTx(ctx, tx, shiftID, userID, movementType, amount, description)
 		return err
 	})
 	return movement, err
 }
 
-func (s *service) CreateCashMovementTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error) {
+// createCashMovementTx is deliberately unexported. It performs the insert
+// without re-checking the parent shift, so it is only safe as the second half
+// of CreateCashMovement, which has already loaded that shift through the
+// scope. Exporting it would hand the next caller a way to skip that check.
+func (s *service) createCashMovementTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error) {
 	if amount <= 0 {
 		return nil, fmt.Errorf("amount must be greater than zero")
 	}
 	return s.repo.CreateCashMovement(ctx, tx, shiftID, userID, movementType, amount, description)
 }
 
-func (s *service) ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error) {
+func (s *service) ListCashMovements(ctx context.Context, scope ownership.Scope, shiftID int) ([]CashMovement, error) {
+	// The movement rows carry no store of their own; the parent shift does, so
+	// loading it through the scope is what keeps another store's shift
+	// unreadable -- one filter, rather than two that could drift apart.
+	if _, err := s.repo.GetShiftByID(ctx, scope, shiftID); err != nil {
+		return nil, err
+	}
 	return s.repo.ListCashMovements(ctx, shiftID)
 }
 
@@ -166,10 +182,10 @@ func (s *service) ShiftCashMovementSummary(ctx context.Context, shiftID int) (Ca
 	return s.repo.ShiftCashMovementSummary(ctx, shiftID)
 }
 
-func (s *service) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {
-	return s.repo.GetShiftWithLiveSales(ctx, shiftID)
+func (s *service) AuditShift(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, int, error) {
+	return s.repo.GetShiftWithLiveSales(ctx, scope, shiftID)
 }
 
-func (s *service) GetShiftReportData(ctx context.Context, shiftID int) (*ReportData, error) {
-	return s.repo.GetShiftReportData(ctx, shiftID)
+func (s *service) GetShiftReportData(ctx context.Context, scope ownership.Scope, shiftID int) (*ReportData, error) {
+	return s.repo.GetShiftReportData(ctx, scope, shiftID)
 }

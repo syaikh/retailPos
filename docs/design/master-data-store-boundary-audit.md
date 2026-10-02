@@ -212,8 +212,9 @@ implicitly inside a diff.
 - [x] **D2 — Supplier role mapping** (§3.2 / Wave 2c). *Answered and implemented — see 2c:* Which role may read, and which may
       create/update/delete suppliers? Proposed: `supplier.view` to manager + supervisor +
       superadmin; create/update/delete to manager + superadmin.
-- [ ] **D3 — Supplier store scoping** (§5). Option A / B / C. *Can be deferred until after Wave 2c
-      lands* — see the sequencing note in §5.
+- [x] **D3 — Supplier store scoping** (§5). **Answered: Option C — global supplier, store-scoped
+      commercial terms.** Implemented in Wave 5 (migration
+      `058_supplier_terms_store_scope.sql`). See §5 and "Wave 5" below.
 - [x] **D4 — Was cross-store user creation a supported practice?** (Wave 3) Manager holds
       `user.create`/`user.update`; if HQ used managers to provision users in other branches, enforcing
       the boundary changes a workflow, not just a bug. **Answered: no.** It is not a supported
@@ -222,10 +223,26 @@ implicitly inside a diff.
 - [x] Add a `store_id` scoping note to `docs/design/role-permission-audit.md` and
       `store-first-and-finance-role.md` stating the enforced rule: **all roles except superadmin are
       scoped to their assigned store** (already true of `RequireStoreID`; this documents it).
-- [ ] Record which of the 4 FK-gap tables hold orphaned `store_id` values today
-      (`SELECT ... WHERE store_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM stores WHERE id = ...)`),
-      because Wave 6 will fail on real rows.
-- [ ] Confirm `suppliers` has no `store_id` outliers before Wave 5 (expected: all NULL).
+- [x] Record which of the 4 FK-gap tables hold orphaned `store_id` values today, because Wave 6 will
+      fail on real rows. **Runnable:** `scripts/audit-store-fk-orphans.sh` (read-only; pins the session
+      with `default_transaction_read_only=on`, so it cannot write to the database it inspects and is
+      safe to point at production via `--database`). Exits 1 with the offending rows listed when any
+      are found. It also reports the migration-058 prerequisite — a non-NULL `suppliers.store_id` —
+      reading migration state from `information_schema` rather than assuming a pre-058 schema, so it
+      is correct on a database where 058 has already been applied.
+      **Result on the local test database: 3 orphans across 3 of the 4 tables** — `customers` id=746
+      (`store_id=1`), `goods_receipts` id=5 and `purchase_orders` id=18 (both `store_id=2`). All are
+      test residue, not production findings, and all three traced to one cause each in
+      `internal/shared/testdb.go`, both since fixed: `TruncateTestData` deleted the baseline
+      `stores.id = 1` outright (it now restores it, so `customers.store_id DEFAULT 1` resolves), and it
+      never truncated `purchase_orders`/`goods_receipts` — the only two of the four without an FK to
+      `stores`, so truncating `stores` could not cascade into them. The audit now reports clean, exit 0.
+      None of this is evidence about production either way; it is the proof this gate is
+      load-bearing, since orphans accumulate in *any* long-lived database. **Run the audit against
+      production and attach the output to the `059` PR before scheduling the migration.**
+- [x] Confirm `suppliers` has no `store_id` outliers before Wave 5 (expected: all NULL). *Done inside
+      the migration itself:* `058_supplier_terms_store_scope.sql` aborts before dropping the column if
+      any row is non-NULL, so a database that still holds outliers cannot be migrated by accident.
 
 **Exit criteria:** D1–D4 answered in writing.
 
@@ -448,13 +465,26 @@ while pricing is being fixed.
       This is the same shape as `requireOwnStore` in `internal/store/handler.go`
       and the planned `ensureStoreScope` in the storage-location plan: the check
       belongs at load, so a caller cannot observe a row before it is authorized.
-- [ ] Tests: matrix over (superadmin / manager-A / supervisor-A / cashier-A / manager-B) × (global
-      rule / own / foreign) × (create / update / delete / approve / reject), plus a supplier
-      matrix asserting a cashier gets 403 on `GET /suppliers`.
-      *Partly landed:* `internal/pricing/routes_permission_test.go` now asserts every pricing route
-      demands *exactly* its own code (grant all-but-one → 403), which is the route-level half of the
-      matrix, plus a dedicated unauthorized-approval case. `workflow_test.go` covers the state machine
-      and both import paths. The full cross-role × cross-store matrix is still open.
+- [x] Tests: the matrix is covered in three layers rather than as one product, because the three
+      dimensions fail in different places and one big table test would hide which one broke.
+      1. **Route → code.** `routes_permission_test.go` (both modules) asserts every route demands
+         *exactly* its own code: grant all-but-one → 403. This is the layer that caught the original
+         defect, where supplier routes asked for `pricing.*`.
+      2. **Role → code.** `internal/pricing/role_grants_test.go` reads the grants the migrations
+         actually produced and compares them to the audited mapping — exact set equality per role, so
+         an over-grant *and* a lost read both fail. `TestSupervisorCannotMutatePricing` pins
+         migration 056's revoke (the baseline only INSERTs grants, so nothing else would take it
+         back), `TestSubManagerRolesCannotApprovePricing` keeps approval at manager and above, and
+         `TestCashierHasNoSupplierAccess` is what makes the supplier 403 real rather than incidental.
+         Mutation-checked by granting supervisor `pricing.create` in the test DB: both tests go red.
+      3. **Store boundary.** `TestHandler_MutationStoreBoundary` covers create/update/delete/
+         approve/reject × {foreign, global, own store} as a store-scoped caller, plus superadmin
+         creating a global rule; `TestHandler_{GetRule,ListRules,CheckConflicts}_StoreScoped` cover
+         the read paths; `resolver_test.go` covers price *application* (`filterEligible`, which is
+         where the store filter actually lives on the cart path — not the SQL, and not
+         `GetActiveRules`). `TestSupplierRoutes_CashierHasNoSupplierAccess` is the supplier half.
+      `workflow_test.go` covers the state machine and both import paths, and
+      `TestPricingRulesSchemaDefaultsStartPending` guards migration 055's column defaults.
 
 **Exit criteria:** pricing and supplier are internally consistent; `CheckConflicts` can no longer be
 bypassed; no sub-manager role can mutate either module.
@@ -525,11 +555,21 @@ is *in scope* here, and what is forbidden is writing a store that is not the cal
 
 ### Wave 4 — `shift` store boundary
 
-- [ ] **4a `OpenShift`** (`handler.go:83-124`) — stop trusting the body `store_id`; pass
-      `shared.GetStoreID(c)`. Decide whether to keep accepting the field at all (reject a non-nil
-      value that differs from claims → 403; silently overwrite is the alternative).
-- [ ] **4b Extend `ownership.Scope` with a store dimension**, or introduce a sibling
-      `ownership.StoreScope`. `internal/ownership/ownership.go:29-33` is user-level by construction
+- [x] **4a `OpenShift`** — the body `store_id` is no longer trusted. The effective store is
+      `shared.GetStoreID(c)`; superadmin may override with the body; any other role that names a
+      different store is **rejected with 403** rather than silently overwritten, so a client bug
+      surfaces instead of a till quietly drawing against the wrong drawer. A non-superadmin with no
+      store claim is refused too: `RequireStoreID` already rejects that upstream, but the handler
+      would otherwise mint a `store_id IS NULL` shift — readable by every store — the moment this
+      route was mounted without that middleware.
+- [x] **4b Extend `ownership.Scope` with a store dimension** — `StoreID *int` was added to the
+      existing `Scope` rather than introducing a sibling `ownership.StoreScope`, so `sale` and
+      `product` compile unchanged, as the blast-radius analysis below predicted. `ResolveStore()`
+      and `CanAccessStore()` sit beside `Resolve`/`OwnID`/`CanAccessAll`. The user dimension is left
+      untouched: `shift.review` still resolves to all-access *across users*, and the store filter
+      applies on top of it. Note `shift/repository.go:590,607,621` called `GetShiftByID` with a
+      **zero-value** scope — those internal paths were given the caller's real scope rather than a
+      fresh `Scope{}`. (Original note, kept for the record:) `internal/ownership/ownership.go:29-33` is user-level by construction
       and its doc comment says "shifts today; sales, stock opnames, ... later" — this is the intended
       extension point. Preserve `CanAccessAll` semantics: superadmin (`nil`) bypasses.
 
@@ -546,45 +586,116 @@ is *in scope* here, and what is forbidden is writing a store that is not the cal
       `product` compile unchanged. Also note `shift/repository.go:590,607,621` call
       `GetShiftByID(ctx, ownership.Scope{}, shiftID)` with a **zero-value** scope — those three
       internal paths currently bypass all filtering and must be given a real scope.
-- [ ] **4c Apply to** `GetActiveShift:198`, `GetShiftByID:410`, `ReviewShift:433`,
-      `AuditShift:473`, `CreateCashMovement:540`, `ListCashMovements:576`, `GetShiftReport:592`.
-      Repository filters match the existing `ListShifts` shape (`repository.go:354`).
-- [ ] Tests: cashier-A cannot open a shift in store B; cannot read/review/audit store B's shift by id
-      even with a `shift.review` permission.
+- [x] **4c Applied** to `GetShiftByID`, `ReviewShift`, `AuditShift`, `CreateCashMovement`,
+      `ListCashMovements`, `GetShiftReport`, `ListShifts`, and `ExportShifts`.
+      Repository filters match the existing `ListShifts` shape: `(store_id IS NULL OR store_id = $n)`,
+      so a store-less shift stays reachable by every store-scoped caller — the pre-existing
+      permissive-read convention, now applied consistently instead of only on the list route.
+      `ReviewShift` guards the `UPDATE` itself, not just the reload afterwards, otherwise a foreign
+      store's shift would clear `needs_review` and stamp the reviewer before the reload failed.
+      Cash-movement rows carry no store of their own, so `CreateCashMovement`/`ListCashMovements`
+      authorize by loading the **parent shift** through the scope.
+- [x] `GetActiveShift` / `CloseShift` reviewed and **left as-is**: both are keyed on `user_id`, so a
+      caller can only ever reach their own shift regardless of store.
+- [x] `CreateCashMovementTx` unexported to `createCashMovementTx`. It performs the insert without
+      re-checking the parent shift, so it is only safe as the second half of `CreateCashMovement`,
+      which has already loaded that shift through the scope. It had no caller other than that one;
+      leaving it exported on the `Service` interface would have handed the next caller a way to skip
+      the check.
+- [x] Tests: `TestShiftHandler_OpenShift_StoreBoundary` (foreign store 403, own store allowed,
+      omitted body allowed, superadmin provisions anywhere, superadmin may still create a global
+      shift, missing claim refused), `TestShiftHandler_ReadPaths_PassStoreClaim` (review, audit, get
+      by id, cash-movement list and create all receive the claim, and the user dimension stays
+      open), `TestShiftHandler_SuperadminScopeIsUnrestricted`, and
+      `TestShiftRepository_StoreScope` (own store readable, foreign store 404 by id, store-less row
+      still reachable, nil scope unrestricted, both dimensions applied together, list filtered,
+      review refuses a foreign store's shift and leaves it flagged and unstamped).
 
-**Exit criteria:** cash reconciliation is store-closed.
+  Each store guard was **mutation-checked**: disabling the `GetShiftByID` store filter, the
+  `ReviewShift` guard, the `OpenShift` foreign-store check, and the `OpenShift` fail-closed check
+  each turns a named test red. The first review mutation initially survived — a stale `args`
+  append left the statement with three placeholders and two binds, so the statement never ran and a
+  loose `assert.Error` accepted the SQL error as a policy refusal. The guard and the assertion were
+  both fixed; the test now checks the refusal *reason*.
+
+**Exit criteria:** cash reconciliation is store-closed. Met.
 
 **Risk:** Medium. `ownership` is shared infrastructure, but the additive shape limits the blast radius
 to `shift`. Note supervisor holds `shift.audit` and `shift.review`
 (`000_baseline.sql:5046-5052`) — the same class of over-grant as Wave 2c, worth re-checking.
 
-### Wave 5 — `supplier` store scoping (blocked on the §5 decision)
+**Follow-up:** a `store_id IS NULL` shift is now reachable by **every** store-scoped caller for
+read *and* for review/audit/report. That is the pre-existing list-route convention, extended to the
+by-id routes for consistency — but it is a real widening for whoever writes those routes, and
+whether a global shift should be reviewable from one store is a business question this wave did not
+answer. If it should not be, the fix is to drop the `store_id IS NULL` branch on the write paths
+only, keeping it on the read paths.
+
+### Wave 5 — `supplier` store scoping — **DONE (Option C)**
 
 Prerequisite: **Wave 2c must land first.** Creating `supplier.*` codes while leaving the store
-boundary undecided would mean re-mapping permissions twice.
+boundary undecided would mean re-mapping permissions twice. *Wave 2c landed first; Wave 5 followed.*
 
-- [ ] Execute the chosen option: **wire up** (5a) or **remove** (5b), per §5.
-- [ ] Whichever option: update `docs/design/role-permission-audit.md` and the README supplier
-  section so the decision is recorded and does not get silently reversed.
+**Option C was executed** — migration `058_supplier_terms_store_scope.sql`.
 
-**Exit criteria:** no column promises a boundary the code does not enforce, and supplier reads are
-limited to roles that should have them.
+- [x] Add nullable `product_suppliers.store_id` (FK `stores(id)`); existing links stay global
+      (`NULL`) and act as the estate-wide default. Existing `suppliers.store_id` dropped, guarded by a
+      pre-check that aborts on any non-NULL row.
+- [x] Reads are effective-scope: a store sees the global default plus its own overrides, own row
+      winning on a duplicate pair. Scoped lists collapse the shadowed global row.
+- [x] Writes are exact-scope: a store may only update/delete its **own** rows, never the inherited
+      global one — that is refused with `403` and a message pointing at the store's own terms.
+- [x] Preferred supplier is per store. A store expresses a preference by linking the supplier for
+      itself first; preferring a pair it does not own is a `404`, not a silent no-op.
+- [x] Handler fails closed: below superadmin, a missing `store_id` claim is `403`, never "all stores".
+      Superadmin is unrestricted, and unscoped management writes target the global row.
+- [x] `internal/product` keeps ownership of the SQL (archtest enforced); `internal/supplier` consumes
+      it through a store-aware port.
+- [x] **Close the read paths that bypassed the supplier module.** Scoping the link table is only half
+      the job; two other queries read `product_suppliers` directly and would have kept leaking
+      another store's terms through a different route:
+      - the product list's `?supplier_id=` filter (`internal/product/query.go`) ran an `EXISTS`
+        subquery with no store predicate, so a store filtering "products from supplier X" was shown
+        products whose only link to X was another store's private terms. It now reuses the link
+        store's own `visibleSQL` so the two predicates cannot drift;
+      - the stock opname `"supplier"` scope (`product.MetaLookup.ScopeProductIDs`) counted a
+        supplier's products estate-wide, pulling other stores' supplier relationships into a store's
+        stock count. The session's store is now threaded through `ProductScopeProvider`.
+      Both have regression tests that fail if the predicate is removed.
+- [x] Role/permission docs updated (`docs/design/role-permission-audit.md`, Wave 2c).
+
+**Deliberate non-change:** the remaining stock opname scope types (`category`, `brand`, `product`,
+`manual`) read `products`, not the link table, so they are unaffected by 058 and were left alone;
+whether product identity should be store-filtered there is a separate question.
+
+**Deliberate non-change:** supplier identity (`suppliers`) stays global. `supplier.view`,
+`supplier.create/update/delete` remain **not** store-scoped — a trading partner is not a per-store
+record. What is store-scoped is the commercial terms and the preferred-supplier choice.
+
+**Exit criteria:** met — no column promises a boundary the code does not enforce, and supplier reads
+are limited to roles that should have them.
 
 ### Wave 6 — Schema integrity (FK gaps)
 
-- [ ] New migration `058_store_fk_integrity.sql`. Per AGENTS.md the baseline is amended in place, but
+- [ ] New migration `059_store_fk_integrity.sql`. Per AGENTS.md the baseline is amended in place, but
       the number is not free: 054–057 are taken by the pricing author column, the pricing status
-      defaults, the supervisor pricing-grant revoke, and the `draft` status retirement. Per AGENTS.md the baseline is amended in place, but
-  new migrations start at `054_*.sql`; a *constraint* added post-baseline belongs in a new migration so
-  it replays in lexical order on every runner.
+      defaults, the supervisor pricing-grant revoke, and the `draft` status retirement; **058 is now
+      taken by Wave 5/D3 Option C (`058_supplier_terms_store_scope.sql`, which itself moved
+      `product_suppliers.store_id` off `suppliers`)**. Per AGENTS.md new migrations now start at
+      `059_*.sql`; a *constraint* added post-baseline belongs in a new migration so it replays in
+      lexical order on every runner.
 - [ ] Add `REFERENCES stores(id)` to `customers`, `users`, `goods_receipts`, `purchase_orders`.
   **Must be re-runnable** (`ON DELETE SET NULL` to match the 21 existing conventions, guarded with a
   `DO $$ ... IF NOT EXISTS (SELECT 1 FROM pg_constraint ...) $$` block, or `ALTER TABLE ... DROP
   CONSTRAINT IF EXISTS` then re-add).
+- [x] Confirmed `customers.store_id` really does carry `DEFAULT 1` in the live schema (the other
+      three have no default; `users.store_id` is the only nullable one of the four).
 - [ ] Decide `customers.store_id`'s `DEFAULT 1` — either drop the default (callers must pass a store)
   or keep it and document the baseline invariant.
 - [ ] The Wave 0 orphan audit must be clean **before** this migration, or it will fail on real rows.
-  Orphan cleanup is data migration and out of scope here — escalate if non-empty.
+  Orphan cleanup is data migration and out of scope here — escalate if non-empty. The check is
+  `scripts/audit-store-fk-orphans.sh`; run it against production and attach the output to the
+  migration PR. Known to be non-empty on at least one local database (see Wave 0).
 
 **Exit criteria:** all 25 store-scoped tables have a real FK; `pg_constraint` count matches the
 baseline's documented total plus the 4 new ones.
@@ -666,7 +777,7 @@ baseline's documented total plus the 4 new ones.
   more production data.
 - **Needs a written decision.** Otherwise a future contributor re-adds the column, assuming it works.
 
-### Option C — Hybrid: global supplier, store-scoped commercial terms *(recommended)*
+### Option C — Hybrid: global supplier, store-scoped commercial terms — **DECIDED (Wave 5)**
 
 Keep `suppliers` global; put the store boundary where the money is.
 
@@ -696,10 +807,11 @@ Keep `suppliers` global; put the store boundary where the money is.
   contact details. Mitigate with a permission (e.g. `supplier.edit_global`) if that matters, which
   is much cheaper than store-scoping the table.
 
-### Recommendation
+### Recommendation — **ACCEPTED, Option C implemented**
 
 **Option C**, with Wave 2c's permission split as the primary fix and Option C's schema change as the
-follow-up.
+follow-up. *Wave 2c landed first, then Wave 5 executed Option C. This section is kept as the record of
+why, not as an open question — see "Wave 5" above for what was actually built.*
 
 Rationale: Option A's data cost is high and its security benefit is largely already delivered by the
 store-scoped `consignment_arrangements` / `purchase_orders` joins — plus the permission fix that must
@@ -710,7 +822,8 @@ reuses a pattern the system already proves in consignment.
 Sequencing insight: **2c first, then re-evaluate.** The permission fix is cheap, independently
 correct, and removes most of the exposure. Once cashier and supervisor lose supplier access, decide
 whether the residual cross-store visibility among managers actually justifies a data migration.
-That is a business decision best made with the fix already in place, not before.
+That is a business decision best made with the fix already in place, not before. *This is what
+happened: 2c landed, the residual exposure was judged worth closing, and Option C was implemented.*
 
 If the business genuinely wants per-store supplier *identity* — e.g. the same vendor is a different
 legal entity per store, with different tax IDs — then Option A is correct and this becomes a
@@ -749,7 +862,8 @@ scoping decision.
     `pricing.update`; 2g retired the submit path entirely, so only `canApprove` remains.)
 - **Permission catalog beyond Wave 2c/2d** — `role-permission-audit.md` is updated in Wave 0, but
   no other module's role mapping is reworked here. The supervisor over-grant on
-  `shift.audit`/`shift.review` (Wave 4) is flagged, not fixed.
+  `shift.audit`/`shift.review` is flagged, not fixed; Wave 4 scoped those permissions to the
+  caller's store but did not revisit who holds them.
 - **Orphan-row data migration** (Wave 6 blocker) — escalate, do not silently write.
 
 ## 7. Verification

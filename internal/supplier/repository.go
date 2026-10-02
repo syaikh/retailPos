@@ -242,36 +242,40 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 	return suppliers, total, nil
 }
 
+// LinkProduct inserts a link row. ps.StoreID is already pinned by the handler
+// (the caller's own store, or nil for a superadmin writing global terms).
 func (r *Repository) LinkProduct(ctx context.Context, ps *ProductSupplier) error {
 	return r.linkStore().CreateLink(ctx, r.db, ps)
 }
 
-func (r *Repository) UnlinkProduct(ctx context.Context, productID, supplierID int) error {
-	return r.linkStore().DeleteLink(ctx, r.db, productID, supplierID)
+func (r *Repository) UnlinkProduct(ctx context.Context, productID, supplierID int, storeID *int) error {
+	return r.linkStore().DeleteLink(ctx, r.db, productID, supplierID, storeID)
 }
 
-func (r *Repository) GetProductSupplier(ctx context.Context, productID, supplierID int) (*ProductSupplier, error) {
-	return r.linkStore().GetLink(ctx, r.db, productID, supplierID)
+func (r *Repository) GetProductSupplier(ctx context.Context, productID, supplierID int, storeID *int) (*ProductSupplier, error) {
+	return r.linkStore().GetLink(ctx, r.db, productID, supplierID, storeID)
 }
 
-func (r *Repository) GetPreferredSupplier(ctx context.Context, productID int) (*ProductSupplier, error) {
-	return r.linkStore().GetPreferredLink(ctx, r.db, productID)
+func (r *Repository) GetPreferredSupplier(ctx context.Context, productID int, storeID *int) (*ProductSupplier, error) {
+	return r.linkStore().GetPreferredLink(ctx, r.db, productID, storeID)
 }
 
-func (r *Repository) SetPreferredSupplier(ctx context.Context, productID, supplierID int) error {
-	return r.linkStore().SetPreferredLink(ctx, r.db, productID, supplierID)
+func (r *Repository) SetPreferredSupplier(ctx context.Context, productID, supplierID int, storeID *int) error {
+	return r.linkStore().SetPreferredLink(ctx, r.db, productID, supplierID, storeID)
 }
 
-func (r *Repository) UpdateProductSupplier(ctx context.Context, ps *ProductSupplier) error {
+func (r *Repository) UpdateProductSupplier(ctx context.Context, ps *ProductSupplier, storeID *int) error {
+	ps.StoreID = storeID
 	return r.linkStore().UpdateLink(ctx, r.db, ps)
 }
 
-// GetSuppliersByProductID returns the product-supplier links of a product,
-// enriched with the supplier name/code. The link rows come from the
-// product-owned port; supplier enrichment is computed here on the suppliers
-// table (referensi-owned), preserving the previous JOIN's ordering.
-func (r *Repository) GetSuppliersByProductID(ctx context.Context, productID int) ([]ProductSupplier, error) {
-	links, err := r.linkStore().ListLinksByProduct(ctx, r.db, productID)
+// GetSuppliersByProductID returns the product-supplier links of a product
+// in effect for the caller's scope, enriched with the supplier name/code. The
+// link rows come from the product-owned port; supplier enrichment is computed
+// here on the suppliers table (referensi-owned), preserving the previous JOIN's
+// ordering.
+func (r *Repository) GetSuppliersByProductID(ctx context.Context, productID int, storeID *int) ([]ProductSupplier, error) {
+	links, err := r.linkStore().ListLinksByProduct(ctx, r.db, productID, storeID)
 	if err != nil {
 		return nil, err
 	}
@@ -317,12 +321,12 @@ func (r *Repository) GetSuppliersByProductID(ctx context.Context, productID int)
 	return links, nil
 }
 
-func (r *Repository) GetProductsBySupplierID(ctx context.Context, supplierID int) ([]ProductSupplier, error) {
-	return r.linkStore().ListLinksBySupplier(ctx, r.db, supplierID)
+func (r *Repository) GetProductsBySupplierID(ctx context.Context, supplierID int, storeID *int) ([]ProductSupplier, error) {
+	return r.linkStore().ListLinksBySupplier(ctx, r.db, supplierID, storeID)
 }
 
-func (r *Repository) HasPreferredSupplier(ctx context.Context, productID int) (bool, error) {
-	return r.linkStore().HasPreferredLink(ctx, r.db, productID)
+func (r *Repository) HasPreferredSupplier(ctx context.Context, productID int, storeID *int) (bool, error) {
+	return r.linkStore().HasPreferredLink(ctx, r.db, productID, storeID)
 }
 
 func scanSuppliers(rows pgx.Rows) ([]Supplier, error) {

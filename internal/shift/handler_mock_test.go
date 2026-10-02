@@ -34,6 +34,16 @@ type mockShiftService struct {
 	getDiscrepancyThresholdFn func(ctx context.Context) int
 	auditShiftFn              func(ctx context.Context, shiftID int) (*Shift, int, error)
 	exportShiftsFn            func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
+
+	// Scope capture. These paths exist only to mutate a shift the caller names
+	// by id, so "did the handler pass the caller's store down" is the whole
+	// question; recording the scope answers it without a second signature per
+	// mock method.
+	lastReviewScope         ownership.Scope
+	lastAuditScope          ownership.Scope
+	lastReportScope         ownership.Scope
+	lastListMovementScope   ownership.Scope
+	lastCreateMovementScope ownership.Scope
 }
 
 func (m *mockShiftService) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
@@ -45,13 +55,14 @@ func (m *mockShiftService) CloseShift(ctx context.Context, shiftID, userID int, 
 func (m *mockShiftService) GetActiveShift(ctx context.Context, userID int) (*Shift, error) {
 	return m.getActiveShiftFn(ctx, userID)
 }
-func (m *mockShiftService) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string, storeID *int) ([]Shift, int, error) {
+func (m *mockShiftService) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
 	return m.listShiftsFn(ctx, scope, status, needsReview, discrepancyFilter, limit, offset, sortBy, sortDir)
 }
 func (m *mockShiftService) GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error) {
 	return m.getShiftByIDFn(ctx, scope, shiftID)
 }
-func (m *mockShiftService) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
+func (m *mockShiftService) ReviewShift(ctx context.Context, scope ownership.Scope, shiftID, reviewerID int) (*Shift, error) {
+	m.lastReviewScope = scope
 	return m.reviewShiftFn(ctx, shiftID, reviewerID)
 }
 func (m *mockShiftService) FlagForReview(ctx context.Context, shiftID int) error {
@@ -67,23 +78,23 @@ func (m *mockShiftService) GetDiscrepancyThreshold(ctx context.Context) int {
 	return defaultDiscrepancyThreshold
 }
 func (m *mockShiftService) SetSettingsProvider(p SettingsProvider) {}
-func (m *mockShiftService) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {
+func (m *mockShiftService) AuditShift(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, int, error) {
+	m.lastAuditScope = scope
 	return m.auditShiftFn(ctx, shiftID)
 }
-func (m *mockShiftService) ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, storeID *int) ([]Shift, error) {
+func (m *mockShiftService) ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
 	if m.exportShiftsFn != nil {
 		return m.exportShiftsFn(ctx, scope, status, needsReview, discrepancyFilter)
 	}
 	return nil, nil
 }
 
-func (m *mockShiftService) CreateCashMovement(ctx context.Context, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error) {
+func (m *mockShiftService) CreateCashMovement(ctx context.Context, scope ownership.Scope, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error) {
+	m.lastCreateMovementScope = scope
 	return nil, nil
 }
-func (m *mockShiftService) CreateCashMovementTx(ctx context.Context, tx pgx.Tx, shiftID, userID int, movementType string, amount int, description *string) (*CashMovement, error) {
-	return nil, nil
-}
-func (m *mockShiftService) ListCashMovements(ctx context.Context, shiftID int) ([]CashMovement, error) {
+func (m *mockShiftService) ListCashMovements(ctx context.Context, scope ownership.Scope, shiftID int) ([]CashMovement, error) {
+	m.lastListMovementScope = scope
 	return nil, nil
 }
 func (m *mockShiftService) ShiftCashMovementSummary(ctx context.Context, shiftID int) (CashMovementSummary, error) {
@@ -102,7 +113,8 @@ func (m *mockShiftService) InTx(ctx context.Context, fn func(tx pgx.Tx) error) e
 	return fn(nil)
 }
 
-func (m *mockShiftService) GetShiftReportData(ctx context.Context, shiftID int) (*ReportData, error) {
+func (m *mockShiftService) GetShiftReportData(ctx context.Context, scope ownership.Scope, shiftID int) (*ReportData, error) {
+	m.lastReportScope = scope
 	return nil, nil
 }
 
@@ -126,6 +138,33 @@ func (m *mockAudit) CreateAuditLogTx(ctx context.Context, tx pgx.Tx, log *audit.
 
 func setupShiftHandler(svc Service, auditSvc audit.TxCreator) *gin.Engine {
 	return setupShiftHandlerWithCtx(svc, auditSvc, 1, "superadmin", nil)
+}
+
+// setupStoreScopedShiftHandler mirrors setupShiftHandlerWithCtx but puts a store
+// claim in the context, the way RequireStoreID does for every role but
+// superadmin. Wave 4's whole question is what a store-scoped caller can reach.
+func setupStoreScopedShiftHandler(svc Service, storeID int, role string, perms []string) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	// shared.GetStoreID type-asserts *int, so the claim has to be a pointer.
+	// A bare int in the context silently reads back as no claim at all, which
+	// is exactly the kind of mistake that makes a store test pass for the
+	// wrong reason.
+	claim := storeID
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 7)
+		c.Set("username", "storeuser")
+		c.Set("roleID", 1)
+		c.Set("role", role)
+		c.Set("storeID", &claim)
+		c.Set("permissions", perms)
+		c.Next()
+	})
+	h := NewHandler(svc, nil)
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	return r
 }
 
 func setupShiftHandlerWithCtx(svc Service, auditSvc audit.TxCreator, userID int, role string, perms []string) *gin.Engine {
@@ -809,4 +848,194 @@ func TestShiftHandler_ExportShifts_OwnershipScope(t *testing.T) {
 		assert.True(t, restricted)
 		assert.Equal(t, 42, ownerID)
 	})
+}
+
+// --- Wave 4: shift store boundary ---
+
+func TestShiftHandler_OpenShift_StoreBoundary(t *testing.T) {
+	storeA, storeB := 1, 2
+
+	cases := []struct {
+		name      string
+		role      string
+		claims    *int
+		body      string
+		wantCode  int
+		wantStore *int
+	}{
+		{
+			name:     "a cashier cannot open a shift in another store",
+			role:     "cashier",
+			claims:   &storeA,
+			body:     `{"store_id":2,"opening_balance":0}`,
+			wantCode: http.StatusForbidden,
+		},
+		{
+			name:      "omitting the store opens in the caller's own store",
+			role:      "cashier",
+			claims:    &storeA,
+			body:      `{"opening_balance":0}`,
+			wantCode:  http.StatusOK,
+			wantStore: &storeA,
+		},
+		{
+			name:      "naming the caller's own store is allowed",
+			role:      "cashier",
+			claims:    &storeA,
+			body:      `{"store_id":1,"opening_balance":0}`,
+			wantCode:  http.StatusOK,
+			wantStore: &storeA,
+		},
+		{
+			name:      "superadmin provisions in another store",
+			role:      "superadmin",
+			claims:    nil,
+			body:      `{"store_id":2,"opening_balance":0}`,
+			wantCode:  http.StatusOK,
+			wantStore: &storeB,
+		},
+		{
+			// RequireStoreID rejects this upstream in production; the handler
+			// must not depend on its mounting to avoid minting a global shift.
+			name:     "a non-superadmin with no store claim is refused",
+			role:     "cashier",
+			claims:   nil,
+			body:     `{"opening_balance":0}`,
+			wantCode: http.StatusForbidden,
+		},
+		{
+			name:      "superadmin may still create a global shift",
+			role:      "superadmin",
+			claims:    nil,
+			body:      `{"opening_balance":0}`,
+			wantCode:  http.StatusOK,
+			wantStore: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotStore *int
+			called := false
+			svc := &mockShiftService{
+				openShiftFn: func(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
+					called = true
+					gotStore = storeID
+					return &Shift{ID: 1, Status: "open"}, nil
+				},
+			}
+			r := setupStoreScopedShiftHandler(svc, storeA, tc.role, []string{string(permissions.ShiftCreate)})
+			if tc.claims == nil {
+				// superadmin: no store claim in context
+				r = setupShiftHandlerWithCtx(svc, nil, 7, tc.role, []string{string(permissions.ShiftCreate)})
+			}
+
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/shifts/open", strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, tc.wantCode, w.Code, "body: %s", w.Body.String())
+			if tc.wantCode == http.StatusOK {
+				assert.True(t, called, "service must be reached")
+				if tc.wantStore == nil {
+					assert.Nil(t, gotStore, "a global shift keeps a nil store")
+				} else {
+					require.NotNil(t, gotStore)
+					assert.Equal(t, *tc.wantStore, *gotStore)
+				}
+			} else {
+				assert.False(t, called, "a refused open must not reach the service")
+			}
+		})
+	}
+}
+
+// A store-scoped caller holding shift.review has all-access across users but
+// not across stores. Every path that acts on a shift named by id must receive
+// that store claim, or the id is unguarded.
+func TestShiftHandler_ReadPaths_PassStoreClaim(t *testing.T) {
+	storeA := 1
+
+	t.Run("review", func(t *testing.T) {
+		svc := &mockShiftService{
+			reviewShiftFn: func(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
+				return &Shift{ID: shiftID, Status: "closed"}, nil
+			},
+		}
+		r := setupStoreScopedShiftHandler(svc, storeA, "supervisor", []string{string(permissions.ShiftReview)})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/shifts/5/review", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		require.NotNil(t, svc.lastReviewScope.StoreID)
+		assert.Equal(t, storeA, *svc.lastReviewScope.StoreID)
+		// the user dimension stays open: all-access is about users only
+		assert.Nil(t, svc.lastReviewScope.UserID)
+	})
+
+	t.Run("audit", func(t *testing.T) {
+		svc := &mockShiftService{
+			auditShiftFn: func(ctx context.Context, shiftID int) (*Shift, int, error) {
+				return &Shift{ID: shiftID}, 0, nil
+			},
+		}
+		r := setupStoreScopedShiftHandler(svc, storeA, "supervisor", []string{string(permissions.ShiftAudit)})
+		w := httptest.NewRecorder()
+		auditReq := httptest.NewRequest(http.MethodPost, "/shifts/5/audit",
+			strings.NewReader(`{"actual_balance":500000}`))
+		auditReq.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, auditReq)
+		assert.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+		require.NotNil(t, svc.lastAuditScope.StoreID)
+		assert.Equal(t, storeA, *svc.lastAuditScope.StoreID)
+	})
+
+	t.Run("get by id", func(t *testing.T) {
+		var got ownership.Scope
+		svc := &mockShiftService{
+			getShiftByIDFn: func(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error) {
+				got = scope
+				return &Shift{ID: shiftID}, nil
+			},
+		}
+		r := setupStoreScopedShiftHandler(svc, storeA, "cashier", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/shifts/5", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		require.NotNil(t, got.StoreID)
+		assert.Equal(t, storeA, *got.StoreID)
+	})
+
+	t.Run("cash movements list and create", func(t *testing.T) {
+		svc := &mockShiftService{}
+		r := setupStoreScopedShiftHandler(svc, storeA, "supervisor", []string{string(permissions.ShiftCashMovement)})
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/shifts/5/cash-movements", nil))
+		require.NotNil(t, svc.lastListMovementScope.StoreID)
+		assert.Equal(t, storeA, *svc.lastListMovementScope.StoreID)
+
+		w = httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/shifts/5/cash-movements",
+			strings.NewReader(`{"type":"paid_in","amount":1000}`))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		require.NotNil(t, svc.lastCreateMovementScope.StoreID)
+		assert.Equal(t, storeA, *svc.lastCreateMovementScope.StoreID)
+	})
+}
+
+// Superadmin carries no store claim, so the scope's store dimension must stay
+// nil rather than becoming a filter that matches nothing.
+func TestShiftHandler_SuperadminScopeIsUnrestricted(t *testing.T) {
+	svc := &mockShiftService{
+		reviewShiftFn: func(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
+			return &Shift{ID: shiftID}, nil
+		},
+	}
+	r := setupShiftHandlerWithCtx(svc, nil, 7, "superadmin", []string{string(permissions.ShiftReview)})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/shifts/5/review", nil))
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Nil(t, svc.lastReviewScope.StoreID)
 }

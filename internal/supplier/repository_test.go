@@ -212,20 +212,20 @@ func TestSupplierRepository_ProductSupplierLinking(t *testing.T) {
 	})
 
 	t.Run("Get product supplier", func(t *testing.T) {
-		ps, err := repo.GetProductSupplier(ctx, productID, s.ID)
+		ps, err := repo.GetProductSupplier(ctx, productID, s.ID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 8000, ps.UnitCost)
 		assert.True(t, ps.IsPreferred)
 	})
 
 	t.Run("Get preferred supplier", func(t *testing.T) {
-		ps, err := repo.GetPreferredSupplier(ctx, productID)
+		ps, err := repo.GetPreferredSupplier(ctx, productID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, s.ID, ps.SupplierID)
 	})
 
 	t.Run("Has preferred supplier", func(t *testing.T) {
-		has, err := repo.HasPreferredSupplier(ctx, productID)
+		has, err := repo.HasPreferredSupplier(ctx, productID, nil)
 		require.NoError(t, err)
 		assert.True(t, has)
 	})
@@ -246,48 +246,48 @@ func TestSupplierRepository_ProductSupplierLinking(t *testing.T) {
 		}
 		require.NoError(t, repo.LinkProduct(ctx, ps2))
 
-		err := repo.SetPreferredSupplier(ctx, productID, s2.ID)
+		err := repo.SetPreferredSupplier(ctx, productID, s2.ID, nil)
 		require.NoError(t, err)
 
-		got, err := repo.GetPreferredSupplier(ctx, productID)
+		got, err := repo.GetPreferredSupplier(ctx, productID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, s2.ID, got.SupplierID)
 	})
 
 	t.Run("Get suppliers by product ID", func(t *testing.T) {
-		suppliers, err := repo.GetSuppliersByProductID(ctx, productID)
+		suppliers, err := repo.GetSuppliersByProductID(ctx, productID, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, suppliers)
 		assert.NotNil(t, suppliers[0].SupplierName)
 	})
 
 	t.Run("Get products by supplier ID", func(t *testing.T) {
-		products, err := repo.GetProductsBySupplierID(ctx, s.ID)
+		products, err := repo.GetProductsBySupplierID(ctx, s.ID, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, products)
 		assert.NotNil(t, products[0].ProductName)
 	})
 
 	t.Run("Update product supplier", func(t *testing.T) {
-		ps, err := repo.GetProductSupplier(ctx, productID, s2.ID)
+		ps, err := repo.GetProductSupplier(ctx, productID, s2.ID, nil)
 		require.NoError(t, err)
 
 		ps.UnitCost = 9500
 		ps.LeadTimeDays = 10
-		err = repo.UpdateProductSupplier(ctx, ps)
+		err = repo.UpdateProductSupplier(ctx, ps, nil)
 		require.NoError(t, err)
 
-		got, err := repo.GetProductSupplier(ctx, productID, s2.ID)
+		got, err := repo.GetProductSupplier(ctx, productID, s2.ID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 9500, got.UnitCost)
 		assert.Equal(t, 10, got.LeadTimeDays)
 	})
 
 	t.Run("Unlink product", func(t *testing.T) {
-		err := repo.UnlinkProduct(ctx, productID, s.ID)
+		err := repo.UnlinkProduct(ctx, productID, s.ID, nil)
 		require.NoError(t, err)
 
-		_, err = repo.GetProductSupplier(ctx, productID, s.ID)
+		_, err = repo.GetProductSupplier(ctx, productID, s.ID, nil)
 		assert.Error(t, err)
 	})
 }
@@ -307,7 +307,13 @@ func TestSupplierRepository_GetAllInactiveFilter(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, s))
 
 	inactive := false
-	suppliers, total, err := repo.GetAll(ctx, 10, 0, "", &inactive, nil)
+	// Search by this run's unique code rather than asking for a bare page of ten.
+	// The unfiltered query is `ORDER BY name ASC LIMIT 10`, and this test inserts
+	// a supplier on every run, so on a long-lived test database the row lands
+	// past the limit and the assertion fails on accumulated data rather than on
+	// the behaviour it means to check. Scoping by code keeps the is_active=false
+	// filter under test without depending on how much history the table holds.
+	suppliers, total, err := repo.GetAll(ctx, 10, 0, s.Code, &inactive, nil)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, total, 1)
 	assert.NotNil(t, suppliers)

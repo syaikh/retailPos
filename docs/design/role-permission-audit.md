@@ -383,3 +383,28 @@ is refused, because that would capture it rather than edit it.
 
 **Practical rule for a non-superadmin:** the only store id you may create under, move a user into,
 or see in a hierarchical read is your own.
+
+### Suppliers: global identity, store-scoped terms (deliberate, Wave 5 / D3)
+
+`supplier.*` is the one permission family where "all roles except superadmin are scoped to their
+assigned store" is **intentionally not** the whole answer, so it is recorded here rather than left to
+be re-derived.
+
+- **A supplier is not a per-store record.** A trading partner's name, address and contact details are
+  the same everywhere, so `suppliers` stays global and `supplier.view/create/update/delete` are *not*
+  store-scoped. Enforcing the boundary here would split one real supplier into N rows for no gain.
+- **Its commercial terms are per store.** `product_suppliers` is store-scoped
+  (`058_supplier_terms_store_scope.sql`). A store sees the estate-wide default (`store_id IS NULL`)
+  plus its own negotiated overrides, its own row winning on a duplicate pair.
+- **Writes are exact-scope.** A store may only update or delete links it owns. The inherited global
+  row is refused with `403` — a manager at one branch cannot renegotiate another branch's supplier
+  price, and cannot delete the default out from under them. Copying the global terms into the store
+  first is the supported path, and the error message says so.
+- **Preferred supplier is a per-store choice.** Expressing one means linking that supplier for your
+  own store; preferring a pair you do not own is a `404`, not a silent no-op.
+- **Fail-closed on the link routes.** Below superadmin, a request with no `store_id` claim is `403`.
+  Those routes have no meaning without a scope, and the alternative — treating nil as "every store" —
+  would re-open the cross-store leak this work closed. Superadmin stays unrestricted.
+
+See [Master-Data Store Boundary Audit](./master-data-store-boundary-audit.md) §5 for the options that
+were considered and why this one was chosen.

@@ -37,13 +37,24 @@ type mockSupplierServiceForAudit struct {
 	updateFn                  func(ctx context.Context, supplier *Supplier) error
 	deleteFn                  func(ctx context.Context, id int) error
 	linkProductFn             func(ctx context.Context, ps *ProductSupplier) error
-	unlinkProductFn           func(ctx context.Context, productID, supplierID int) error
-	getProductSupplierFn      func(ctx context.Context, productID, supplierID int) (*ProductSupplier, error)
-	setPreferredSupplierFn    func(ctx context.Context, productID, supplierID int) error
-	updateProductSupplierFn   func(ctx context.Context, ps *ProductSupplier) error
+	unlinkProductFn           func(ctx context.Context, productID, supplierID int, storeID *int) error
+	getProductSupplierFn      func(ctx context.Context, productID, supplierID int, storeID *int) (*ProductSupplier, error)
+	setPreferredSupplierFn    func(ctx context.Context, productID, supplierID int, storeID *int) error
+	updateProductSupplierFn   func(ctx context.Context, ps *ProductSupplier, storeID *int) error
 	bulkUpdateFn              func(ctx context.Context, ids []int, isActive bool) (int, error)
 	bulkDeleteFn              func(ctx context.Context, ids []int) (int, error)
-	getProductsBySupplierIDFn func(ctx context.Context, supplierID int) ([]ProductSupplier, error)
+	getProductsBySupplierIDFn func(ctx context.Context, supplierID int, storeID *int) ([]ProductSupplier, error)
+
+	lastLinkWriteStoreID *int
+}
+
+// Recorded store scopes, so a test can assert the handler resolved the claim
+// rather than silently passing nil (which every query reads as "every store").
+func (m *mockSupplierServiceForAudit) linkWriteScope() *int {
+	if m.lastLinkWriteStoreID != nil && *m.lastLinkWriteStoreID > 0 {
+		return m.lastLinkWriteStoreID
+	}
+	return nil
 }
 
 func (m *mockSupplierServiceForAudit) GetByID(ctx context.Context, id int) (*Supplier, error) {
@@ -92,45 +103,52 @@ func (m *mockSupplierServiceForAudit) LinkProduct(ctx context.Context, ps *Produ
 	return nil
 }
 
-func (m *mockSupplierServiceForAudit) UnlinkProduct(ctx context.Context, productID, supplierID int) error {
+func (m *mockSupplierServiceForAudit) UnlinkProduct(ctx context.Context, productID, supplierID int, storeID *int) error {
+	m.lastLinkWriteStoreID = storeID
 	if m.unlinkProductFn != nil {
-		return m.unlinkProductFn(ctx, productID, supplierID)
+		return m.unlinkProductFn(ctx, productID, supplierID, storeID)
 	}
 	return nil
 }
 
-func (m *mockSupplierServiceForAudit) GetProductSupplier(ctx context.Context, productID, supplierID int) (*ProductSupplier, error) {
+// Default is an own-store link so the pre-existing audit tests -- whose calls
+// carry no store claim -- resolve to an authorized write. Tests that care about
+// the global-default refusal set getProductSupplierFn.
+func (m *mockSupplierServiceForAudit) GetProductSupplier(ctx context.Context, productID, supplierID int, storeID *int) (*ProductSupplier, error) {
 	if m.getProductSupplierFn != nil {
-		return m.getProductSupplierFn(ctx, productID, supplierID)
+		return m.getProductSupplierFn(ctx, productID, supplierID, storeID)
 	}
+	own := 1
+	return &ProductSupplier{ProductID: productID, SupplierID: supplierID, StoreID: &own}, nil
+}
+
+func (m *mockSupplierServiceForAudit) GetPreferredSupplier(ctx context.Context, productID int, storeID *int) (*ProductSupplier, error) {
 	return nil, nil
 }
 
-func (m *mockSupplierServiceForAudit) GetPreferredSupplier(ctx context.Context, productID int) (*ProductSupplier, error) {
-	return nil, nil
-}
-
-func (m *mockSupplierServiceForAudit) SetPreferredSupplier(ctx context.Context, productID, supplierID int) error {
+func (m *mockSupplierServiceForAudit) SetPreferredSupplier(ctx context.Context, productID, supplierID int, storeID *int) error {
+	m.lastLinkWriteStoreID = storeID
 	if m.setPreferredSupplierFn != nil {
-		return m.setPreferredSupplierFn(ctx, productID, supplierID)
+		return m.setPreferredSupplierFn(ctx, productID, supplierID, storeID)
 	}
 	return nil
 }
 
-func (m *mockSupplierServiceForAudit) UpdateProductSupplier(ctx context.Context, ps *ProductSupplier) error {
+func (m *mockSupplierServiceForAudit) UpdateProductSupplier(ctx context.Context, ps *ProductSupplier, storeID *int) error {
+	m.lastLinkWriteStoreID = storeID
 	if m.updateProductSupplierFn != nil {
-		return m.updateProductSupplierFn(ctx, ps)
+		return m.updateProductSupplierFn(ctx, ps, storeID)
 	}
 	return nil
 }
 
-func (m *mockSupplierServiceForAudit) GetSuppliersByProductID(ctx context.Context, productID int) ([]ProductSupplier, error) {
+func (m *mockSupplierServiceForAudit) GetSuppliersByProductID(ctx context.Context, productID int, storeID *int) ([]ProductSupplier, error) {
 	return nil, nil
 }
 
-func (m *mockSupplierServiceForAudit) GetProductsBySupplierID(ctx context.Context, supplierID int) ([]ProductSupplier, error) {
+func (m *mockSupplierServiceForAudit) GetProductsBySupplierID(ctx context.Context, supplierID int, storeID *int) ([]ProductSupplier, error) {
 	if m.getProductsBySupplierIDFn != nil {
-		return m.getProductsBySupplierIDFn(ctx, supplierID)
+		return m.getProductsBySupplierIDFn(ctx, supplierID, storeID)
 	}
 	return nil, nil
 }
@@ -283,6 +301,28 @@ func TestAuditHandler_DeleteSupplier(t *testing.T) {
 	assert.Equal(t, "Deleted supplier ToDelete", log.Description)
 }
 
+// linkTestAuth sets the superadmin role the link endpoints need.
+//
+// They fail closed on a caller holding neither the superadmin role nor a store
+// claim, and these four tests exist to prove the audit row is written, not to
+// exercise scoping -- scoping has its own tests in handler_store_scope_test.go.
+//
+// The supplier CRUD tests keep a no-op here on purpose. Under audit D3 Option C
+// those routes are global, so a caller with no role and no store claim must
+// still get through; giving them superadmin would let them pass whether or not
+// the boundary held. Note these tests feed identity to the audit log through the
+// request context, not through this middleware, so the no-op costs them nothing.
+func linkTestAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "testuser")
+		c.Set("roleID", 1)
+		c.Set("role", "superadmin")
+		c.Set("storeID", nil)
+		c.Next()
+	}
+}
+
 func TestAuditHandler_LinkProduct(t *testing.T) {
 	svc := &mockSupplierServiceForAudit{
 		linkProductFn: func(ctx context.Context, ps *ProductSupplier) error {
@@ -304,7 +344,7 @@ func TestAuditHandler_LinkProduct(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), linkTestAuth(), func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	body := `{"product_id":1,"unit_cost":5000}`
@@ -323,7 +363,7 @@ func TestAuditHandler_LinkProduct(t *testing.T) {
 
 func TestAuditHandler_UnlinkProduct(t *testing.T) {
 	svc := &mockSupplierServiceForAudit{
-		unlinkProductFn: func(ctx context.Context, productID, supplierID int) error {
+		unlinkProductFn: func(ctx context.Context, productID, supplierID int, storeID *int) error {
 			return nil
 		},
 	}
@@ -342,7 +382,7 @@ func TestAuditHandler_UnlinkProduct(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), linkTestAuth(), func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	w := httptest.NewRecorder()
@@ -359,10 +399,10 @@ func TestAuditHandler_UnlinkProduct(t *testing.T) {
 
 func TestAuditHandler_UpdateProductSupplier(t *testing.T) {
 	svc := &mockSupplierServiceForAudit{
-		getProductSupplierFn: func(ctx context.Context, productID, supplierID int) (*ProductSupplier, error) {
+		getProductSupplierFn: func(ctx context.Context, productID, supplierID int, storeID *int) (*ProductSupplier, error) {
 			return &ProductSupplier{ProductID: productID, SupplierID: supplierID, UnitCost: 5000}, nil
 		},
-		updateProductSupplierFn: func(ctx context.Context, ps *ProductSupplier) error {
+		updateProductSupplierFn: func(ctx context.Context, ps *ProductSupplier, storeID *int) error {
 			return nil
 		},
 	}
@@ -381,7 +421,7 @@ func TestAuditHandler_UpdateProductSupplier(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), linkTestAuth(), func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	body := `{"unit_cost":7000}`
@@ -400,7 +440,7 @@ func TestAuditHandler_UpdateProductSupplier(t *testing.T) {
 
 func TestAuditHandler_SetPreferredSupplier(t *testing.T) {
 	svc := &mockSupplierServiceForAudit{
-		setPreferredSupplierFn: func(ctx context.Context, productID, supplierID int) error {
+		setPreferredSupplierFn: func(ctx context.Context, productID, supplierID int, storeID *int) error {
 			return nil
 		},
 	}
@@ -419,7 +459,7 @@ func TestAuditHandler_SetPreferredSupplier(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), linkTestAuth(), func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	w := httptest.NewRecorder()

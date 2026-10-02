@@ -10,6 +10,29 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
+// supplierLinkFilter renders the EXISTS clause behind the ?supplier_id= product
+// filter, scoped to the caller's store.
+//
+// Without the store predicate this filter reads product_suppliers unscoped, so a
+// store asking "products from supplier X" would be shown a product whose only
+// link to X belongs to a different store -- the cross-store terms visibility that
+// migration 058 exists to close. It reuses visibleSQL so this predicate cannot
+// drift from the one the link store itself uses.
+//
+// A nil storeID (superadmin) adds no predicate, matching every other store filter
+// in this file. Returns the clause and the arguments it consumes, in positional
+// order, so the caller advances its placeholder counter by their count.
+func supplierLinkFilter(supplierID int, storeID *int, argIdx int) (string, []interface{}) {
+	clause := fmt.Sprintf("EXISTS (SELECT 1 FROM product_suppliers ps WHERE ps.product_id = v.id AND ps.supplier_id = $%d", argIdx)
+	args := []interface{}{supplierID}
+	if storeID != nil {
+		argIdx++
+		clause += " AND " + visibleSQL("ps.store_id", argIdx)
+		args = append(args, *storeID)
+	}
+	return clause + ")", args
+}
+
 func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string, supplierID *int, brandIDs []int, ownershipType string) ([]Product, int, error) {
 	var products []Product
 	var total int
@@ -58,9 +81,10 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 		argIdx++
 	}
 	if supplierID != nil {
-		query += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM product_suppliers ps WHERE ps.product_id = v.id AND ps.supplier_id = $%d)", argIdx)
-		args = append(args, *supplierID)
-		argIdx++
+		clause, extra := supplierLinkFilter(*supplierID, storeID, argIdx)
+		query += " AND " + clause
+		args = append(args, extra...)
+		argIdx += len(extra)
 	}
 	if ownershipType != "" {
 		query += fmt.Sprintf(" AND v.ownership_type = $%d", argIdx)
@@ -115,9 +139,10 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 		argIdx2++
 	}
 	if supplierID != nil {
-		query2 += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM product_suppliers ps WHERE ps.product_id = v.id AND ps.supplier_id = $%d)", argIdx2)
-		args2 = append(args2, *supplierID)
-		argIdx2++
+		clause, extra := supplierLinkFilter(*supplierID, storeID, argIdx2)
+		query2 += " AND " + clause
+		args2 = append(args2, extra...)
+		argIdx2 += len(extra)
 	}
 	if ownershipType != "" {
 		query2 += fmt.Sprintf(" AND v.ownership_type = $%d", argIdx2)

@@ -750,7 +750,7 @@ func TestHandler_MockErrorBranches(t *testing.T) {
 	})
 
 	t.Run("unlink error", func(t *testing.T) {
-		svc := &mockSupplierServiceForAudit{unlinkProductFn: func(ctx context.Context, productID, supplierID int) error {
+		svc := &mockSupplierServiceForAudit{unlinkProductFn: func(ctx context.Context, productID, supplierID int, storeID *int) error {
 			return assert.AnError
 		}}
 		w := httptest.NewRecorder()
@@ -760,7 +760,7 @@ func TestHandler_MockErrorBranches(t *testing.T) {
 	})
 
 	t.Run("set preferred error", func(t *testing.T) {
-		svc := &mockSupplierServiceForAudit{setPreferredSupplierFn: func(ctx context.Context, productID, supplierID int) error {
+		svc := &mockSupplierServiceForAudit{setPreferredSupplierFn: func(ctx context.Context, productID, supplierID int, storeID *int) error {
 			return assert.AnError
 		}}
 		w := httptest.NewRecorder()

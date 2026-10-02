@@ -230,9 +230,14 @@ func TestCartService_StoreScopedPricingAppliedOnCartPath(t *testing.T) {
 	err := dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ('Store A') RETURNING id`).Scan(&storeID)
 	require.NoError(t, err)
 
+	// is_active is set explicitly, as in the IT05/IT06 fixtures below. Both
+	// status and is_active default to pending/false (migration 055), so an
+	// INSERT that omits them builds a rule the price path correctly refuses to
+	// apply -- which reads as "store-scoped pricing is broken" rather than
+	// "this fixture never activated its rule".
 	_, err = dbPool.Exec(ctx, `
-		INSERT INTO pricing_rules (product_id, pricing_type, name, minimum_quantity, priority, pricing_method, pricing_value, store_id, status)
-		VALUES ($1, 'special_price', 'store-a-promo', 1, 0, 'fixed_price', 3000, $2, 'approved')
+		INSERT INTO pricing_rules (product_id, pricing_type, name, minimum_quantity, priority, pricing_method, pricing_value, store_id, is_active, status)
+		VALUES ($1, 'special_price', 'store-a-promo', 1, 0, 'fixed_price', 3000, $2, true, 'approved')
 	`, prodID, storeID)
 	require.NoError(t, err)
 

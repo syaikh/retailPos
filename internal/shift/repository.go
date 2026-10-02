@@ -345,14 +345,14 @@ func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*S
 	return &shift, nil
 }
 
-func (r *Repository) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string, storeID *int) ([]Shift, int, error) {
+func (r *Repository) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
 	where := "1=1"
 	args := []interface{}{}
 	argIdx := 1
 
-	if storeID != nil {
+	if scopeStore := scope.ResolveStore(); scopeStore != nil {
 		where += fmt.Sprintf(" AND (s.store_id IS NULL OR s.store_id = $%d)", argIdx)
-		args = append(args, *storeID)
+		args = append(args, *scopeStore)
 		argIdx++
 	}
 	if ownerID, restricted := scope.OwnID(); restricted {
@@ -513,9 +513,19 @@ func (r *Repository) GetShiftByID(ctx context.Context, scope ownership.Scope, sh
 		FROM shifts s
 		WHERE s.id = $1`
 	args := []interface{}{shiftID}
+	argIdx := 2
+	// shift.review grants all-access across users but not across stores, so a
+	// supervisor could otherwise open any store's shift by id. The store-less
+	// case (store_id IS NULL) stays reachable, matching ListShifts.
+	if scopeStore := scope.ResolveStore(); scopeStore != nil {
+		query += fmt.Sprintf(" AND (s.store_id IS NULL OR s.store_id = $%d)", argIdx)
+		args = append(args, *scopeStore)
+		argIdx++
+	}
 	if ownerID, restricted := scope.OwnID(); restricted {
-		query += " AND s.user_id = $2"
+		query += fmt.Sprintf(" AND s.user_id = $%d", argIdx)
 		args = append(args, ownerID)
+		argIdx++
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(
@@ -571,15 +581,23 @@ func (r *Repository) GetShiftByID(ctx context.Context, scope ownership.Scope, sh
 	return &s, nil
 }
 
-func (r *Repository) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
-	result, err := r.db.Exec(ctx, `
+func (r *Repository) ReviewShift(ctx context.Context, scope ownership.Scope, shiftID, reviewerID int) (*Shift, error) {
+	// Guard the UPDATE, not just the reload below: RowsAffected()==0 already
+	// reports "not pending review", and letting a foreign store's shift match
+	// would clear its needs_review flag and stamp the reviewer on it.
+	query := `
 		UPDATE shifts
 		SET needs_review = false,
 		    reviewed_by = $1,
 		    reviewed_at = NOW(),
 		    updated_at = NOW()
-		WHERE id = $2 AND needs_review = true AND status = 'closed'
-	`, reviewerID, shiftID)
+		WHERE id = $2 AND needs_review = true AND status = 'closed'`
+	args := []interface{}{reviewerID, shiftID}
+	if scopeStore := scope.ResolveStore(); scopeStore != nil {
+		query += " AND (store_id IS NULL OR store_id = $3)"
+		args = append(args, *scopeStore)
+	}
+	result, err := r.db.Exec(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to review shift: %w", err)
 	}
@@ -587,7 +605,7 @@ func (r *Repository) ReviewShift(ctx context.Context, shiftID, reviewerID int) (
 		return nil, fmt.Errorf("shift not pending review or not found")
 	}
 
-	return r.GetShiftByID(ctx, ownership.Scope{}, shiftID)
+	return r.GetShiftByID(ctx, scope, shiftID)
 }
 
 func (r *Repository) FlagForReview(ctx context.Context, shiftID int) error {
@@ -603,8 +621,8 @@ func (r *Repository) FlagForReview(ctx context.Context, shiftID int) error {
 	return nil
 }
 
-func (r *Repository) GetShiftWithLiveSales(ctx context.Context, shiftID int) (*Shift, int, error) {
-	shift, err := r.GetShiftByID(ctx, ownership.Scope{}, shiftID)
+func (r *Repository) GetShiftWithLiveSales(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, int, error) {
+	shift, err := r.GetShiftByID(ctx, scope, shiftID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -617,8 +635,8 @@ func (r *Repository) GetShiftWithLiveSales(ctx context.Context, shiftID int) (*S
 	return shift, summary.TotalCashSales, nil
 }
 
-func (r *Repository) GetShiftReportData(ctx context.Context, shiftID int) (*ReportData, error) {
-	shift, err := r.GetShiftByID(ctx, ownership.Scope{}, shiftID)
+func (r *Repository) GetShiftReportData(ctx context.Context, scope ownership.Scope, shiftID int) (*ReportData, error) {
+	shift, err := r.GetShiftByID(ctx, scope, shiftID)
 	if err != nil {
 		return nil, err
 	}

@@ -21,14 +21,14 @@ type Repo interface {
 	Delete(ctx context.Context, id int) error
 	BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error)
 	BulkDelete(ctx context.Context, ids []int) (int, error)
-	GetPreferredSupplier(ctx context.Context, productID int) (*ProductSupplier, error)
-	GetProductsBySupplierID(ctx context.Context, supplierID int) ([]ProductSupplier, error)
-	GetProductSupplier(ctx context.Context, productID, supplierID int) (*ProductSupplier, error)
-	GetSuppliersByProductID(ctx context.Context, productID int) ([]ProductSupplier, error)
+	GetPreferredSupplier(ctx context.Context, productID int, storeID *int) (*ProductSupplier, error)
+	GetProductsBySupplierID(ctx context.Context, supplierID int, storeID *int) ([]ProductSupplier, error)
+	GetProductSupplier(ctx context.Context, productID, supplierID int, storeID *int) (*ProductSupplier, error)
+	GetSuppliersByProductID(ctx context.Context, productID int, storeID *int) ([]ProductSupplier, error)
 	LinkProduct(ctx context.Context, ps *ProductSupplier) error
-	UnlinkProduct(ctx context.Context, productID, supplierID int) error
-	SetPreferredSupplier(ctx context.Context, productID, supplierID int) error
-	UpdateProductSupplier(ctx context.Context, ps *ProductSupplier) error
+	UnlinkProduct(ctx context.Context, productID, supplierID int, storeID *int) error
+	SetPreferredSupplier(ctx context.Context, productID, supplierID int, storeID *int) error
+	UpdateProductSupplier(ctx context.Context, ps *ProductSupplier, storeID *int) error
 }
 
 type service struct {
@@ -83,35 +83,35 @@ func (s *service) LinkProduct(ctx context.Context, ps *ProductSupplier) error {
 	return s.repo.LinkProduct(ctx, ps)
 }
 
-func (s *service) UnlinkProduct(ctx context.Context, productID, supplierID int) error {
-	return s.repo.UnlinkProduct(ctx, productID, supplierID)
+func (s *service) UnlinkProduct(ctx context.Context, productID, supplierID int, storeID *int) error {
+	return s.repo.UnlinkProduct(ctx, productID, supplierID, storeID)
 }
 
-func (s *service) GetProductSupplier(ctx context.Context, productID, supplierID int) (*ProductSupplier, error) {
-	return s.repo.GetProductSupplier(ctx, productID, supplierID)
+func (s *service) GetProductSupplier(ctx context.Context, productID, supplierID int, storeID *int) (*ProductSupplier, error) {
+	return s.repo.GetProductSupplier(ctx, productID, supplierID, storeID)
 }
 
-func (s *service) GetPreferredSupplier(ctx context.Context, productID int) (*ProductSupplier, error) {
-	return s.repo.GetPreferredSupplier(ctx, productID)
+func (s *service) GetPreferredSupplier(ctx context.Context, productID int, storeID *int) (*ProductSupplier, error) {
+	return s.repo.GetPreferredSupplier(ctx, productID, storeID)
 }
 
-func (s *service) SetPreferredSupplier(ctx context.Context, productID, supplierID int) error {
-	return s.repo.SetPreferredSupplier(ctx, productID, supplierID)
+func (s *service) SetPreferredSupplier(ctx context.Context, productID, supplierID int, storeID *int) error {
+	return s.repo.SetPreferredSupplier(ctx, productID, supplierID, storeID)
 }
 
-func (s *service) UpdateProductSupplier(ctx context.Context, ps *ProductSupplier) error {
+func (s *service) UpdateProductSupplier(ctx context.Context, ps *ProductSupplier, storeID *int) error {
 	if err := validateProductSupplier(ps); err != nil {
 		return err
 	}
-	return s.repo.UpdateProductSupplier(ctx, ps)
+	return s.repo.UpdateProductSupplier(ctx, ps, storeID)
 }
 
-func (s *service) GetSuppliersByProductID(ctx context.Context, productID int) ([]ProductSupplier, error) {
-	return s.repo.GetSuppliersByProductID(ctx, productID)
+func (s *service) GetSuppliersByProductID(ctx context.Context, productID int, storeID *int) ([]ProductSupplier, error) {
+	return s.repo.GetSuppliersByProductID(ctx, productID, storeID)
 }
 
-func (s *service) GetProductsBySupplierID(ctx context.Context, supplierID int) ([]ProductSupplier, error) {
-	return s.repo.GetProductsBySupplierID(ctx, supplierID)
+func (s *service) GetProductsBySupplierID(ctx context.Context, supplierID int, storeID *int) ([]ProductSupplier, error) {
+	return s.repo.GetProductsBySupplierID(ctx, supplierID, storeID)
 }
 
 func (s *service) BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error) {

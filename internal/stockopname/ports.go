@@ -141,7 +141,9 @@ type ProductCatalogProvider interface {
 // SetProductScopeProvider MUST be wired before session creation runs — an
 // unwired repository fails fast at runtime.
 type ProductScopeProvider interface {
-	ScopeProductIDs(ctx context.Context, db shared.DBPool, scopeType string, scopeID int64) ([]int, error)
+	// storeID is the opname session's store. It scopes the "supplier" case to
+	// the supplier terms in effect for that store; nil means unrestricted.
+	ScopeProductIDs(ctx context.Context, db shared.DBPool, scopeType string, scopeID int64, storeID *int) ([]int, error)
 }
 
 // StockSnapshotProvider resolves stock-scoped reads over product_stock, owned

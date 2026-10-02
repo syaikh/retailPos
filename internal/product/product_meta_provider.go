@@ -105,7 +105,15 @@ func (MetaLookup) ProductCostsByIDs(ctx context.Context, db shared.DBPool, ids [
 // from product_stock by internal/inventory, not here. Scope IDs ≤ 0 yield an
 // empty result (products.supplier membership lives in product_suppliers, also
 // owned by internal/product).
-func (MetaLookup) ScopeProductIDs(ctx context.Context, db shared.DBPool, scopeType string, scopeID int64) ([]int, error) {
+//
+// storeID is the store the opname session belongs to. It scopes the "supplier"
+// case, and only that case: since migration 058 a product_suppliers row carries
+// the store whose terms it holds, so counting a supplier's products estate-wide
+// would pull another store's private supplier terms into a store's stock count.
+// A nil storeID (superadmin) counts every link, which is what an unrestricted
+// caller expects. The remaining cases read products, whose own store scoping is a
+// separate question and is left as it was.
+func (MetaLookup) ScopeProductIDs(ctx context.Context, db shared.DBPool, scopeType string, scopeID int64, storeID *int) ([]int, error) {
 	var query string
 	var args []interface{}
 	switch scopeType {
@@ -117,6 +125,11 @@ func (MetaLookup) ScopeProductIDs(ctx context.Context, db shared.DBPool, scopeTy
 		query = `SELECT id FROM products WHERE brand_id = $1 AND deleted_at IS NULL AND status = 'active'`
 	case "supplier":
 		query = `SELECT DISTINCT product_id FROM product_suppliers WHERE supplier_id = $1`
+		if storeID != nil {
+			// visibleSQL, not a hand-written pair of ORs, so this stays in step
+			// with the rest of the table's scope predicates.
+			query += " AND " + visibleSQL("store_id", 2)
+		}
 	case "product":
 		query = `SELECT id FROM products WHERE id = $1 AND deleted_at IS NULL AND status = 'active'`
 	case "manual":
@@ -126,6 +139,9 @@ func (MetaLookup) ScopeProductIDs(ctx context.Context, db shared.DBPool, scopeTy
 	}
 	if scopeType != "manual" {
 		args = append(args, scopeID)
+	}
+	if scopeType == "supplier" && storeID != nil {
+		args = append(args, *storeID)
 	}
 	rows, err := db.Query(ctx, query, args...)
 	if err != nil {

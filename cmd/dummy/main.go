@@ -1302,10 +1302,15 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo, nu
 	linkCount := 0
 	if len(products) > 0 {
 		// Link suppliers to products (each product gets 1-3 suppliers)
+		// Seeded links carry no store_id: they are the global default terms
+		// every store inherits (migration 058_supplier_terms_store_scope.sql).
+		// The conflict target has to name store_id because that is what the
+		// unique constraint is on now -- a two-column ON CONFLICT has no
+		// matching index and PostgreSQL rejects the statement outright.
 		linkStmt, err := tx.PrepareContext(ctx,
-			`INSERT INTO product_suppliers (product_id, supplier_id, supplier_sku, unit_cost, lead_time_days, is_preferred, created_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7)
-			 ON CONFLICT (product_id, supplier_id) DO NOTHING`)
+			`INSERT INTO product_suppliers (product_id, supplier_id, supplier_sku, unit_cost, lead_time_days, is_preferred, store_id, created_at)
+				 VALUES ($1, $2, $3, $4, $5, $6, NULL, $7)
+				 ON CONFLICT (product_id, supplier_id, store_id) DO NOTHING`)
 		if err != nil {
 			return fmt.Errorf("prepare link stmt: %w", err)
 		}

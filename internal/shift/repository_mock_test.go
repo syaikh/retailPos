@@ -138,14 +138,14 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 	t.Run("review shift exec error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectExec("UPDATE shifts").WithArgs(1, 2).WillReturnError(boom)
-		_, err := repo.ReviewShift(ctx, 2, 1)
+		_, err := repo.ReviewShift(ctx, ownership.Scope{}, 2, 1)
 		assert.ErrorContains(t, err, "failed to review shift")
 	})
 
 	t.Run("review shift no rows affected", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectExec("UPDATE shifts").WithArgs(1, 2).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-		_, err := repo.ReviewShift(ctx, 2, 1)
+		_, err := repo.ReviewShift(ctx, ownership.Scope{}, 2, 1)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not pending review or not found")
 	})
@@ -160,7 +160,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 	t.Run("get shift with live sales get error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1).WillReturnError(boom)
-		_, _, err := repo.GetShiftWithLiveSales(ctx, 1)
+		_, _, err := repo.GetShiftWithLiveSales(ctx, ownership.Scope{}, 1)
 		assert.Error(t, err)
 	})
 
@@ -175,14 +175,14 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 			}).AddRow(1, 1, nil, "open", 0, nil, 0, 0, 0, 0, nil, nil, false, nil, nil,
 				now, nil, now, now))
 		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnError(boom)
-		_, _, err := repo.GetShiftWithLiveSales(ctx, 1)
+		_, _, err := repo.GetShiftWithLiveSales(ctx, ownership.Scope{}, 1)
 		assert.ErrorContains(t, err, "failed to query live cash sales")
 	})
 
 	t.Run("list shifts count error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectQuery("SELECT COUNT").WillReturnError(boom)
-		_, _, err := repo.ListShifts(ctx, ownershipScopeEmpty(), "", nil, "", 10, 0, "opened_at", "DESC", nil)
+		_, _, err := repo.ListShifts(ctx, ownershipScopeEmpty(), "", nil, "", 10, 0, "opened_at", "DESC")
 		assert.ErrorContains(t, err, "failed to count shifts")
 	})
 
@@ -190,7 +190,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectQuery("SELECT COUNT").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(10, 0).WillReturnError(boom)
-		_, _, err := repo.ListShifts(ctx, ownershipScopeEmpty(), "", nil, "", 10, 0, "opened_at", "DESC", nil)
+		_, _, err := repo.ListShifts(ctx, ownershipScopeEmpty(), "", nil, "", 10, 0, "opened_at", "DESC")
 		assert.ErrorContains(t, err, "failed to list shifts")
 	})
 }
@@ -427,7 +427,7 @@ func TestRepositoryMock_GetShiftReportData_CashMovementSummary(t *testing.T) {
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1).WillReturnRows(reportRow(1))
 		mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnError(errors.New("boom"))
 
-		report, err := repo.GetShiftReportData(ctx, 1)
+		report, err := repo.GetShiftReportData(ctx, ownership.Scope{}, 1)
 		require.NoError(t, err)
 		require.NotNil(t, report)
 		assert.Equal(t, 1, report.ID)
@@ -441,7 +441,7 @@ func TestRepositoryMock_GetShiftReportData_CashMovementSummary(t *testing.T) {
 		mock.ExpectQuery("SELECT COALESCE").WithArgs(2).WillReturnRows(
 			pgxmock.NewRows([]string{"cash_drops", "paid_ins", "paid_outs"}).AddRow(100000, 10000, 25000))
 
-		report, err := repo.GetShiftReportData(ctx, 2)
+		report, err := repo.GetShiftReportData(ctx, ownership.Scope{}, 2)
 		require.NoError(t, err)
 		require.NotNil(t, report)
 		assert.Equal(t, 100000, report.CashMovementSummary.CashDrops)

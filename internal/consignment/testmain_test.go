@@ -129,9 +129,17 @@ func insertTestStore(ctx context.Context, t *testing.T) int {
 func insertTestSupplier(ctx context.Context, t *testing.T, name string, consignment bool) int {
 	t.Helper()
 	var id int
+	// uniqueSuffix is a process-local counter that restarts at 1 on every run,
+	// and TruncateTestData does not truncate suppliers. Without ON CONFLICT the
+	// second run against the same database collides on suppliers_code_key, so
+	// reuse the row instead of inserting a duplicate.
 	err := dbPool.QueryRow(ctx, `
 		INSERT INTO suppliers (name, code, is_active, is_consignment)
 		VALUES ($1, $2, true, $3)
+		ON CONFLICT (code) DO UPDATE
+			SET name = EXCLUDED.name,
+			    is_active = true,
+			    is_consignment = EXCLUDED.is_consignment
 		RETURNING id
 	`, name, name+"-"+uniqueSuffix(), consignment).Scan(&id)
 	require.NoError(t, err)
