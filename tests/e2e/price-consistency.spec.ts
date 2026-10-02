@@ -128,7 +128,15 @@ async function createPromoRule(token: string, request: any, productId: number, m
     },
   });
   expect(res.ok()).toBeTruthy();
-  return (await res.json()).data;
+  const rule = (await res.json()).data;
+  // New rules start pending and inactive; checkout resolution only sees
+  // approved rules, so approve it before the test relies on it resolving.
+  const approveRes = await request.post(`${API_URLS.PRICING_RULES}/${rule.id}/approve`, {
+    headers: authHeader(token),
+    data: {},
+  });
+  expect(approveRes.ok()).toBeTruthy();
+  return rule;
 }
 
 async function setRuleActive(token: string, request: any, rule: any, isActive: boolean) {

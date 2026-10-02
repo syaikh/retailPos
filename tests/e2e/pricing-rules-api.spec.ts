@@ -165,7 +165,11 @@ test.describe('Pricing Scope (API driver)', () => {
       is_active: true,
     });
     const created = data(res.body);
-    if (created?.id) ruleIds.push(created.id);
+    if (created?.id) {
+      ruleIds.push(created.id);
+      // New rules start pending and inactive; approve so resolution can apply it.
+      await api.post(`/api/pricing-rules/${created.id}/approve`, {});
+    }
 
     const resolve = await api.post('/api/pricing/resolve', { items: [{ product_id: productId, quantity: 1 }] });
     expect(resolve.ok).toBeTruthy();
@@ -188,6 +192,8 @@ test.describe('Pricing Scope (API driver)', () => {
       is_active: true,
     });
     const id = data(res.body)?.id;
+    // New rules start pending and inactive; approve so resolution can apply it.
+    if (id) await api.post(`/api/pricing-rules/${id}/approve`, {});
 
     try {
       const r1 = await api.post('/api/pricing/resolve', { items: [{ product_id: productId, quantity: 3 }] });
@@ -246,7 +252,11 @@ test.describe('Pricing Stacking (API driver)', () => {
       is_active: true,
       allow_combine: true,
     });
-    if (data(r1.body)?.id) ruleIds.push(data(r1.body).id);
+    if (data(r1.body)?.id) {
+      ruleIds.push(data(r1.body).id);
+      // New rules start pending and inactive; approve so resolution can apply them.
+      await api.post(`/api/pricing-rules/${data(r1.body).id}/approve`, {});
+    }
 
     const r2 = await api.post('/api/pricing-rules', {
       product_id: productId,
@@ -259,7 +269,11 @@ test.describe('Pricing Stacking (API driver)', () => {
       is_active: true,
       allow_combine: true,
     });
-    if (data(r2.body)?.id) ruleIds.push(data(r2.body).id);
+    if (data(r2.body)?.id) {
+      ruleIds.push(data(r2.body).id);
+      // New rules start pending and inactive; approve so resolution can apply them.
+      await api.post(`/api/pricing-rules/${data(r2.body).id}/approve`, {});
+    }
   });
 
   test.afterAll(async ({ request }) => {

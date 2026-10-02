@@ -44,6 +44,11 @@ test.describe('POS Wholesale Flow', () => {
     const ruleBody = await ruleRes.json();
     if (ruleBody.data) {
       ruleId = ruleBody.data.id;
+      // New rules start pending and inactive; approve so resolution can apply it.
+      await request.post(`${API_BASE}/api/pricing-rules/${ruleId}/approve`, {
+        headers: authHeader(token),
+        data: {},
+      });
     }
   });
 
