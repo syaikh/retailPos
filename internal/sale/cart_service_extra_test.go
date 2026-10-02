@@ -264,7 +264,7 @@ func TestCartService_HeldCart_WithShiftAndCustomer(t *testing.T) {
 	err := dbPool.QueryRow(ctx, `INSERT INTO shifts (user_id, status, opening_balance, opened_at) VALUES ($1, 'open', 0, NOW()) RETURNING id`, cashierID).Scan(&shiftID)
 	require.NoError(t, err)
 	var customerID int
-	err = dbPool.QueryRow(ctx, `INSERT INTO customers (name, email, phone) VALUES ('Held Cart Customer', 'heldcart@test.com', '08123') RETURNING id`).Scan(&customerID)
+	err = dbPool.QueryRow(ctx, `INSERT INTO customers (name, email, phone, store_id) VALUES ('Held Cart Customer', 'heldcart@test.com', '08123', 1) RETURNING id`).Scan(&customerID)
 	require.NoError(t, err)
 	var storeID int
 	err = dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ('Held Cart Store') RETURNING id`).Scan(&storeID)

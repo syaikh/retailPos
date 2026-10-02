@@ -484,7 +484,7 @@ func TestHandler_CreateGoodsReceipt_StoreFromBody(t *testing.T) {
 	supplierID := insertTestSupplier(ctx, t, "Handler GR BodyStore Supplier")
 	prodID := insertTestProduct(ctx, t, "HANDLER-GRBS", "Handler GR BodyStore", 10000, 200)
 
-	po := &Order{SupplierID: supplierID, StoreID: 2, Status: StatusDraft, CreatedBy: 1, UpdatedBy: 1}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: 1, UpdatedBy: 1}
 	items := []OrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Handler GR BodyStore", SKU: "HANDLER-GRBS"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
@@ -500,7 +500,7 @@ func TestHandler_CreateGoodsReceipt_StoreFromBody(t *testing.T) {
 
 	req := map[string]interface{}{
 		"purchase_order_id": po.ID,
-		"store_id":          2,
+		"store_id":          1,
 		"items": []map[string]interface{}{
 			{"purchase_order_item_id": fetchedPO.Items[0].ID, "qty_good": 5, "qty_damaged": 0},
 		},
@@ -515,7 +515,7 @@ func TestHandler_CreateGoodsReceipt_StoreFromBody(t *testing.T) {
 	var resp map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	data := resp["data"].(map[string]interface{})
-	assert.Equal(t, float64(2), data["store_id"])
+	assert.Equal(t, float64(1), data["store_id"])
 }
 
 func TestHandler_CreateGoodsReceipt_InvalidJSON(t *testing.T) {

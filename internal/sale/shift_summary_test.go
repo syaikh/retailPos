@@ -92,8 +92,8 @@ func TestShiftSummary_LegacySaleWithoutPayments_FallsBackToPaymentMethod(t *test
 	userID := insertTestUser(t)
 	var custID int
 	err := dbPool.QueryRow(ctx, `
-		INSERT INTO customers (name, email, phone)
-		VALUES ('Legacy Customer', 'legacy@test.com', '0813')
+		INSERT INTO customers (name, email, phone, store_id)
+		VALUES ('Legacy Customer', 'legacy@test.com', '0813', 1)
 		RETURNING id
 	`).Scan(&custID)
 	require.NoError(t, err)
