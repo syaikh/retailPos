@@ -185,7 +185,7 @@ export const API_ENDPOINTS = {
 //    drift), we transparently re-login instead of failing later.
 // ============================================================================
 
-const TOKEN_CACHE_VERSION = 1;
+const TOKEN_CACHE_VERSION = 2;
 const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes (JWT expires in 15 min)
 const TOKEN_CACHE_FILE = join(tmpdir(), `retail-pos-e2e-tokens.v${TOKEN_CACHE_VERSION}.json`);
 
