@@ -1548,7 +1548,7 @@ func seedE2ESupplier(t *testing.T) int {
 	var id int
 	err := e2ePool.QueryRow(context.Background(),
 		`INSERT INTO suppliers (name, code, is_active) VALUES ('E2E Supplier', 'E2E-SUP', true)
-		 ON CONFLICT (code) DO UPDATE SET name = 'E2E Supplier' RETURNING id`).Scan(&id)
+		 ON CONFLICT (code) WHERE deleted_at IS NULL DO UPDATE SET name = 'E2E Supplier' RETURNING id`).Scan(&id)
 	if err != nil {
 		err = e2ePool.QueryRow(context.Background(),
 			`INSERT INTO suppliers (name, code, is_active) VALUES ('E2E Supplier', concat('E2E-SUP-', floor(random()*100000)::int), true) RETURNING id`).Scan(&id)

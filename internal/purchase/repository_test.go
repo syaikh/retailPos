@@ -38,11 +38,12 @@ func insertTestSupplier(ctx context.Context, t *testing.T, name string) int {
 	var id int
 	// code is the supplier name, and TruncateTestData does not truncate
 	// suppliers, so a plain INSERT collides with the previous run's row.
-	// Reuse it instead, matching the ON CONFLICT pattern in cmd/server.
+	// Reuse it instead; the WHERE clause names the live-row partial unique index
+	// installed by 060_supplier_governance.sql so the arbiter can be inferred.
 	err := dbPool.QueryRow(ctx, `
 		INSERT INTO suppliers (name, code, is_active)
 		VALUES ($1, $2, true)
-		ON CONFLICT (code) DO UPDATE
+		ON CONFLICT (code) WHERE deleted_at IS NULL DO UPDATE
 			SET name = EXCLUDED.name, is_active = true
 		RETURNING id
 	`, name, name).Scan(&id)

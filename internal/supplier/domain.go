@@ -15,6 +15,10 @@ var (
 	ErrInvalidPhone          = errors.New("invalid phone format")
 	ErrProductSupplierExists = errors.New("product-supplier link already exists")
 	ErrMultiplePreferred     = errors.New("only one preferred supplier allowed per product")
+	// ErrSupplierVersionConflict means the row was changed by someone else since
+	// the caller read it. The caller's Version no longer matches, so the write is
+	// refused rather than silently overwriting the other edit.
+	ErrSupplierVersionConflict = errors.New("supplier was modified by another user; reload and re-apply")
 )
 
 // ErrProductSupplierNotFound is the supplier-side alias for the shared sentinel
@@ -22,22 +26,46 @@ var (
 // (internal/product) can reference it without importing each other.
 var ErrProductSupplierNotFound = shared.ErrProductSupplierNotFound
 
+// SupplierInUseError is returned when a destructive supplier operation is
+// blocked by live references. It carries the breakdown so the handler can tell
+// the caller exactly what must be cleared first rather than a bare "conflict".
+type SupplierInUseError struct {
+	Usage        SupplierUsage
+	Deactivating bool
+	// BlockedIDs is set by a bulk operation: the suppliers in the batch that
+	// still have live references. Empty for a single-supplier operation.
+	BlockedIDs []int
+}
+
+func (e *SupplierInUseError) Error() string {
+	if e.Deactivating {
+		return "supplier is in use by open purchase orders or active consignment arrangements; clear those before deactivating"
+	}
+	return "supplier is referenced by products, purchase orders, or consignment arrangements; unlink or close them first"
+}
+
 // Supplier represents a supplier entity. See ADR-003.
 type Supplier struct {
-	ID            int        `json:"id"           db:"id"`
-	Name          string     `json:"name"         db:"name"         validate:"required"`
-	Code          string     `json:"code"         db:"code"         validate:"required"`
-	ContactName   *string    `json:"contact_name,omitempty" db:"contact_name"`
-	Phone         *string    `json:"phone,omitempty"        db:"phone"`
-	Email         *string    `json:"email,omitempty"        db:"email"        validate:"omitempty,email"`
-	Address       *string    `json:"address,omitempty"      db:"address"`
-	Notes         *string    `json:"notes,omitempty"        db:"notes"`
-	IsActive      bool       `json:"is_active"              db:"is_active"`
-	IsConsignment bool       `json:"is_consignment"         db:"is_consignment"`
-	StoreID       *int       `json:"store_id,omitempty"     db:"store_id"`
-	CreatedAt     string     `json:"created_at,omitempty"   db:"created_at"`
-	UpdatedAt     string     `json:"updated_at,omitempty"   db:"updated_at"`
-	DeletedAt     *time.Time `json:"deleted_at,omitempty"   db:"deleted_at"`
+	ID            int     `json:"id"           db:"id"`
+	Name          string  `json:"name"         db:"name"         validate:"required"`
+	Code          string  `json:"code"         db:"code"         validate:"required"`
+	ContactName   *string `json:"contact_name,omitempty" db:"contact_name"`
+	Phone         *string `json:"phone,omitempty"        db:"phone"`
+	Email         *string `json:"email,omitempty"        db:"email"        validate:"omitempty,email"`
+	Address       *string `json:"address,omitempty"      db:"address"`
+	Notes         *string `json:"notes,omitempty"        db:"notes"`
+	IsActive      bool    `json:"is_active"              db:"is_active"`
+	IsConsignment bool    `json:"is_consignment"         db:"is_consignment"`
+	// CreatedBy/UpdatedBy are the acting users' ids (nil when unknown or set by
+	// a pre-governance row). Version backs optimistic concurrency: the client
+	// reads it and sends it back on update; a stale value is a 409.
+	CreatedBy *int       `json:"created_by,omitempty" db:"created_by"`
+	UpdatedBy *int       `json:"updated_by,omitempty" db:"updated_by"`
+	Version   int        `json:"version"              db:"version"`
+	StoreID   *int       `json:"store_id,omitempty"     db:"store_id"`
+	CreatedAt string     `json:"created_at,omitempty"   db:"created_at"`
+	UpdatedAt string     `json:"updated_at,omitempty"   db:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"   db:"deleted_at"`
 }
 
 // ProductSupplier represents the many-to-many relationship between

@@ -342,13 +342,13 @@ func TestSupplierRepository_BulkUpdate(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, s2))
 
 	t.Run("activate multiple", func(t *testing.T) {
-		count, err := repo.BulkUpdate(ctx, []int{s1.ID, s2.ID}, true)
+		count, err := repo.BulkUpdate(ctx, []int{s1.ID, s2.ID}, true, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
 	})
 
 	t.Run("deactivate multiple", func(t *testing.T) {
-		count, err := repo.BulkUpdate(ctx, []int{s1.ID, s2.ID}, false)
+		count, err := repo.BulkUpdate(ctx, []int{s1.ID, s2.ID}, false, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
 
@@ -358,7 +358,7 @@ func TestSupplierRepository_BulkUpdate(t *testing.T) {
 	})
 
 	t.Run("empty ids", func(t *testing.T) {
-		count, err := repo.BulkUpdate(ctx, []int{}, false)
+		count, err := repo.BulkUpdate(ctx, []int{}, false, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})

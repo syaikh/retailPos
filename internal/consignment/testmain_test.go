@@ -131,12 +131,14 @@ func insertTestSupplier(ctx context.Context, t *testing.T, name string, consignm
 	var id int
 	// uniqueSuffix is a process-local counter that restarts at 1 on every run,
 	// and TruncateTestData does not truncate suppliers. Without ON CONFLICT the
-	// second run against the same database collides on suppliers_code_key, so
-	// reuse the row instead of inserting a duplicate.
+	// second run against the same database collides on the live-row unique code
+	// index (060_supplier_governance.sql replaced the global unique with a
+	// partial index), so reuse the row instead of inserting a duplicate. The
+	// WHERE clause names that partial index so the arbiter can be inferred.
 	err := dbPool.QueryRow(ctx, `
 		INSERT INTO suppliers (name, code, is_active, is_consignment)
 		VALUES ($1, $2, true, $3)
-		ON CONFLICT (code) DO UPDATE
+		ON CONFLICT (code) WHERE deleted_at IS NULL DO UPDATE
 			SET name = EXCLUDED.name,
 			    is_active = true,
 			    is_consignment = EXCLUDED.is_consignment

@@ -397,6 +397,23 @@ func (SupplierLinkStore) HasPreferredLink(ctx context.Context, db shared.DBPool,
 	return exists, nil
 }
 
+// CountLinksBySupplier counts every product_suppliers row that references the
+// supplier, across every store. It deliberately takes no store scope: the
+// supplier delete guard is estate-wide, and a link priced for one store is
+// still a link the delete would cascade away, so a scoped count would understate
+// the blast radius. product_suppliers has no soft-delete column, so every row
+// counts.
+func (SupplierLinkStore) CountLinksBySupplier(ctx context.Context, db shared.DBPool, supplierID int) (int, error) {
+	var count int
+	err := db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM product_suppliers WHERE supplier_id = $1
+	`, supplierID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count product_suppliers by supplier: %w", err)
+	}
+	return count, nil
+}
+
 // sortPreferredFirst orders links the way the product detail screen has always
 // shown them: the store's preferred supplier first, then by supplier ID. The
 // unscoped branch gets this from SQL; the collapsed branch cannot, because

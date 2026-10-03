@@ -459,6 +459,8 @@ func Initialize(p Providers) *Dependencies {
 	d.PricingRepo.SetBrandSearchProvider(brand.NamesProvider{})
 	d.SupplierRepo = supplier.NewRepository(p.DB)
 	d.SupplierRepo.SetProductSupplierStore(product.SupplierLinkStore{})
+	d.SupplierRepo.SetPurchaseUsageCounter(purchase.SupplierUsageProvider{})
+	d.SupplierRepo.SetConsignmentUsageCounter(consignment.SupplierUsageProvider{})
 	d.CustomerGroupRepo = customergroup.NewRepository(p.DB)
 	d.CustomerGroupRepo.SetCustomerCountProvider(customer.GroupCountsLookup{})
 	d.StoreRepo = store.NewRepository(p.DB)

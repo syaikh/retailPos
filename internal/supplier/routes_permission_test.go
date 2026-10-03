@@ -85,9 +85,14 @@ func (denyingRepo) GetSuppliersByProductID(context.Context, int, *int) ([]Produc
 func (denyingRepo) GetProductsBySupplierID(context.Context, int, *int) ([]ProductSupplier, error) {
 	return nil, errDenying
 }
-func (denyingRepo) BulkUpdate(context.Context, []int, bool) (int, error) { return 0, errDenying }
-func (denyingRepo) BulkDelete(context.Context, []int) (int, error)       { return 0, errDenying }
-func (denyingRepo) GetNextSupplierCode(context.Context) (string, error)  { return "", errDenying }
+func (denyingRepo) BulkUpdate(context.Context, []int, bool, *int) (int, error) {
+	return 0, errDenying
+}
+func (denyingRepo) BulkDelete(context.Context, []int) (int, error)      { return 0, errDenying }
+func (denyingRepo) GetNextSupplierCode(context.Context) (string, error) { return "", errDenying }
+func (denyingRepo) CountUsage(context.Context, int) (SupplierUsage, error) {
+	return SupplierUsage{}, errDenying
+}
 
 // routeCase is one (method, path) pair plus the permission it must demand.
 type routeCase struct {
@@ -102,6 +107,7 @@ func supplierRouteCases() []routeCase {
 	return []routeCase{
 		{http.MethodGet, "/suppliers", "", permissions.SupplierView, "list suppliers"},
 		{http.MethodGet, "/suppliers/1", "", permissions.SupplierView, "read one supplier"},
+		{http.MethodGet, "/suppliers/1/usage", "", permissions.SupplierView, "read a supplier's reference usage"},
 		{http.MethodPost, "/suppliers", `{"name":"N","code":"C"}`, permissions.SupplierCreate, "create supplier"},
 		{http.MethodPut, "/suppliers/1", `{"name":"N","code":"C"}`, permissions.SupplierUpdate, "update supplier"},
 		{http.MethodDelete, "/suppliers/1", "", permissions.SupplierDelete, "delete supplier"},

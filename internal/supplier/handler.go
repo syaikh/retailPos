@@ -31,8 +31,9 @@ type Service interface {
 	UpdateProductSupplier(ctx context.Context, ps *ProductSupplier, storeID *int) error
 	GetSuppliersByProductID(ctx context.Context, productID int, storeID *int) ([]ProductSupplier, error)
 	GetProductsBySupplierID(ctx context.Context, supplierID int, storeID *int) ([]ProductSupplier, error)
-	BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error)
+	BulkUpdate(ctx context.Context, ids []int, isActive bool, updatedBy *int) (int, error)
 	BulkDelete(ctx context.Context, ids []int) (int, error)
+	GetUsage(ctx context.Context, id int) (SupplierUsage, error)
 }
 
 type Handler struct {
@@ -120,6 +121,7 @@ func (h *Handler) authorizeLinkWrite(c *gin.Context, productID, supplierID int, 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	r.GET("/suppliers", auth, perm(permissions.SupplierView), h.ListSuppliers)
 	r.GET("/suppliers/:id", auth, perm(permissions.SupplierView), h.GetSupplier)
+	r.GET("/suppliers/:id/usage", auth, perm(permissions.SupplierView), h.GetSupplierUsage)
 	r.POST("/suppliers", auth, perm(permissions.SupplierCreate), h.CreateSupplier)
 	r.PUT("/suppliers/:id", auth, perm(permissions.SupplierUpdate), h.UpdateSupplier)
 	r.DELETE("/suppliers/:id", auth, perm(permissions.SupplierDelete), h.DeleteSupplier)
@@ -205,6 +207,75 @@ func (h *Handler) GetSupplier(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": supplier})
 }
 
+// GetSupplierUsage godoc
+// @Summary Get a supplier's reference usage
+// @Description Get the cross-module reference breakdown for a supplier (product links, open purchase orders, active consignments) so the UI can warn before deleting or deactivating.
+// @Tags suppliers
+// @Produce json
+// @Param id path int true "Supplier ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Router /suppliers/{id}/usage [get]
+func (h *Handler) GetSupplierUsage(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid supplier id"})
+		return
+	}
+
+	usage, err := h.svc.GetUsage(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, ErrSupplierNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "supplier not found"})
+			return
+		}
+		shared.InternalError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": usage})
+}
+
+// writeUsageConflict answers a delete/deactivate blocked by live references. The
+// 409 body carries the breakdown and, for a bulk call, the specific ids that
+// must be cleared, so the UI can explain the blast radius instead of a bare
+// conflict.
+func writeUsageConflict(c *gin.Context, inUse *SupplierInUseError) {
+	body := gin.H{
+		"error": inUse.Error(),
+		"code":  "supplier_in_use",
+		"usage": inUse.Usage,
+	}
+	if len(inUse.BlockedIDs) > 0 {
+		body["blocked_ids"] = inUse.BlockedIDs
+	}
+	c.JSON(http.StatusConflict, body)
+}
+
+// respondSupplierWriteError maps a supplier write error to its HTTP status.
+// Shared by the single and bulk handlers so a blocked delete and a blocked
+// deactivate can never answer differently. fallback is the status for errors
+// that are neither in-use nor not-found (400 for update input, 500 for delete).
+func respondSupplierWriteError(c *gin.Context, err error, fallback int) {
+	var inUse *SupplierInUseError
+	switch {
+	case errors.As(err, &inUse):
+		writeUsageConflict(c, inUse)
+	case errors.Is(err, ErrSupplierVersionConflict):
+		c.JSON(http.StatusConflict, gin.H{
+			"error": err.Error(),
+			"code":  "supplier_version_conflict",
+		})
+	case errors.Is(err, ErrSupplierNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "supplier not found"})
+	default:
+		if fallback == http.StatusInternalServerError {
+			shared.InternalError(c, err)
+			return
+		}
+		c.JSON(fallback, gin.H{"error": err.Error()})
+	}
+}
+
 // CreateSupplier godoc
 // @Summary Create a new supplier
 // @Description Create a new supplier
@@ -221,6 +292,11 @@ func (h *Handler) CreateSupplier(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Provenance is server-set; a client-supplied value is ignored.
+	actor := middleware.UserIDFromContext(c.Request.Context())
+	supplier.CreatedBy = actor
+	supplier.UpdatedBy = actor
 
 	if err := h.svc.Create(c.Request.Context(), &supplier); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -272,6 +348,10 @@ func (h *Handler) UpdateSupplier(c *gin.Context) {
 		return
 	}
 	supplier.ID = id
+	// Provenance is server-set; a client-supplied value is ignored. Version is
+	// taken from the request body (the value the client read); 0 means the
+	// client did not opt into the concurrency check.
+	supplier.UpdatedBy = middleware.UserIDFromContext(c.Request.Context())
 
 	if oldSupplier != nil {
 		if supplier.Code == "" {
@@ -283,7 +363,7 @@ func (h *Handler) UpdateSupplier(c *gin.Context) {
 	}
 
 	if err := h.svc.Update(c.Request.Context(), &supplier); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondSupplierWriteError(c, err, http.StatusBadRequest)
 		return
 	}
 
@@ -333,7 +413,7 @@ func (h *Handler) DeleteSupplier(c *gin.Context) {
 	}
 
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
-		shared.InternalError(c, err)
+		respondSupplierWriteError(c, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -666,9 +746,9 @@ func (h *Handler) BulkUpdate(c *gin.Context) {
 		return
 	}
 
-	updated, err := h.svc.BulkUpdate(c.Request.Context(), req.IDs, req.IsActive)
+	updated, err := h.svc.BulkUpdate(c.Request.Context(), req.IDs, req.IsActive, middleware.UserIDFromContext(c.Request.Context()))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondSupplierWriteError(c, err, http.StatusBadRequest)
 		return
 	}
 
@@ -710,7 +790,7 @@ func (h *Handler) BulkDelete(c *gin.Context) {
 
 	deleted, err := h.svc.BulkDelete(c.Request.Context(), req.IDs)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondSupplierWriteError(c, err, http.StatusBadRequest)
 		return
 	}
 

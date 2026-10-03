@@ -19,6 +19,13 @@ type Repository struct {
 	// (katalog-owned, ADR Modular_Monolith_Module_Boundaries §2.8). It MUST be
 	// wired via SetProductSupplierStore by the composition root.
 	psStore ProductSupplierStore
+
+	// purchaseUsage and consignmentUsage answer the delete/deactivate guards'
+	// cross-module reference counts. Both MUST be wired by the composition root;
+	// CountUsage fails fast when they are not, so a misconfigured server cannot
+	// silently skip the guard and cascade away live references.
+	purchaseUsage    PurchaseUsageCounter
+	consignmentUsage ConsignmentUsageCounter
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -52,17 +59,73 @@ func (r *Repository) linkStore() ProductSupplierStore {
 	return r.psStore
 }
 
+// SetPurchaseUsageCounter wires the purchase-owned port that counts a supplier's
+// open purchase orders. Calls to CountUsage fail fast until it is set.
+func (r *Repository) SetPurchaseUsageCounter(c PurchaseUsageCounter) {
+	r.purchaseUsage = c
+}
+
+// SetConsignmentUsageCounter wires the consignment-owned port that counts a
+// supplier's live consignment arrangements. Calls to CountUsage fail fast until
+// it is set.
+func (r *Repository) SetConsignmentUsageCounter(c ConsignmentUsageCounter) {
+	r.consignmentUsage = c
+}
+
+// CountUsage returns the cross-module reference breakdown for a supplier. Each
+// count is delegated to the module that owns the referencing table; the
+// product-links count goes through the same product-owned port as every other
+// product_suppliers access. All three ports are mandatory — a missing one
+// panics rather than returning a partial breakdown, because a guard that
+// silently dropped the count for one table would let a delete cascade that
+// table's rows away.
+func (r *Repository) CountUsage(ctx context.Context, supplierID int) (SupplierUsage, error) {
+	if r.purchaseUsage == nil {
+		panic("supplier.Repository: PurchaseUsageCounter is not wired — set it via SetPurchaseUsageCounter")
+	}
+	if r.consignmentUsage == nil {
+		panic("supplier.Repository: ConsignmentUsageCounter is not wired — set it via SetConsignmentUsageCounter")
+	}
+
+	var u SupplierUsage
+	if err := r.countUsageInto(ctx, supplierID, &u); err != nil {
+		return SupplierUsage{}, err
+	}
+	return u, nil
+}
+
+func (r *Repository) countUsageInto(ctx context.Context, supplierID int, u *SupplierUsage) error {
+	links, err := r.linkStore().CountLinksBySupplier(ctx, r.db, supplierID)
+	if err != nil {
+		return fmt.Errorf("count product links: %w", err)
+	}
+	u.ProductLinks = links
+
+	openPOs, err := r.purchaseUsage.CountOpenPurchaseOrdersBySupplier(ctx, r.db, supplierID)
+	if err != nil {
+		return fmt.Errorf("count open purchase orders: %w", err)
+	}
+	u.OpenPurchaseOrders = openPOs
+
+	activeConsignments, err := r.consignmentUsage.CountActiveConsignmentsBySupplier(ctx, r.db, supplierID)
+	if err != nil {
+		return fmt.Errorf("count active consignments: %w", err)
+	}
+	u.ActiveConsignments = activeConsignments
+	return nil
+}
+
 func (r *Repository) GetByID(ctx context.Context, id int) (*Supplier, error) {
 	var s Supplier
 	var createdAt, updatedAt time.Time
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_at, updated_at
+		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_by, updated_by, version, created_at, updated_at
 		FROM suppliers WHERE id = $1 AND deleted_at IS NULL
 	`, id).Scan(
 		&s.ID, &s.Name, &s.Code, &s.ContactName,
 		&s.Email, &s.Phone, &s.Address, &s.Notes,
-		&s.IsActive, &s.IsConsignment, &createdAt, &updatedAt,
+		&s.IsActive, &s.IsConsignment, &s.CreatedBy, &s.UpdatedBy, &s.Version, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -89,7 +152,7 @@ func (r *Repository) GetByIDs(ctx context.Context, ids []int) ([]Supplier, error
 	}
 
 	query := fmt.Sprintf(`
-		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_at, updated_at
+		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_by, updated_by, version, created_at, updated_at
 		FROM suppliers WHERE id IN (%s) AND deleted_at IS NULL`, strings.Join(placeholders, ","))
 
 	rows, err := r.db.Query(ctx, query, args...)
@@ -127,12 +190,12 @@ func (r *Repository) GetByCode(ctx context.Context, code string) (*Supplier, err
 	var createdAt, updatedAt time.Time
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_at, updated_at
+		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_by, updated_by, version, created_at, updated_at
 		FROM suppliers WHERE code = $1 AND deleted_at IS NULL
 	`, code).Scan(
 		&s.ID, &s.Name, &s.Code, &s.ContactName,
 		&s.Email, &s.Phone, &s.Address, &s.Notes,
-		&s.IsActive, &s.IsConsignment, &createdAt, &updatedAt,
+		&s.IsActive, &s.IsConsignment, &s.CreatedBy, &s.UpdatedBy, &s.Version, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -149,12 +212,13 @@ func (r *Repository) GetByCode(ctx context.Context, code string) (*Supplier, err
 func (r *Repository) Create(ctx context.Context, supplier *Supplier) error {
 	var createdAt, updatedAt time.Time
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO suppliers (name, code, contact_name, email, phone, address, notes, is_active, is_consignment)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id, created_at, updated_at
+		INSERT INTO suppliers (name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_by, updated_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		RETURNING id, version, created_at, updated_at
 	`, supplier.Name, supplier.Code, supplier.ContactName,
 		supplier.Email, supplier.Phone, supplier.Address, supplier.Notes, supplier.IsActive, supplier.IsConsignment,
-	).Scan(&supplier.ID, &createdAt, &updatedAt)
+		supplier.CreatedBy, supplier.UpdatedBy,
+	).Scan(&supplier.ID, &supplier.Version, &createdAt, &updatedAt)
 	if err != nil {
 		return fmt.Errorf("insert supplier: %w", err)
 	}
@@ -163,18 +227,43 @@ func (r *Repository) Create(ctx context.Context, supplier *Supplier) error {
 	return nil
 }
 
+// Update writes the supplier and enforces optimistic concurrency. When
+// supplier.Version > 0 the row must still be at that version, otherwise another
+// writer got there first and ErrSupplierVersionConflict is returned. Version 0
+// means the caller did not opt in (legacy callers and the seeder), so the write
+// proceeds unconditionally. Every successful update stamps updated_by and bumps
+// version, whose new value is written back to supplier.
 func (r *Repository) Update(ctx context.Context, supplier *Supplier) error {
-	_, err := r.db.Exec(ctx, `
+	query := `
 		UPDATE suppliers
 		SET name = $1, code = $2, contact_name = $3, email = $4, phone = $5,
-		    address = $6, notes = $7, is_active = $8, is_consignment = $9, updated_at = NOW()
-		WHERE id = $10 AND deleted_at IS NULL
-	`, supplier.Name, supplier.Code, supplier.ContactName,
+		    address = $6, notes = $7, is_active = $8, is_consignment = $9,
+		    updated_by = $10, version = version + 1, updated_at = NOW()
+		WHERE id = $11 AND deleted_at IS NULL`
+	args := []interface{}{
+		supplier.Name, supplier.Code, supplier.ContactName,
 		supplier.Email, supplier.Phone, supplier.Address,
-		supplier.Notes, supplier.IsActive, supplier.IsConsignment, supplier.ID)
+		supplier.Notes, supplier.IsActive, supplier.IsConsignment,
+		supplier.UpdatedBy, supplier.ID,
+	}
+	if supplier.Version > 0 {
+		query += fmt.Sprintf(" AND version = $%d", len(args)+1)
+		args = append(args, supplier.Version)
+	}
+	query += " RETURNING version"
+
+	var newVersion int
+	err := r.db.QueryRow(ctx, query, args...).Scan(&newVersion)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			if supplier.Version > 0 {
+				return ErrSupplierVersionConflict
+			}
+			return ErrSupplierNotFound
+		}
 		return fmt.Errorf("update supplier: %w", err)
 	}
+	supplier.Version = newVersion
 	return nil
 }
 
@@ -192,7 +281,7 @@ func (r *Repository) Delete(ctx context.Context, id int) error {
 func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, isConsignment *bool) ([]Supplier, int, error) {
 	countQuery := `SELECT COUNT(*) FROM suppliers WHERE deleted_at IS NULL`
 	dataQuery := `
-		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_at, updated_at
+		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_by, updated_by, version, created_at, updated_at
 		FROM suppliers WHERE deleted_at IS NULL`
 
 	var args []interface{}
@@ -338,7 +427,7 @@ func scanSuppliers(rows pgx.Rows) ([]Supplier, error) {
 		err := rows.Scan(
 			&s.ID, &s.Name, &s.Code, &s.ContactName,
 			&s.Email, &s.Phone, &s.Address, &s.Notes,
-			&s.IsActive, &s.IsConsignment, &createdAt, &updatedAt,
+			&s.IsActive, &s.IsConsignment, &s.CreatedBy, &s.UpdatedBy, &s.Version, &createdAt, &updatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -456,7 +545,7 @@ func (r *Repository) BulkUpdateSuppliers(ctx context.Context, payloads []ImportP
 
 func (r *Repository) GetAllForExport(ctx context.Context) ([]Supplier, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_at, updated_at
+		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, is_consignment, created_by, updated_by, version, created_at, updated_at
 		FROM suppliers WHERE deleted_at IS NULL ORDER BY id ASC
 	`)
 	if err != nil {
@@ -466,7 +555,11 @@ func (r *Repository) GetAllForExport(ctx context.Context) ([]Supplier, error) {
 	return scanSuppliers(rows)
 }
 
-func (r *Repository) BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error) {
+// BulkUpdate flips is_active for a batch. It deliberately skips the version
+// check (a batch has no per-row version to send) but still stamps updated_by and
+// bumps version so a single-row editor holding a stale version is refused
+// afterwards.
+func (r *Repository) BulkUpdate(ctx context.Context, ids []int, isActive bool, updatedBy *int) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
@@ -478,9 +571,9 @@ func (r *Repository) BulkUpdate(ctx context.Context, ids []int, isActive bool) (
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	tag, err := tx.Exec(ctx, `
-		UPDATE suppliers SET is_active = $1, updated_at = NOW()
-		WHERE id = ANY($2) AND deleted_at IS NULL
-	`, isActive, ids)
+		UPDATE suppliers SET is_active = $1, updated_by = $2, version = version + 1, updated_at = NOW()
+		WHERE id = ANY($3) AND deleted_at IS NULL
+	`, isActive, updatedBy, ids)
 	if err != nil {
 		return 0, fmt.Errorf("bulk update suppliers: %w", err)
 	}

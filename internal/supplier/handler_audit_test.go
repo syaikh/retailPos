@@ -44,6 +44,7 @@ type mockSupplierServiceForAudit struct {
 	bulkUpdateFn              func(ctx context.Context, ids []int, isActive bool) (int, error)
 	bulkDeleteFn              func(ctx context.Context, ids []int) (int, error)
 	getProductsBySupplierIDFn func(ctx context.Context, supplierID int, storeID *int) ([]ProductSupplier, error)
+	getUsageFn                func(ctx context.Context, id int) (SupplierUsage, error)
 
 	lastLinkWriteStoreID *int
 }
@@ -147,7 +148,7 @@ func (m *mockSupplierServiceForAudit) GetProductsBySupplierID(ctx context.Contex
 	return nil, nil
 }
 
-func (m *mockSupplierServiceForAudit) BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error) {
+func (m *mockSupplierServiceForAudit) BulkUpdate(ctx context.Context, ids []int, isActive bool, _ *int) (int, error) {
 	if m.bulkUpdateFn != nil {
 		return m.bulkUpdateFn(ctx, ids, isActive)
 	}
@@ -159,6 +160,13 @@ func (m *mockSupplierServiceForAudit) BulkDelete(ctx context.Context, ids []int)
 		return m.bulkDeleteFn(ctx, ids)
 	}
 	return 0, nil
+}
+
+func (m *mockSupplierServiceForAudit) GetUsage(ctx context.Context, id int) (SupplierUsage, error) {
+	if m.getUsageFn != nil {
+		return m.getUsageFn(ctx, id)
+	}
+	return SupplierUsage{}, nil
 }
 
 func requireAuditLog(t *testing.T, auditSvc *mockAuditCreator) *audit.Log {

@@ -2712,16 +2712,16 @@ BEGIN
 END;
 $$;
 
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-        WHERE conrelid = 'public.suppliers'::regclass AND conname = 'suppliers_code_key'
-    ) THEN
-        ALTER TABLE ONLY public.suppliers ADD CONSTRAINT suppliers_code_key UNIQUE (code);
-    END IF;
-END;
-$$;
+-- 060_supplier_governance.sql replaces the global UNIQUE (code) with a partial
+-- unique index over live rows so a soft-deleted supplier's code is reusable.
+-- This file is replayed on every deploy, so the swap lives here as well as in
+-- 060: drop the legacy constraint if present and create the partial index
+-- idempotently. Naming the predicate is what lets ON CONFLICT (code) WHERE
+-- deleted_at IS NULL infer the arbiter.
+ALTER TABLE ONLY public.suppliers DROP CONSTRAINT IF EXISTS suppliers_code_key;
+
+CREATE UNIQUE INDEX IF NOT EXISTS suppliers_code_active_key
+    ON public.suppliers (code) WHERE deleted_at IS NULL;
 
 DO $$
 BEGIN

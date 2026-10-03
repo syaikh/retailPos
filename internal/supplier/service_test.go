@@ -616,11 +616,11 @@ func TestService_BulkUpdate(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, s1))
 	require.NoError(t, repo.Create(ctx, s2))
 
-	count, err := svc.BulkUpdate(ctx, []int{s1.ID, s2.ID}, false)
+	count, err := svc.BulkUpdate(ctx, []int{s1.ID, s2.ID}, false, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 
-	count, err = svc.BulkUpdate(ctx, []int{s1.ID, s2.ID}, true)
+	count, err = svc.BulkUpdate(ctx, []int{s1.ID, s2.ID}, true, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 }
