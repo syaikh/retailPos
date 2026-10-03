@@ -135,6 +135,7 @@ describe("notifications store", () => {
     expect(getNotificationIcon("so_rejected")).toBe("❌");
     expect(getNotificationIcon("so_needs_recount")).toBe("🔄");
     expect(getNotificationIcon("so_cancelled")).toBe("🚫");
+    expect(getNotificationIcon("supplier_changed")).toBe("🏭");
   });
 
   it("canReceiveStockOpnameNotifications allows stock_opname.view", async () => {
@@ -152,5 +153,17 @@ describe("notifications store", () => {
     expect(canReceiveStockOpnameNotifications([])).toBe(false);
     expect(canReceiveStockOpnameNotifications(undefined)).toBe(false);
     expect(canReceiveStockOpnameNotifications(null)).toBe(false);
+  });
+
+  it("canReceiveSupplierNotifications allows supplier.view", async () => {
+    const { canReceiveSupplierNotifications } =
+      await import("../notifications.svelte");
+    expect(
+      canReceiveSupplierNotifications(["dashboard.view", "supplier.view"]),
+    ).toBe(true);
+    expect(canReceiveSupplierNotifications(["supplier.create"])).toBe(false);
+    expect(canReceiveSupplierNotifications([])).toBe(false);
+    expect(canReceiveSupplierNotifications(undefined)).toBe(false);
+    expect(canReceiveSupplierNotifications(null)).toBe(false);
   });
 });

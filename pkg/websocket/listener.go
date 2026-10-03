@@ -141,6 +141,27 @@ func NewPOCancelledListener(hub *Hub) eventbus.Listener {
 	)
 }
 
+func NewSupplierChangedListener(hub *Hub) eventbus.Listener {
+	return eventbus.NewListenerFunc(
+		[]eventbus.EventType{events.TopicSupplierChanged},
+		func(ctx context.Context, event eventbus.Event) error {
+			payload, ok := event.Payload.(*events.SupplierChanged)
+			if !ok {
+				slog.Warn("[ws] unexpected payload type for supplier.changed", "type", fmt.Sprintf("%T", event.Payload))
+				return nil
+			}
+			BroadcastSupplierChanged(hub, SupplierChangedEvent{
+				SupplierID: payload.SupplierID,
+				Name:       payload.Name,
+				Code:       payload.Code,
+				Action:     payload.Action,
+				Version:    payload.Version,
+			})
+			return nil
+		},
+	)
+}
+
 func NewStockAdjustedListener(hub *Hub, products ProductLookup) eventbus.Listener {
 	return eventbus.NewListenerFunc(
 		[]eventbus.EventType{events.TopicStockAdjusted},

@@ -65,24 +65,25 @@ func newUpgrader() *websocket.Upgrader {
 type EventType string
 
 const (
-	EventStockUpdate   EventType = "stock_update"
-	EventSaleCreated   EventType = "sale_created"
-	EventLowStockAlert EventType = "low_stock_alert"
-	EventProductUpdate EventType = "product_updated"
-	EventUserOnline    EventType = "user_online_count"
-	EventPOReceived    EventType = "po_received"
-	EventPOCreated     EventType = "po_created"
-	EventPOConfirmed   EventType = "po_confirmed"
-	EventPOCancelled   EventType = "po_cancelled"
-	EventSOCreated     EventType = "so_created"
-	EventSOOpened      EventType = "so_opened"
-	EventSOSubmitted   EventType = "so_submitted"
-	EventSOApproved    EventType = "so_approved"
-	EventSOPosted      EventType = "so_posted"
-	EventSOClosed      EventType = "so_closed"
-	EventSORejected    EventType = "so_rejected"
-	EventSORecount     EventType = "so_needs_recount"
-	EventSOCancelled   EventType = "so_cancelled"
+	EventStockUpdate     EventType = "stock_update"
+	EventSaleCreated     EventType = "sale_created"
+	EventLowStockAlert   EventType = "low_stock_alert"
+	EventProductUpdate   EventType = "product_updated"
+	EventUserOnline      EventType = "user_online_count"
+	EventPOReceived      EventType = "po_received"
+	EventPOCreated       EventType = "po_created"
+	EventPOConfirmed     EventType = "po_confirmed"
+	EventPOCancelled     EventType = "po_cancelled"
+	EventSOCreated       EventType = "so_created"
+	EventSOOpened        EventType = "so_opened"
+	EventSOSubmitted     EventType = "so_submitted"
+	EventSOApproved      EventType = "so_approved"
+	EventSOPosted        EventType = "so_posted"
+	EventSOClosed        EventType = "so_closed"
+	EventSORejected      EventType = "so_rejected"
+	EventSORecount       EventType = "so_needs_recount"
+	EventSOCancelled     EventType = "so_cancelled"
+	EventSupplierChanged EventType = "supplier_changed"
 )
 
 type Event struct {
@@ -697,6 +698,28 @@ func BroadcastPOCancelled(hub *Hub, event POCancelledEvent) {
 		Type:    EventPOCancelled,
 		Payload: payload,
 		StoreID: event.StoreID,
+	})
+}
+
+// SupplierChangedEvent announces a supplier leaving the selectable set. The
+// supplier is global, so StoreID is always nil and the event reaches every
+// connected client; the frontend gates display on the supplier.view permission.
+type SupplierChangedEvent struct {
+	SupplierID int    `json:"supplier_id"`
+	Name       string `json:"name"`
+	Code       string `json:"code"`
+	Action     string `json:"action"`
+	Version    int    `json:"version"`
+}
+
+func BroadcastSupplierChanged(hub *Hub, event SupplierChangedEvent) {
+	if hub == nil {
+		return
+	}
+	payload, _ := json.Marshal(event)
+	hub.Broadcast(Event{
+		Type:    EventSupplierChanged,
+		Payload: payload,
 	})
 }
 

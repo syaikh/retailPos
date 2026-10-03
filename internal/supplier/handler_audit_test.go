@@ -169,6 +169,8 @@ func (m *mockSupplierServiceForAudit) GetUsage(ctx context.Context, id int) (Sup
 	return SupplierUsage{}, nil
 }
 
+func (m *mockSupplierServiceForAudit) SetEventBus(shared.EventBus) {}
+
 func requireAuditLog(t *testing.T, auditSvc *mockAuditCreator) *audit.Log {
 	t.Helper()
 	assert.NotNil(t, auditSvc.lastLog, "expected audit log to be created")

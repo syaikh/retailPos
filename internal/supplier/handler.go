@@ -34,6 +34,7 @@ type Service interface {
 	BulkUpdate(ctx context.Context, ids []int, isActive bool, updatedBy *int) (int, error)
 	BulkDelete(ctx context.Context, ids []int) (int, error)
 	GetUsage(ctx context.Context, id int) (SupplierUsage, error)
+	SetEventBus(bus shared.EventBus)
 }
 
 type Handler struct {

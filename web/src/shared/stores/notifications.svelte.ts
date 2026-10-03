@@ -14,7 +14,8 @@ export type NotificationType =
   | "so_approved"
   | "so_rejected"
   | "so_needs_recount"
-  | "so_cancelled";
+  | "so_cancelled"
+  | "supplier_changed";
 
 export interface Notification {
   id: string;
@@ -110,6 +111,8 @@ export function getNotificationIcon(type: NotificationType): string {
       return "🔄";
     case "so_cancelled":
       return "🚫";
+    case "supplier_changed":
+      return "🏭";
   }
 }
 
@@ -119,4 +122,12 @@ export function canReceiveStockOpnameNotifications(
   permissions: string[] | undefined | null,
 ): boolean {
   return !!permissions?.includes(STOCK_OPNAME_VIEW_PERMISSION);
+}
+
+export const SUPPLIER_VIEW_PERMISSION = "supplier.view";
+
+export function canReceiveSupplierNotifications(
+  permissions: string[] | undefined | null,
+): boolean {
+  return !!permissions?.includes(SUPPLIER_VIEW_PERMISSION);
 }

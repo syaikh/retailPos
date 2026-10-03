@@ -5,6 +5,7 @@
   import { useAuthStore } from "$modules/auth";
   import { goto } from "$app/router";
   import { labels } from "$shared/i18n";
+  import { useWebSocket } from "$shared/api/websocket";
   import {
     getSuppliers,
     getSupplier,
@@ -34,6 +35,7 @@
   import ImportWizard from "$shared/ui/ImportWizard.svelte";
 
   const authStore = useAuthStore();
+  const ws = useWebSocket();
 
   const userPermissions = $derived(authStore.user?.permissions || []);
   const canCreate = $derived(userPermissions.includes("supplier.create"));
@@ -358,6 +360,7 @@
     }
     referrer = urlParams.get("referrer");
     load();
+    return ws.on("supplier_changed", () => load());
   });
 </script>
 

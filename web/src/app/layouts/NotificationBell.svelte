@@ -11,6 +11,7 @@
     formatRelativeTime,
     getNotificationIcon,
     canReceiveStockOpnameNotifications,
+    canReceiveSupplierNotifications,
     type Notification,
   } from "$shared/stores/notifications.svelte";
   import { useAuthStore } from "$modules/auth";
@@ -24,6 +25,10 @@
 
   const canSeeStockOpname = $derived(
     canReceiveStockOpnameNotifications(authStore.user?.permissions),
+  );
+
+  const canSeeSuppliers = $derived(
+    canReceiveSupplierNotifications(authStore.user?.permissions),
   );
 
   let open = $state(false);
@@ -270,6 +275,29 @@
               number: data.session_number,
             }),
             navigateTo: `/stock-opnames/${data.session_id}`,
+          });
+        },
+      ),
+      ws.on(
+        "supplier_changed",
+        (data: {
+          supplier_id: number;
+          name: string;
+          code: string;
+          action: string;
+        }) => {
+          if (!canSeeSuppliers) return;
+          notifications.push({
+            type: "supplier_changed",
+            title:
+              data.action === "deleted"
+                ? labels.supplierDeletedTitle
+                : labels.supplierDeactivatedTitle,
+            description: t("supplierChangedDesc", {
+              name: data.name,
+              code: data.code,
+            }),
+            navigateTo: "/suppliers",
           });
         },
       ),

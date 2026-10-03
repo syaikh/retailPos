@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+
+	"retail-pos-system/internal/events"
+	"retail-pos-system/internal/shared"
 )
 
 var (
@@ -34,11 +37,35 @@ type Repo interface {
 }
 
 type service struct {
-	repo Repo
+	repo     Repo
+	eventBus shared.EventBus
 }
 
 func NewService(repo Repo) Service {
 	return &service{repo: repo}
+}
+
+// SetEventBus wires the cross-module publisher used to announce a supplier
+// leaving the selectable set. Optional: a nil bus disables publishing, which
+// keeps the service usable in unit tests and keeps every branch that does not
+// care about events untouched.
+func (s *service) SetEventBus(bus shared.EventBus) {
+	s.eventBus = bus
+}
+
+// publishChanged is best-effort: a failed broadcast must never fail the write
+// that already succeeded, matching the other module publishers.
+func (s *service) publishChanged(ctx context.Context, supplier *Supplier, action string) {
+	if s.eventBus == nil {
+		return
+	}
+	_ = s.eventBus.Publish(ctx, events.TopicSupplierChanged, &events.SupplierChanged{
+		SupplierID: supplier.ID,
+		Name:       supplier.Name,
+		Code:       supplier.Code,
+		Action:     action,
+		Version:    supplier.Version,
+	})
 }
 
 func (s *service) GetByID(ctx context.Context, id int) (*Supplier, error) {
@@ -88,7 +115,13 @@ func (s *service) Update(ctx context.Context, supplier *Supplier) error {
 			return &SupplierInUseError{Usage: usage, Deactivating: true}
 		}
 	}
-	return s.repo.Update(ctx, supplier)
+	if err := s.repo.Update(ctx, supplier); err != nil {
+		return err
+	}
+	if old.IsActive && !supplier.IsActive {
+		s.publishChanged(ctx, supplier, events.SupplierActionDeactivated)
+	}
+	return nil
 }
 
 // GetUsage returns the cross-module reference breakdown for a supplier so the
@@ -104,7 +137,8 @@ func (s *service) GetUsage(ctx context.Context, id int) (SupplierUsage, error) {
 func (s *service) Delete(ctx context.Context, id int) error {
 	// Confirm the supplier exists first: CountUsage reports zeros for an unknown
 	// id, which would otherwise turn a delete of a missing supplier into a 200.
-	if _, err := s.repo.GetByID(ctx, id); err != nil {
+	old, err := s.repo.GetByID(ctx, id)
+	if err != nil {
 		return err
 	}
 	usage, err := s.repo.CountUsage(ctx, id)
@@ -114,7 +148,11 @@ func (s *service) Delete(ctx context.Context, id int) error {
 	if usage.Total() > 0 {
 		return &SupplierInUseError{Usage: usage}
 	}
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+	s.publishChanged(ctx, old, events.SupplierActionDeleted)
+	return nil
 }
 
 func (s *service) LinkProduct(ctx context.Context, ps *ProductSupplier) error {

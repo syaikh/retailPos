@@ -153,7 +153,34 @@ CREATE UNIQUE INDEX IF NOT EXISTS suppliers_code_active_key
 ## 6. Phase 3 — Observability
 
 Dashboard/notification entry when a shared supplier is deactivated or deleted. The audit log already
-records old/new (`handler.go:290-306`), so this is additive.
+records old/new (`handler.go:290-306`), so this is additive. Design confirmed 2026-10-03:
+
+- **Event (single topic, action field).** `internal/events/supplier.go`:
+  `TopicSupplierChanged = "supplier.changed.v1"`; action constants
+  `SupplierActionDeactivated = "deactivated"`, `SupplierActionDeleted = "deleted"`; payload
+  `SupplierChanged{SupplierID, Name, Code, Action, Version}`. Only a real state change emits:
+  `Update` active → inactive and soft `Delete`. Reactivation and ordinary field edits do not.
+- **Publish.** The supplier service gains a nil-guarded `SetEventBus(shared.EventBus)` (mirrors the
+  `SetProductSupplierStore` pattern, so `NewService(repo)` call sites and tests are untouched) and a
+  best-effort `publishChanged` helper. Wired in `internal/wiring/wiring.go` next to
+  `supplier.NewService`.
+- **WebSocket.** `pkg/websocket` gains `EventSupplierChanged = "supplier_changed"` +
+  `SupplierChangedEvent` + `BroadcastSupplierChanged` + `NewSupplierChangedListener`, registered in
+  the `wiring.go` subscription block. Suppliers are global (no store scope), so the broadcast is
+  **not** store-filtered and reaches every client.
+- **Audience (gated on `supplier.view`).** The frontend gates display on the `supplier.view`
+  permission, mirroring `canReceiveStockOpnameNotifications` for stock opname. The backend still
+  broadcasts to all; the client decides whether to surface it.
+- **Frontend surfaces (bell + live-refresh list).**
+  - Add `supplier_changed` to `NotificationType` and `getNotificationIcon`.
+  - `NotificationBell.svelte` `onMount` registers `ws.on("supplier_changed", ...)` and pushes a
+    notification with `navigateTo: "/suppliers"`, guarded by a
+    `canReceiveSupplierNotifications(permissions)` helper.
+  - The suppliers list subscribes to the same event and reloads, the way
+    `purchase-orders/stores/po-store.svelte.ts` reacts to PO events.
+  - New `en.ts`/`id.ts` title/description keys.
+- **Persistence.** None: notifications stay in the in-memory store, consistent with every existing
+  `NotificationType`.
 
 ---
 
