@@ -90,8 +90,8 @@ func (denyingRepo) BulkUpdate(context.Context, []int, bool, *int) (int, error) {
 }
 func (denyingRepo) BulkDelete(context.Context, []int) (int, error)      { return 0, errDenying }
 func (denyingRepo) GetNextSupplierCode(context.Context) (string, error) { return "", errDenying }
-func (denyingRepo) CountUsage(context.Context, int) (SupplierUsage, error) {
-	return SupplierUsage{}, errDenying
+func (denyingRepo) CountUsage(context.Context, int) (Usage, error) {
+	return Usage{}, errDenying
 }
 
 // routeCase is one (method, path) pair plus the permission it must demand.

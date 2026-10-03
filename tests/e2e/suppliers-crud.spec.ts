@@ -264,14 +264,27 @@ test.describe('Suppliers CRUD API', () => {
 
   test('POST /api/suppliers with duplicate code returns error', async ({ request }) => {
     const token = await getToken(request);
-    const res = await request.post(`${API_BASE}/api/suppliers`, {
+    // A code freed by a soft delete is reusable (partial unique index), so the
+    // duplicate must be attempted against a supplier whose code is still active.
+    const dupCode = `E2E-DUP-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+    const first = await request.post(`${API_BASE}/api/suppliers`, {
+      headers: authHeader(token),
+      data: { name: 'Duplicate Code Original', code: dupCode, is_active: true },
+    });
+    expect(first.ok()).toBeTruthy();
+    const firstId = (await first.json()).data.id;
+
+    const duplicate = await request.post(`${API_BASE}/api/suppliers`, {
       headers: authHeader(token),
       data: {
-        name: 'Duplicate Supplier',
-        code: testCode,
+        name: 'Duplicate Code Copy',
+        code: dupCode,
         is_active: true,
       },
     });
-    expect(res.ok()).toBeFalsy();
+    expect(duplicate.ok()).toBeFalsy();
+
+    await request.delete(`${API_BASE}/api/suppliers/${firstId}`, { headers: authHeader(token) });
   });
 });

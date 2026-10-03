@@ -29,11 +29,11 @@ func insertUsagePO(ctx context.Context, t *testing.T, supplierID, userID int, st
 	require.NoError(t, err)
 }
 
-// TestSupplierUsageProvider_CountOpenPurchaseOrdersBySupplier pins the
+// TestUsageProvider_CountOpenPurchaseOrdersBySupplier pins the
 // deactivation contract: draft, confirmed, and partial_received orders still owe
 // goods and block deactivation; fully_received and cancelled are terminal and
 // must not.
-func TestSupplierUsageProvider_CountOpenPurchaseOrdersBySupplier(t *testing.T) {
+func TestUsageProvider_CountOpenPurchaseOrdersBySupplier(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
@@ -48,11 +48,11 @@ func TestSupplierUsageProvider_CountOpenPurchaseOrdersBySupplier(t *testing.T) {
 	insertUsagePO(ctx, t, supplierID, userID, StatusFullyReceived)
 	insertUsagePO(ctx, t, supplierID, userID, StatusCancelled)
 
-	count, err := (SupplierUsageProvider{}).CountOpenPurchaseOrdersBySupplier(ctx, dbPool, supplierID)
+	count, err := (UsageProvider{}).CountOpenPurchaseOrdersBySupplier(ctx, dbPool, supplierID)
 	require.NoError(t, err)
 	assert.Equal(t, 3, count, "only draft/confirmed/partial_received are open")
 
-	empty, err := (SupplierUsageProvider{}).CountOpenPurchaseOrdersBySupplier(ctx, dbPool, -1)
+	empty, err := (UsageProvider{}).CountOpenPurchaseOrdersBySupplier(ctx, dbPool, -1)
 	require.NoError(t, err)
 	assert.Equal(t, 0, empty)
 }

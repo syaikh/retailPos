@@ -15,7 +15,7 @@ func newTestRepo(t *testing.T) *Repository {
 	t.Helper()
 	repo := NewRepository(dbPool)
 	repo.SetProductSupplierStore(product.SupplierLinkStore{})
-	repo.SetPurchaseUsageCounter(purchase.SupplierUsageProvider{})
-	repo.SetConsignmentUsageCounter(consignment.SupplierUsageProvider{})
+	repo.SetPurchaseUsageCounter(purchase.UsageProvider{})
+	repo.SetConsignmentUsageCounter(consignment.UsageProvider{})
 	return repo
 }

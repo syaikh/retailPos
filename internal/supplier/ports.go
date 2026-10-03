@@ -73,11 +73,11 @@ type ConsignmentUsageCounter interface {
 	CountActiveConsignmentsBySupplier(ctx context.Context, db shared.DBPool, supplierID int) (int, error)
 }
 
-// SupplierUsage is the cross-module reference breakdown the delete and
+// Usage is the cross-module reference breakdown the delete and
 // deactivate guards report. Each field is owned by a different module and is
 // answered through the counters above; internal/supplier owns only suppliers,
 // so it cannot run these counts itself (internal/archtest enforces that).
-type SupplierUsage struct {
+type Usage struct {
 	ProductLinks       int `json:"product_links"`
 	OpenPurchaseOrders int `json:"open_purchase_orders"`
 	ActiveConsignments int `json:"active_consignments"`
@@ -85,7 +85,7 @@ type SupplierUsage struct {
 
 // Total is the count that blocks a soft delete: any product link, open purchase
 // order, or active consignment arrangement makes the supplier unsafe to remove.
-func (u SupplierUsage) Total() int {
+func (u Usage) Total() int {
 	return u.ProductLinks + u.OpenPurchaseOrders + u.ActiveConsignments
 }
 
@@ -93,11 +93,11 @@ func (u SupplierUsage) Total() int {
 // — a link is reversible and an inactive supplier is hidden from new selection
 // — but an open purchase order or a live consignment arrangement names work the
 // supplier is still owed, so deactivating would strand an in-flight transaction.
-func (u SupplierUsage) InFlight() int {
+func (u Usage) InFlight() int {
 	return u.OpenPurchaseOrders + u.ActiveConsignments
 }
 
 // Empty reports whether the supplier has no live references at all.
-func (u SupplierUsage) Empty() bool {
+func (u Usage) Empty() bool {
 	return u.Total() == 0
 }

@@ -26,18 +26,18 @@ var (
 // (internal/product) can reference it without importing each other.
 var ErrProductSupplierNotFound = shared.ErrProductSupplierNotFound
 
-// SupplierInUseError is returned when a destructive supplier operation is
+// InUseError is returned when a destructive supplier operation is
 // blocked by live references. It carries the breakdown so the handler can tell
 // the caller exactly what must be cleared first rather than a bare "conflict".
-type SupplierInUseError struct {
-	Usage        SupplierUsage
+type InUseError struct {
+	Usage        Usage
 	Deactivating bool
 	// BlockedIDs is set by a bulk operation: the suppliers in the batch that
 	// still have live references. Empty for a single-supplier operation.
 	BlockedIDs []int
 }
 
-func (e *SupplierInUseError) Error() string {
+func (e *InUseError) Error() string {
 	if e.Deactivating {
 		return "supplier is in use by open purchase orders or active consignment arrangements; clear those before deactivating"
 	}

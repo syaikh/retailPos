@@ -79,7 +79,7 @@ func (r *Repository) SetConsignmentUsageCounter(c ConsignmentUsageCounter) {
 // panics rather than returning a partial breakdown, because a guard that
 // silently dropped the count for one table would let a delete cascade that
 // table's rows away.
-func (r *Repository) CountUsage(ctx context.Context, supplierID int) (SupplierUsage, error) {
+func (r *Repository) CountUsage(ctx context.Context, supplierID int) (Usage, error) {
 	if r.purchaseUsage == nil {
 		panic("supplier.Repository: PurchaseUsageCounter is not wired — set it via SetPurchaseUsageCounter")
 	}
@@ -87,14 +87,14 @@ func (r *Repository) CountUsage(ctx context.Context, supplierID int) (SupplierUs
 		panic("supplier.Repository: ConsignmentUsageCounter is not wired — set it via SetConsignmentUsageCounter")
 	}
 
-	var u SupplierUsage
+	var u Usage
 	if err := r.countUsageInto(ctx, supplierID, &u); err != nil {
-		return SupplierUsage{}, err
+		return Usage{}, err
 	}
 	return u, nil
 }
 
-func (r *Repository) countUsageInto(ctx context.Context, supplierID int, u *SupplierUsage) error {
+func (r *Repository) countUsageInto(ctx context.Context, supplierID int, u *Usage) error {
 	links, err := r.linkStore().CountLinksBySupplier(ctx, r.db, supplierID)
 	if err != nil {
 		return fmt.Errorf("count product links: %w", err)

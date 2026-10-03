@@ -7,12 +7,12 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-// SupplierUsageProvider is the purchase-owned implementation of the supplier
+// UsageProvider is the purchase-owned implementation of the supplier
 // module's consumer-side PurchaseUsageCounter port (structural typing — no
 // import of internal/supplier needed). internal/purchase owns purchase_orders,
 // so whether a supplier is still named by an open order is answered here rather
 // than via direct SQL inside internal/supplier.
-type SupplierUsageProvider struct{}
+type UsageProvider struct{}
 
 // openPurchaseOrderStatuses are the statuses in which a purchase order still
 // owes goods and therefore still depends on its supplier. fully_received and
@@ -25,7 +25,7 @@ var openPurchaseOrderStatuses = []string{
 }
 
 // CountOpenPurchaseOrdersBySupplier counts the supplier's open purchase orders.
-func (SupplierUsageProvider) CountOpenPurchaseOrdersBySupplier(ctx context.Context, db shared.DBPool, supplierID int) (int, error) {
+func (UsageProvider) CountOpenPurchaseOrdersBySupplier(ctx context.Context, db shared.DBPool, supplierID int) (int, error) {
 	var count int
 	err := db.QueryRow(ctx, `
 		SELECT COUNT(*)

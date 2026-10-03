@@ -25,7 +25,7 @@ type Repo interface {
 	Delete(ctx context.Context, id int) error
 	BulkUpdate(ctx context.Context, ids []int, isActive bool, updatedBy *int) (int, error)
 	BulkDelete(ctx context.Context, ids []int) (int, error)
-	CountUsage(ctx context.Context, supplierID int) (SupplierUsage, error)
+	CountUsage(ctx context.Context, supplierID int) (Usage, error)
 	GetPreferredSupplier(ctx context.Context, productID int, storeID *int) (*ProductSupplier, error)
 	GetProductsBySupplierID(ctx context.Context, supplierID int, storeID *int) ([]ProductSupplier, error)
 	GetProductSupplier(ctx context.Context, productID, supplierID int, storeID *int) (*ProductSupplier, error)
@@ -112,7 +112,7 @@ func (s *service) Update(ctx context.Context, supplier *Supplier) error {
 			return err
 		}
 		if usage.InFlight() > 0 {
-			return &SupplierInUseError{Usage: usage, Deactivating: true}
+			return &InUseError{Usage: usage, Deactivating: true}
 		}
 	}
 	if err := s.repo.Update(ctx, supplier); err != nil {
@@ -127,9 +127,9 @@ func (s *service) Update(ctx context.Context, supplier *Supplier) error {
 // GetUsage returns the cross-module reference breakdown for a supplier so the
 // UI can warn about the blast radius before a delete or deactivate. It is a
 // read: a missing supplier is a 404, not a zero breakdown.
-func (s *service) GetUsage(ctx context.Context, id int) (SupplierUsage, error) {
+func (s *service) GetUsage(ctx context.Context, id int) (Usage, error) {
 	if _, err := s.repo.GetByID(ctx, id); err != nil {
-		return SupplierUsage{}, err
+		return Usage{}, err
 	}
 	return s.repo.CountUsage(ctx, id)
 }
@@ -146,7 +146,7 @@ func (s *service) Delete(ctx context.Context, id int) error {
 		return err
 	}
 	if usage.Total() > 0 {
-		return &SupplierInUseError{Usage: usage}
+		return &InUseError{Usage: usage}
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
@@ -200,7 +200,7 @@ func (s *service) BulkUpdate(ctx context.Context, ids []int, isActive bool, upda
 			return 0, err
 		}
 		if len(blocked) > 0 {
-			return 0, &SupplierInUseError{Usage: usage, Deactivating: true, BlockedIDs: blocked}
+			return 0, &InUseError{Usage: usage, Deactivating: true, BlockedIDs: blocked}
 		}
 	}
 	return s.repo.BulkUpdate(ctx, ids, isActive, updatedBy)
@@ -210,23 +210,23 @@ func (s *service) BulkUpdate(ctx context.Context, ids []int, isActive bool, upda
 // yet still have in-flight work, plus their aggregated usage. A supplier already
 // inactive is skipped: deactivating it again changes nothing, so its historical
 // references must not fail the batch.
-func (s *service) blockedForDeactivation(ctx context.Context, ids []int) ([]int, SupplierUsage, error) {
+func (s *service) blockedForDeactivation(ctx context.Context, ids []int) ([]int, Usage, error) {
 	var blocked []int
-	var agg SupplierUsage
+	var agg Usage
 	for _, id := range ids {
 		old, err := s.repo.GetByID(ctx, id)
 		if err != nil {
 			if errors.Is(err, ErrSupplierNotFound) {
 				continue
 			}
-			return nil, SupplierUsage{}, err
+			return nil, Usage{}, err
 		}
 		if !old.IsActive {
 			continue
 		}
 		usage, err := s.repo.CountUsage(ctx, id)
 		if err != nil {
-			return nil, SupplierUsage{}, err
+			return nil, Usage{}, err
 		}
 		if usage.InFlight() > 0 {
 			blocked = append(blocked, id)
@@ -239,7 +239,7 @@ func (s *service) blockedForDeactivation(ctx context.Context, ids []int) ([]int,
 
 func (s *service) BulkDelete(ctx context.Context, ids []int) (int, error) {
 	blocked := make([]int, 0, len(ids))
-	var agg SupplierUsage
+	var agg Usage
 	for _, id := range ids {
 		usage, err := s.repo.CountUsage(ctx, id)
 		if err != nil {
@@ -253,7 +253,7 @@ func (s *service) BulkDelete(ctx context.Context, ids []int) (int, error) {
 		}
 	}
 	if len(blocked) > 0 {
-		return 0, &SupplierInUseError{Usage: agg, BlockedIDs: blocked}
+		return 0, &InUseError{Usage: agg, BlockedIDs: blocked}
 	}
 	return s.repo.BulkDelete(ctx, ids)
 }

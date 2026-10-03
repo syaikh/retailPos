@@ -44,7 +44,7 @@ type mockSupplierServiceForAudit struct {
 	bulkUpdateFn              func(ctx context.Context, ids []int, isActive bool) (int, error)
 	bulkDeleteFn              func(ctx context.Context, ids []int) (int, error)
 	getProductsBySupplierIDFn func(ctx context.Context, supplierID int, storeID *int) ([]ProductSupplier, error)
-	getUsageFn                func(ctx context.Context, id int) (SupplierUsage, error)
+	getUsageFn                func(ctx context.Context, id int) (Usage, error)
 
 	lastLinkWriteStoreID *int
 }
@@ -162,11 +162,11 @@ func (m *mockSupplierServiceForAudit) BulkDelete(ctx context.Context, ids []int)
 	return 0, nil
 }
 
-func (m *mockSupplierServiceForAudit) GetUsage(ctx context.Context, id int) (SupplierUsage, error) {
+func (m *mockSupplierServiceForAudit) GetUsage(ctx context.Context, id int) (Usage, error) {
 	if m.getUsageFn != nil {
 		return m.getUsageFn(ctx, id)
 	}
-	return SupplierUsage{}, nil
+	return Usage{}, nil
 }
 
 func (m *mockSupplierServiceForAudit) SetEventBus(shared.EventBus) {}

@@ -33,7 +33,7 @@ type Service interface {
 	GetProductsBySupplierID(ctx context.Context, supplierID int, storeID *int) ([]ProductSupplier, error)
 	BulkUpdate(ctx context.Context, ids []int, isActive bool, updatedBy *int) (int, error)
 	BulkDelete(ctx context.Context, ids []int) (int, error)
-	GetUsage(ctx context.Context, id int) (SupplierUsage, error)
+	GetUsage(ctx context.Context, id int) (Usage, error)
 	SetEventBus(bus shared.EventBus)
 }
 
@@ -122,7 +122,7 @@ func (h *Handler) authorizeLinkWrite(c *gin.Context, productID, supplierID int, 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	r.GET("/suppliers", auth, perm(permissions.SupplierView), h.ListSuppliers)
 	r.GET("/suppliers/:id", auth, perm(permissions.SupplierView), h.GetSupplier)
-	r.GET("/suppliers/:id/usage", auth, perm(permissions.SupplierView), h.GetSupplierUsage)
+	r.GET("/suppliers/:id/usage", auth, perm(permissions.SupplierView), h.GetUsage)
 	r.POST("/suppliers", auth, perm(permissions.SupplierCreate), h.CreateSupplier)
 	r.PUT("/suppliers/:id", auth, perm(permissions.SupplierUpdate), h.UpdateSupplier)
 	r.DELETE("/suppliers/:id", auth, perm(permissions.SupplierDelete), h.DeleteSupplier)
@@ -208,7 +208,7 @@ func (h *Handler) GetSupplier(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": supplier})
 }
 
-// GetSupplierUsage godoc
+// GetUsage godoc
 // @Summary Get a supplier's reference usage
 // @Description Get the cross-module reference breakdown for a supplier (product links, open purchase orders, active consignments) so the UI can warn before deleting or deactivating.
 // @Tags suppliers
@@ -217,7 +217,7 @@ func (h *Handler) GetSupplier(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Failure 404 {object} map[string]interface{}
 // @Router /suppliers/{id}/usage [get]
-func (h *Handler) GetSupplierUsage(c *gin.Context) {
+func (h *Handler) GetUsage(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid supplier id"})
@@ -240,7 +240,7 @@ func (h *Handler) GetSupplierUsage(c *gin.Context) {
 // 409 body carries the breakdown and, for a bulk call, the specific ids that
 // must be cleared, so the UI can explain the blast radius instead of a bare
 // conflict.
-func writeUsageConflict(c *gin.Context, inUse *SupplierInUseError) {
+func writeUsageConflict(c *gin.Context, inUse *InUseError) {
 	body := gin.H{
 		"error": inUse.Error(),
 		"code":  "supplier_in_use",
@@ -257,7 +257,7 @@ func writeUsageConflict(c *gin.Context, inUse *SupplierInUseError) {
 // deactivate can never answer differently. fallback is the status for errors
 // that are neither in-use nor not-found (400 for update input, 500 for delete).
 func respondSupplierWriteError(c *gin.Context, err error, fallback int) {
-	var inUse *SupplierInUseError
+	var inUse *InUseError
 	switch {
 	case errors.As(err, &inUse):
 		writeUsageConflict(c, inUse)

@@ -183,7 +183,7 @@ func TestSupplierService_DeleteGuard(t *testing.T) {
 		linkProductToSupplier(ctx, t, productID, s.ID)
 
 		err := svc.Delete(ctx, s.ID)
-		var inUse *SupplierInUseError
+		var inUse *InUseError
 		require.ErrorAs(t, err, &inUse)
 		assert.Equal(t, 1, inUse.Usage.ProductLinks)
 		assert.False(t, inUse.Deactivating)
@@ -199,7 +199,7 @@ func TestSupplierService_DeleteGuard(t *testing.T) {
 		insertOpenPO(ctx, t, s.ID, userID, "confirmed")
 
 		err := svc.Delete(ctx, s.ID)
-		var inUse *SupplierInUseError
+		var inUse *InUseError
 		require.ErrorAs(t, err, &inUse)
 		assert.Equal(t, 1, inUse.Usage.OpenPurchaseOrders)
 	})
@@ -210,7 +210,7 @@ func TestSupplierService_DeleteGuard(t *testing.T) {
 		insertConsignmentArrangement(ctx, t, s.ID, userID, "active")
 
 		err := svc.Delete(ctx, s.ID)
-		var inUse *SupplierInUseError
+		var inUse *InUseError
 		require.ErrorAs(t, err, &inUse)
 		assert.Equal(t, 1, inUse.Usage.ActiveConsignments)
 	})
@@ -262,7 +262,7 @@ func TestSupplierService_DeactivateGuard(t *testing.T) {
 		loaded.IsActive = false
 
 		err = svc.Update(ctx, loaded)
-		var inUse *SupplierInUseError
+		var inUse *InUseError
 		require.ErrorAs(t, err, &inUse)
 		assert.True(t, inUse.Deactivating)
 		assert.Equal(t, 1, inUse.Usage.OpenPurchaseOrders)
@@ -284,7 +284,7 @@ func TestSupplierService_DeactivateGuard(t *testing.T) {
 		loaded.IsActive = false
 
 		err = svc.Update(ctx, loaded)
-		var inUse *SupplierInUseError
+		var inUse *InUseError
 		require.ErrorAs(t, err, &inUse)
 		assert.Equal(t, 1, inUse.Usage.ActiveConsignments)
 	})
@@ -305,7 +305,7 @@ func TestSupplierService_BulkAllOrNothing(t *testing.T) {
 		linkProductToSupplier(ctx, t, productID, blocked.ID)
 
 		_, err := svc.BulkDelete(ctx, []int{clean.ID, blocked.ID})
-		var inUse *SupplierInUseError
+		var inUse *InUseError
 		require.ErrorAs(t, err, &inUse)
 		assert.Contains(t, inUse.BlockedIDs, blocked.ID)
 		assert.NotContains(t, inUse.BlockedIDs, clean.ID)
@@ -324,7 +324,7 @@ func TestSupplierService_BulkAllOrNothing(t *testing.T) {
 		insertOpenPO(ctx, t, alreadyInactive.ID, userID, "confirmed")
 
 		_, err := svc.BulkUpdate(ctx, []int{blocked.ID, alreadyInactive.ID}, false, &userID)
-		var inUse *SupplierInUseError
+		var inUse *InUseError
 		require.ErrorAs(t, err, &inUse)
 		assert.Equal(t, []int{blocked.ID}, inUse.BlockedIDs)
 	})
