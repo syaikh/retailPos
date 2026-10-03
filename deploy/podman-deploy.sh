@@ -65,6 +65,12 @@ DB_USER="${DB_USER:-pos}"
 DB_PASSWORD="${DB_PASSWORD:-}"
 DB_PORT="${DB_PORT:-5432}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-${DB_PASSWORD}}"
+# `podman run -e POSTGRES_PASSWORD` (no "=value") copies an *exported* variable
+# from the caller's environment. The line above is a plain shell assignment made
+# after `set +a`, so without this export a fresh database init fails with
+# "Database is uninitialized and superuser password is not specified". Exporting
+# keeps the value out of argv (unlike `-e POSTGRES_PASSWORD="$..."`).
+export POSTGRES_PASSWORD
 
 # Browser origin allowed by the API. Must be a SINGLE origin.
 #

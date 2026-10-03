@@ -33,6 +33,7 @@ This project uses a semantic codebase index at `.opencode/index`, use semantic t
 
 All database connection parameters are in `.env.example`:
 - `DB_HOST=localhost`, `DB_PORT=5433` (dev) / `5432` (default), `DB_USER=pos`, `DB_PASSWORD=admin123`, `DB_NAME=retail_pos`
+- `DATABASE_URL`, when set, replaces all of the above (`cmd/server/main.go:89`) and carries its own `sslmode`, so `DB_SSLMODE` is ignored. `DB_HOST` is only required when it is unset.
 
 **Required:** `JWT_SECRET` (256-bit, generate with `openssl rand -hex 32`) — server panics at startup if missing.
 
@@ -43,19 +44,30 @@ All database connection parameters are in `.env.example`:
 | `BACKEND_PORT` | `9095` | Backend dev server (Go) |
 | `DATABASE_PORT` | `5433` | Development database port |
 | `LOGIN_RATE_LIMIT_RPM` | `5` | Login rate limit requests per minute |
-| `LOGIN_RATE_LIMIT_BURST` | `10` | Login rate limit burst |
+| `LOGIN_RATE_LIMIT_BURST` | `5` | Login rate limit burst |
 | `RATE_LIMIT_RPS` | `50` | General API rate limit requests per second |
 | `RATE_LIMIT_BURST` | `100` | General API rate limit burst |
 | `REFRESH_RATE_LIMIT_RPM` | `10` | Token refresh rate limit RPM |
-| `REFRESH_RATE_LIMIT_BURST` | `20` | Token refresh rate limit burst |
+| `REFRESH_RATE_LIMIT_BURST` | `10` | Token refresh rate limit burst |
+| `WS_RATE_LIMIT_RPM` | `20` | WebSocket upgrade rate limit RPM |
+| `WS_RATE_LIMIT_BURST` | `5` | WebSocket upgrade burst |
 | `STOCK_WARNING_THRESHOLD` | `10` | Stock warning level |
 | `STOCK_CRITICAL_THRESHOLD` | `5` | Stock critical level |
 | `CART_HOLD_TTL_HOURS` | `24` | Cart hold TTL in hours |
 | `REPORT_REFRESH_DEBOUNCE` | `30` | Report refresh retry delay (seconds, exponential backoff) |
+| `DB_SSLMODE` | `require` (prod) / `disable` (dev) | libpq `sslmode` for the `DB_*` DSN. Invalid values are rejected at startup and fall back to the environment default. Ignored when `DATABASE_URL` is set |
+| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin; must not be `*` in production |
+| `COOKIE_DOMAIN` | (host-only) | `Domain` attribute on the refresh-token cookie |
+| `COOKIE_SECURE` | `false` | `Secure` attribute on auth cookies — set `true` behind TLS |
 | `ENV` | `development` | Log format: development/production |
 | `LOG_LEVEL` | `info` | Log level: debug/info/warn/error |
 | `VITE_PRINT_MODE` | | Receipt printing mode (frontend) |
 | `VITE_PRINT_AGENT_URL` | | Print agent URL (frontend). **Leave unset for a multi-register shop** — see below |
+
+The defaults above are the **code fallbacks** in `internal/config` and
+`internal/middleware`. `.env.example` deliberately ships looser login and
+refresh limiters (`60/60` and `120/120`) so E2E runs do not hit 429 — do not
+read those as the shipped defaults, and do not copy them to a deployment.
 
 `VITE_PRINT_AGENT_URL` is a build-time override that names **one** print agent
 for **every** register. The frontend falls back to `http://localhost:9123`, so
@@ -161,7 +173,7 @@ Two consequences worth knowing:
 ## Utilities
 
 - `scripts/kill-port.sh <port>` — force-kill process holding a TCP port. Useful when `go run` child keeps port occupied (killing the parent `go run` PID does NOT free the port).
-- `scripts/audit-store-fk-orphans.sh [--database NAME]` — read-only preflight for the Wave 6 FK migration. Reports `store_id` values in `customers`, `users`, `goods_receipts`, `purchase_orders` that point at a non-existent store, plus the migration-058 prerequisite (`suppliers.store_id` must be all-NULL). Pins `default_transaction_read_only=on`, so it cannot write; safe against production. Exit 1 = blockers found.
+- `scripts/audit-store-fk-orphans.sh [--database NAME]` — read-only preflight for `059_store_fk_integrity.sql` (Wave 6). Reports `store_id` values in `customers`, `users`, `goods_receipts`, `purchase_orders` that point at a non-existent store, plus the migration-058 prerequisite (`suppliers.store_id` must be all-NULL). Pins `default_transaction_read_only=on`, so it cannot write; safe against production. Exit 1 = blockers found.
 
 ## Seeding Dummy Data
 
@@ -187,7 +199,7 @@ Never auto-commit. Changes must be committed manually.
 
 Re-seeding (`-truncate=false`) continues document sequences and reuses existing products/suppliers/pricing rules, adding new transactions without key collisions. The seeder preserves `must_change_password` on the six system accounts (the e2e workflow unflags its own test users instead).
 
-`seed-dev.sh` is **not** a reset. It truncates 40 tables but preserves `users` (ids, `store_id`, `must_change_password`) and never touches `roles`, `permissions`, `role_permissions`, or `app_settings`; `cart_sessions`, `cash_movements`, the four `import_*` tables, and `dead_letter_events` survive it entirely.
+`seed-dev.sh` is **not** a reset. It truncates 41 tables (`cmd/dummy/main.go`) but preserves `users` (ids, `store_id`, `must_change_password`) and never touches `roles`, `permissions`, `role_permissions`, or `app_settings`; `cart_sessions`, `cash_movements`, the four `import_*` tables, and `dead_letter_events` survive it entirely.
 
 ## Resetting the Dev Database to Fresh-Install State
 
@@ -201,7 +213,7 @@ Re-seeding (`-truncate=false`) continues document sequences and reuses existing 
 | `--keep-uploads` | Do not clear `uploads/logos/` |
 | `--reseed` | Run `./seed-dev.sh` afterwards (**not** a fresh install — the seeder recreates `stores`/`payment_methods`/`customer_groups` with new ids, so `stores(id=1)` and `customers(id=1)` drift off the baseline invariant) |
 
-Re-migrating cannot achieve this. `000_baseline.sql` is purely additive — 123 `ON CONFLICT` guards, forward-only `setval`, and a single `DELETE` that touches only `schema_migrations` — so replaying it over a drifted database leaves every extra store, user, role, grant, and sale in place. The script drops and recreates the database, then replays the same migrations a new deployment would.
+Re-migrating cannot achieve this. `000_baseline.sql` is purely additive — 129 `ON CONFLICT` guards, forward-only `setval`, and a single `DELETE` that touches only `schema_migrations` — so replaying it over a drifted database leaves every extra store, user, role, grant, and sale in place. The script drops and recreates the database, then replays the same migrations a new deployment would.
 
 **Dev only.** The script hard-refuses (no override) on `ENV=production`, a non-`localhost` `DB_HOST`, a `DB_NAME` other than `retail_pos`, or a port served by a container other than `postgres-dev`. The production volumes are never named. The container-identity check is skipped with a warning when `podman` is not on `PATH` (a native postgres on `localhost:5433` is a legitimate setup); the other three guards still apply.
 
@@ -221,8 +233,10 @@ Migrations must be applied **before** deploying a new server binary. Permission 
 | `056_revoke_supervisor_pricing_mutation.sql` | Removes `pricing.create`/`update`/`delete` from supervisor on databases that already granted them. Editing the baseline's `role_permissions` array is not sufficient: the baseline only INSERTs into that table, so a code dropped from a grant list stops being added on a fresh install but is never removed from an upgraded one. |
 | `057_pricing_retire_draft_status.sql` | Retires the `draft` pricing-rule status. Drops `chk_pricing_status` and re-adds it over `(pending, approved, rejected)`, then hardens the two columns `055` only defaulted: the check is the last line of defence if a future migration writes `status` directly. `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT` keeps a second runner pass a no-op; verified by re-inserting a `draft` row, which the new definition rejects. A `DO` block first remaps any legacy `draft` row to `pending` under an `EXISTS` guard, so a stray row cannot abort the migration. |
 | `058_supplier_terms_store_scope.sql` | Adds nullable `product_suppliers.store_id` (FK `stores(id)`, `ON DELETE CASCADE`) so negotiated terms and the preferred-supplier choice are per store while the supplier itself stays global. Replaces the old uniqueness with `UNIQUE NULLS NOT DISTINCT (product_id, supplier_id, store_id)` (PostgreSQL 15+; dev is 18.3) so the estate-wide default row (`store_id IS NULL`) and per-store overrides can coexist for one pair, and makes `is_preferred` unique per `(product_id, store_id)`. Existing links keep `store_id = NULL` and become the shared default. Adds a `(supplier_id, store_id)` index for the supplier-side listing, then drops `suppliers.store_id` — guarded by a `DO` block that raises if any row is still non-NULL, so a database with unmapped outliers aborts instead of silently losing them. |
+| `059_store_fk_integrity.sql` | Closes the last four `store_id` FK gaps (`customers`, `users`, `goods_receipts`, `purchase_orders`) with `ALTER TABLE ... DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT`, so a second runner pass is a no-op. Adding a FK **validates every existing row**, so this hard-fails on the first orphan rather than installing a `NOT VALID` constraint that leaves the rows unchecked — run `scripts/audit-store-fk-orphans.sh` first. `ON DELETE` differs per table because nullability forces it: `RESTRICT` for the three `NOT NULL` columns, `SET NULL` for `users` (an HQ identity with a NULL store is meaningful, not broken). Also indexes `goods_receipts.store_id` (a FK is not indexed automatically, and `RESTRICT` now scans it on every store delete) and drops `customers.store_id DEFAULT 1`, which had been silently filing every seeded customer under store 1. |
+| `060_supplier_governance.sql` | Supplier governance phase 2: adds `created_by`/`updated_by` (FK `users(id) ON DELETE SET NULL`, indexed) for provenance and `version integer NOT NULL DEFAULT 1` for optimistic concurrency — every update bumps it and a stale client copy is refused. Swaps the global `suppliers_code_key` constraint for the partial unique index `suppliers_code_active_key ON suppliers (code) WHERE deleted_at IS NULL`, so a code freed by a soft delete becomes reusable. The baseline performs the same swap, because `internal/shared/testdb.go` skips files already in `schema_migrations` and an existing database applies only this file. |
 
-The 32 migrations this file squashes (`000_squash.sql` + `001`–`007` + `031`–`053`) are preserved unmodified in `database/migrations/archive/pre-squash-migrations.tar.gz`; their per-migration purpose list is kept in `docs/design/squash-v1-baseline-plan.md`. **New migrations must start at `059_*.sql`.** (`054_pricing_rule_created_by.sql` records the rule's author for the self-approval check; `055_pricing_rule_new_rows_start_pending.sql` makes the schema defaults match that workflow; `056_revoke_supervisor_pricing_mutation.sql` removes the pricing mutation grants from supervisor on databases that already have them — the baseline only INSERTs grants, so a removed code needs an explicit DELETE. `057_pricing_retire_draft_status.sql` retires the `draft` pricing status, matching the code: the `status` column default was already `pending` in `055`, so only the `chk_pricing_status` constraint still admitted `draft`. `058_supplier_terms_store_scope.sql` is Wave 5/D3 Option C — it moves the store boundary off `suppliers` and onto `product_suppliers`.)
+The 32 migrations this file squashes (`000_squash.sql` + `001`–`007` + `031`–`053`) are preserved unmodified in `database/migrations/archive/pre-squash-migrations.tar.gz`; their per-migration purpose list is kept in `docs/design/squash-v1-baseline-plan.md`. **New migrations must start at `061_*.sql`.** (`054_pricing_rule_created_by.sql` records the rule's author for the self-approval check; `055_pricing_rule_new_rows_start_pending.sql` makes the schema defaults match that workflow; `056_revoke_supervisor_pricing_mutation.sql` removes the pricing mutation grants from supervisor on databases that already have them — the baseline only INSERTs grants, so a removed code needs an explicit DELETE. `057_pricing_retire_draft_status.sql` retires the `draft` pricing status, matching the code: the `status` column default was already `pending` in `055`, so only the `chk_pricing_status` constraint still admitted `draft`. `058_supplier_terms_store_scope.sql` is Wave 5/D3 Option C — it moves the store boundary off `suppliers` and onto `product_suppliers`. `059_store_fk_integrity.sql` is Wave 6 — it adds the four remaining `store_id` foreign keys and validates existing rows, so its prerequisite audit must pass first. `060_supplier_governance.sql` adds supplier provenance and optimistic concurrency and narrows the code uniqueness to live rows.)
 
 `000_baseline.sql` is generated, not hand-written: it was produced from a `pg_dump` of a fully-migrated reference database and normalised so that it replays on an empty database, on a database that already went through the legacy chain, and on every re-run. Anything it does not cover (timestamps, random-salt credential hashes, materialised-view contents) is deliberately excluded rather than frozen into the file.
 
@@ -232,15 +246,16 @@ All three non-test runners apply **every** file in `database/migrations/*.sql` (
 
 | Runner | Reads `schema_migrations` | Writes it |
 |--------|---------------------------|-----------|
-| `deploy/podman-deploy.sh:369-375` | no | yes, per file (`:381`) |
+| `deploy/podman-deploy.sh:376-389` | no | yes, per file (`:388`) |
 | `.github/workflows/ci.yml:376-379` | no | no |
 | `.github/workflows/e2e.yml:63-66` | no | no |
-| `internal/shared/testdb.go:90-114` | **yes** (`:92`) | yes (`:75`, `:112`) |
+| `internal/shared/testdb.go:46-117` | **yes** (`:64`, `:70-79`, `:92`) | yes (`:75`, `:112`) |
 
 Consequences:
 
 - **Every migration must be permanently re-runnable.** Use `IF NOT EXISTS` / `ON CONFLICT DO NOTHING` / `DROP … IF EXISTS`. One statement that fails on a second run aborts the loop.
-- **`000_baseline.sql` self-registers as its last statement and deletes the rows of the 32 migrations it replaced**, so `schema_migrations` converges on exactly one row. `testdb.go` requires `len(schema_migrations) == len(files)`; with a single migration file that count is 1. The deletion is scoped to an explicit filename list, so migrations added later keep their own entries.
+- **`000_baseline.sql` self-registers as its last statement and deletes the rows of the 32 migrations it replaced.** The ledger therefore holds **one row per migration file** — 8 today (`000_baseline.sql` + `054`–`060`), not one row. The deletion is scoped to an explicit filename list, so migrations added later keep their own entries.
+- **`testdb.go` is the one ledger-aware runner, and it short-circuits three ways.** It returns early when the row count already equals the file count (`:66`), and — critically — when the ledger is empty but the schema is *not*, it writes every filename and returns without applying anything (`:70-79`). That second path is why a migration file which only an already-migrated database needs (see `060`'s own header comment) cannot be exercised through `testdb.go` alone. Per file it skips anything already recorded (`:92`).
 - **Never make a runner skip by filename.** The baseline is amended in place, so skipping would freeze old content in prod while CI/e2e (empty ledger) keep replaying — the two would diverge invisibly.
 - **Guarded DDL skips silently when the object already exists.** `ADD COLUMN IF NOT EXISTS x INTEGER REFERENCES parent(id)` adds neither column nor FK if the column pre-exists.
 - **`database/migrations/archive/001_create_tables.sql` is the only file containing `DROP TABLE … CASCADE`.** Never execute it (or any archived file) against an existing DB: dropping `products`/`stores`/`categories`/`users` cascades away inbound FKs on tables it does not recreate, and the guarded DDL that follows never restores them.

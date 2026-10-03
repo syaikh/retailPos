@@ -59,7 +59,7 @@ carries in cleartext. The compose path publishes neither port at all.
 ### 1. System Requirements
 
 - **OS:** Linux (tested on Fedora, RHEL, CentOS, Ubuntu)
-- **Podman:** v4.0+ (install: `sudo dnf install podman` or `sudo apt install podman`)
+- **Podman:** v5.x (install: `sudo dnf install podman` or `sudo apt install podman`). Quadlet requires 4.4+, and `podman generate systemd` was removed in 5.0, so anything older cannot use the boot-time units in `deploy/quadlet/`.
 - **Git:** For cloning repository
 - **Make:** (optional) for using Makefile
 
@@ -121,6 +121,20 @@ sudo chmod 600 /etc/retail-pos/backend.env
 Keep `JWT_SECRET_REFRESH` separate so access and refresh tokens can be rotated
 independently. When it is unset the backend reuses `JWT_SECRET` for both.
 
+The three values above are all `podman-deploy.sh` needs: it derives
+`POSTGRES_USER`/`POSTGRES_DB` from `DB_USER`/`DB_NAME` and reuses `DB_PASSWORD`
+as `POSTGRES_PASSWORD`. **`docker-compose.yml` and `deploy/quadlet/` do not** —
+they pass the secret file straight to the database container, which only
+understands the `POSTGRES_` names and otherwise falls back to a role and
+database both called `postgres`. If you use either of those, add these three
+lines to the same file:
+
+```bash
+POSTGRES_USER=pos
+POSTGRES_DB=retail_pos
+POSTGRES_PASSWORD=<same value as DB_PASSWORD>
+```
+
 Non-secret settings (ports, image tags, `CORS_ORIGIN`, `DB_USER`) can be
 overridden either by exporting them in the shell before running the script or by
 adding them to the same file. `deploy/.env.example` documents every supported
@@ -131,6 +145,21 @@ all missing values at once, so a misconfiguration fails immediately instead of
 producing a backend crash loop.
 
 ### Step 3: Deploy with Script
+
+The stock `postgres:18-alpine` image ships `ssl=off` while the backend defaults
+to `DB_SSLMODE=require` in production, so decide now which posture you want (see
+[Database TLS](#database-tls)):
+
+```bash
+# Single-host: database reachable only on 127.0.0.1 inside the pod network.
+echo 'DB_SSLMODE=disable' | sudo tee -a /etc/retail-pos/backend.env
+
+# ...or, once a certificate and key are mounted on the database container:
+# echo 'DB_SSLMODE=require' | sudo tee -a /etc/retail-pos/backend.env
+```
+
+`podman-deploy.sh` runs `SHOW ssl` after the database starts and refuses to
+continue if the database cannot satisfy the configured mode.
 
 ```bash
 # Make script executable
@@ -148,15 +177,16 @@ chmod +x deploy/podman-deploy.sh
 
 ### Step 4: Access Application
 
-Open browser: **http://your-server-ip**
+Open browser: **http://your-server-ip:5173** (the frontend is published on host
+port `5173`; `HOST_FRONTEND_PORT` changes it).
 
 Bootstrap login credentials:
 - Username: `superadmin`
 - Password: `admin123`
 
-**These are bootstrap credentials, not production credentials.** Migration
-`052` flags every seeded account (`superadmin`, `manager`, `supervisor`,
-`cashier`, `inventory_staff`, `finance`), so the first login is forced through
+**These are bootstrap credentials, not production credentials.** `000_baseline.sql`
+flags every seeded account (`superadmin`, `manager`, `supervisor`,
+`cashier`, `inventory_staff`, `finance`) with `must_change_password`, so the first login is forced through
 a password rotation — the backend answers HTTP 428 for every protected call
 until it is done. Follow
 [`docs/guides/first-time-installation.md`](../docs/guides/first-time-installation.md)
@@ -236,7 +266,7 @@ host or reachable from another machine.
 
 ## Database Migrations & Fresh-DB Spin-up
 
-Migrations are SQL files in `database/migrations/` (currently `000_baseline.sql` — the squashed Version 1 baseline; the 32 migrations it replaces live in `database/migrations/archive/pre-squash-migrations.tar.gz`). They are **not** run automatically by the backend server — you must run them explicitly:
+Migrations are SQL files in `database/migrations/`: `000_baseline.sql` (the squashed Version 1 baseline) plus `054`–`060`. The 32 migrations the baseline replaces live in `database/migrations/archive/pre-squash-migrations.tar.gz` — never execute an archived file against a live database. They are **not** run automatically by the backend server — you must run them explicitly:
 
 ```bash
 ./deploy/podman-deploy.sh migrate   # applies every *.sql in database/migrations/
@@ -248,9 +278,11 @@ On a **fresh database** (or a fresh Postgres container), `migrate` now bootstrap
 2. `CREATE SEQUENCE IF NOT EXISTS invoice_seq START 1`
 3. `CREATE TABLE IF NOT EXISTS schema_migrations (...)` (tracks applied files)
 
-It then applies each migration in sorted filename order with `ON_ERROR_STOP=1` and records each applied file in `schema_migrations`. `000_baseline.sql` is idempotent throughout (`IF NOT EXISTS`, `DO`-guarded constraints, `ON CONFLICT DO NOTHING`) and, as its final step, replaces the ledger rows of the 32 migrations it superseded with its own — so `migrate` can be re-run safely against an already-migrated database and `schema_migrations` converges on exactly one row.
+It then applies each migration in sorted filename order with `ON_ERROR_STOP=1` and records each applied file in `schema_migrations`. **Every migration must therefore be permanently re-runnable** (`IF NOT EXISTS`, `DO`-guarded constraints, `ON CONFLICT DO NOTHING`, `DROP … IF EXISTS`) — the runner never consults the ledger before applying a file. `000_baseline.sql` is idempotent throughout and, as its final step, replaces the ledger rows of the 32 migrations it superseded with its own, so after a fresh baseline install `schema_migrations` holds one row per migration file.
 
-Migrations produce the full schema plus reference data: roles (6), permissions (86), role grants, the `superadmin`/`manager`/`supervisor`/`cashier`/`inventory_staff`/`finance` users (all flagged for forced first-login password rotation), payment methods, and customer groups (Walk-in/Member/VIP). They also seed a placeholder **Default Store** (with those users assigned to it) — but **no products, customers, or sales**. Finish the first store per [`docs/guides/first-time-installation.md`](../docs/guides/first-time-installation.md); run `./deploy/podman-deploy.sh seed` only when you want dummy/demo business data.
+`059_store_fk_integrity.sql` adds four `store_id` foreign keys and **validates existing rows**, so it aborts on the first orphan. Run `./scripts/audit-store-fk-orphans.sh` first; if it reports rows, remap them instead of weakening the migration.
+
+Migrations produce the full schema plus reference data: roles (6), permissions (91), role grants (272), the `superadmin`/`manager`/`supervisor`/`cashier`/`inventory_staff`/`finance` users (all flagged for forced first-login password rotation), payment methods, and customer groups (Walk-in/Member/VIP). They also seed a placeholder **Default Store** (with those users assigned to it) — but **no products, customers, or sales**. Finish the first store per [`docs/guides/first-time-installation.md`](../docs/guides/first-time-installation.md); run `./deploy/podman-deploy.sh seed` only when you want dummy/demo business data.
 
 > **Important:** Apply migrations **before** deploying a new server binary — see the `AGENTS.md` "Deployment" section.
 
@@ -283,8 +315,10 @@ podman volume create retail-pos-uploads
 
 # 3. Start PostgreSQL container
 #    POSTGRES_PASSWORD is passed without a value so it is read from the exported
-#    environment rather than appearing in the process table.
-set -a; sudo -E . /etc/retail-pos/backend.env; set +a
+#    environment rather than appearing in the process table. Sourcing has to
+#    happen in *your* shell: `sudo -E . file` would look for a command named "."
+#    and, even if it worked, exports in a subshell never reach this one.
+set -a; . /etc/retail-pos/backend.env; set +a
 podman run -d \
   --pod retail-pos-pod \
   --name postgres \
@@ -484,7 +518,7 @@ sudo mkdir -p /etc/nginx/conf.d
 # Upgrade/Connection headers the WebSocket handler needs.
 
 # Then set CORS_ORIGIN to the public origin in the secret file and restart.
-sudo systemctl --user restart retail-pos-backend.service
+systemctl --user restart retail-pos-backend.service
 ```
 
 ### Auto-Renewal
@@ -566,9 +600,14 @@ therefore carry **both** spellings, and they must agree:
 
 ### Health Endpoints
 
-- **Backend:** `curl http://localhost:8080/api/stats` (requires auth)
-- **Frontend:** `curl http://localhost/` should return HTML
+- **Backend:** `curl http://localhost:8080/health` (no auth; there is no `/api/stats` route)
+- **Frontend:** `curl http://localhost:5173/` should return HTML (nginx also proxies `/health`)
 - **Database:** `podman exec postgres pg_isready -U pos`
+
+Container names depend on how you deployed: `podman-deploy.sh` creates
+`postgres`, `backend`, and `frontend`, while the Quadlet units in
+`deploy/quadlet/` create `retail-pos-postgres`, `retail-pos-backend`, and
+`retail-pos-frontend`. The commands below assume the script.
 
 ---
 
@@ -588,13 +627,13 @@ gzip backup_*.sql
 
 ```bash
 # Stop backend temporarily
-podman stop retail-pos-backend
+podman stop backend
 
 # Restore
 zcat backup_20260429.sql.gz | podman exec -i postgres psql -U pos retail_pos
 
 # Restart backend
-podman start retail-pos-backend
+podman start backend
 ```
 
 ### Backup Volume
@@ -636,8 +675,8 @@ sudo systemctl stop apache2 # if apache is running
 
 ```bash
 # Check logs
-podman logs retail-pos-backend
-podman logs retail-pos-frontend
+podman logs backend
+podman logs frontend
 podman logs postgres
 
 # Common issues:
@@ -677,7 +716,7 @@ This indicates frontend cannot reach backend. Fix:
 podman ps | grep backend
 
 # Test API directly
-curl http://localhost:8080/api/stats
+curl http://localhost:8080/health
 
 # If backend not responding, check logs
 podman logs backend
@@ -722,39 +761,43 @@ Or use `docker-compose.yml` resource sections.
 
 ### 1. Use Non-Root Containers (already implemented)
 
-All containers run as non-root user (`nginx` UID 1000, `retailpos` UID 1000).
+The backend image runs as `retailpos` and the frontend image as `nginx`
+(both UID 1000). The `postgres:18-alpine` container runs as its own
+`postgres` user.
 
 ### 2. Secrets Management
 
-Store passwords in file instead of environment:
+Secrets belong in `/etc/retail-pos/backend.env` (mode `600`), which is what
+`podman-deploy.sh`, `docker-compose.yml`, and the Quadlet units all read — the
+backend has **no** `DB_PASSWORD_FILE` support, so the older
+`/run/secrets/db_password` recipe described in
+[the retired-unit post-mortem](#if-you-are-migrating-from-the-old-retail-posservice)
+never worked and must not be reintroduced.
 
-```bash
-# Create secret file
-echo "securepassword" > /etc/retail-pos/db_password.txt
-chmod 600 /etc/retail-pos/db_password.txt
-
-# Use in podman run
-podman run ... -e DB_PASSWORD_FILE=/run/secrets/db_password \
-  -v /etc/retail-pos/db_password.txt:/run/secrets/db_password:ro ...
-```
+Understand the limit of `--env-file`/`env_file`: it keeps values out of `argv`
+and the process table, but they are still readable by anyone who can run
+`podman inspect backend`. Keep the file mode `600` and treat the host as the
+trust boundary; if that is not enough isolation, move to Podman secrets or an
+external secret manager.
 
 ### 3. Firewall Configuration
 
-The stack publishes 5173 (frontend), 8080 (backend API) and 5432 (database, on
-the Podman paths). Only 5173 needs to be reachable by users; 8080 should be
-reachable only from whatever terminates TLS in front of it.
+Only **5173** is published on all interfaces. 8080 and 5432 are bound to
+`127.0.0.1` (and `docker-compose.yml` publishes neither), so a reverse proxy on
+the same host reaches the backend over loopback and no firewall rule is needed
+for it — adding one for 8080/5432 would expose them to the network anyway.
 
 ```bash
-# Allow only necessary ports
+# The only port that needs to be open
 sudo firewall-cmd --permanent --add-port=5173/tcp
-sudo firewall-cmd --permanent --add-port=8080/tcp
-# Only if you need host-side psql / the seed target:
-sudo firewall-cmd --permanent --add-port=5432/tcp
 sudo firewall-cmd --reload
 ```
 
 Do not open 80/443 expecting this stack to answer — nothing listens on them. If
-you front it with a TLS-terminating proxy, open 443 for that proxy instead.
+you front it with a TLS-terminating proxy, open 443 for that proxy instead. If
+you ever republish 8080 or 5432 on a routable interface, that host is outside
+the design this repository assumes and `DB_SSLMODE=disable` (the single-host
+default) stops being appropriate.
 
 ### 4. Regular Updates
 
@@ -782,20 +825,23 @@ podman rmi retail-pos-frontend retail-pos-backend
 
 # Remove volumes (WARNING: deletes all data, including the store logo)
 podman volume rm retail-pos-postgres-data retail-pos-uploads
-
-# Remove network
-podman network rm retail-pos-network
 ```
+
+There is no separate network to remove: the three containers share the pod's
+own network namespace (`--network bridge` for the pod), and `podman-deploy.sh`
+never creates a `retail-pos-network`.
 
 ---
 
-## Migration from Python HTTP Server
+## Static frontend hosting
 
-Currently frontend uses `python3 -m http.server`. After containerization:
+The frontend is a Vite build served by nginx; there is no Python static server
+in the current stack. If you are migrating from an older `python3 -m
+http.server` deployment:
 
-1. **No need for Python server** – Nginx serves static files directly
+1. **Drop the Python server** – nginx (`deploy/nginx/nginx.conf`) serves the built assets directly
 2. **Single command deployment** – `./deploy/podman-deploy.sh start`
-3. **Auto-start on boot** – systemd service
+3. **Auto-start on boot** – Quadlet user units in `deploy/quadlet/`
 4. **Better performance** – Nginx > Python HTTP server
 5. **HTTPS ready** – Just add SSL certs
 
@@ -805,7 +851,7 @@ Currently frontend uses `python3 -m http.server`. After containerization:
 
 - [ ] Set up SSL certificates with Let's Encrypt
 - [ ] Configure log rotation (journald + logrotate)
-- [ ] Set up monitoring (Prometheus metrics from backend)
+- [ ] Set up monitoring (`GET /metrics` exposes EventBus and report-refresh counters as JSON — scrape it or wrap it in an exporter; it is not Prometheus text format)
 - [ ] Add automated backups (cron job for pg_dump)
 - [ ] Deploy to multiple servers with load balancer
 - [ ] CI/CD pipeline for automatic image builds
@@ -828,7 +874,9 @@ not part of the main deployment flow:
 
 For issues, check:
 - Logs: `./deploy/podman-deploy.sh logs`
-- Systemd: `sudo journalctl -u retail-pos -f`
+- Systemd (Quadlet): `journalctl --user -u retail-pos-backend -f` (drop `--user` on a rootful host)
 - Podman: `podman pod ps` and `podman ps -a`
 
-Full documentation: See README.md (to be created).
+Full documentation: see [README.md](../../README.md), plus
+[docs/guides/](../../docs/guides/) for the print agent, Quadlet smoke test, and
+first-time installation.

@@ -61,14 +61,14 @@ Retail POS System is a modern Point of Sale (POS) application for retail stores 
 - **Storage Locations** — Storage location master data (racks/warehouses) with warehouse/store scope, CRUD + bulk actions (phase 1 of per-rack stock tracking)
 - **Store Management** — Store/outlet CRUD + store management UI page (list, active/inactive status)
 - **Shift Management** — Cashier shift open/close, opening/closing balance, discrepancy review & audit
-- **Pricing Engine** — Price rules (special price / promotion) by product, category, brand, customer group, and store; approval workflow (draft → pending → approved/rejected); real-time price resolver
+- **Pricing Engine** — Price rules (special price / promotion) by product, category, brand, customer group, and store; approval workflow (`pending` → `approved`/`rejected`, with a self-approval guard on the author); real-time price resolver
 - **Supplier Management** — Supplier CRUD, product-supplier links, preferred supplier, bulk actions, auto-generate codes (SUP-XXXXXX)
 - **Konsinyasi Supplier (Consignment)** — Full consignment management: agreements, goods receiving, returns, settlements, payouts, consignment stock, POS checkout integration
 - **Application Settings** — Global settings (store branding, jargon, logo) for superadmin and manager to view (superadmin edits), receipt info per branch, per-user preferences (theme/light-dark, language)
 - **Customer & Customer Groups** — Customer management, customer groups (Walk-in, Member, VIP), bulk actions
 - **Multi-Warehouse & Multi-Store** — Inventory per warehouse/store with composite unique key, store management
 - **Inventory Management** — Stock tracking, movement, low stock alerts, stock thresholds, multi-category filter
-- **Import & Export Framework** — Schema-driven reusable import/export for Products, Categories, Customer Groups, Brands, UOMs, Customers, Pricing Rules, Suppliers, Stores with XLSX templates, preview, validation, reference dropdowns, import history (async job), and cancel
+- **Import & Export Framework** — Schema-driven reusable import/export for Products, Categories, Brands, UOMs, Customers, Pricing Rules, Suppliers with XLSX templates, preview, validation, reference dropdowns, import history (async job), and cancel. Customer Groups and Stores are registered as schemas (template download works) but their operations currently fail with 403 — see [Import & Export](#18-import--export)
 - **User Management** — RBAC (Role-Based Access Control) with dot-notation permissions, manager-subordinate hierarchy (org chart), soft delete
 - **Audit Logging** — Full audit trail for all actions (including login/logout, import, change-password)
 - **Real-time Dashboard** — Sales statistics, revenue, analytics + live updates via WebSocket, daily/weekly/monthly charts, period comparison, pricing breakdown
@@ -77,7 +77,7 @@ Retail POS System is a modern Point of Sale (POS) application for retail stores 
 - **Structured Logging** — JSON (production) / text (development) via `log/slog`
 - **EventBus Observability** — Atomic metrics for published/consumed/failed events
 - **Dead-Letter Queue** — Failed events stored to PostgreSQL for retry
-- **Materialized Views** — Pre-aggregated daily/hourly sales data for fast reporting queries; refresh coordinated by `report.RefreshCoordinator` (debounced, default 30s after `sale.created`, coalescing) plus hourly ticker in `cmd/server/main.go`
+- **Materialized Views** — Pre-aggregated daily/hourly sales data for fast reporting queries; refresh coordinated by `report.RefreshCoordinator` — once at startup, then at each Jakarta hour boundary, with exponential-backoff retries after a failure. A `sale.created` event only invalidates the dashboard cache; it never triggers a refresh
 
 ### Security Features
 
@@ -98,13 +98,13 @@ Retail POS System is a modern Point of Sale (POS) application for retail stores 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  Frontend (Vite dev server)   http://localhost:5173      │
-│  Svelte 5 + Tailwind CSS 4 + Vite 6 (HMR)               │
+│  Svelte 5 + Tailwind CSS 4 + Vite 6 (HMR)                │
 └──────────────┬───────────────────────────────────────────┘
                │ /api/* → Backend, /ws/* → WebSocket
 ┌──────────────┴───────────────────────────────────────────┐
 │  Go Backend (Gin)        http://localhost:9095           │
 │  PostgreSQL              localhost:5433 (postgres-dev)   │
-│  `./run-dev.sh` rebuild + restart automatically (press r)     │
+│  `./run-dev.sh` rebuild + restart automatically (press r)│
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -113,9 +113,9 @@ Retail POS System is a modern Point of Sale (POS) application for retail stores 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  Nginx Frontend            Port 5173 → 8081              │
-│  Go Backend                Port 8080 (published)        │
-│  PostgreSQL 18             Volume retail-pos-postgres-data│
-│  Network: retail-pos-network                              │
+│  Go Backend                Port 8080 (internal)          │
+│  PostgreSQL 18            Volume retail-pos-postgres-data│
+│  Pod retail-pos-pod        One shared network namespace  │
 │  `./deploy/podman-deploy.sh start`                       │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -133,7 +133,7 @@ Retail POS System is a modern Point of Sale (POS) application for retail stores 
 
 ```bash
 # Backend
-go version  # 1.22+
+go version  # 1.26+ (see go.mod)
 
 # Frontend
 cd web && npm install
@@ -292,6 +292,7 @@ Base path: `/api`. All endpoints require JWT (via `Authorization: Bearer` or coo
 |--------|----------|-------------|------|
 | GET | `/products` | Product list (search + multi-category filter) | Public |
 | GET | `/products/next-sku` | Next SKU generator | Public |
+| GET | `/products/options` | Distinct filter options (categories, brands, UOM, stores) | Public |
 | GET | `/products/:id` | Product detail | Yes |
 | POST | `/products` | Create product | `product.create` |
 | PUT | `/products/:id` | Update product | `product.update` |
@@ -321,6 +322,8 @@ Base path: `/api`. All endpoints require JWT (via `Authorization: Bearer` or coo
 | GET | `/sales` | Sales history | `sale.view` |
 | GET | `/sales/:id` | Sales detail | `sale.view` |
 | GET | `/sales/export` | Export sales (CSV/XLSX) | `report.view` |
+| GET | `/sales/lookup` | Find Transaction search (barcode/receipt no.) | `sale.lookup` |
+| GET | `/sales/lookup/:id` | Find Transaction result detail | `sale.detail` |
 | POST | `/sales/parked` | Park (hold) transaction | `sale.park` |
 | GET | `/sales/parked` | Parked sales list | `sale.park` |
 | GET | `/sales/parked/:id` | Parked sale detail | `sale.park` |
@@ -329,6 +332,27 @@ Base path: `/api`. All endpoints require JWT (via `Authorization: Bearer` or coo
 | DELETE | `/sales/parked/:id` | Cancel parked sale | `sale.park` |
 | GET | `/payment-methods` | Payment method list | Public |
 | GET | `/payment-methods/:code` | Payment method detail | Yes |
+
+###### POS Cart
+
+The POS screen drives a server-side cart session; `/pos/cart` is the live path, while
+`/sales/parked` remains for parked transactions created outside a cart. Every cart route
+requires `sale.create`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/pos/cart` | Create or resume the caller's open cart |
+| GET | `/pos/cart` | Current open cart |
+| GET | `/pos/cart/:id` | Cart detail |
+| GET | `/pos/cart/held` | Held carts (hold TTL from `CART_HOLD_TTL_HOURS`) |
+| POST | `/pos/cart/items` | Add line item |
+| PATCH | `/pos/cart/items/:itemId` | Update line quantity |
+| DELETE | `/pos/cart/items/:itemId` | Remove line item |
+| PATCH | `/pos/cart/:id/customer` | Attach customer |
+| POST | `/pos/cart/:id/hold` | Hold cart |
+| POST | `/pos/cart/:id/resume` | Resume held cart |
+| POST | `/pos/cart/:id/cancel` | Cancel cart |
+| POST | `/pos/cart/:id/checkout` | Checkout cart into a sale |
 
 ##### Inventory
 
@@ -436,24 +460,29 @@ Base path: `/api`. All endpoints require JWT (via `Authorization: Bearer` or coo
 | PUT | `/pricing-rules/:id` | Update rule | `pricing.update` |
 | DELETE | `/pricing-rules/:id` | Delete rule | `pricing.delete` |
 | POST | `/pricing-rules/check-conflicts` | Check rule conflicts | `pricing.view` |
-| POST | `/pricing-rules/:id/submit` | Submit for approval | `pricing.update` |
-| POST | `/pricing-rules/:id/approve` | Approve rule | `pricing.update` |
-| POST | `/pricing-rules/:id/reject` | Reject rule | `pricing.update` |
+| POST | `/pricing-rules/:id/approve` | Approve rule | `pricing.approve` |
+| POST | `/pricing-rules/:id/reject` | Reject rule | `pricing.approve` |
 | POST | `/pricing/resolve` | Resolve final price | `pricing.view` |
 | GET | `/products/search` | Search products (for pricing) | `pricing.view` |
-| GET | `/suppliers` | Supplier list | `pricing.view` |
-| GET | `/suppliers/:id` | Supplier detail | `pricing.view` |
-| POST | `/suppliers` | Create supplier | `pricing.create` |
-| PUT | `/suppliers/:id` | Update supplier | `pricing.update` |
-| DELETE | `/suppliers/:id` | Delete supplier | `pricing.delete` |
-| PUT | `/suppliers/bulk` | Bulk update | `pricing.update` |
-| DELETE | `/suppliers/bulk` | Bulk delete | `pricing.delete` |
-| GET | `/suppliers/:id/products` | Products from supplier | `pricing.view` |
-| POST | `/suppliers/:id/products` | Link product to supplier | `pricing.update` |
-| DELETE | `/suppliers/:id/products/:productId` | Unlink product | `pricing.update` |
-| PUT | `/suppliers/:id/products/:productId` | Update relation (unit_cost) | `pricing.update` |
-| POST | `/suppliers/:id/products/:productId/preferred` | Set preferred supplier | `pricing.update` |
-| GET | `/products/:id/suppliers` | Suppliers for product | `pricing.view` |
+
+Suppliers have their own permission codes — they are **not** gated by `pricing.*`:
+
+| Method | Endpoint | Description | Permission |
+|--------|----------|-------------|------------|
+| GET | `/suppliers` | Supplier list | `supplier.view` |
+| GET | `/suppliers/:id` | Supplier detail | `supplier.view` |
+| GET | `/suppliers/:id/usage` | Supplier usage summary (receipts, payables, terms) | `supplier.view` |
+| POST | `/suppliers` | Create supplier | `supplier.create` |
+| PUT | `/suppliers/:id` | Update supplier (optimistic concurrency via `version`) | `supplier.update` |
+| DELETE | `/suppliers/:id` | Delete supplier (soft delete) | `supplier.delete` |
+| PUT | `/suppliers/bulk` | Bulk update | `supplier.update` |
+| DELETE | `/suppliers/bulk` | Bulk delete | `supplier.delete` |
+| GET | `/suppliers/:id/products` | Products from supplier | `supplier.view` |
+| POST | `/suppliers/:id/products` | Link product to supplier | `supplier.update` |
+| PUT | `/suppliers/:id/products/:productId` | Update relation (unit_cost, store scope) | `supplier.update` |
+| DELETE | `/suppliers/:id/products/:productId` | Unlink product | `supplier.update` |
+| POST | `/suppliers/:id/products/:productId/preferred` | Set preferred supplier (unique per product + store) | `supplier.update` |
+| GET | `/products/:id/suppliers` | Suppliers for product | `supplier.view` |
 
 ##### Consignment (Konsinyasi Supplier)
 
@@ -464,10 +493,14 @@ Base path: `/api`. All endpoints require JWT (via `Authorization: Bearer` or coo
 | POST | `/consignment/arrangements` | Create arrangement | `consignment.create` |
 | GET | `/consignment/arrangements/:id` | Arrangement detail | `consignment.view` |
 | GET | `/consignment/arrangements/:id/available-products` | Products eligible for a new term | `consignment.view` |
+| POST | `/consignment/arrangements/:id/end` | End arrangement | `consignment.update` |
+| POST | `/consignment/arrangements/:id/terms` | Add product term | `consignment.update` |
 | PUT | `/consignment/arrangements/:id/terms` | Update terms/conditions | `consignment.update` |
+| DELETE | `/consignment/arrangements/:id/terms/:productId` | Remove product term | `consignment.update` |
 | GET | `/consignment/receipts` | Goods receipt list | `consignment.view` |
 | POST | `/consignment/receipts` | Create goods receipt | `consignment.create` |
 | GET | `/consignment/receipts/:id` | Receipt detail | `consignment.view` |
+| PUT | `/consignment/receipts/:id` | Update goods receipt | `consignment.update` |
 | GET | `/consignment/stock` | Consignment stock | `consignment.view` |
 | GET | `/consignment/pending-returns` | Pending returns | `consignment.view` |
 | POST | `/consignment/pending-returns` | Create pending return | `consignment.update` |
@@ -487,13 +520,15 @@ Base path: `/api`. All endpoints require JWT (via `Authorization: Bearer` or coo
 |--------|----------|-------------|------------|
 | POST | `/shifts/open` | Open shift | `shift.create` |
 | POST | `/shifts/:id/close` | Close shift | `shift.create` |
-| POST | `/shifts/close-all` | Close all active shifts | `shift.create` |
 | POST | `/shifts/:id/review` | Review shift discrepancy | `shift.review` |
 | POST | `/shifts/:id/audit` | Physical cash audit | `shift.audit` |
 | GET | `/shifts/active` | Current active shift | Yes |
 | GET | `/shifts` | Shift list | `shift.view` |
 | GET | `/shifts/export` | Export shifts | `shift.view` |
 | GET | `/shifts/:id` | Shift detail | `shift.view` |
+| GET | `/shifts/:id/report` | Shift report (sales, payments, cash variance) | `shift.view` |
+| GET | `/shifts/:id/cash-movements` | Cash movement list | `shift.view` |
+| POST | `/shifts/:id/cash-movements` | Record cash in/out movement | `shift.cash_movement` |
 
 ##### User & Role Management
 
@@ -520,12 +555,18 @@ Base path: `/api`. All endpoints require JWT (via `Authorization: Bearer` or coo
 |--------|----------|-------------|------------|
 | GET | `/audit-logs` | Audit log list (filter date, action, entity) | `audit.view` |
 | GET | `/audit-logs/:id` | Audit log detail | `audit.view` |
-| GET | `/audit-logs/export` | Export audit logs | `audit.view` |
+| GET | `/audit-logs/export` | Export audit logs | `audit.export` |
 | GET | `/audit-logs/entity-types` | Entity type list | `audit.view` |
 
 ##### Import & Export
 
-Supported modules: `products`, `categories`, `brands`, `uoms`, `customers`, `pricing_rules`, `suppliers`, `stores`.
+Registered schemas: `products`, `categories`, `customer_groups`, `brands`, `uoms`, `customers`, `pricing_rules`, `suppliers`, `stores`.
+
+Import, export, and history are gated by a per-module permission map
+(`modulePerms` in `internal/platform/importexport/handler/handler.go`). `customer_groups` and
+`stores` have no entry, so those operations currently answer **403 "permission not defined for
+module"** even though `/import-export/modules` advertises them and their template download
+works.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -546,16 +587,23 @@ Supported modules: `products`, `categories`, `brands`, `uoms`, `customers`, `pri
 |--------|----------|-------------|------------|
 | GET | `/settings/public` | Public branding (store name, jargon) | No |
 | GET | `/settings/logo` | Store logo | No |
-| GET | `/settings` | All settings | `app_settings.view` |
+| GET | `/settings` | All settings (branding, receipt text, branch contact) | Any authenticated |
 | PUT | `/settings` | Update settings | `app_settings.update` |
 | POST | `/settings/logo` | Upload logo | `app_settings.update` |
 | DELETE | `/settings/logo` | Delete logo | `app_settings.update` |
 
+Reading `GET /settings` is deliberately not gated by `app_settings.view` — receipts render it on
+every screen, including the cashier POS. The Settings *screen* is still gated by
+`app_settings.view` in the frontend route map; only the read is relaxed.
+
 ##### System
+
+Unauthenticated endpoints below are registered at the **router root**, not under the `/api` base path.
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
 | GET | `/health` | Health check | No |
+| GET | `/metrics` | EventBus counters (JSON), incl. `ReportRefreshCoord` metrics | No |
 | GET | `/ws` | WebSocket hub | Yes |
 | GET | `/swagger/*any` | Swagger UI | No |
 
@@ -568,8 +616,10 @@ cd web
 npm run dev       # Start dev server (port 5173)
 npm run build     # Build for production
 npm run test:run  # Unit test (Vitest)
-npx playwright test  # Run E2E tests
+npx playwright test  # E2E — run from the repository root, not web/
 ```
+
+> `web/package.json` has no `test:e2e` script. Playwright's config and the `test:e2e*` scripts live in the repository root `package.json`.
 
 #### Module Structure
 
@@ -625,6 +675,7 @@ Backend stores data in UTC, but **all queries use the Asia/Jakarta timezone**. T
 | `DB_USER` | `pos` | Database username |
 | `DB_PASSWORD` | `admin123` | Database password |
 | `DB_NAME` | `retail_pos` | Database name |
+| `DB_SSLMODE` | `require` (prod) / `disable` (dev) | libpq sslmode. Defaults to `require` when `ENV=production`; the stock `postgres:18-alpine` image ships `ssl=off`, so production must either mount a certificate or set this explicitly |
 | `ENV` | `development` | `development` (text log) / `production` (JSON log, release mode, sslmode require) |
 | `LOG_LEVEL` | `debug`/`info` | Log level: debug, info, warn, error |
 | `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin (must not be `*` in production) |
@@ -640,10 +691,16 @@ Backend stores data in UTC, but **all queries use the Asia/Jakarta timezone**. T
 | `RATE_LIMIT_BURST` | `100` | General API burst |
 | `REFRESH_RATE_LIMIT_RPM` | `10` | Refresh rate limit (per minute) |
 | `REFRESH_RATE_LIMIT_BURST` | `10` | Refresh burst |
+| `WS_RATE_LIMIT_RPM` | `20` | WebSocket upgrade rate limit (per minute) |
+| `WS_RATE_LIMIT_BURST` | `5` | WebSocket burst |
 | `STOCK_WARNING_THRESHOLD` | `10` | Stock below this = "needs attention" |
 | `STOCK_CRITICAL_THRESHOLD` | `5` | Stock below this = "low stock" |
 | `CART_HOLD_TTL_HOURS` | `24` | How many hours a cart session is held before considered expired |
-| `REPORT_REFRESH_DEBOUNCE` | `30` | Seconds debounce for materialized view refresh after `sale.created` |
+| `REPORT_REFRESH_DEBOUNCE` | `30` | Base retry delay in seconds for a **failed** materialized-view refresh; retries use exponential backoff. Not a `sale.created` debounce — refreshes happen at startup and on each Jakarta hour boundary |
+| `VITE_PRINT_MODE` | (empty) | Receipt print mode (`preview` renders in-browser). Frontend build-time only |
+| `VITE_PRINT_AGENT_URL` | `http://localhost:9123` | Print agent base URL. Frontend build-time only; leave unset for a multi-register shop so each till finds the agent on its own PC. See `docs/guides/print-agent-production.md` |
+
+The defaults above are the **code fallbacks** used when a variable is unset. `.env.example` ships different values for the login and refresh limiters (`60/60` and `120/120`), so `cp .env.example .env` gives a much looser limiter than the table suggests — tune the values in `.env`, not just the code.
 
 Copy `.env.example` to `.env` for local development.
 
@@ -693,22 +750,32 @@ Rootful hosts: copy to `/etc/containers/systemd/` and drop `--user`. See
 
 #### Database Migrations
 
-Migrations are SQL files in `database/migrations/` (currently **`000_baseline.sql`** alone — the squashed Version 1 baseline). Migrations do **not** run automatically on server start — run them explicitly via `./deploy/podman-deploy.sh migrate` (or the test harness, which applies pending migrations to the test DB). Tracking of which migrations have been applied is in the `schema_migrations` table.
+Migrations are SQL files in `database/migrations/` (currently **`000_baseline.sql`** plus `054`–`060`). Migrations do **not** run automatically on server start — run them explicitly via `./deploy/podman-deploy.sh migrate` (or the test harness, which applies pending migrations to the test DB). Tracking of which migrations have been applied is in the `schema_migrations` table.
 
-**Fresh database (new spin-up):** `migrate` bootstraps `pgcrypto`, `invoice_seq`, and the `schema_migrations` table first, then applies `000_baseline.sql` with `ON_ERROR_STOP=1`. Result: complete schema + reference data (roles, 86 permissions, grants, 6 default users, payment methods, customer groups) plus the placeholder **Default Store**. Business data (products, customers, sales) must be seeded via `./seed-dev.sh` or `./deploy/podman-deploy.sh seed`.
+**Fresh database (new spin-up):** `migrate` bootstraps `pgcrypto`, `invoice_seq`, and the `schema_migrations` table first, then applies every migration in lexical order with `ON_ERROR_STOP=1`. Result: complete schema + reference data (roles, 91 permissions, 272 grants, 6 default users, payment methods, customer groups) plus the placeholder **Default Store**. Business data (products, customers, sales) must be seeded via `./seed-dev.sh` or `./deploy/podman-deploy.sh seed`.
 
-> **Important:** Apply migrations **before** deploying a new server binary. `000_baseline.sql` is idempotent (`IF NOT EXISTS` / `DO` guards / `ON CONFLICT DO NOTHING`) and can be re-run safely; it also clears the ledger rows of the migrations it replaced, so `schema_migrations` converges on one row.
+> **Important:** Apply migrations **before** deploying a new server binary. Every migration is permanently re-runnable (`IF NOT EXISTS` / `DO` guards / `ON CONFLICT DO NOTHING`) because all three runners replay the whole directory on every run rather than trusting the ledger.
 
 Current migrations:
-- `000_baseline.sql` — Version 1 baseline: complete schema (60 tables, 3 materialised views, functions, indexes, constraints) plus reference data (6 roles, 86 permissions, 264 grants, the 6 system users, payment methods, customer groups, default store, walk-in customer, `app_settings`).
 
-The 32 migrations it supersedes (`000_squash.sql` + `001`–`007` + `031`–`053`) are preserved, unmodified, in `database/migrations/archive/pre-squash-migrations.tar.gz`.
+| File | Purpose |
+|------|---------|
+| `000_baseline.sql` | Version 1 baseline: complete schema (60 tables, 3 materialised views, functions, indexes, constraints) plus reference data (6 roles, 91 permissions, 272 grants, the 6 system users, payment methods, customer groups, default store, walk-in customer, `app_settings`) |
+| `054_pricing_rule_created_by.sql` | Adds nullable `pricing_rules.created_by` so a rule records its author and self-approval can be blocked |
+| `055_pricing_rule_new_rows_start_pending.sql` | Realigns the `status`/`is_active` column defaults with the approval workflow — new rows start `pending`/`inactive` |
+| `056_revoke_supervisor_pricing_mutation.sql` | Removes `pricing.create`/`update`/`delete` from supervisor on databases that already granted them (the baseline only INSERTs grants, so a removal needs an explicit `DELETE`) |
+| `057_pricing_retire_draft_status.sql` | Retires the `draft` pricing status; remaps legacy rows to `pending` and hardens `chk_pricing_status` |
+| `058_supplier_terms_store_scope.sql` | Moves the store boundary off `suppliers` onto `product_suppliers` (`UNIQUE NULLS NOT DISTINCT`), so negotiated terms are per store |
+| `059_store_fk_integrity.sql` | Closes the last four `store_id` FK gaps (customers, users, goods_receipts, purchase_orders). Validates existing rows, so it hard-fails on an orphan — run `scripts/audit-store-fk-orphans.sh` first |
+| `060_supplier_governance.sql` | Adds supplier provenance (`created_by`, `updated_by`) and optimistic concurrency (`version`), and narrows the global supplier-code uniqueness to live rows |
+
+`000_baseline.sql` also clears the ledger rows of the 32 migrations it replaced, so after a fresh baseline install `schema_migrations` holds one row per migration file. Those 32 files (`000_squash.sql` + `001`–`007` + `031`–`053`) are preserved, unmodified, in `database/migrations/archive/pre-squash-migrations.tar.gz` — never execute an archived file against a live database. New migrations must start at `061_*.sql`.
 
 ### Default Credentials
 
 | Role | Username | Password | Description |
 |------|----------|----------|-------------|
-| Superadmin | `superadmin` | `admin123` | All permissions (86 including consignment.*, app_settings.*, audit.*) |
+| Superadmin | `superadmin` | `admin123` | All 90 granted permissions (everything except `sale.lookup`), including consignment.*, supplier.*, app_settings.*, audit.* |
 | Manager | `manager` | `admin123` | Operational management: user CRUD (no delete), product/category/customer/pricing full CRUD, PO, stock opname, consignment view/create/update/settle/pay, store management, audit view+export (without user.delete, role.update/delete, app_settings.update, purchase_order.delete) |
 | Supervisor | `supervisor` | `admin123` | Store operator: product/category/customer full CRUD, pricing, PO, stock opname, consignment view/create/update/settle, shifts, POS sales (sale.create) |
 | Cashier | `cashier` | `admin123` | POS: create/view sales, park, shift, stock count, dashboard, category/pricing/customer_group view, Find Transaction lookup |
@@ -719,7 +786,7 @@ All six accounts are flagged by `000_baseline.sql` and must rotate `admin123` on
 
 ### Permission Matrix
 
-Permissions use **dot-notation** (`entity.action`), e.g.: `user.view`, `product.create`, `stock_opname.post`. This table is the default configuration from seeds; it can be changed via the Role Management UI. Total 86 permissions (including `consignment.*`, `app_settings.*`, `sale.lookup`, `sale.detail`, `receipt.print`, `audit.export`, `shift.cash_movement`).
+Permissions use **dot-notation** (`entity.action`), e.g.: `user.view`, `product.create`, `stock_opname.post`. This table is the default configuration seeded by `000_baseline.sql`; it can be changed via the Role Management UI. Total **91 permissions**, 272 role grants (including `consignment.*`, `app_settings.*`, `supplier.*`, `sale.lookup`, `sale.detail`, `receipt.print`, `audit.export`, `shift.cash_movement`). `sale.lookup` is deliberately cashier-only — it is the one code superadmin does not hold.
 
 | Permission | Superadmin | Manager | Supervisor | Cashier | Inventory Staff | Finance |
 |------------|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -759,8 +826,9 @@ Permissions use **dot-notation** (`entity.action`), e.g.: `user.view`, `product.
 | `stock_opname.verify`, `stock_opname.post`, `stock_opname.close`, `stock_opname.report` | ✅ | ✅ | ✅ | – | ✅ | – |
 | `stock_opname.cancel`, `stock_opname.export`, `stock_opname.recount` | ✅ | ✅ | ✅ | – | ✅ | – |
 | `pricing.view` | ✅ | ✅ | ✅ | ✅ | – | – |
-| `pricing.create`, `pricing.update` | ✅ | ✅ | ✅ | – | – | – |
-| `pricing.delete` | ✅ | ✅ | ✅ | – | – | – |
+| `pricing.create`, `pricing.update` | ✅ | ✅ | – | – | – | – |
+| `pricing.approve` | ✅ | ✅ | – | – | – | – |
+| `pricing.delete` | ✅ | ✅ | – | – | – | – |
 | `purchase_order.view/create/update/confirm/receive` | ✅ | ✅ | ✅ | – | – | – |
 | `purchase_order.delete` | ✅ | – | – | – | – | – |
 | `purchase_order.cancel` | ✅ | ✅ | ✅ | – | – | – |
@@ -768,6 +836,8 @@ Permissions use **dot-notation** (`entity.action`), e.g.: `user.view`, `product.
 | `consignment.create`, `consignment.update` | ✅ | ✅ | ✅ | – | – | – |
 | `consignment.settle` | ✅ | ✅ | ✅ | – | – | – |
 | `consignment.pay` | ✅ | ✅ | – | – | – | ✅ |
+| `supplier.view` | ✅ | ✅ | ✅ | – | – | – |
+| `supplier.create`, `supplier.update`, `supplier.delete` | ✅ | ✅ | – | – | – | – |
 | `app_settings.view` | ✅ | ✅ | – | – | – | – |
 | `app_settings.update` | ✅ | – | – | – | – | – |
 | `user.view`, `user.create`, `user.update` | ✅ | ✅ | – | – | – | – |
@@ -836,11 +906,15 @@ on first run (or with `-b`) and translates flags to env vars:
 ./print-agent.sh -t file -p 9123 -o /tmp/receipt-out      # file transport
 ./print-agent.sh -t tcp --tcp-addr 192.168.1.50:9100      # network printer
 ./print-agent.sh -t serial --serial-device /dev/ttyUSB0   # USB-serial printer
-./print-agent.sh -t file -p 9123 --token s3cret --allowed-origins http://localhost:5173
+./print-agent.sh -t file -p 9123 --allowed-origins http://localhost:5173
 ```
 
 Flags: `-t/--transport`, `-p/--port`, `-o/--output-dir`, `--tcp-addr`,
-`--serial-device`, `--token`, `--allowed-origins`, `-b/--build`, `-h/--help`.
+`--serial-device`, `--allowed-origins`, `-b/--build`, `-h/--help`.
+
+> `--token` was **removed** and is now rejected with an explicit error. The only client is a
+> browser, so a token shipped to the browser is not a secret. See
+> `docs/guides/print-agent-production.md`.
 
 In `file` mode (default, no hardware needed) receipts are written as ESC/POS
 `.bin` files to `PRINT_OUTPUT_DIR` (default OS temp dir), e.g.
@@ -1251,7 +1325,7 @@ Repeat steps 2–3 on every register terminal. No central print configuration is
 The **Transactions** page lists completed sales. It has two tabs:
 
 - **My Transactions** (default) — your own sales only.
-- **Find Transaction** — search across *all* cashiers' sales (cross-cashier). Available to roles granted the **`sale.lookup`** permission (cashier and manager by default). Results are a **redacted summary** — invoice number, cashier name, date/time, total, and status only. Items, cost, customer details, and payment tender/reference are **not** shown, so you can locate a co-worker's transaction (e.g. for a receipt reprint request) without exposing sensitive data.
+- **Find Transaction** — search across *all* cashiers' sales (cross-cashier). Available to roles granted the **`sale.lookup`** permission — cashier only by default (it is the one code superadmin does not hold). Results are a **redacted summary** — invoice number, cashier name, date/time, total, and status only. Items, cost, customer details, and payment tender/reference are **not** shown, so you can locate a co-worker's transaction (e.g. for a receipt reprint request) without exposing sensitive data.
 
 **Filtering**
 - **Search** — by invoice number, product, or customer (an `INV-` prefix is ignored).
@@ -1362,7 +1436,7 @@ Thresholds are configured system-wide (defaults: warning 10, critical 5). Produc
 
 Tick the checkboxes on rows to select products, then use the bulk bar to:
 - **Change Status** — set selected products to Active / Inactive / Archived.
-- **Export / Import** — see [Import & Export](#17-import--export).
+- **Export / Import** — see [Import & Export](#18-import--export).
 
 ---
 
@@ -1491,13 +1565,14 @@ On save, the system checks for **conflicts** with existing rules. If a conflict 
 Rules move through an approval workflow:
 
 ```
-Draft → Pending → Approved
-               ↘ Rejected
+Pending → Approved
+        ↘ Rejected
 ```
 
-- **Ajukan** (Submit) — moves a draft to pending.
-- **Approve** — approves a pending rule (making it active).
-- **Reject** — rejects a pending rule (back to draft).
+- A newly saved rule starts as `pending` and inactive (`055_pricing_rule_new_rows_start_pending.sql`); there is no separate submit step.
+- **Approve** (`pricing.approve`) — approves a pending rule and makes it active. The rule's author cannot approve their own rule (`pricing_rules.created_by`).
+- **Reject** (`pricing.approve`) — marks the rule `rejected`.
+- The former `draft` status was retired in `057_pricing_retire_draft_status.sql`.
 
 You can also **Edit**, **Duplikasi** (Duplicate), **Hapus** (Delete), and **Aktifkan/Nonaktifkan** (Enable/Disable) rules, and use the bulk bar.
 
@@ -1976,7 +2051,7 @@ The **Stores** page (`/stores`, Indonesian UI) manages store branches.
 - **Edit** — change details and toggle **Aktif** (Active).
 - **Delete** — the confirmation suggests deactivating instead of deleting.
 
-Migration `044` seeds a placeholder **Default Store** (with all default users assigned to it); finish it by adding a real address/phone, a storage location, and catalog stock. Active stores are used elsewhere in the system (e.g. as a scope for storage locations and stock opname, and as the outlet filter for pricing rules).
+`000_baseline.sql` seeds a placeholder **Default Store** (with all default users assigned to it); finish it by adding a real address/phone, a storage location, and catalog stock. `docs/guides/first-time-installation.md` walks through the initial setup. Active stores are used elsewhere in the system (e.g. as a scope for storage locations and stock opname, and as the outlet filter for pricing rules).
 
 ---
 
@@ -1991,7 +2066,7 @@ Manage login accounts:
 - **Edit** — change details, role, active status, or set a **new password** (leave blank to keep the current one).
 - Deactivate or delete users. The superadmin account cannot be deleted and deleting users is superadmin-only.
 
-> Change your own password anytime at **`/account/password`** (lock icon in the sidebar). Migration `052` forces the six seeded accounts through it on first login. Administrators can still reset any user's password in User Management.
+> Change your own password anytime at **`/account/password`** (lock icon in the sidebar). `000_baseline.sql` flags the six seeded accounts `must_change_password`, forcing them through it on first login. Administrators can still reset any user's password in User Management.
 
 #### Roles & Permissions
 
@@ -2071,7 +2146,7 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 | Application settings — update | ✓ | — | — | — | — | — |
 | Import/Export (product, category, customer) | ✓ | ✓ | ✓ (customer) | — | — | — |
 
-> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions-1)). Exact permission codes per action: `dashboard.view`, `sale.create/view/lookup/detail/park`, `product.view/create/update/delete/export/import/history.view/cost.view`, `category.view/create/update/delete/export/import`, `customer.view/create/update/delete/export/import`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel/delete`, `shift.view/create/review/audit/cash_movement`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `consignment.view/create/update/settle/pay`, `app_settings.view/update`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view/export`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, manager, and supervisor can use it.
+> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions-1)). Exact permission codes per action: `dashboard.view`, `sale.create/view/lookup/detail/park`, `product.view/create/update/delete/export/import/history.view/cost.view`, `category.view/create/update/delete/export/import`, `customer.view/create/update/delete/export/import`, `customer_group.view/create/update/delete`, `pricing.view/create/update/approve/delete`, `purchase_order.view/create/update/confirm/receive/cancel/delete`, `shift.view/create/review/audit/cash_movement`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `consignment.view/create/update/settle/pay`, `supplier.view/create/update/delete`, `app_settings.view/update`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view/export`. The Suppliers module has its own `supplier.*` codes: `supplier.view` is held by superadmin, manager, and supervisor; `supplier.create/update/delete` by superadmin and manager only.
 
 ---
 
@@ -2081,9 +2156,9 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 
 **Sales:** `completed` (plus internal cart states `open`/`held`/`checked_out`/`cancelled`/`expired`)
 
-**Purchase Orders:** `draft` → `confirmed` → `partial_received` → `fully_received`, or `cancelled` (approval workflow: `waiting_approval`, `rejected`)
+**Purchase Orders:** `draft` → `confirmed` → `partial_received` → `fully_received`, or `cancelled`. `waiting_approval` and `rejected` are defined in the domain and rendered by the UI, but no PO approval transition exists yet, so the backend never sets them
 
-**Pricing Rules:** `draft` → `pending` → `approved` / `rejected`
+**Pricing Rules:** `pending` → `approved` / `rejected` (no `draft` — retired in `057`)
 
 **Stock Opname:** `draft` · `open` · `counting` · `verification` · `needs_recount` · `approved` · `posted` · `closed` · `cancelled`
 
