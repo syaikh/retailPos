@@ -2,8 +2,11 @@
   import { Drawer, Button, Badge, Skeleton } from "$shared/ui";
   import { labels, t } from "$shared/i18n";
   import { Pencil, Trash2 } from "lucide-svelte";
-  import type { Supplier, ProductSupplier } from "../types";
-  import { getProductsBySupplier } from "../services/supplier-service";
+  import type { Supplier, ProductSupplier, SupplierUsage } from "../types";
+  import {
+    getProductsBySupplier,
+    getSupplierUsage,
+  } from "../services/supplier-service";
 
   function timeAgo(dateStr: string | undefined): string {
     if (!dateStr) return "-";
@@ -45,10 +48,13 @@
 
   let products = $state<ProductSupplier[]>([]);
   let loadingProducts = $state(false);
+  let usage = $state<SupplierUsage | null>(null);
+  let loadingUsage = $state(false);
 
   $effect(() => {
     if (open && supplier) {
       loadProducts();
+      loadUsage();
     }
   });
 
@@ -63,6 +69,25 @@
       loadingProducts = false;
     }
   }
+
+  async function loadUsage() {
+    if (!supplier) return;
+    loadingUsage = true;
+    try {
+      usage = await getSupplierUsage(supplier.id);
+    } catch {
+      usage = null;
+    } finally {
+      loadingUsage = false;
+    }
+  }
+
+  const hasBlockingUsage = $derived(
+    !!usage &&
+      (usage.product_links > 0 ||
+        usage.open_purchase_orders > 0 ||
+        usage.active_consignments > 0),
+  );
 
   function getInitials(name: string): string {
     return name
@@ -199,6 +224,43 @@
         </div>
 
         <div>
+          <h4 class="text-sm font-medium text-text-muted mb-2">Usage</h4>
+          {#if loadingUsage}
+            <div class="space-y-2">
+              {#each Array(3) as _, i (i)}
+                <Skeleton class="h-8 w-full" />
+              {/each}
+            </div>
+          {:else if usage}
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-text-muted">Product links</span>
+                <span class="text-text-secondary">{usage.product_links}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-text-muted">Open purchase orders</span>
+                <span class="text-text-secondary"
+                  >{usage.open_purchase_orders}</span
+                >
+              </div>
+              <div class="flex justify-between">
+                <span class="text-text-muted">Active consignments</span>
+                <span class="text-text-secondary"
+                  >{usage.active_consignments}</span
+                >
+              </div>
+            </div>
+            {#if hasBlockingUsage}
+              <p class="text-xs text-text-muted mt-2">
+                In use — deactivation or deletion may be blocked.
+              </p>
+            {/if}
+          {:else}
+            <p class="text-sm text-text-muted">Usage unavailable</p>
+          {/if}
+        </div>
+
+        <div>
           <h4 class="text-sm font-medium text-text-muted mb-2">
             {labels.timestamp}
           </h4>
@@ -215,6 +277,12 @@
                 >{timeAgo(supplier.updated_at)}</span
               >
             </div>
+            {#if supplier.version !== undefined}
+              <div class="flex justify-between">
+                <span class="text-text-muted">Version</span>
+                <span class="text-text-secondary">{supplier.version}</span>
+              </div>
+            {/if}
           </div>
         </div>
       </div>

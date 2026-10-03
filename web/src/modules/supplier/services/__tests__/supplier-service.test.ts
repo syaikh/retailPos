@@ -172,7 +172,11 @@ describe("supplier-service", () => {
 
   describe("updateSupplier", () => {
     it("sends PUT with correct payload", async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: true });
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({}),
+      });
 
       const { updateSupplier } = await import("../supplier-service");
       const result = await updateSupplier(1, {
@@ -180,7 +184,7 @@ describe("supplier-service", () => {
         is_active: false,
       });
 
-      expect(result).toBe(true);
+      expect(result.ok).toBe(true);
       expect(mockApiFetch).toHaveBeenCalledWith(
         "/api/suppliers/1",
         expect.objectContaining({
@@ -191,19 +195,98 @@ describe("supplier-service", () => {
       expect(body.name).toBe("PT Update");
       expect(body.is_active).toBe(false);
     });
+
+    it("surfaces a version conflict body", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({
+            error: "stale",
+            code: "supplier_version_conflict",
+          }),
+      });
+
+      const { updateSupplier } = await import("../supplier-service");
+      const result = await updateSupplier(1, { name: "X", version: 1 });
+
+      expect(result.ok).toBe(false);
+      expect(result.status).toBe(409);
+      expect(result.code).toBe("supplier_version_conflict");
+    });
   });
 
   describe("deleteSupplier", () => {
     it("sends DELETE request", async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: true });
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        json: () => Promise.resolve({}),
+      });
 
       const { deleteSupplier } = await import("../supplier-service");
       const result = await deleteSupplier(5);
 
-      expect(result).toBe(true);
+      expect(result.ok).toBe(true);
       expect(mockApiFetch).toHaveBeenCalledWith("/api/suppliers/5", {
         method: "DELETE",
       });
+    });
+
+    it("surfaces an in-use conflict body", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({
+            error: "referenced",
+            code: "supplier_in_use",
+            usage: {
+              product_links: 2,
+              open_purchase_orders: 1,
+              active_consignments: 0,
+            },
+          }),
+      });
+
+      const { deleteSupplier } = await import("../supplier-service");
+      const result = await deleteSupplier(5);
+
+      expect(result.ok).toBe(false);
+      expect(result.code).toBe("supplier_in_use");
+      expect(result.usage?.product_links).toBe(2);
+      expect(result.usage?.open_purchase_orders).toBe(1);
+    });
+  });
+
+  describe("getSupplierUsage", () => {
+    it("returns usage counts", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            data: {
+              product_links: 3,
+              open_purchase_orders: 0,
+              active_consignments: 1,
+            },
+          }),
+      });
+
+      const { getSupplierUsage } = await import("../supplier-service");
+      const result = await getSupplierUsage(7);
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/suppliers/7/usage");
+      expect(result?.product_links).toBe(3);
+      expect(result?.active_consignments).toBe(1);
+    });
+
+    it("returns null on error", async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false, status: 404 });
+
+      const { getSupplierUsage } = await import("../supplier-service");
+      expect(await getSupplierUsage(99)).toBeNull();
     });
   });
 
@@ -323,7 +406,8 @@ describe("supplier-service", () => {
       const { bulkUpdateSuppliers } = await import("../supplier-service");
       const result = await bulkUpdateSuppliers([1, 2], true);
 
-      expect(result).toBe(2);
+      expect(result.ok).toBe(true);
+      expect(result.updated).toBe(2);
       expect(mockApiFetch).toHaveBeenCalledWith(
         "/api/suppliers/bulk",
         expect.objectContaining({
@@ -335,13 +419,14 @@ describe("supplier-service", () => {
       expect(body.is_active).toBe(true);
     });
 
-    it("returns 0 on error", async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: false });
+    it("returns not-ok on error", async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false, status: 500 });
 
       const { bulkUpdateSuppliers } = await import("../supplier-service");
       const result = await bulkUpdateSuppliers([1], false);
 
-      expect(result).toBe(0);
+      expect(result.ok).toBe(false);
+      expect(result.updated).toBeUndefined();
     });
   });
 
@@ -349,13 +434,15 @@ describe("supplier-service", () => {
     it("sends DELETE with ids", async () => {
       mockApiFetch.mockResolvedValueOnce({
         ok: true,
+        status: 200,
         json: () => Promise.resolve({ deleted: 2 }),
       });
 
       const { bulkDeleteSuppliers } = await import("../supplier-service");
       const result = await bulkDeleteSuppliers([1, 2]);
 
-      expect(result).toBe(2);
+      expect(result.ok).toBe(true);
+      expect(result.deleted).toBe(2);
       expect(mockApiFetch).toHaveBeenCalledWith(
         "/api/suppliers/bulk",
         expect.objectContaining({
@@ -366,13 +453,14 @@ describe("supplier-service", () => {
       expect(body.ids).toEqual([1, 2]);
     });
 
-    it("returns 0 on error", async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: false });
+    it("returns not-ok on error", async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false, status: 500 });
 
       const { bulkDeleteSuppliers } = await import("../supplier-service");
       const result = await bulkDeleteSuppliers([1]);
 
-      expect(result).toBe(0);
+      expect(result.ok).toBe(false);
+      expect(result.deleted).toBeUndefined();
     });
   });
 });

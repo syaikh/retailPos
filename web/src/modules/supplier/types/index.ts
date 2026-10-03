@@ -10,8 +10,17 @@ export interface Supplier {
   is_active: boolean;
   is_consignment?: boolean;
   store_id?: number;
+  created_by?: number | null;
+  updated_by?: number | null;
+  version?: number;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface SupplierUsage {
+  product_links: number;
+  open_purchase_orders: number;
+  active_consignments: number;
 }
 
 export interface CreateSupplierPayload {
@@ -36,6 +45,7 @@ export interface UpdateSupplierPayload {
   notes?: string;
   is_active?: boolean;
   is_consignment?: boolean;
+  version?: number;
 }
 
 export interface ProductSupplier {

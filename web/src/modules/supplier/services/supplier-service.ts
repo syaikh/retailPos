@@ -4,7 +4,38 @@ import type {
   CreateSupplierPayload,
   UpdateSupplierPayload,
   ProductSupplier,
+  SupplierUsage,
 } from "../types";
+
+export interface SupplierWriteResult {
+  ok: boolean;
+  status: number;
+  code?: string;
+  usage?: SupplierUsage;
+  blocked_ids?: number[];
+  updated?: number;
+  deleted?: number;
+}
+
+async function toWriteResult(r: Response): Promise<SupplierWriteResult> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = (await r.json()) as Record<string, unknown>;
+  } catch {
+    body = {};
+  }
+  return {
+    ok: r.ok,
+    status: r.status,
+    code: typeof body.code === "string" ? body.code : undefined,
+    usage: (body.usage as SupplierUsage | undefined) ?? undefined,
+    blocked_ids: Array.isArray(body.blocked_ids)
+      ? (body.blocked_ids as number[])
+      : undefined,
+    updated: typeof body.updated === "number" ? body.updated : undefined,
+    deleted: typeof body.deleted === "number" ? body.deleted : undefined,
+  };
+}
 
 export interface SupplierListParams {
   limit: number;
@@ -66,17 +97,32 @@ export async function createSupplier(
 export async function updateSupplier(
   id: number,
   payload: UpdateSupplierPayload,
-): Promise<boolean> {
+): Promise<SupplierWriteResult> {
   const r = await apiFetch(`/api/suppliers/${id}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
-  return r.ok;
+  return toWriteResult(r);
 }
 
-export async function deleteSupplier(id: number): Promise<boolean> {
+export async function deleteSupplier(id: number): Promise<SupplierWriteResult> {
   const r = await apiFetch(`/api/suppliers/${id}`, { method: "DELETE" });
-  return r.ok;
+  return toWriteResult(r);
+}
+
+export async function getSupplierUsage(
+  id: number,
+): Promise<SupplierUsage | null> {
+  const r = await apiFetch(`/api/suppliers/${id}/usage`);
+  if (r.ok) {
+    try {
+      const data = await r.json();
+      return data.data || null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 export async function getSuppliersByProduct(
@@ -131,26 +177,20 @@ export async function unlinkProduct(
 export async function bulkUpdateSuppliers(
   ids: number[],
   isActive: boolean,
-): Promise<number> {
+): Promise<SupplierWriteResult> {
   const r = await apiFetch("/api/suppliers/bulk", {
     method: "PUT",
     body: JSON.stringify({ ids, is_active: isActive }),
   });
-  if (r.ok) {
-    const data = await r.json();
-    return data.updated || 0;
-  }
-  return 0;
+  return toWriteResult(r);
 }
 
-export async function bulkDeleteSuppliers(ids: number[]): Promise<number> {
+export async function bulkDeleteSuppliers(
+  ids: number[],
+): Promise<SupplierWriteResult> {
   const r = await apiFetch("/api/suppliers/bulk", {
     method: "DELETE",
     body: JSON.stringify({ ids }),
   });
-  if (r.ok) {
-    const data = await r.json();
-    return data.deleted || 0;
-  }
-  return 0;
+  return toWriteResult(r);
 }
