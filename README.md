@@ -168,7 +168,7 @@ cd web && npm run dev
 ```bash
 make build-all                 # Build backend + frontend images
 ./deploy/podman-deploy.sh start   # Start all services
-./deploy/podman-deploy.sh migrate # Run migrations (optional, automatic at startup)
+./deploy/podman-deploy.sh migrate # Run migrations (required before first start; not automatic)
 ./deploy/podman-deploy.sh seed    # Seed initial data (optional)
 ```
 
