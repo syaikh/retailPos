@@ -7,6 +7,9 @@
  * Falls back to independent refresh if BroadcastChannel is not supported.
  */
 
+import axios from "axios";
+import type { AxiosInstance } from "axios";
+
 const CHANNEL_NAME = "pos-auth-coordination";
 const HEARTBEAT_INTERVAL = 5_000;
 const LEADER_TIMEOUT = 10_000;
@@ -211,12 +214,21 @@ function stopLeaderCheck() {
 }
 
 // --- Refresh coordination ---
+// axios is already in the main bundle — http-client and auth-service import it
+// statically — so the dynamic import that used to sit here split nothing and
+// only made the bundler warn. auth-service imports this module, so its instance
+// cannot be borrowed from here without a cycle; this one mirrors its config.
+let refreshClient: AxiosInstance | null = null;
+
+function getRefreshClient(): AxiosInstance {
+  refreshClient ??= axios.create({ baseURL: "/api", withCredentials: true });
+  return refreshClient;
+}
+
 async function performRefreshForFollowers() {
   // Only called on the leader tab
   try {
-    const { default: authApi } = await import("axios");
-    const client = authApi.create({ baseURL: "/api", withCredentials: true });
-    const response = await client.post("/refresh");
+    const response = await getRefreshClient().post("/refresh");
     const newToken = response.data.access_token as string;
     send({ type: "REFRESH_RESULT", token: newToken });
   } catch {
