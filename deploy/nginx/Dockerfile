@@ -1,7 +1,13 @@
 FROM nginx:alpine
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Backend address, substituted into the nginx template at container start.
+ENV BACKEND_HOST=127.0.0.1 \
+    BACKEND_PORT=8080 \
+    NGINX_ENVSUBST_FILTER=^(BACKEND_HOST|BACKEND_PORT)\$
+
+# Install the config as an nginx template; nginx:alpine expands it into
+# /etc/nginx/conf.d/ at startup.
+COPY default.conf.template /etc/nginx/templates/default.conf.template
 
 # Create nginx user for running as non-root
 RUN addgroup -g 1000 -S nginx && \

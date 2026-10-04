@@ -28,7 +28,7 @@ Network=bridge
 # running system; the loopback listener exists for `podman-deploy.sh seed`,
 # which connects from the host.
 PublishPort=127.0.0.1:8080:8080
-# nginx listens on 8081 inside the frontend image (deploy/nginx/nginx.conf:42,
+# nginx listens on 8081 inside the frontend image (deploy/nginx/default.conf.template,
 # EXPOSE 8081), not 80. The retired systemd unit published 80:80 and could
 # never have worked.
 #

@@ -117,7 +117,13 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
-    # nginx.conf has a single `listen 8081;` and no TLS server block, and the
+    # nginx proxy target, substituted into the nginx template at container start.
+    # The compose service name resolves on the shared network; the image default
+    # (127.0.0.1) would point nginx at the frontend container itself.
+    environment:
+      BACKEND_HOST: backend
+      BACKEND_PORT: "8080"
+    # The nginx template has a single `listen 8081;` and no TLS server block, and the
     # image EXPOSEs only 8081 8443. Publishing 80:80 here reaches nothing, which
     # is the defect the retired systemd unit had too. Terminate TLS in front of
     # this port (host nginx, or a published 8443 once a TLS block exists).
@@ -126,7 +132,7 @@ services:
     networks:
       - retail-pos-network
     # nginx:alpine is busybox-based and has wget, not curl. The port is 8081
-    # because that is the only listener in deploy/nginx/nginx.conf.
+    # because that is the only listener in deploy/nginx/default.conf.template.
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/"]
       interval: 30s

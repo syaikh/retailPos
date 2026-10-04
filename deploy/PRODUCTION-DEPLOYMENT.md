@@ -15,7 +15,7 @@ LAN is the frontend's real client. 8080 and 5432 are bound to `127.0.0.1` and ar
 unreachable from the network; `internal/config/deploy_test.go` fails the build if
 that changes.
 
-There is no TLS listener in these images. `deploy/nginx/nginx.conf` has exactly
+There is no TLS listener in these images. `deploy/nginx/default.conf.template` has exactly
 one `listen 8081;` and no `ssl` block, and the frontend container publishes only
 5173. Terminating TLS is left to a reverse proxy in front of the stack — see
 *TLS Termination*. An earlier version of this guide claimed 80/443; that came from
@@ -288,6 +288,55 @@ Migrations produce the full schema plus reference data: roles (6), permissions (
 
 ---
 
+## Two-Host Deployment (frontend separate from backend + DB)
+
+The frontend image is parameterised for this: nginx reads `BACKEND_HOST` and
+`BACKEND_PORT` from the container environment and substitutes them into its
+upstream at startup, so the same image works all-in-one or split. Changing the
+address needs no rebuild.
+
+The recommended split keeps the stateful pair together:
+
+| Host | Runs |
+|------|------|
+| Frontend host (internet-facing) | nginx frontend only |
+| Backend host (private) | backend + PostgreSQL |
+
+Postgres stays bound to `127.0.0.1` exactly as it is today — no certificate to
+mount, no `5432` exposed, and `DB_SSLMODE=require` is satisfied over loopback —
+while backend↔DB latency stays local. Only the static frontend faces the network.
+
+Start the backend host as usual (its own `BACKEND_HOST` is irrelevant):
+
+```bash
+# backend host: database + API
+./deploy/podman-deploy.sh start postgres
+./deploy/podman-deploy.sh start backend
+# The backend is not published by default. Add a port forward scoped to the
+# frontend host's address, e.g. append -p 10.0.0.5:8080:8080 when creating the pod.
+```
+
+Run only the frontend image on the frontend host, pointed at the backend host:
+
+```bash
+podman run -d --name frontend -p 5173:8081 \
+  -e BACKEND_HOST=10.0.0.5 \
+  -e BACKEND_PORT=8080 \
+  localhost/retail-pos-frontend:latest
+```
+
+Then set the backend's `CORS_ORIGIN` to the frontend's public origin and terminate
+TLS on the frontend host (see [SSL/TLS Configuration](#ssltls-configuration-https)).
+
+> **Note:** the default pod forward binds the backend to `127.0.0.1`, which
+> another machine cannot reach. Publish it on the private interface and scope a
+> host firewall rule to the frontend host only. Do **not** attempt to split the
+> database onto a third host unless you have outgrown one DB machine: that
+> requires enabling TLS on Postgres and exposing `5432`, which the co-located
+> layout avoids.
+
+---
+
 ## Manual Deployment (without script)
 
 Equivalent to what `podman-deploy.sh start` does, for when you want explicit
@@ -299,7 +348,7 @@ why the script exists. See [Database TLS](#database-tls) for `DB_SSLMODE`.
 sudo test -r /etc/retail-pos/backend.env || { echo "missing secret file"; exit 1; }
 
 # 1. Create pod with ports
-#    5173→8081, not 80→80: nginx.conf has a single `listen 8081;`. Publishing
+#    5173→8081, not 80→80: the nginx template has a single `listen 8081;`. Publishing
 #    80/443 reaches nothing (this is the defect the retired systemd unit had).
 #    8080 and 5432 are bound to 127.0.0.1, never 0.0.0.0: a bare `-p 8080:8080`
 #    makes them reachable from anywhere that can route to this machine. 5432 is
@@ -350,10 +399,14 @@ podman run -d \
   --restart unless-stopped \
   localhost/retail-pos-backend:latest
 
-# 5. Start frontend
+# 5. Start frontend. The image defaults to BACKEND_HOST=127.0.0.1:8080, which is
+#    correct inside this pod; pass them explicitly only for a split deployment
+#    (see Two-Host Deployment).
 podman run -d \
   --pod retail-pos-pod \
   --name frontend \
+  -e BACKEND_HOST=127.0.0.1 \
+  -e BACKEND_PORT=8080 \
   --restart unless-stopped \
   localhost/retail-pos-frontend:latest
 ```
@@ -487,7 +540,7 @@ have already been proven and just need boot persistence.
 That unit has been deleted. It was broken: it set no `JWT_SECRET`, so the backend
 could not have started; it read `POSTGRES_PASSWORD_FILE`/`DB_PASSWORD_FILE` from
 `/run/secrets/db_password`, a path nothing ever created; it published ports 80
-and 443 while `nginx.conf` only listens on 8081; and its `Documentation=` URL
+and 443 while the nginx template only listens on 8081; and its `Documentation=` URL
 still pointed at `github.com/your-repo`. `Documentation=https://github.com/your-repo/retail-pos-system`
 was the least of its problems. See Recommendation 7 in
 `docs/audits/production-deploy-config-audit-2026-09-26.md`.
@@ -496,7 +549,7 @@ was the least of its problems. See Recommendation 7 in
 
 ## SSL/TLS Configuration (HTTPS)
 
-`deploy/nginx/nginx.conf` has a single `listen 8081;` and **no TLS server block**,
+`deploy/nginx/default.conf.template` has a single `listen 8081;` and **no TLS server block**,
 so no container in this repository terminates HTTPS. Terminate it on the host, in
 front of the published port.
 
@@ -513,7 +566,7 @@ sudo certbot certonly --standalone -d yourdomain.com
 
 # Install a host nginx that terminates TLS and proxies to the container
 sudo mkdir -p /etc/nginx/conf.d
-# see deploy/nginx/nginx.conf for the upstream path; proxy_pass to
+# see deploy/nginx/default.conf.template for the upstream path; proxy_pass to
 # 127.0.0.1:5173 and proxy /api to 127.0.0.1:8080, including the
 # Upgrade/Connection headers the WebSocket handler needs.
 
@@ -704,7 +757,7 @@ podman logs frontend
 podman exec frontend ls -la /usr/share/nginx/html/
 
 # Check nginx config
-podman exec frontend cat /etc/nginx/nginx.conf
+podman exec frontend cat /etc/nginx/conf.d/default.conf
 ```
 
 ### "Network error. Please try again" on login
@@ -736,7 +789,7 @@ podman network create retail-pos-lb
 podman run -d --network retail-pos-lb --name backend1 ...
 podman run -d --network retail-pos-lb --name backend2 ...
 
-# Configure nginx upstream (in nginx.conf)
+# Configure nginx upstream (in deploy/nginx/default.conf.template, via BACKEND_HOST)
 upstream backend {
     server backend1:8080;
     server backend2:8080;
@@ -839,7 +892,7 @@ The frontend is a Vite build served by nginx; there is no Python static server
 in the current stack. If you are migrating from an older `python3 -m
 http.server` deployment:
 
-1. **Drop the Python server** – nginx (`deploy/nginx/nginx.conf`) serves the built assets directly
+1. **Drop the Python server** – nginx (`deploy/nginx/default.conf.template`) serves the built assets directly
 2. **Single command deployment** – `./deploy/podman-deploy.sh start`
 3. **Auto-start on boot** – Quadlet user units in `deploy/quadlet/`
 4. **Better performance** – Nginx > Python HTTP server

@@ -22,6 +22,14 @@ POD_NAME="retail-pos-pod"
 NETWORK_NAME="retail-pos-network"
 HOST_FRONTEND_PORT="${HOST_FRONTEND_PORT:-5173}"
 
+# Address the frontend's nginx proxies /api/, /ws/ and /health to. It is
+# substituted into deploy/nginx/default.conf.template at container start.
+# 127.0.0.1 is correct for the single-pod layout, where nginx and the Go backend
+# share the pod's network namespace. For a split deployment, set BACKEND_HOST to
+# the backend machine's address and run the frontend outside this pod.
+BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
+BACKEND_PORT="${BACKEND_PORT:-8080}"
+
 # Secret file. Holds DB_PASSWORD, JWT_SECRET and (optionally) JWT_SECRET_REFRESH.
 #
 # Sourced below so this script can use those values, and passed to the backend
@@ -337,6 +345,8 @@ start_frontend() {
     podman run -d \
         --pod "$POD_NAME" \
         --name frontend \
+        -e BACKEND_HOST="$BACKEND_HOST" \
+        -e BACKEND_PORT="$BACKEND_PORT" \
         --restart unless-stopped \
         "$FRONTEND_IMAGE"
 }

@@ -1,7 +1,7 @@
 # Retail POS frontend (nginx) — Quadlet unit
 #
-# The TLS story lives in deploy/PRODUCTION-DEPLOYMENT.md. nginx.conf ships a
-# single `listen 8081;` and no TLS server block, so nothing here terminates
+# The TLS story lives in deploy/PRODUCTION-DEPLOYMENT.md. The nginx template
+# ships a single `listen 8081;` and no TLS server block, so nothing here terminates
 # HTTPS; terminate it in front of this port instead of pretending otherwise.
 
 [Unit]
@@ -13,8 +13,13 @@ After=retail-pos-backend.service
 Image=localhost/retail-pos-frontend:latest
 ContainerName=retail-pos-frontend
 Pod=retail-pos.pod
+# Backend proxy target, substituted into the nginx template at container start.
+# 127.0.0.1 is correct while the backend shares this pod's network namespace;
+# a split deployment sets it to the backend machine's address.
+Environment=BACKEND_HOST=127.0.0.1
+Environment=BACKEND_PORT=8080
 # VITE_API_URL is compiled into web/dist at image build time, not a runtime
-# variable, so there is nothing to set here.
+# variable, so there is nothing to set for it here.
 # nginx:alpine is busybox-based: wget, not curl.
 HealthCmd=wget --quiet --tries=1 --spider http://localhost:8081/
 HealthInterval=30s
