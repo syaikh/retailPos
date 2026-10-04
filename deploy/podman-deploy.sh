@@ -5,7 +5,7 @@ set -e
 # Retail POS System - Podman Deployment Script (Refactored)
 # =============================================================================
 # Usage:
-#   ./deploy/podman-deploy.sh build
+#   ./deploy/podman-deploy.sh build [backend|frontend]
 #   ./deploy/podman-deploy.sh start [postgres|backend|frontend|all]
 #   ./deploy/podman-deploy.sh stop [postgres|backend|frontend|all]
 #   ./deploy/podman-deploy.sh migrate
@@ -243,6 +243,48 @@ wait_for_backend() {
     return 1
 }
 
+# The frontend image is a `COPY web/dist/` of a bundle the Dockerfile never
+# builds, so `podman build` silently packages whatever dist happens to be on
+# disk. A dist left over from an earlier commit ships the old JavaScript while
+# reporting a perfectly successful build, which is how a source fix reaches a
+# deployment as a no-op. Rebuild the bundle first whenever anything the build
+# reads is newer than the last build.
+frontend_dist_is_stale() {
+    local stamp="web/dist/index.html"
+    [ -f "$stamp" ] || return 0
+
+    local watched=(web/src web/index.html web/vite.config.js web/package.json)
+    [ -f web/.env ] && watched+=(web/.env)
+    [ -d web/public ] && watched+=(web/public)
+
+    [ -n "$(find "${watched[@]}" -newer "$stamp" -print -quit 2>/dev/null)" ]
+}
+
+build_frontend_assets() {
+    if [ "${SKIP_FRONTEND_BUILD:-0}" = "1" ]; then
+        log_warn "SKIP_FRONTEND_BUILD=1 set; not checking whether web/dist is stale"
+        return 0
+    fi
+
+    if ! frontend_dist_is_stale; then
+        log_info "web/dist is up to date"
+        return 0
+    fi
+
+    if ! command -v npm >/dev/null 2>&1; then
+        log_error "web/dist is stale or missing and npm was not found."
+        log_error "Build the bundle where Node is available, then retry: (cd web && npm ci && npm run build)"
+        return 1
+    fi
+    if [ ! -d web/node_modules ]; then
+        log_error "web/node_modules is missing. Run: (cd web && npm ci)"
+        return 1
+    fi
+
+    log_info "web/dist is stale or missing; building the frontend bundle..."
+    (cd web && npm run build) || { log_error "npm run build failed"; return 1; }
+}
+
 # Service Management
 build_image() {
     local service=$1
@@ -252,6 +294,7 @@ build_image() {
             podman build -t "$BACKEND_IMAGE" -f deploy/backend/Dockerfile .
             ;;
         frontend)
+            build_frontend_assets
             podman build -t "$FRONTEND_IMAGE" -f deploy/frontend/Dockerfile .
             ;;
     esac
@@ -494,8 +537,14 @@ case "$1" in
     build)
         # Reachable on its own because the Quadlet units start containers without
         # ever calling this script, so nothing else would build their images.
-        build_image backend
-        build_image frontend
+        # The optional service argument is what the Makefile's build-backend and
+        # build-frontend targets use, so every image build passes through here
+        # and picks up the frontend staleness check.
+        case "$2" in
+            backend|frontend) build_image "$2" ;;
+            "")              build_image backend; build_image frontend ;;
+            *) log_error "Unknown service: $2"; exit 1 ;;
+        esac
         ;;
     migrate) migrate ;;
     seed)    seed ;;

@@ -39,7 +39,7 @@ Network flow:
   [Client] → Nginx (5173)
               ├─ / → serves static files (frontend)
               ├─ /api/ → proxies to Backend (localhost:8080)
-              └─ /ws/ → upgrades to WebSocket (Backend)
+              └─ /ws → upgrades to WebSocket (Backend)
 ```
 
 Postgres and the API are published on `127.0.0.1` only. The backend reaches
@@ -89,11 +89,15 @@ sudo podman ...
 git clone <your-repo-url>
 cd retail-pos-system
 
-# Build backend image
-podman build -t retail-pos-backend:latest -f deploy/backend/Dockerfile .
+# Install the frontend build dependencies once. web/dist is gitignored and the
+# frontend Dockerfile only COPYs it, so the bundle has to be built on this host.
+(cd web && npm ci)
 
-# Build frontend image
-podman build -t retail-pos-frontend:latest -f deploy/frontend/Dockerfile .
+# Build both images. The script rebuilds web/dist whenever web/src is newer than
+# it, then packages that bundle into the frontend image — so never call
+# `podman build -f deploy/frontend/Dockerfile` directly, it will happily package
+# a stale dist and report success.
+./deploy/podman-deploy.sh build
 
 # Verify images
 podman images | grep retail-pos
@@ -426,9 +430,8 @@ both read `/etc/retail-pos/backend.env` for secrets, and both set `ENV`,
 `CORS_ORIGIN`, `COOKIE_SECURE` and `DB_SSLMODE` explicitly.
 
 ```bash
-# Build images first
-podman build -t retail-pos-backend -f deploy/backend/Dockerfile .
-podman build -t retail-pos-frontend -f deploy/frontend/Dockerfile .
+# Build images first (same staleness-checked build the podman script uses)
+./deploy/podman-deploy.sh build
 
 # The secret file must exist first; compose fails fast if it does not.
 sudo mkdir -p /etc/retail-pos
@@ -858,8 +861,7 @@ default) stops being appropriate.
 # Update images regularly. Match the major version the stack is deployed on
 # (18); pulling an older major against a live data directory is not an update.
 podman pull postgres:18-alpine
-podman build -t retail-pos-backend:latest -f deploy/backend/Dockerfile .
-podman build -t retail-pos-frontend:latest -f deploy/frontend/Dockerfile .
+./deploy/podman-deploy.sh build
 
 # Restart services
 ./deploy/podman-deploy.sh restart

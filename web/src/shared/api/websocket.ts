@@ -30,10 +30,11 @@ class WebSocketService {
     this.status.set("connecting");
 
     try {
+      // Same origin only. Both the Vite dev server and the production nginx
+      // proxy /ws to the backend, so pinning a dev port here breaks every
+      // deployment, where the backend is never published to the browser.
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const backendPort = String(__BACKEND_PORT__) || "9095";
-      const backendHost = `${window.location.hostname}:${backendPort}`;
-      const wsUrl = `${protocol}//${backendHost}/ws`;
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
 
       this.ws = new WebSocket(wsUrl);
 

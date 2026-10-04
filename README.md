@@ -172,6 +172,10 @@ make build-all                 # Build backend + frontend images
 ./deploy/podman-deploy.sh seed    # Seed initial data (optional)
 ```
 
+Run `(cd web && npm ci)` once after cloning — `web/dist` is gitignored and the
+deployment script rebuilds it before packaging the frontend image. See
+[Deployment](#deployment) for the details.
+
 ---
 ## Part D — Developer Guide
 
@@ -718,6 +722,15 @@ make build-all                       # Build backend + frontend images
 ./deploy/podman-deploy.sh stop       # Stop all services
 ./deploy/podman-deploy.sh restart    # Restart
 ```
+
+`web/dist` is gitignored and `deploy/frontend/Dockerfile` only `COPY`s it, so the
+bundle has to be built on the host: run `(cd web && npm ci)` once after cloning.
+From then on `podman-deploy.sh build` (and `make build-frontend`, which delegates
+to it) rebuilds `web/dist` whenever anything under `web/src` is newer than the
+last build. Do **not** call `podman build -f deploy/frontend/Dockerfile`
+directly — it packages whatever `dist` happens to be on disk and reports success,
+which silently ships the previous commit's JavaScript. `SKIP_FRONTEND_BUILD=1`
+bypasses the check when a bundle was produced elsewhere.
 
 Or use the Makefile: `make deploy`, `make stop`, `make restart`, `make status`, `make logs`, `make db-backup`, `make db-restore`, `make db-shell`, `make db-fresh` (reset the **dev** database to first-install state — destroys all data).
 

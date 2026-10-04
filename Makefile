@@ -24,11 +24,14 @@ help: ## Show this help message
 # Build targets
 build-backend: ## Build backend Docker image
 	@echo "Building backend image..."
-	podman build -t retail-pos-backend:latest -f deploy/backend/Dockerfile .
+	./deploy/podman-deploy.sh build backend
 
+# Routed through the script so the bundle is rebuilt when web/src is newer than
+# web/dist. A bare `podman build` here would package a stale dist and report
+# success, shipping the previous commit's JavaScript.
 build-frontend: ## Build frontend Docker image
 	@echo "Building frontend image..."
-	podman build -t retail-pos-frontend:latest -f deploy/frontend/Dockerfile .
+	./deploy/podman-deploy.sh build frontend
 
 build-all: build-backend build-frontend ## Build both images
 

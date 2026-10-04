@@ -687,7 +687,7 @@ var externalImagePorts = map[string]bool{"5432": true}
 
 // TestPortsAreExposedByImage catches a manifest that publishes or healthchecks a
 // port the image never listens on. The compose frontend published 80:80 and
-// probed port 80 while nginx.conf has a single `listen 8081;` — unreachable in
+// probed port 80 while the nginx template has a single `listen 8081;` — unreachable in
 // both directions, inherited from the deleted systemd unit, which had the same
 // defect. A variable-level guard cannot see this: every environment variable was
 // correct in that file.
