@@ -930,10 +930,10 @@ http.server` deployment:
 These are separate documents because they are procedures in their own right,
 not part of the main deployment flow:
 
-- [Quadlet smoke test](../../docs/guides/quadlet-smoke-test.md) — proving the
+- [Quadlet smoke test](../docs/guides/quadlet-smoke-test.md) — proving the
   `deploy/quadlet/` units actually start and stay up. Read this if you are using
   the systemd path; ignore it if you use `./deploy/podman-deploy.sh`.
-- [Print agent production install](../../docs/guides/print-agent-production.md) —
+- [Print agent production install](../docs/guides/print-agent-production.md) —
   installing `tools/print-agent` on a till, per-printer transports, and its
   security model. The agent is a host service, not part of the pod.
 
@@ -946,6 +946,7 @@ For issues, check:
 - Systemd (Quadlet): `journalctl --user -u retail-pos-backend -f` (drop `--user` on a rootful host)
 - Podman: `podman pod ps` and `podman ps -a`
 
-Full documentation: see [README.md](../../README.md), plus
-[docs/guides/](../../docs/guides/) for the print agent, Quadlet smoke test, and
-first-time installation.
+Full documentation: see [README.md](../README.md), plus
+[docs/guides/](../docs/guides/) for the print agent, Quadlet smoke test,
+first-time installation, and the end-user [user
+manual](../docs/guides/user-manual.md).

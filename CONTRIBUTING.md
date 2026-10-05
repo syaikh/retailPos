@@ -42,7 +42,7 @@ Thank you for your interest in contributing to the Retail POS System! This docum
 - Maintain test coverage
 
 ### Pull Request Process
-1. Update the README.md if needed
+1. Update the README.md if needed (developer reference; end-user behaviour changes go to `docs/guides/user-manual.md`)
 2. Ensure all tests pass
 3. Update documentation for any API changes
 4. Request review from maintainers

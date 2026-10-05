@@ -66,8 +66,10 @@ roles). Two readiness blockers remain:
    *Inventory → Products → Import CSV* (templates under `docs/examples/`).
    The blocker clears once at least one active product has stock.
 
-Also replace the placeholder store address and phone (Stores → Edit) — both
-count as readiness blockers until they contain real values.
+Also replace the placeholder store address and phone (Stores → Edit). They are
+*not* what blocks readiness: the check only fires `store.address` / `store.phone`
+when the field is **empty**, and the baseline seeds both with non-empty
+placeholders. Readiness is gated by `storage_location` and `catalog` alone.
 
 Stores added later should go through the **Stores → Tambah Toko** onboarding
 wizard instead: Details → Staff → Location → Stock → Readiness, one step at a
