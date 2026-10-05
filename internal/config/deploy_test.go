@@ -38,9 +38,9 @@ import (
 //
 //   - ENV        selects production behaviour: JSON logs and sslmode=require.
 //     Unset, the server runs as development with debug logging.
-//   - CORS_ORIGIN falls back to http://localhost:5173, so a real domain is
-//     rejected by both the CORS middleware and the WebSocket origin
-//     check.
+//   - CORS_ORIGIN falls back to http://localhost:5173, the Vite dev server,
+//     so a real domain is rejected by both the CORS middleware and the
+//     WebSocket origin check.
 //   - COOKIE_SECURE unset, the 7-day refresh_token cookie is issued without the
 //     Secure flag and is sent in cleartext on any http request.
 var requiredInProduction = []string{
@@ -965,8 +965,8 @@ func TestDocumentedScriptCommandsExist(t *testing.T) {
 // postgres over the pod's own network namespace, and the only host-side client
 // is `podman-deploy.sh seed`, which connects to 127.0.0.1.
 //
-// 5173 is deliberately absent. A cashier's browser on the store LAN is the
-// intended client for the frontend, so it has to be reachable.
+// The frontend's port (8000) is deliberately absent. A cashier's browser on the
+// store LAN is the intended client for it, so it has to be reachable.
 var loopbackOnlyPorts = []string{"5432", "8080"}
 
 // TestDatabaseAndAPIIsNotPublishedOnRoutableInterfaces checks the pod unit and
@@ -1095,4 +1095,74 @@ func TestPrintAgentServiceReadsTheEnvFileTheGuideWrites(t *testing.T) {
 	assert.NotContains(t, guide, "PRINT_OUTPUT_DIR=/var/lib",
 		"the sample env file sets PRINT_OUTPUT_DIR outside /tmp, but the service runs "+
 			"with ProtectSystem=strict where only /tmp is writable")
+}
+
+// TestPodmanScriptDoesNotGuaranteeAnUnsatisfiableSSLMode guards the first-run
+// path. DB_SSLMODE defaulted to `require` unconditionally while no manifest in
+// this repository mounts a certificate and the stock postgres:18-alpine image
+// ships ssl=off, so `podman-deploy.sh start all` aborted on every fresh install
+// and the operator had to know the workaround before running it.
+//
+// The fix is settle_db_sslmode, and this checks that function rather than the
+// comment describing it. Four properties matter, and dropping any one
+// reintroduces a different failure:
+//
+//  1. The downgrade is conditional on the operator having chosen nothing, so a
+//     deliberate `require` cannot be quietly turned into plaintext traffic.
+//  2. The probe still reads the database's real ssl setting, rather than
+//     assuming a default that a future image change would invalidate.
+//  3. An unusable DB_SSLMODE is rejected before it reaches the backend, which
+//     would otherwise fall back to `require` on its own and crash-loop.
+//  4. The probe runs on the `start backend` path too. This was a real defect,
+//     not a hypothetical: with the probe living only in wait_for_postgres,
+//     `podman-deploy.sh start backend` skipped it and crash-looped the container.
+func TestPodmanScriptDoesNotGuaranteeAnUnsatisfiableSSLMode(t *testing.T) {
+	script := stripComments(repoFile(t, filepath.Join("deploy", "podman-deploy.sh")), "#")
+
+	// (1) The probe must be gated on an explicit-choice flag, otherwise every
+	// configured value gets downgraded.
+	assert.Contains(t, script, "DB_SSLMODE_SET_EXPLICITLY",
+		"podman-deploy.sh must record whether DB_SSLMODE was set explicitly, "+
+			"so an operator's deliberate TLS choice is never downgraded to disable")
+	assert.Regexp(t,
+		regexp.MustCompile(`if \[ "\$DB_SSLMODE_SET_EXPLICITLY" -eq 1 \]; then`),
+		script,
+		"the ssl=off branch must test DB_SSLMODE_SET_EXPLICITLY before downgrading")
+
+	// (2) The probe must ask the server, not trust a shipped assumption.
+	assert.Contains(t, script, "SHOW ssl;",
+		"the ssl=off branch must query the database's actual ssl setting")
+	assert.Contains(t, script, "DB_SSLMODE=disable",
+		"the unconfigured ssl=off path must continue with DB_SSLMODE=disable")
+
+	// (3) A typo must be caught in the script. The backend's own fallback is
+	// `require` in production, which is the mode the probe refuses to let pass,
+	// so an unchecked typo surfaces as a crash loop rather than as the mistake.
+	validate := regexp.MustCompile(`(?s)validate_backend_config\(\)\s*\{.*?\n\}`).FindString(script)
+	require.NotEmpty(t, validate, "no validate_backend_config function found in podman-deploy.sh")
+	assert.Contains(t, validate, "DB_SSLMODE",
+		"validate_backend_config must reject an invalid DB_SSLMODE before any container starts")
+	for _, mode := range []string{"disable", "require", "verify-ca", "verify-full"} {
+		assert.Containsf(t, validate, mode,
+			"validate_backend_config must accept the valid libpq sslmode %q", mode)
+	}
+
+	// The four modes above are the whole of libpq's verify set; a fifth accepted
+	// spelling would be one the backend does not recognise.
+	accepted := regexp.MustCompile(`disable\|require\|verify-ca\|verify-full`).FindString(validate)
+	require.NotEmpty(t, accepted, "no sslmode whitelist found in validate_backend_config")
+
+	// (4) `start backend` is a documented command that never runs the readiness
+	// wait, so a probe reachable only from wait_for_postgres leaves that path
+	// handing the container a mode nobody checked. Presence is not enough: the
+	// call has to precede the podman run that fixes the value.
+	startBackend := regexp.MustCompile(`(?s)start_backend\(\)\s*\{.*?\n\}`).FindString(script)
+	require.NotEmpty(t, startBackend, "no start_backend function found in podman-deploy.sh")
+	settle := strings.Index(startBackend, "settle_db_sslmode")
+	require.NotEqual(t, -1, settle,
+		"start_backend must call settle_db_sslmode, or `podman-deploy.sh start backend` "+
+			"hands the container an sslmode it never checked against the database")
+	assert.Less(t, settle, strings.Index(startBackend, "-e DB_SSLMODE="),
+		"settle_db_sslmode must run before start_backend passes DB_SSLMODE to the container, "+
+			"otherwise the downgrade happens after the value was already fixed")
 }

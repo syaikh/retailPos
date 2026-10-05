@@ -20,7 +20,12 @@ cd "$SCRIPT_DIR"
 # Configuration
 POD_NAME="retail-pos-pod"
 NETWORK_NAME="retail-pos-network"
-HOST_FRONTEND_PORT="${HOST_FRONTEND_PORT:-5173}"
+# 8000, not 5173: 5173 is the Vite dev server's port (FRONTEND_PORT in the root
+# .env.example), and a developer running `npm run dev` on this machine would
+# collide with a production stack published there. 8000 is unprivileged, so
+# rootless podman can bind it, and nothing else in the stack claims it — the
+# backend holds 8080 and postgres holds 5432, both on loopback.
+HOST_FRONTEND_PORT="${HOST_FRONTEND_PORT:-8000}"
 
 # Address the frontend's nginx proxies /api/, /ws/ and /health to. It is
 # substituted into deploy/nginx/default.conf.template at container start.
@@ -89,16 +94,28 @@ CORS_ORIGIN="${CORS_ORIGIN:-http://localhost:${HOST_FRONTEND_PORT}}"
 
 # libpq sslmode for the backend's connection to PostgreSQL.
 #
-# The backend defaults to `require` in production, which the stock
-# postgres:18-alpine image cannot satisfy: it ships with ssl=off unless a
-# certificate and key are mounted, so `require` fails with
-# "server refused TLS connection" and the backend crash-loops.
+# `require` is the preferred posture, but the stock postgres:18-alpine image
+# cannot satisfy it: it ships with ssl=off unless a certificate and key are
+# mounted, so a hard default of `require` makes a fresh `start all` abort
+# before anything is deployed. wait_for_postgres therefore treats `require` as
+# the preferred *default* rather than a guaranteed value: when the database
+# turns out to have ssl=off and the operator never chose a mode, it downgrades
+# to `disable` with a warning. An explicitly configured mode is never
+# downgraded, so a deliberate `require` still fails loudly.
 #
 #   require       - correct when TLS certs are mounted (see PRODUCTION-DEPLOYMENT.md).
-#                   This is the default and the recommended posture.
-#   disable       - only valid when the database is unreachable from outside the
-#                   pod's internal network. It is a decision, not a fallback: the
-#                   backend logs a warning at startup when it sees this in production.
+#                   The preferred posture, and the default when one can be met.
+#   disable       - valid here because 5432 is bound to 127.0.0.1 only and the
+#                   backend reaches the database over the pod's private network.
+#                   The backend logs a warning at startup when it sees this in production.
+#
+# An invalid value is rejected up front: the backend otherwise falls back to its
+# own default of `require`, which is exactly the ssl=off crash-loop that the
+# probe in wait_for_postgres exists to prevent.
+DB_SSLMODE_SET_EXPLICITLY=0
+if [ -n "${DB_SSLMODE:-}" ]; then
+    DB_SSLMODE_SET_EXPLICITLY=1
+fi
 DB_SSLMODE="${DB_SSLMODE:-require}"
 
 # Volume names
@@ -143,6 +160,25 @@ validate_backend_config() {
         missing=1
     fi
 
+    # Reject an unusable sslmode here. Left unchecked it reaches the backend,
+    # which silently falls back to its own default of `require` in production —
+    # the very mode settle_db_sslmode refuses to let pass against an ssl=off
+    # database, so the operator would get a crash loop with no mention of the
+    # typo that caused it.
+    #
+    # Reported separately from the missing-secret block: a typo needs the operator
+    # to fix a value they already set, and printing the secret-creation recipe
+    # alongside it sends them to the wrong file.
+    case "$DB_SSLMODE" in
+        disable|require|verify-ca|verify-full) ;;
+        *)
+            log_error "DB_SSLMODE=$DB_SSLMODE is not a valid libpq sslmode."
+            log_error "Valid values: disable, require, verify-ca, verify-full"
+            log_error "Fix the value in $ENV_FILE (or unset it to let the script choose)."
+            return 1
+            ;;
+    esac
+
     if [ "$missing" -ne 0 ]; then
         log_error ""
         log_error "Add the missing values to $ENV_FILE and re-run. Create it with:"
@@ -157,6 +193,51 @@ validate_backend_config() {
     fi
 
     log_info "Backend configuration validated (secrets from $ENV_FILE)"
+}
+
+# settle_db_sslmode decides the sslmode the backend will actually be given.
+#
+# It must be callable from start_backend as well as start_postgres: `start
+# backend` is a documented command that runs without start_postgres, so a probe
+# that lived only in the readiness wait left that path handing the backend a
+# mode it had never checked. The result is a crash loop whose logs blame TLS and
+# never mention the missing probe.
+#
+# pg_isready connects over the unix socket and never negotiates TLS, so it
+# reports ready even when the server holds no certificate. That makes the
+# following check, not readiness, the thing that actually prevents the loop.
+settle_db_sslmode() {
+    case "$DB_SSLMODE" in
+        require|verify-ca|verify-full)
+            local ssl_on
+            ssl_on=$(podman exec postgres psql -U "$DB_USER" -tAc "SHOW ssl;" 2>/dev/null | tr -d '[:space:]')
+            if [ "$ssl_on" != "on" ]; then
+                if [ "$DB_SSLMODE_SET_EXPLICITLY" -eq 1 ]; then
+                    # The operator asked for TLS, so honour it and fail. Silently
+                    # downgrading here would ship plaintext database traffic under
+                    # a setting that reads as encrypted.
+                    log_error "PostgreSQL has ssl=off, but DB_SSLMODE=$DB_SSLMODE was set explicitly."
+                    log_error "The backend would crash-loop with 'server refused TLS connection'."
+                    log_error "Either mount a server certificate and key on the postgres container (see"
+                    log_error "deploy/PRODUCTION-DEPLOYMENT.md), or change DB_SSLMODE to disable in"
+                    log_error "the secret file and record that the database is confined to the pod network."
+                    return 1
+                fi
+                # No mode was chosen, so there is no decision to contradict. The
+                # database is published on 127.0.0.1 only and reached over the
+                # pod's private network, which is the confinement `disable`
+                # requires, so fall back and say so.
+                log_warn "PostgreSQL has ssl=off and no DB_SSLMODE was set, so TLS cannot be used."
+                log_warn "Continuing with DB_SSLMODE=disable. This is acceptable here because the"
+                log_warn "database is bound to 127.0.0.1 and reached over the pod's private network."
+                log_warn "To encrypt it instead, mount a certificate on the postgres container and set"
+                log_warn "DB_SSLMODE=require (see deploy/PRODUCTION-DEPLOYMENT.md)."
+                DB_SSLMODE=disable
+            else
+                log_info "PostgreSQL TLS is enabled (ssl=on), satisfying DB_SSLMODE=$DB_SSLMODE"
+            fi
+            ;;
+    esac
 }
 
 ensure_pod() {
@@ -198,25 +279,7 @@ wait_for_postgres() {
         return 1
     fi
 
-    # pg_isready connects over the unix socket and never negotiates TLS, so it
-    # reports ready even when the server holds no certificate and the backend's
-    # sslmode connection is about to be refused. Confirm the server can actually
-    # satisfy the mode the backend was given.
-    case "$DB_SSLMODE" in
-        require|verify-ca|verify-full)
-            local ssl_on
-            ssl_on=$(podman exec postgres psql -U "$DB_USER" -tAc "SHOW ssl;" 2>/dev/null | tr -d '[:space:]')
-            if [ "$ssl_on" != "on" ]; then
-                log_error "PostgreSQL has ssl=off, but the backend is configured with DB_SSLMODE=$DB_SSLMODE."
-                log_error "The backend would crash-loop with 'server refused TLS connection'."
-                log_error "Either mount a server certificate and key on the postgres container (see"
-                log_error "deploy/PRODUCTION-DEPLOYMENT.md), or set DB_SSLMODE=disable in the secret"
-                log_error "file and record that the database is confined to the pod network."
-                return 1
-            fi
-            log_info "PostgreSQL TLS is enabled (ssl=on), satisfying DB_SSLMODE=$DB_SSLMODE"
-            ;;
-    esac
+    settle_db_sslmode
 
     log_info "PostgreSQL is ready!"
     return 0
@@ -337,6 +400,10 @@ start_postgres() {
 start_backend() {
     ensure_pod
     validate_backend_config || return 1
+    # Not only in wait_for_postgres: `start backend` reaches this point without
+    # the readiness probe ever running, and passing an unsatisfiable mode here is
+    # what puts the backend into the crash loop the probe exists to prevent.
+    settle_db_sslmode || return 1
     build_image backend
     if container_exists "backend"; then
         log_info "Replacing existing backend container..."

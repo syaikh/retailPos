@@ -84,7 +84,7 @@ The startup line reports the listen address, the transport, and the exact
 origins it will accept:
 
 ```
-[print-agent] listening on 0.0.0.0:9123 transport=serial origins=[http://192.168.1.10:5173] auth=origin-allowlist
+[print-agent] listening on 0.0.0.0:9123 transport=serial origins=[http://192.168.1.10:8000] auth=origin-allowlist
 ```
 
 Read that line on a new till. If the origin is not your website's address, the

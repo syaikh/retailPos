@@ -40,7 +40,7 @@ All database connection parameters are in `.env.example`:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `JWT_SECRET_REFRESH` | (derived) | Separate secret for refresh tokens |
-| `FRONTEND_PORT` | `5173` | Frontend dev server (Vite) |
+| `FRONTEND_PORT` | `5173` | Frontend dev server (Vite). Distinct from `HOST_FRONTEND_PORT`, which is the production publish |
 | `BACKEND_PORT` | `9095` | Backend dev server (Go) |
 | `DATABASE_PORT` | `5433` | Development database port |
 | `LOGIN_RATE_LIMIT_RPM` | `5` | Login rate limit requests per minute |
@@ -56,7 +56,7 @@ All database connection parameters are in `.env.example`:
 | `CART_HOLD_TTL_HOURS` | `24` | Cart hold TTL in hours |
 | `REPORT_REFRESH_DEBOUNCE` | `30` | Report refresh retry delay (seconds, exponential backoff) |
 | `DB_SSLMODE` | `require` (prod) / `disable` (dev) | libpq `sslmode` for the `DB_*` DSN. Invalid values are rejected at startup and fall back to the environment default. Ignored when `DATABASE_URL` is set |
-| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin; must not be `*` in production |
+| `CORS_ORIGIN` | `http://localhost:5173` (dev) | Allowed CORS origin; must not be `*` in production. `podman-deploy.sh` derives it from `HOST_FRONTEND_PORT`, default `8000` |
 | `COOKIE_DOMAIN` | (host-only) | `Domain` attribute on the refresh-token cookie |
 | `COOKIE_SECURE` | `false` | `Secure` attribute on auth cookies — set `true` behind TLS |
 | `ENV` | `development` | Log format: development/production |

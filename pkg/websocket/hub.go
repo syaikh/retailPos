@@ -37,10 +37,17 @@ func checkOrigin(r *http.Request) bool {
 		return false
 	}
 
+	// Dev origins: 5173 is the Vite dev server (FRONTEND_PORT), 9095 is the Go
+	// backend's own dev listener. 8000 is where podman-deploy.sh publishes the
+	// production frontend (HOST_FRONTEND_PORT). A LAN client reaches the app on
+	// a routable IP instead, which no static list can enumerate — that is what the
+	// CORS_ORIGIN comparison below is for.
 	allowedOrigins := map[string]bool{
 		"http://localhost:5173": true,
+		"http://localhost:8000": true,
 		"http://localhost:9095": true,
 		"http://127.0.0.1:5173": true,
+		"http://127.0.0.1:8000": true,
 		"http://127.0.0.1:9095": true,
 	}
 	if allowedOrigins[origin] {

@@ -13,10 +13,10 @@ script and skip this document.
 ## Before you start
 
 Run this on a **test machine, not the live till**. It starts real containers and
-binds ports 5173, 8080 and 5432. Check nothing else is holding them:
+binds ports 8000, 8080 and 5432. Check nothing else is holding them:
 
 ```bash
-ss -ltnp | grep -E ':(5173|8080|5432)\b' || echo "all three ports are free"
+ss -ltnp | grep -E ':(8000|8080|5432)\b' || echo "all three ports are free"
 ```
 
 You need the secret file to exist and to be readable by your own account. A
@@ -68,12 +68,12 @@ climbing means a crash loop:
 ```bash
 systemctl --user show -p NRestarts retail-pos-backend.service
 curl -fsS http://localhost:8080/health
-curl -fsSI http://localhost:5173/
+curl -fsSI http://localhost:8000/
 ```
 
 `curl` on 8080 only works from this machine now, and that is correct: 8080 and
 5432 are bound to `127.0.0.1` and are not reachable from the network. The
-frontend on 5173 is the only port intended to be public, because a browser on
+frontend on 8000 is the only port intended to be public, because a browser on
 the store LAN is its real client.
 
 ## 5. Confirm the security posture

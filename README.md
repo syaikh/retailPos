@@ -112,7 +112,7 @@ Retail POS System is a modern Point of Sale (POS) application for retail stores 
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  Nginx Frontend            Port 5173 → 8081              │
+│  Nginx Frontend            Port 8000 → 8081              │
 │  Go Backend                Port 8080 (internal)          │
 │  PostgreSQL 18            Volume retail-pos-postgres-data│
 │  Pod retail-pos-pod        One shared network namespace  │
@@ -682,7 +682,7 @@ Backend stores data in UTC, but **all queries use the Asia/Jakarta timezone**. T
 | `DB_SSLMODE` | `require` (prod) / `disable` (dev) | libpq sslmode. Defaults to `require` when `ENV=production`; the stock `postgres:18-alpine` image ships `ssl=off`, so production must either mount a certificate or set this explicitly |
 | `ENV` | `development` | `development` (text log) / `production` (JSON log, release mode, sslmode require) |
 | `LOG_LEVEL` | `debug`/`info` | Log level: debug, info, warn, error |
-| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin (must not be `*` in production) |
+| `CORS_ORIGIN` | `http://localhost:5173` (dev) | Allowed CORS origin (must not be `*` in production). Production runs on `http://localhost:8000` |
 | `PORT` | `9095` | HTTP server port |
 | `FRONTEND_PORT` | `5173` | Frontend dev server port (Vite) |
 | `BACKEND_PORT` | `9095` | Backend dev server port (Go) |

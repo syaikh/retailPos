@@ -32,7 +32,9 @@ PublishPort=127.0.0.1:8080:8080
 # EXPOSE 8081), not 80. The retired systemd unit published 80:80 and could
 # never have worked.
 #
-# 5173 stays on every interface: a browser on the store LAN is the intended
+# 8000 stays on every interface: a browser on the store LAN is the intended
 # client. Put a reverse proxy with TLS in front of it for anything off-LAN.
-PublishPort=5173:8081
+# 5173 is deliberately avoided — that is the Vite dev server's port, so a
+# developer running `npm run dev` alongside this stack would collide with it.
+PublishPort=8000:8081
 PublishPort=127.0.0.1:5432:5432

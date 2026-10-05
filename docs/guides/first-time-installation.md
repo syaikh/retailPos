@@ -134,7 +134,7 @@ itself:
 
 1. **Restart the backend** — the Ristretto (10 min) and branding (60 s) caches
    survive a database swap.
-2. **Clear browser site data for `http://localhost:5173`** — the `refresh_token`
+2. **Clear browser site data for `http://localhost:8000`** — the `refresh_token`
    cookie and `sessionStorage.access_token` point at the old database.
    `localStorage.clear(); sessionStorage.clear();` from the console is enough.
 3. **Delete the Playwright token cache** — `rm -f /tmp/retail-pos-e2e-tokens.v1.json`.

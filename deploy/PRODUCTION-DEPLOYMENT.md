@@ -4,20 +4,20 @@
 
 This guide covers deploying the Retail POS System in production using **Podman containers** with a **pod architecture**. The system consists of:
 
-- **Nginx** (port 8081, published as 5173): Serves static frontend and reverse proxies API/WebSocket
+- **Nginx** (port 8081, published as 8000): Serves static frontend and reverse proxies API/WebSocket
 - **Go Backend** (port 8080, published as 127.0.0.1:8080): REST API + WebSocket server
 - **PostgreSQL** (port 5432, published as 127.0.0.1:5432 on the Podman paths only): Database
 
 All three containers run in a **single Podman pod** with shared network namespace.
 
-Only 5173 is published on a routable interface, because a browser on the store
+Only 8000 is published on a routable interface, because a browser on the store
 LAN is the frontend's real client. 8080 and 5432 are bound to `127.0.0.1` and are
 unreachable from the network; `internal/config/deploy_test.go` fails the build if
 that changes.
 
 There is no TLS listener in these images. `deploy/nginx/default.conf.template` has exactly
 one `listen 8081;` and no `ssl` block, and the frontend container publishes only
-5173. Terminating TLS is left to a reverse proxy in front of the stack — see
+8000. Terminating TLS is left to a reverse proxy in front of the stack — see
 *TLS Termination*. An earlier version of this guide claimed 80/443; that came from
 the retired systemd unit, and it never matched the shipped nginx config.
 
@@ -30,13 +30,13 @@ the retired systemd unit, and it never matched the shipped nginx config.
 │              Host Machine (Podman)                 │
 ├─────────────────────────────────────────────────────┤
 │  Pod: retail-pos-pod (shared network)              │
-│  ├─ Container: Nginx (8081 → published 5173)                │
+│  ├─ Container: Nginx (8081 → published 8000)                │
 │  ├─ Container: Backend (8080 → published 127.0.0.1:8080)    │
 │  └─ Container: Postgres (5432 → published 127.0.0.1:5432)   │
 └─────────────────────────────────────────────────────┘
 
 Network flow:
-  [Client] → Nginx (5173)
+  [Client] → Nginx (8000)
               ├─ / → serves static files (frontend)
               ├─ /api/ → proxies to Backend (localhost:8080)
               └─ /ws → upgrades to WebSocket (Backend)
@@ -150,9 +150,14 @@ producing a backend crash loop.
 
 ### Step 3: Deploy with Script
 
-The stock `postgres:18-alpine` image ships `ssl=off` while the backend defaults
-to `DB_SSLMODE=require` in production, so decide now which posture you want (see
-[Database TLS](#database-tls)):
+`podman-deploy.sh` prefers `DB_SSLMODE=require`, but the stock
+`postgres:18-alpine` image ships `ssl=off`. When you have not chosen a mode the
+script notices that after the database starts and continues with `disable`,
+which is safe for the single-host layout below because the database port is
+bound to `127.0.0.1` and the backend reaches it over the pod's private network.
+
+To make that a recorded decision rather than a fallback, or to encrypt the
+connection, set the mode yourself (see [Database TLS](#database-tls)):
 
 ```bash
 # Single-host: database reachable only on 127.0.0.1 inside the pod network.
@@ -162,8 +167,9 @@ echo 'DB_SSLMODE=disable' | sudo tee -a /etc/retail-pos/backend.env
 # echo 'DB_SSLMODE=require' | sudo tee -a /etc/retail-pos/backend.env
 ```
 
-`podman-deploy.sh` runs `SHOW ssl` after the database starts and refuses to
-continue if the database cannot satisfy the configured mode.
+An explicitly configured mode is never downgraded: `require` against an
+`ssl=off` database still fails, so a deliberate TLS choice cannot be turned
+into plaintext traffic by a probe.
 
 ```bash
 # Make script executable
@@ -181,8 +187,8 @@ chmod +x deploy/podman-deploy.sh
 
 ### Step 4: Access Application
 
-Open browser: **http://your-server-ip:5173** (the frontend is published on host
-port `5173`; `HOST_FRONTEND_PORT` changes it).
+Open browser: **http://your-server-ip:8000** (the frontend is published on host
+port `8000`; `HOST_FRONTEND_PORT` changes it).
 
 Bootstrap login credentials:
 - Username: `superadmin`
@@ -207,9 +213,11 @@ The backend defaults to `sslmode=require` in production (`ENV=production`) and
 with `server refused TLS connection` and, because of `--restart
 unless-stopped`, crash-loops.
 
-`podman-deploy.sh` reads `SHOW ssl` after the database starts and refuses to
-continue if the server cannot satisfy the configured mode, naming this
-decision explicitly rather than letting it surface as a mystery crash loop.
+`podman-deploy.sh` reads `SHOW ssl` after the database starts. If you configured a
+mode explicitly it refuses to continue when the server cannot satisfy it,
+naming this decision rather than letting it surface as a mystery crash loop. If
+you configured nothing it downgrades to `disable` with a warning, so an
+unconfigured first install starts; it never downgrades a mode you chose.
 
 Two supported options.
 
@@ -323,7 +331,7 @@ Start the backend host as usual (its own `BACKEND_HOST` is irrelevant):
 Run only the frontend image on the frontend host, pointed at the backend host:
 
 ```bash
-podman run -d --name frontend -p 5173:8081 \
+podman run -d --name frontend -p 8000:8081 \
   -e BACKEND_HOST=10.0.0.5 \
   -e BACKEND_PORT=8080 \
   localhost/retail-pos-frontend:latest
@@ -331,6 +339,12 @@ podman run -d --name frontend -p 5173:8081 \
 
 Then set the backend's `CORS_ORIGIN` to the frontend's public origin and terminate
 TLS on the frontend host (see [SSL/TLS Configuration](#ssltls-configuration-https)).
+
+> `CORS_ORIGIN` is compared as an exact string against the browser's `Origin`
+> header, and the WebSocket upgrade is checked against the same value. Write it
+> without a trailing slash (`http://pos.example.com:8000`, not `…:8000/`) — a
+> slash is part of the comparison, so the mismatch surfaces as a CORS failure
+> for API calls and a rejected upgrade for the socket, with no log explaining why.
 
 > **Note:** the default pod forward binds the backend to `127.0.0.1`, which
 > another machine cannot reach. Publish it on the private interface and scope a
@@ -352,12 +366,12 @@ why the script exists. See [Database TLS](#database-tls) for `DB_SSLMODE`.
 sudo test -r /etc/retail-pos/backend.env || { echo "missing secret file"; exit 1; }
 
 # 1. Create pod with ports
-#    5173→8081, not 80→80: the nginx template has a single `listen 8081;`. Publishing
+#    8000→8081, not 80→80: the nginx template has a single `listen 8081;`. Publishing
 #    80/443 reaches nothing (this is the defect the retired systemd unit had).
 #    8080 and 5432 are bound to 127.0.0.1, never 0.0.0.0: a bare `-p 8080:8080`
 #    makes them reachable from anywhere that can route to this machine. 5432 is
 #    published at all only so host-side psql/seed can connect.
-podman pod create --name retail-pos-pod -p 5173:8081 -p 127.0.0.1:8080:8080 -p 127.0.0.1:5432:5432
+podman pod create --name retail-pos-pod -p 8000:8081 -p 127.0.0.1:8080:8080 -p 127.0.0.1:5432:5432
 
 # 2. Create persistent volumes
 podman volume create retail-pos-postgres-data
@@ -484,7 +498,7 @@ unit definitions from a directory rather than generating them.
 | `retail-pos.pod` | network namespace and the published ports |
 | `retail-pos-postgres.container` | PostgreSQL 18, credentials from the secret file |
 | `retail-pos-backend.container` | Go API on 8080 |
-| `retail-pos-frontend.container` | nginx on 8081, published as 5173 |
+| `retail-pos-frontend.container` | nginx on 8081, published as 8000 |
 
 ### Install (rootless, per-user systemd)
 
@@ -520,7 +534,7 @@ systemctl --user enable --now retail-pos-postgres.service \
 systemctl --user status retail-pos-backend.service
 journalctl --user -u retail-pos-backend.service -f
 curl -fsS http://localhost:8080/health
-curl -fsS http://localhost:5173/
+curl -fsS http://localhost:8000/
 ```
 
 For a **rootful** host, copy the files to `/etc/containers/systemd/` and drop
@@ -570,7 +584,7 @@ sudo certbot certonly --standalone -d yourdomain.com
 # Install a host nginx that terminates TLS and proxies to the container
 sudo mkdir -p /etc/nginx/conf.d
 # see deploy/nginx/default.conf.template for the upstream path; proxy_pass to
-# 127.0.0.1:5173 and proxy /api to 127.0.0.1:8080, including the
+# 127.0.0.1:8000 and proxy /api to 127.0.0.1:8080, including the
 # Upgrade/Connection headers the WebSocket handler needs.
 
 # Then set CORS_ORIGIN to the public origin in the secret file and restart.
@@ -610,7 +624,7 @@ sudo systemctl edit certbot-renew.timer
 | `PORT` | `8080` | Container listen port |
 | `ENV` | `development` | `production` enables the strict defaults |
 | `LOG_LEVEL` | `info` | `debug`/`info`/`warn`/`error` |
-| `CORS_ORIGIN` | dev origin | Single browser origin |
+| `CORS_ORIGIN` | dev origin | Single browser origin, exact match — no trailing slash |
 | `COOKIE_SECURE` | `false` | Must be `true` in production |
 | `GIN_MODE` | `debug` | `release` in production |
 
@@ -657,7 +671,7 @@ therefore carry **both** spellings, and they must agree:
 ### Health Endpoints
 
 - **Backend:** `curl http://localhost:8080/health` (no auth; there is no `/api/stats` route)
-- **Frontend:** `curl http://localhost:5173/` should return HTML (nginx also proxies `/health`)
+- **Frontend:** `curl http://localhost:8000/` should return HTML (nginx also proxies `/health`)
 - **Database:** `podman exec postgres pg_isready -U pos`
 
 Container names depend on how you deployed: `podman-deploy.sh` creates
@@ -719,8 +733,8 @@ podman volume import retail-pos-uploads uploads-volume.tar
 ### Pod won't start (port already in use)
 
 ```bash
-# Check what's using ports 5173/8080/5432
-sudo ss -tulpn | grep -E ':5173|:8080|:5432'
+# Check what's using ports 8000/8080/5432
+sudo ss -tulpn | grep -E ':8000|:8080|:5432'
 
 # Kill conflicting process
 sudo systemctl stop nginx   # if nginx is running
@@ -838,14 +852,14 @@ external secret manager.
 
 ### 3. Firewall Configuration
 
-Only **5173** is published on all interfaces. 8080 and 5432 are bound to
+Only **8000** is published on all interfaces. 8080 and 5432 are bound to
 `127.0.0.1` (and `docker-compose.yml` publishes neither), so a reverse proxy on
 the same host reaches the backend over loopback and no firewall rule is needed
 for it — adding one for 8080/5432 would expose them to the network anyway.
 
 ```bash
 # The only port that needs to be open
-sudo firewall-cmd --permanent --add-port=5173/tcp
+sudo firewall-cmd --permanent --add-port=8000/tcp
 sudo firewall-cmd --reload
 ```
 

@@ -128,7 +128,7 @@ services:
     # is the defect the retired systemd unit had too. Terminate TLS in front of
     # this port (host nginx, or a published 8443 once a TLS block exists).
     ports:
-      - "5173:8081"
+      - "8000:8081"
     networks:
       - retail-pos-network
     # nginx:alpine is busybox-based and has wget, not curl. The port is 8081
