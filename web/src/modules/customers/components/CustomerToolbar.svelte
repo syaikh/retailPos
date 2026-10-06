@@ -118,13 +118,13 @@
         </button>
       {/snippet}
     </Dropdown>
-    {#if canCreate}
       <BulkActionDropdown
         module="customers"
         {canExport}
         {canImport}
         {onImport}
       />
+    {#if canCreate}
       <Button
         onclick={oncreate}
         variant="primary"

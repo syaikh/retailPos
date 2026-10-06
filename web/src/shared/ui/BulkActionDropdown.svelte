@@ -57,6 +57,7 @@
 {#if canExport || canImport}
   <Dropdown
     items={[
+      {#if canExport}
       {
         label: "Export CSV",
         icon: FileText,
@@ -67,6 +68,7 @@
         icon: FileSpreadsheet,
         onclick: () => handleExport("xlsx"),
       },
+      {/if}
       ...(canTemplate
         ? [
             { divider: true },
