@@ -90,12 +90,16 @@ export const Permissions = {
     create: "store.create",
     update: "store.update",
     delete: "store.delete",
+    import: "store.import",
+    export: "store.export",
   },
   customerGroup: {
     view: "customer_group.view",
     create: "customer_group.create",
     update: "customer_group.update",
     delete: "customer_group.delete",
+    import: "customer_group.import",
+    export: "customer_group.export",
   },
   purchaseOrder: {
     view: "purchase_order.view",

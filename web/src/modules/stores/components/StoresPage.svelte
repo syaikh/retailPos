@@ -61,6 +61,8 @@
   const canCreate = $derived(rbac.can(Permissions.store.create));
   const canEdit = $derived(rbac.can(Permissions.store.update));
   const canDelete = $derived(rbac.can(Permissions.store.delete));
+  const canExport = $derived(rbac.can(Permissions.store.export));
+  const canImport = $derived(rbac.can(Permissions.store.import));
 
   function formatDate(dateStr) {
     if (!dateStr) return "—";
@@ -241,8 +243,8 @@
         <div class="flex items-center gap-2">
           <BulkActionDropdown
             module="stores"
-            canExport={true}
-            canImport={true}
+            canExport={canExport}
+            canImport={canImport}
             onImport={() => (showImportWizard = true)}
           />
           <Button

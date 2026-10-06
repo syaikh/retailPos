@@ -411,6 +411,9 @@ podman run -d \
   -e PORT=8080 \
   -e ENV=production \
   -e LOG_LEVEL=info \
+  # COOKIE_SECURE=true is correct in THIS example only, because it puts HTTPS in
+  # front of the pod. Over the pod's own plain-HTTP nginx it must be false: a
+  # browser drops a Secure cookie from a non-localhost http origin.
   -e CORS_ORIGIN=https://pos.example.com \
   -e COOKIE_SECURE=true \
   -e GIN_MODE=release \
@@ -432,8 +435,10 @@ podman run -d \
 Required and easy to omit: `JWT_SECRET` (without it the backend panics),
 `ENV=production` (without it you get text logs at `debug`), `CORS_ORIGIN` (the
 `FRONTEND_URL` variable that older docs mention is read by no code),
-`COOKIE_SECURE=true` (without it the refresh-token cookie is issued without the
-`Secure` flag), and `DB_SSLMODE`.
+`COOKIE_SECURE` (matching the scheme you actually serve — `true` behind HTTPS,
+`false` on the plain-HTTP nginx, since a browser drops a `Secure` cookie from a
+non-localhost http origin and the session then cannot be refreshed), and
+`DB_SSLMODE`.
 
 ---
 
@@ -441,7 +446,9 @@ Required and easy to omit: `JWT_SECRET` (without it the backend panics),
 
 `deploy/docker-compose.yml` is a supported alternative, aligned with the script:
 both read `/etc/retail-pos/backend.env` for secrets, and both set `ENV`,
-`CORS_ORIGIN`, `COOKIE_SECURE` and `DB_SSLMODE` explicitly.
+`CORS_ORIGIN`, `COOKIE_SECURE` and `DB_SSLMODE` explicitly. Compose's `COOKIE_SECURE`
+defaults to `false` and is overridable from the environment, because it must track the
+scheme actually served rather than a fixed hardening value — see the note on it.
 
 ```bash
 # Build images first (same staleness-checked build the podman script uses)
@@ -625,7 +632,7 @@ sudo systemctl edit certbot-renew.timer
 | `ENV` | `development` | `production` enables the strict defaults |
 | `LOG_LEVEL` | `info` | `debug`/`info`/`warn`/`error` |
 | `CORS_ORIGIN` | dev origin | Single browser origin, exact match — no trailing slash |
-| `COOKIE_SECURE` | `false` | Must be `true` in production |
+| `COOKIE_SECURE` | `false` | `Secure` flag on the refresh cookie — `true` only when TLS fronts the app |
 | `GIN_MODE` | `debug` | `release` in production |
 
 ### Postgres

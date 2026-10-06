@@ -92,6 +92,23 @@ export POSTGRES_PASSWORD
 # (pkg/websocket/hub.go). A comma-separated list therefore matches neither.
 CORS_ORIGIN="${CORS_ORIGIN:-http://localhost:${HOST_FRONTEND_PORT}}"
 
+# Secure flag on the 7-day HttpOnly refresh_token cookie, which the backend sets with
+# secure=(COOKIE_SECURE == "true") in internal/user/auth_handler.go.
+#
+# Defaults to false because the deployment this script ships serves PLAIN HTTP:
+# deploy/nginx/default.conf.template has only `listen 8081;` with no ssl, and
+# start_frontend publishes that container on the LAN. A browser refuses to store a
+# Secure cookie received over a non-localhost http origin, so with `true` the
+# refresh cookie is silently dropped for every remote register. The access token
+# lives in sessionStorage (web/src/shared/api/http-client.ts), which makes cookie
+# refresh the only path back from an expired access token -- so the session simply
+# dies at expiry on every till except a browser sitting on that same machine.
+#
+# Set `true` ONLY when TLS is terminated in front of nginx. Hardening this flag
+# without also terminating TLS is what breaks auth, so the scheme decides, not the
+# flag. See PRODUCTION-DEPLOYMENT.md for the TLS-fronted layout.
+COOKIE_SECURE="${COOKIE_SECURE:-false}"
+
 # libpq sslmode for the backend's connection to PostgreSQL.
 #
 # `require` is the preferred posture, but the stock postgres:18-alpine image
@@ -317,7 +334,13 @@ frontend_dist_is_stale() {
     [ -f "$stamp" ] || return 0
 
     local watched=(web/src web/index.html web/vite.config.js web/package.json)
-    [ -f web/.env ] && watched+=(web/.env)
+    # The env file is the ROOT .env, not web/.env: web/vite.config.js loads it with
+    # dotenv.config({ path: '../.env' }), and it is the only source of the build-time
+    # VITE_* values (VITE_PRINT_MODE, VITE_PRINT_AGENT_URL) baked into the bundle by
+    # web/src/shared/stores/printConfig.svelte.ts. web/.env exists nowhere in the tree,
+    # so watching it meant a root-.env print-agent change left dist looking fresh and
+    # the previous bundle shipped behind a successful-looking build.
+    [ -f .env ] && watched+=(.env)
     [ -d web/public ] && watched+=(web/public)
 
     [ -n "$(find "${watched[@]}" -newer "$stamp" -print -quit 2>/dev/null)" ]
@@ -404,6 +427,22 @@ start_backend() {
     # the readiness probe ever running, and passing an unsatisfiable mode here is
     # what puts the backend into the crash loop the probe exists to prevent.
     settle_db_sslmode || return 1
+    # Migrations must land BEFORE the new binary does, and this function replaces the
+    # backend container unconditionally, so `start backend` (and `start all`, which has
+    # no migrate step of its own) would otherwise put a new binary on an old schema.
+    # cmd/server/main.go performs no startup migration, so nothing downstream would
+    # catch it. Abort before touching the container: a migration such as
+    # 059_store_fk_integrity.sql validates every existing row, so a failure part-way
+    # through the file loop leaves a partially migrated database, and continuing would
+    # serve it from a freshly started server.
+    #
+    # Re-running is safe by design -- every migration in database/migrations is
+    # permanently re-runnable (guarded DDL), and the schema_migrations ledger makes the
+    # bookkeeping idempotent.
+    migrate || {
+        log_error "Migrations failed; refusing to start a new backend binary against an unmigrated database"
+        return 1
+    }
     build_image backend
     if container_exists "backend"; then
         log_info "Replacing existing backend container..."
@@ -415,10 +454,13 @@ start_backend() {
     # selects JSON logging and stops the debug default. CORS_ORIGIN replaces the old
     # FRONTEND_URL, which no Go code ever read.
     #
-    # COOKIE_SECURE=true is required, not hardening: the 7-day HttpOnly refresh_token
-    # cookie is set with secure=(COOKIE_SECURE == "true") in internal/user/auth_handler.go,
-    # so leaving it unset ships that token without the Secure flag. Browsers still accept
-    # Secure cookies over http://localhost, so this is safe on a plain-HTTP test deploy.
+    # COOKIE_SECURE follows the scheme actually served -- it is derived near the top of
+    # this script and defaults to false, because the nginx this script ships is plain
+    # HTTP. The 7-day HttpOnly refresh_token cookie is set with
+    # secure=(COOKIE_SECURE == "true") in internal/user/auth_handler.go, and a browser
+    # refuses to store a Secure cookie from a non-localhost http origin, so pinning it
+    # true here would silently drop the cookie and end the session at access-token
+    # expiry on every remote register. Set it true only behind TLS termination.
     # COOKIE_DOMAIN is deliberately left unset: host-only is the correct default, and
     # setting it too broadly would share the refresh token across subdomains.
     podman volume create "$UPLOADS_VOLUME" 2>/dev/null || true
@@ -436,7 +478,7 @@ start_backend() {
         -e ENV=production \
         -e LOG_LEVEL=info \
         -e CORS_ORIGIN="$CORS_ORIGIN" \
-        -e COOKIE_SECURE=true \
+        -e COOKIE_SECURE="$COOKIE_SECURE" \
         -e GIN_MODE=release \
         --restart unless-stopped \
         "$BACKEND_IMAGE"

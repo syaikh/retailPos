@@ -13,6 +13,8 @@
     statusFilter = $bindable("all"),
     hasCustomersFilter = $bindable("all"),
     canCreate = false,
+    canExport = false,
+    canImport = false,
     onsearch = () => {},
     onstatuschange = () => {},
     oncreate = () => {},
@@ -22,6 +24,8 @@
     statusFilter?: string;
     hasCustomersFilter?: string;
     canCreate?: boolean;
+    canExport?: boolean;
+    canImport?: boolean;
     onsearch?: () => void;
     onstatuschange?: () => void;
     oncreate?: () => void;
@@ -88,8 +92,8 @@
     </div>
     <BulkActionDropdown
       module="customer_groups"
-      canExport={canCreate}
-      canImport={canCreate}
+      canExport={canExport}
+      canImport={canImport}
       onImport={onimport}
     />
     {#if canCreate}

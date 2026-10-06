@@ -49,6 +49,11 @@
   const canCreate = $derived(rbac.can(Permissions.product.create));
   const canEdit = $derived(rbac.can(Permissions.product.update));
   const canDelete = $derived(rbac.can(Permissions.product.delete));
+  // Hardcoded `true` before: `brands:import`/`brands:export` are authorized by
+  // ProductImport/ProductExport (importexport handler modulePerms) — brands reuse the
+  // product codes — so the buttons were offered to users the backend rejects.
+  const canImport = $derived(rbac.can(Permissions.product.import));
+  const canExport = $derived(rbac.can(Permissions.product.export));
 
   function formatDate(dateStr) {
     if (!dateStr) return "—";
@@ -222,8 +227,8 @@
         <div class="flex items-center gap-2">
           <BulkActionDropdown
             module="brands"
-            canExport={true}
-            canImport={true}
+            {canExport}
+            {canImport}
             onImport={() => (showImportWizard = true)}
           />
           <Button

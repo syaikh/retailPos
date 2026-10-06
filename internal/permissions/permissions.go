@@ -98,11 +98,15 @@ const (
 	StoreCreate Code = "store.create"
 	StoreUpdate Code = "store.update"
 	StoreDelete Code = "store.delete"
+	StoreImport Code = "store.import"
+	StoreExport Code = "store.export"
 
 	CustomerGroupView   Code = "customer_group.view"
 	CustomerGroupCreate Code = "customer_group.create"
 	CustomerGroupUpdate Code = "customer_group.update"
 	CustomerGroupDelete Code = "customer_group.delete"
+	CustomerGroupImport Code = "customer_group.import"
+	CustomerGroupExport Code = "customer_group.export"
 
 	PurchaseOrderView    Code = "purchase_order.view"
 	PurchaseOrderCreate  Code = "purchase_order.create"
@@ -177,8 +181,8 @@ func All() []Code {
 		PricingView, PricingCreate, PricingUpdate, PricingDelete, PricingApprove,
 		SupplierView, SupplierCreate, SupplierUpdate, SupplierDelete,
 		InventoryAdjust,
-		StoreView, StoreCreate, StoreUpdate, StoreDelete,
-		CustomerGroupView, CustomerGroupCreate, CustomerGroupUpdate, CustomerGroupDelete,
+		StoreView, StoreCreate, StoreUpdate, StoreDelete, StoreImport, StoreExport,
+		CustomerGroupView, CustomerGroupCreate, CustomerGroupUpdate, CustomerGroupDelete, CustomerGroupImport, CustomerGroupExport,
 		PurchaseOrderView, PurchaseOrderCreate, PurchaseOrderUpdate, PurchaseOrderDelete, PurchaseOrderConfirm, PurchaseOrderReceive, PurchaseOrderCancel,
 		StockOpnameView, StockOpnameCreate, StockOpnameAssign, StockOpnameCount, StockOpnameSubmit, StockOpnameRecount, StockOpnameCancel, StockOpnameExport, StockOpnameVerify, StockOpnamePost, StockOpnameClose, StockOpnameReport,
 		StorageLocationView, StorageLocationCreate, StorageLocationUpdate, StorageLocationDelete,

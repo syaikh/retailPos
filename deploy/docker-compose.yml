@@ -10,9 +10,11 @@
 # env_file keeps them out of argv and the process table; they are still readable
 # by anyone who can inspect the container, so the file must stay mode 600.
 #
-# Required: ENV=production, CORS_ORIGIN and COOKIE_SECURE are declared on the
-# backend below. Unset, the server falls back to a development origin, debug
-# logging, and a refresh cookie without the Secure flag.
+# Required: ENV=production and CORS_ORIGIN are declared on the backend below.
+# Unset, the server falls back to a development origin and debug logging.
+# COOKIE_SECURE is also declared on the backend below, but it is overridable and
+# deliberately defaults to false: it must track the scheme nginx actually serves,
+# not a blanket hardening value. See the note on the backend service.
 
 services:
   # PostgreSQL Database
@@ -84,9 +86,15 @@ services:
       #   check in pkg/websocket/hub.go compares it as an exact string. `*` is a
       #   fatal startup error in production.
       #
-      # Required, not hardening: the 7-day HttpOnly refresh_token cookie is set
-      # with secure=(COOKIE_SECURE == "true") in internal/user/auth_handler.go.
-      COOKIE_SECURE: "true"
+      # Secure flag on the 7-day HttpOnly refresh_token cookie, set with
+      # secure=(COOKIE_SECURE == "true") in internal/user/auth_handler.go.
+      #
+      # false here because the bundled nginx serves PLAIN HTTP. A browser refuses to
+      # store a Secure cookie received over a non-localhost http origin, so setting
+      # this to "true" without TLS terminated in front of nginx silently drops the
+      # refresh cookie on every remote register and ends its session at access-token
+      # expiry. Set to "true" only when TLS fronts this service.
+      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
       # COOKIE_DOMAIN is intentionally unset. Host-only is the correct default;
       # a parent-domain value would share the refresh token across subdomains.
     networks:

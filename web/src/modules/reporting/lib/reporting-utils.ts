@@ -1,7 +1,4 @@
-import {
-  getTodayInJakarta,
-  getDateNDaysAgoInJakarta,
-} from "$shared/utils/jakartaTime";
+import { getTodayInJakarta } from "$shared/utils/jakartaTime";
 import { formatLocaleDate } from "$shared/i18n";
 
 export function formatCurrencyShort(value: number | null | undefined): string {
@@ -75,82 +72,4 @@ export function getFirstOfMonthNAgoInJakarta(n: number): string {
   const year = Math.floor(totalMonths / 12);
   const month = (totalMonths % 12) + 1;
   return `${year}-${String(month).padStart(2, "0")}-01`;
-}
-
-export function getPeriodDateRange(periodType: string): {
-  start: string;
-  end: string;
-} {
-  const today = getTodayInJakarta();
-  const daysAgo = (n: number) => getDateNDaysAgoInJakarta(n);
-
-  switch (periodType) {
-    case "realtime":
-      return { start: today, end: today };
-    case "yesterday":
-      return { start: daysAgo(1), end: daysAgo(1) };
-    case "7days":
-      return { start: daysAgo(7), end: daysAgo(1) };
-    case "30days":
-      return { start: daysAgo(30), end: daysAgo(1) };
-    default: {
-      const defaultEnd = daysAgo(1);
-      return { start: daysAgo(8), end: defaultEnd };
-    }
-  }
-}
-
-export function getBackendPeriodType(activePeriodType: string): string {
-  if (["realtime", "yesterday", "daily"].includes(activePeriodType))
-    return "daily";
-  if (activePeriodType === "weekly") return "weekly";
-  if (activePeriodType === "monthly") return "monthly";
-  if (activePeriodType === "yearly") return "yearly";
-  return "daily";
-}
-
-export function getComparisonMode(activePeriodType: string): string {
-  if (activePeriodType === "realtime") return "realtime";
-  if (["daily", "yesterday"].includes(activePeriodType)) return "completed";
-  if (activePeriodType === "yearly") return "todate";
-  if (activePeriodType === "30days") return "30days";
-  return "todate";
-}
-
-export function getShiftDays(activePeriodType: string): number {
-  if (["realtime", "daily", "yesterday"].includes(activePeriodType)) return 1;
-  if (["weekly", "7days"].includes(activePeriodType)) return 7;
-  if (activePeriodType === "30days") return 30;
-  return 0;
-}
-
-export function getPeriodDescription(
-  periodType: string,
-  currentTimeHour: string,
-  formatDateFn: (d: string) => string,
-): string {
-  const range = getPeriodDateRange(periodType);
-  const start = formatDateFn(range.start);
-  const end = formatDateFn(range.end);
-
-  switch (periodType) {
-    case "realtime":
-      return `Real-time (00:00 - ${currentTimeHour})`;
-    case "yesterday":
-      return `Yesterday · ${start}`;
-    case "7days":
-      return `7 Days · ${start} - ${end}`;
-    case "30days":
-      return `30 Days · ${start} - ${end}`;
-    case "daily":
-      return `Daily · ${start}`;
-    case "weekly":
-      return `Weekly · ${start} - ${end}`;
-    case "monthly":
-      return `Monthly · ${start} - ${end}`;
-    case "yearly":
-      return `Yearly · ${start} - ${end}`;
-    default:
-      return `${start} - ${end}`;
-  }
 }

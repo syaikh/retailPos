@@ -8,7 +8,6 @@ import {
   markPasswordChangeRequired,
   PASSWORD_CHANGE_REQUIRED,
 } from "$modules/auth";
-import { setCache, invalidateCache } from "./cache";
 
 // 1. Buat instance Axios untuk aplikasi
 const apiClient = axios.create({
@@ -30,32 +29,14 @@ apiClient.interceptors.request.use(
 // 3. Setup Response Interceptor untuk menangani Auto-Refresh 401
 setupAxiosInterceptors(apiClient);
 
-// 4. Cache GET responses and invalidate on mutations
-function mutationCachePrefix(url: string): string {
-  const path = url.split("?")[0];
-  const segments = path.split("/").filter(Boolean);
-  if (segments.length > 1 && /^\d+$/.test(segments[segments.length - 1])) {
-    segments.pop();
-  }
-  return "/" + segments.join("/");
-}
-
-apiClient.interceptors.response.use(
-  (response) => {
-    if (response.config.method === "get") {
-      setCache(response.config.url!, response.data);
-    }
-    if (["post", "put", "patch", "delete"].includes(response.config.method!)) {
-      invalidateCache(mutationCachePrefix(response.config.url!));
-    }
-    return response;
-  },
-  (error) => Promise.reject(error),
-);
+// 4. No response interceptor: a previous one wrote every GET response into a module-level
+// Map that nothing ever read, and never evicted (TTL expiry was only checked by the
+// unread getCached). It retained every response payload for the session and gave back
+// nothing. Reads are now always live.
 
 export default apiClient;
 
-// 6. (Opsional) Helper khusus untuk GET biasa jika tidak mau pakai async/await di store
+// 5. (Opsional) Helper khusus untuk GET biasa jika tidak mau pakai async/await di store
 export const apiFetch = async (
   url: string,
   options: RequestInit = {},

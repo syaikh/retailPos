@@ -26,6 +26,16 @@
   const canCreate = $derived(userPermissions.includes("customer.create"));
   const canUpdate = $derived(userPermissions.includes("customer.update"));
   const canDelete = $derived(userPermissions.includes("customer.delete"));
+  // Import/export are authorized by their own codes, not by customer.create: the backend
+  // maps `customers:import` -> permissions.CustomerImport and `customers:export` ->
+  // permissions.CustomerExport (importexport handler modulePerms). Deriving both from
+  // canCreate offered the buttons to a customer.create-only user who then got a 403.
+  const canImportCustomers = $derived(
+    userPermissions.includes("customer.import"),
+  );
+  const canExportCustomers = $derived(
+    userPermissions.includes("customer.export"),
+  );
 
   let customers = $state<Customer[]>([]);
   let loading = $state(false);
@@ -445,6 +455,8 @@
     bind:statusFilter
     bind:groupFilter
     {canCreate}
+    canExport={canExportCustomers}
+    canImport={canImportCustomers}
     groups={availableGroups}
     onsearch={handleSearchInput}
     onstatuschange={handleStatusFilterChange}

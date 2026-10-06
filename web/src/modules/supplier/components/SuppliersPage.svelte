@@ -6,6 +6,8 @@
   import { goto } from "$app/router";
   import { labels } from "$shared/i18n";
   import { useWebSocket } from "$shared/api/websocket";
+  import { useRBAC } from "$shared/composables/useRBAC.svelte";
+  import { Permissions } from "$shared/constants/permissions";
   import {
     getSuppliers,
     getSupplier,
@@ -37,12 +39,17 @@
   const authStore = useAuthStore();
   const ws = useWebSocket();
 
+  const rbac = useRBAC();
   const userPermissions = $derived(authStore.user?.permissions || []);
   const canCreate = $derived(userPermissions.includes("supplier.create"));
   const canUpdate = $derived(userPermissions.includes("supplier.update"));
   const canDelete = $derived(userPermissions.includes("supplier.delete"));
-  const canExport = $derived(userPermissions.includes("supplier.view"));
-  const canImport = $derived(userPermissions.includes("supplier.create"));
+  // The import/export endpoints are NOT authorized by supplier.* codes: the backend maps
+  // `suppliers:import` -> permissions.PricingCreate and `suppliers:export` ->
+  // permissions.PricingView (internal/platform/importexport/handler/handler.go modulePerms).
+  // Gating these buttons on supplier.* showed them to users the backend then rejected 403.
+  const canExport = $derived(rbac.can(Permissions.pricing.view));
+  const canImport = $derived(rbac.can(Permissions.pricing.create));
 
   let loading = $state(true);
   let suppliers = $state<Supplier[]>([]);

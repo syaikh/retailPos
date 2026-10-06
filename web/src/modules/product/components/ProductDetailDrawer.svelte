@@ -50,17 +50,23 @@
   const stock_stk = $derived(selectedProduct?.stock ?? 0);
   let pricingRules = $state<PricingRule[]>([]);
   let loadingPricing = $state(false);
+  // A failed load must not fall through to the empty branch: that branch asserts the
+  // product has no pricing rules and will sell at its base price, which is a materially
+  // different statement from "we could not check".
+  let pricingRulesError = $state<string | null>(null);
 
   $effect(() => {
     if (showDetailDrawer && selectedProduct?.id) {
       loadPricingRules(selectedProduct.id);
     } else {
       pricingRules = [];
+      pricingRulesError = null;
     }
   });
 
   async function loadPricingRules(productId: number) {
     loadingPricing = true;
+    pricingRulesError = null;
     try {
       const result = await getPricingRules({
         limit: 50,
@@ -68,8 +74,9 @@
         product_id: productId,
       });
       pricingRules = result.data;
-    } catch {
+    } catch (e) {
       pricingRules = [];
+      pricingRulesError = e instanceof Error ? e.message : String(e);
     } finally {
       loadingPricing = false;
     }
@@ -473,6 +480,8 @@
         <div class="px-3.5 py-2.5">
           {#if loadingPricing}
             <p class="text-xs text-text-muted">{labels.loadingPricingRules}</p>
+          {:else if pricingRulesError}
+            <p class="text-xs text-danger">{pricingRulesError}</p>
           {:else if pricingRules.length === 0}
             <p class="text-xs text-text-muted">
               {t("noPricingRulesBasePrice", {

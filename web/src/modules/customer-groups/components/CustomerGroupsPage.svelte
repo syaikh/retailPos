@@ -2,6 +2,8 @@
   import { onMount } from "svelte";
   import { goto } from "$app/router";
   import { useAuthStore } from "$modules/auth";
+  import { useRBAC } from "$shared/composables/useRBAC.svelte";
+  import { Permissions } from "$shared/constants/permissions";
   import { toast } from "$shared/stores/toast.svelte";
   import { labels, t } from "$shared/i18n";
   import { useSortable } from "$shared/composables/useSortable.svelte";
@@ -25,11 +27,14 @@
   import ImportWizard from "$shared/ui/ImportWizard.svelte";
 
   const authStore = useAuthStore();
+  const rbac = useRBAC();
 
   const userPermissions = $derived(authStore.user?.permissions || []);
-  const canCreate = $derived(userPermissions.includes("customer_group.create"));
-  const canUpdate = $derived(userPermissions.includes("customer_group.update"));
-  const canDelete = $derived(userPermissions.includes("customer_group.delete"));
+  const canCreate = $derived(rbac.can(Permissions.customerGroup.create));
+  const canUpdate = $derived(rbac.can(Permissions.customerGroup.update));
+  const canDelete = $derived(rbac.can(Permissions.customerGroup.delete));
+  const canExport = $derived(rbac.can(Permissions.customerGroup.export));
+  const canImport = $derived(rbac.can(Permissions.customerGroup.import));
 
   let loading = $state(true);
   let groups = $state<CustomerGroup[]>([]);
@@ -277,6 +282,8 @@
     bind:statusFilter
     bind:hasCustomersFilter
     {canCreate}
+    {canExport}
+    {canImport}
     onsearch={handleSearch}
     onstatuschange={handleStatusChange}
     oncreate={() => (showCreateModal = true)}

@@ -9,11 +9,6 @@ export {
   formatLargeNumber,
   formatDate,
   getPeriodLabel,
-  getPeriodDateRange,
-  getBackendPeriodType,
-  getComparisonMode,
-  getShiftDays,
-  getPeriodDescription,
   getFirstOfMonthNAgoInJakarta,
 } from "./lib/reporting-utils";
 export type {

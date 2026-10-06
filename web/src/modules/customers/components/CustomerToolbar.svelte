@@ -8,6 +8,8 @@
     statusFilter = $bindable("all"),
     groupFilter = $bindable("all"),
     canCreate = false,
+    canExport = false,
+    canImport = false,
     groups = [] as { id: number; name: string }[],
     onsearch = () => {},
     onstatuschange = () => {},
@@ -19,6 +21,10 @@
     statusFilter?: string;
     groupFilter?: string;
     canCreate?: boolean;
+    // Separate from canCreate: the backend authorizes `customers:import` with
+    // CustomerImport and `customers:export` with CustomerExport.
+    canExport?: boolean;
+    canImport?: boolean;
     groups?: { id: number; name: string }[];
     onsearch?: () => void;
     onstatuschange?: () => void;
@@ -115,8 +121,8 @@
     {#if canCreate}
       <BulkActionDropdown
         module="customers"
-        canExport={canCreate}
-        canImport={canCreate}
+        {canExport}
+        {canImport}
         {onImport}
       />
       <Button

@@ -51,6 +51,11 @@
   const canCreate = $derived(rbac.can(Permissions.category.create));
   const canEdit = $derived(rbac.can(Permissions.category.update));
   const canDelete = $derived(rbac.can(Permissions.category.delete));
+  // Hardcoded `true` before: the backend authorizes `categories:import` with
+  // CategoryImport and `categories:export` with CategoryExport (importexport handler
+  // modulePerms), so every user saw both buttons and users lacking the code got a 403.
+  const canImport = $derived(rbac.can(Permissions.category.import));
+  const canExport = $derived(rbac.can(Permissions.category.export));
   // Show content if user loaded (API will enforce 403 for cashier)
   const _canView = $derived(authStore.user != null);
 
@@ -250,8 +255,8 @@
         <div class="flex items-center gap-2">
           <BulkActionDropdown
             module="categories"
-            canExport={true}
-            canImport={true}
+            {canExport}
+            {canImport}
             onImport={() => (showImportWizard = true)}
           />
           <Button

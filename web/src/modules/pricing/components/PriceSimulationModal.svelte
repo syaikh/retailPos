@@ -35,6 +35,10 @@
   let resolving = $state(false);
   let result = $state<ResolvedPrice | null>(null);
   let searched = $state(false);
+  // Distinct from `result === null`: a failed request must never render as the
+  // "no matching rule / base price will be used" conclusion, which is a valid answer
+  // and would be indistinguishable from the failure that produced it.
+  let resolveError = $state<string | null>(null);
 
   const canSimulate = $derived(!!selectedProduct && quantity > 0);
 
@@ -48,6 +52,7 @@
       storeId = "";
       result = null;
       searched = false;
+      resolveError = null;
       loadDropdowns();
     }
   });
@@ -117,6 +122,7 @@
     resolving = true;
     result = null;
     searched = true;
+    resolveError = null;
     try {
       const items = [
         {
@@ -128,9 +134,12 @@
         },
       ];
       const results = await resolvePrices(items);
+      // `null` here is a real no-match: the request succeeded and returned no row.
       result = results[0] || null;
-    } catch {
-      result = null;
+    } catch (e) {
+      // The request failed. Record it rather than clearing `result`, so the modal
+      // reports the failure instead of asserting the rule does not apply.
+      resolveError = e instanceof Error ? e.message : String(e);
     } finally {
       resolving = false;
     }
@@ -313,6 +322,12 @@
             </p>
           </div>
         {/if}
+      </div>
+    {:else if resolveError}
+      <div
+        class="p-4 rounded-xl bg-danger/5 border border-danger/20 text-center"
+      >
+        <p class="text-sm text-danger">{resolveError}</p>
       </div>
     {:else if searched && !resolving}
       <div

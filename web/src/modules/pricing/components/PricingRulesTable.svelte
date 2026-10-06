@@ -18,6 +18,7 @@
     PowerOff,
     MoreVertical,
     DollarSign,
+    AlertTriangle,
   } from "lucide-svelte";
   import { labels, t } from "$shared/i18n";
   import type { PricingRule } from "../types";
@@ -25,6 +26,7 @@
   const {
     rules = [],
     loading = false,
+    loadError = null,
     sortBy = "name",
     sortDir = "asc",
     canEdit = false,
@@ -46,6 +48,9 @@
   }: {
     rules: PricingRule[];
     loading: boolean;
+    // Message from the last failed list request. Rendered ahead of the empty branch so
+    // a 403/500 can never present as "belum ada aturan" (no rules exist).
+    loadError?: string | null;
     searchQuery: string;
     sortBy: string;
     sortDir: "asc" | "desc";
@@ -208,6 +213,14 @@
           >{/each}</tbody
       >
     </table>
+  </div>
+{:else if loadError}
+  <div
+    class="flex flex-col items-center justify-center py-12 text-text-muted"
+    role="alert"
+  >
+    <AlertTriangle class="w-12 h-12 mb-3 text-danger" aria-hidden="true" />
+    <p class="text-sm text-danger">{loadError}</p>
   </div>
 {:else if rules.length === 0}
   <div

@@ -55,11 +55,15 @@ export async function getPricingRules(
   if (params.sort_dir) urlParams.append("sort_dir", params.sort_dir);
 
   const r = await apiFetch(`/api/pricing-rules?${urlParams.toString()}`);
-  if (r.ok) {
-    const data = await r.json();
-    return { data: data.data || [], total: data.total || 0 };
+  if (!r.ok) {
+    // Throws rather than returning an empty page: `{ data: [], total: 0 }` is a valid
+    // successful answer, and every caller renders it as a confident zero. Returning it
+    // on failure let a 403/500 render as "no rules match these filters", so a manager
+    // auditing rule coverage would read a transport failure as proof of no coverage.
+    throw await toApiError(r, "Failed to load pricing rules");
   }
-  return { data: [], total: 0 };
+  const data = await r.json();
+  return { data: data.data || [], total: data.total || 0 };
 }
 
 export async function getPricingRule(id: number): Promise<PricingRule | null> {
@@ -164,11 +168,17 @@ export async function resolvePrices(
     method: "POST",
     body: JSON.stringify({ items }),
   });
-  if (r.ok) {
-    const data = await r.json();
-    return data.data || [];
+  if (!r.ok) {
+    // Throws rather than returning []: an empty array here means "no rule matched",
+    // which the simulation modal reports to the manager as the authoritative
+    // conclusion that the rule does not apply. Collapsing a 403/500/timeout into that
+    // same value told a manager validating a rule before approval that the rule was
+    // inapplicable when the request had simply failed. A genuine no-match is a
+    // successful response carrying no row.
+    throw await toApiError(r, "Failed to resolve prices");
   }
-  return [];
+  const data = await r.json();
+  return data.data || [];
 }
 
 export async function searchProducts(

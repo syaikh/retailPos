@@ -91,65 +91,6 @@ describe("reporting-utils", () => {
     });
   });
 
-  describe("getPeriodDateRange", () => {
-    it("returns today for realtime", async () => {
-      const { getPeriodDateRange } = await import("../reporting-utils");
-      const { getTodayInJakarta } = await import("$shared/utils/jakartaTime");
-      const result = getPeriodDateRange("realtime");
-      expect(result.start).toBe(getTodayInJakarta());
-      expect(result.end).toBe(getTodayInJakarta());
-    });
-
-    it("returns yesterday range", async () => {
-      const { getPeriodDateRange } = await import("../reporting-utils");
-      const { getDateNDaysAgoInJakarta } =
-        await import("$shared/utils/jakartaTime");
-      const yesterday = getDateNDaysAgoInJakarta(1);
-      const result = getPeriodDateRange("yesterday");
-      expect(result.start).toBe(yesterday);
-      expect(result.end).toBe(yesterday);
-    });
-
-    it("returns 7days range", async () => {
-      const { getPeriodDateRange } = await import("../reporting-utils");
-      const { getDateNDaysAgoInJakarta } =
-        await import("$shared/utils/jakartaTime");
-      const result = getPeriodDateRange("7days");
-      expect(result.start).toBe(getDateNDaysAgoInJakarta(7));
-      expect(result.end).toBe(getDateNDaysAgoInJakarta(1));
-    });
-  });
-
-  describe("getBackendPeriodType", () => {
-    it("maps period types correctly", async () => {
-      const { getBackendPeriodType } = await import("../reporting-utils");
-      expect(getBackendPeriodType("realtime")).toBe("daily");
-      expect(getBackendPeriodType("weekly")).toBe("weekly");
-      expect(getBackendPeriodType("monthly")).toBe("monthly");
-      expect(getBackendPeriodType("yearly")).toBe("yearly");
-    });
-  });
-
-  describe("getComparisonMode", () => {
-    it("maps modes correctly", async () => {
-      const { getComparisonMode } = await import("../reporting-utils");
-      expect(getComparisonMode("realtime")).toBe("realtime");
-      expect(getComparisonMode("daily")).toBe("completed");
-      expect(getComparisonMode("yearly")).toBe("todate");
-      expect(getComparisonMode("30days")).toBe("30days");
-    });
-  });
-
-  describe("getShiftDays", () => {
-    it("returns correct shift days", async () => {
-      const { getShiftDays } = await import("../reporting-utils");
-      expect(getShiftDays("realtime")).toBe(1);
-      expect(getShiftDays("weekly")).toBe(7);
-      expect(getShiftDays("30days")).toBe(30);
-      expect(getShiftDays("yearly")).toBe(0);
-    });
-  });
-
   describe("getFirstOfMonthNAgoInJakarta", () => {
     it("returns YYYY-MM-01 format for current month", async () => {
       const { getFirstOfMonthNAgoInJakarta } =

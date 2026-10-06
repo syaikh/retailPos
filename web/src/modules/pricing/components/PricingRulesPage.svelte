@@ -48,6 +48,9 @@
   let loading = $state(true);
   let rules = $state<PricingRule[]>([]);
   let total = $state(0);
+  // A non-null value means the last list request failed; the table below stays visible
+  // with whatever it held before, so a transport failure never reads as a fresh zero.
+  let loadError = $state<string | null>(null);
   let limit = $state(20);
   let offset = $state(0);
   let searchQuery = $state("");
@@ -147,6 +150,16 @@
   const canApprove = $derived(
     (authStore.user?.permissions || []).includes("pricing.approve"),
   );
+  // Match the backend's modulePerms mapping: `pricing_rules:import` is authorized by
+  // PricingCreate, `pricing_rules:export` by PricingView. Both were previously derived
+  // from canCreate, which offered Export to a pricing.create-only author (403) and hid it
+  // from a pricing.view-only reader who is allowed to export.
+  const canImportRules = $derived(
+    (authStore.user?.permissions || []).includes("pricing.create"),
+  );
+  const canExportRules = $derived(
+    (authStore.user?.permissions || []).includes("pricing.view"),
+  );
 
   // Only superadmin may own a global (store_id IS NULL) pricing rule. A
   // store-scoped role's rules are always pinned to its own store by the API, so
@@ -225,6 +238,10 @@
 
   async function fetchRules() {
     loading = true;
+    // `rules`/`total` are not reset here: on failure the previous rows stay on screen
+    // behind an error message, which reads as "these are the rules I could load, the
+    // refresh failed" rather than as a newly confirmed empty result set.
+    loadError = null;
     const params: Record<string, string | number | boolean | undefined> = {
       limit,
       offset,
@@ -237,9 +254,19 @@
     if (approvalFilter !== "all") params.status = approvalFilter;
     if (typeFilter !== "all") params.pricing_type = typeFilter;
     if (methodFilter !== "all") params.pricing_method = methodFilter;
-    const result = await getPricingRules(
-      params as unknown as PricingRuleListParams,
-    );
+    let result;
+    try {
+      result = await getPricingRules(
+        params as unknown as PricingRuleListParams,
+      );
+    } catch (e) {
+      // Bailed without touching `rules`/`total`: assigning the zero rows this used to
+      // receive on failure produced a table that looked like a confirmed "no rules match
+      // these filters", which is the exact misreading this finding is about.
+      loadError = e instanceof Error ? e.message : String(e);
+      loading = false;
+      return;
+    }
     rules = result.data;
     total = result.total;
     loading = false;
@@ -885,6 +912,8 @@
     bind:typeFilter
     bind:methodFilter
     {canCreate}
+    canExport={canExportRules}
+    canImport={canImportRules}
     {pricingTypes}
     {pricingMethods}
     {typeLabel}
@@ -902,7 +931,7 @@
     aria-atomic="true"
   >
     <span class="sr-only" aria-live="polite">
-      {#if loading}{labels.loadingData}{:else if rules.length === 0}{labels.noRulesFound}{:else}{t(
+      {#if loading}{labels.loadingData}{:else if loadError}{loadError}{:else if rules.length === 0}{labels.noRulesFound}{:else}{t(
           "showingRange",
           { from: offset + 1, to: Math.min(offset + limit, total), total },
         )}{/if}
@@ -910,6 +939,7 @@
     <PricingRulesTable
       rules={sortedRules}
       {loading}
+      {loadError}
       {searchQuery}
       sortBy={sortState.sortBy}
       sortDir={sortState.sortDir}

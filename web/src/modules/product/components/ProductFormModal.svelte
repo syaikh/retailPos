@@ -127,6 +127,9 @@
   let showModalCategoryDropdown = $state(false);
   let pricingRules = $state<PricingRule[]>([]);
   let loadingPricing = $state(false);
+  // Separate from `pricingRules.length === 0`: the empty branch asserts the product has
+  // no rules and will sell at base price, which is not what a failed load tells us.
+  let pricingRulesError = $state<string | null>(null);
   let categoryContainer: HTMLDivElement;
   let categoryMenuStyle = $state("");
 
@@ -172,11 +175,13 @@
       loadPricingRules(productFormId);
     } else {
       pricingRules = [];
+      pricingRulesError = null;
     }
   });
 
   async function loadPricingRules(productId: number) {
     loadingPricing = true;
+    pricingRulesError = null;
     try {
       const result = await getPricingRules({
         limit: 50,
@@ -184,8 +189,9 @@
         product_id: productId,
       });
       pricingRules = result.data;
-    } catch {
+    } catch (e) {
       pricingRules = [];
+      pricingRulesError = e instanceof Error ? e.message : String(e);
     } finally {
       loadingPricing = false;
     }
@@ -713,6 +719,8 @@
         <div class="px-4 py-2.5">
           {#if loadingPricing}
             <p class="text-xs text-text-muted">{labels.loadingPricingRules}</p>
+          {:else if pricingRulesError}
+            <p class="text-xs text-danger">{pricingRulesError}</p>
           {:else if pricingRules.length === 0}
             <p class="text-xs text-text-muted">
               {t("noPricingRulesBasePrice", {

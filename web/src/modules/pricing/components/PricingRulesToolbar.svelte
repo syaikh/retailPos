@@ -17,6 +17,8 @@
     typeFilter = $bindable("all"),
     methodFilter = $bindable("all"),
     canCreate = false,
+    canExport = false,
+    canImport = false,
     pricingTypes = [],
     pricingMethods = [],
     typeLabel = labels.allTypes,
@@ -32,6 +34,13 @@
     typeFilter: string;
     methodFilter: string;
     canCreate: boolean;
+    // Import and export are authorized by different codes than canCreate: the backend maps
+    // `pricing_rules:import` -> permissions.PricingCreate but `pricing_rules:export` ->
+    // permissions.PricingView (importexport handler modulePerms). Deriving both from
+    // canCreate hid Export from a pricing.view-only reader and offered it to a
+    // pricing.create-only author who would get a 403.
+    canExport?: boolean;
+    canImport?: boolean;
     pricingTypes: { value: string; label: string }[];
     pricingMethods: { value: string; label: string }[];
     typeLabel: string;
@@ -144,8 +153,8 @@
     </div>
     <BulkActionDropdown
       module="pricing_rules"
-      canExport={canCreate}
-      canImport={canCreate}
+      {canExport}
+      {canImport}
       onImport={onimport}
     />
     {#if canCreate}

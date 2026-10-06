@@ -145,8 +145,25 @@ describe("pricing-service", () => {
       expect(url).toContain("is_active=true");
     });
 
-    it("returns empty on error", async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: false });
+    it("throws on error rather than reporting an empty page", async () => {
+      // `{ data: [], total: 0 }` is a valid successful answer, so returning it on
+      // failure made a 403/500 indistinguishable from "no rules match these filters".
+      mockApiFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: { message: "Forbidden" } }),
+      });
+
+      const { getPricingRules } = await import("../pricing-service");
+      await expect(getPricingRules({ limit: 10, offset: 0 })).rejects.toThrow(
+        "Forbidden",
+      );
+    });
+
+    it("returns an empty page for a genuine no-match", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: [], total: 0 }),
+      });
 
       const { getPricingRules } = await import("../pricing-service");
       const result = await getPricingRules({ limit: 10, offset: 0 });
@@ -252,8 +269,27 @@ describe("pricing-service", () => {
       expect(result[0].pricing_type).toBe("promotion");
     });
 
-    it("returns empty on error", async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: false });
+    it("throws on error rather than reporting an empty match", async () => {
+      // An empty array means "no rule matched" to the simulation modal, so a
+      // failure must not be flattened into it: a failed request would otherwise be
+      // reported to the manager as the authoritative conclusion that the rule does
+      // not apply.
+      mockApiFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: { message: "Forbidden" } }),
+      });
+
+      const { resolvePrices } = await import("../pricing-service");
+      await expect(
+        resolvePrices([{ product_id: 1, quantity: 1 }]),
+      ).rejects.toThrow("Forbidden");
+    });
+
+    it("returns an empty list for a genuine no-match", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
 
       const { resolvePrices } = await import("../pricing-service");
       const result = await resolvePrices([{ product_id: 1, quantity: 1 }]);
