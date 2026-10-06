@@ -243,8 +243,8 @@
         <div class="flex items-center gap-2">
           <BulkActionDropdown
             module="stores"
-            canExport={canExport}
-            canImport={canImport}
+            {canExport}
+            {canImport}
             onImport={() => (showImportWizard = true)}
           />
           <Button

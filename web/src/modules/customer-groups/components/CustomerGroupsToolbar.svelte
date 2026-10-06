@@ -92,8 +92,8 @@
     </div>
     <BulkActionDropdown
       module="customer_groups"
-      canExport={canExport}
-      canImport={canImport}
+      {canExport}
+      {canImport}
       onImport={onimport}
     />
     {#if canCreate}

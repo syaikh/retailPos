@@ -57,12 +57,20 @@
 {#if canExport || canImport}
   <Dropdown
     items={[
-                ...(canExport
-            ? [
-                { label: "Export CSV", icon: FileText, onclick: () => handleExport("csv") },
-                { label: "Export XLSX", icon: FileSpreadsheet, onclick: () => handleExport("xlsx") },
-              ]
-            : []),
+      ...(canExport
+        ? [
+            {
+              label: "Export CSV",
+              icon: FileText,
+              onclick: () => handleExport("csv"),
+            },
+            {
+              label: "Export XLSX",
+              icon: FileSpreadsheet,
+              onclick: () => handleExport("xlsx"),
+            },
+          ]
+        : []),
       ...(canTemplate
         ? [
             { divider: true },

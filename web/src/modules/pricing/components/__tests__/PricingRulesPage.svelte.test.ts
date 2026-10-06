@@ -141,9 +141,14 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   it("fetches rules before resolving product names", () => {
     const fetchIdx = src.indexOf("async function fetchRules()");
     expect(fetchIdx).toBeGreaterThan(-1);
-    const fetchBlock = src.substring(fetchIdx, fetchIdx + 1200);
-    expect(fetchBlock).toContain("getPricingRules");
-    expect(fetchBlock).toContain("getProductsByIds");
+    const fetchEnd = src.indexOf("\n  }\n", fetchIdx);
+    expect(fetchEnd).toBeGreaterThan(fetchIdx);
+    const fetchBlock = src.slice(fetchIdx, fetchEnd);
+    const rulesIdx = fetchBlock.indexOf("getPricingRules");
+    const productsIdx = fetchBlock.indexOf("getProductsByIds");
+    expect(rulesIdx).toBeGreaterThan(-1);
+    expect(productsIdx).toBeGreaterThan(-1);
+    expect(rulesIdx).toBeLessThan(productsIdx);
   });
 
   it("has saveRule function", () => {

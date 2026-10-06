@@ -96,8 +96,12 @@ describe("PricingRulesToolbar.svelte source-structure guards", () => {
   it("renders BulkActionDropdown for import/export", () => {
     expect(src).toContain("<BulkActionDropdown");
     expect(src).toContain('module="pricing_rules"');
-    expect(src).toContain("canExport={canCreate}");
-    expect(src).toContain("canImport={canCreate}");
+    expect(src).toContain("canExport?: boolean;");
+    expect(src).toContain("canImport?: boolean;");
+    expect(src).toContain("{canExport}");
+    expect(src).toContain("{canImport}");
+    expect(src).not.toContain("canExport={canCreate}");
+    expect(src).not.toContain("canImport={canCreate}");
     expect(src).toContain("onImport={onimport}");
   });
 
