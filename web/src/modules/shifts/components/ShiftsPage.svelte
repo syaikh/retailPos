@@ -472,7 +472,9 @@
               closeDialogReport = null;
               if (store.activeShift) {
                 try {
-                  closeDialogReport = await getShiftReport(store.activeShift.id);
+                  closeDialogReport = await getShiftReport(
+                    store.activeShift.id,
+                  );
                 } catch {
                   closeDialogReport = null;
                 }

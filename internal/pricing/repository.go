@@ -16,6 +16,7 @@ type Repository struct {
 	productPricingProvider ProductPricingProvider
 	categorySearchProvider CategoryNameSearchProvider
 	brandSearchProvider    BrandNameSearchProvider
+	customerGroupProvider  CustomerGroupExistsProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -45,6 +46,15 @@ func (r *Repository) SetCategorySearchProvider(p CategoryNameSearchProvider) {
 // this port instead of a brands EXISTS clause.
 func (r *Repository) SetBrandSearchProvider(p BrandNameSearchProvider) {
 	r.brandSearchProvider = p
+}
+
+// SetCustomerGroupExistsProvider wires the customer-group-owned implementation
+// of the CustomerGroupExistsProvider port (see ports.go). customer_groups is
+// owned by internal/customergroup; pricing routes the resolver's group
+// existence check through this port instead of querying customer_groups
+// directly.
+func (r *Repository) SetCustomerGroupExistsProvider(p CustomerGroupExistsProvider) {
+	r.customerGroupProvider = p
 }
 
 func (r *Repository) basePricesByIDs(ctx context.Context, ids []int) (map[int]int, error) {
@@ -110,15 +120,13 @@ func (r *Repository) GetBasePrice(ctx context.Context, productID int) (int, erro
 
 // CustomerGroupExists reports whether a customer group id exists, so the
 // resolver can reject a bogus customer_group_id instead of silently falling
-// back to generic (customer_group_id IS NULL) pricing rules.
+// back to generic (customer_group_id IS NULL) pricing rules. The lookup runs
+// behind the customer-group-owned port rather than a direct query.
 func (r *Repository) CustomerGroupExists(ctx context.Context, customerGroupID int) (bool, error) {
-	var exists bool
-	err := r.db.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM customer_groups WHERE id = $1)`, customerGroupID).Scan(&exists)
-	if err != nil {
-		return false, err
+	if r.customerGroupProvider == nil {
+		return false, fmt.Errorf("pricing repository: customer group provider not wired; call SetCustomerGroupExistsProvider")
 	}
-	return exists, nil
+	return r.customerGroupProvider.CustomerGroupExists(ctx, r.db, customerGroupID)
 }
 
 func (r *Repository) GetProductScope(ctx context.Context, productID int) (categoryID *int, brandID *int, err error) {

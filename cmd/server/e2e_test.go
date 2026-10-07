@@ -243,6 +243,7 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	pricingRepo.SetProductPricingProvider(product.PricingLookup{})
 	pricingRepo.SetCategorySearchProvider(category.NamesProvider{})
 	pricingRepo.SetBrandSearchProvider(brand.NamesProvider{})
+	pricingRepo.SetCustomerGroupExistsProvider(customergroup.PricingLookup{})
 	supplierRepo := supplier.NewRepository(e2ePool)
 	purchaseRepo := purchase.NewRepository(e2ePool)
 	consignmentRepo := consignment.NewRepository(e2ePool)

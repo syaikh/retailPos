@@ -11,6 +11,7 @@ import (
 
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
+	"retail-pos-system/internal/customergroup"
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/inventory"
@@ -49,6 +50,7 @@ func newPricingTestResolver() *pricingTestResolver {
 	repo.SetProductPricingProvider(product.PricingLookup{})
 	repo.SetCategorySearchProvider(category.NamesProvider{})
 	repo.SetBrandSearchProvider(brand.NamesProvider{})
+	repo.SetCustomerGroupExistsProvider(customergroup.PricingLookup{})
 	return &pricingTestResolver{resolver: pricing.NewResolver(repo)}
 }
 

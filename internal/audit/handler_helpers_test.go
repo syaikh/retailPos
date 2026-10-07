@@ -1,8 +1,11 @@
 package audit
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -110,42 +113,61 @@ func TestGenerateAuditDescription(t *testing.T) {
 	}
 }
 
-func TestParseDateParam(t *testing.T) {
+func TestQueryDateParam(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	tests := []struct {
-		name string
-		s    string
-		want string
+		name     string
+		query    string
+		want     string
+		wantOK   bool
+		wantCode int
 	}{
 		{
-			name: "empty string",
-			s:    "",
-			want: "",
+			name:     "parameter absent",
+			query:    "",
+			want:     "",
+			wantOK:   true,
+			wantCode: http.StatusOK,
 		},
 		{
-			name: "valid YYYY-MM-DD",
-			s:    "2026-01-15",
-			want: "2026-01-15",
+			name:     "valid YYYY-MM-DD",
+			query:    "?start_date=2026-01-15",
+			want:     "2026-01-15",
+			wantOK:   true,
+			wantCode: http.StatusOK,
 		},
 		{
-			name: "valid RFC3339",
-			s:    "2026-01-15T10:30:00Z",
-			want: "2026-01-15T10:30:00Z",
+			name:     "valid RFC3339",
+			query:    "?start_date=2026-01-15T10:30:00Z",
+			want:     "2026-01-15T10:30:00Z",
+			wantOK:   true,
+			wantCode: http.StatusOK,
 		},
 		{
-			name: "invalid format",
-			s:    "not-a-date",
-			want: "",
+			name:     "invalid format",
+			query:    "?start_date=not-a-date",
+			want:     "",
+			wantOK:   false,
+			wantCode: http.StatusBadRequest,
 		},
 		{
-			name: "wrong separator",
-			s:    "2026/01/15",
-			want: "",
+			name:     "wrong separator",
+			query:    "?start_date=2026/01/15",
+			want:     "",
+			wantOK:   false,
+			wantCode: http.StatusBadRequest,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseDateParam(tt.s)
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/audit-logs"+tt.query, nil)
+
+			got, ok := queryDateParam(c, "start_date")
+			assert.Equal(t, tt.wantOK, ok)
 			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.wantCode, w.Code)
 		})
 	}
 }

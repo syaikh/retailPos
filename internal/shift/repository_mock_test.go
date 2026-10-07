@@ -117,6 +117,8 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1, 1).WillReturnRows(rowShift())
 		mock.ExpectQuery("SELECT COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnRows(summaryRow())
+		mock.ExpectQuery("FROM cash_movements").WithArgs(1).WillReturnRows(
+			pgxmock.NewRows([]string{"net"}).AddRow(0))
 		mock.ExpectQuery("UPDATE shifts").WithArgs(100000, 0, 0, 0, 0, 0, (*string)(nil), false, 1).WillReturnError(boom)
 		_, err := repo.CloseShift(ctx, 1, 1, 100000, nil)
 		assert.ErrorContains(t, err, "failed to close shift")
@@ -128,6 +130,8 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1, 1).WillReturnRows(rowShift())
 		mock.ExpectQuery("SELECT COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnRows(summaryRow())
+		mock.ExpectQuery("FROM cash_movements").WithArgs(1).WillReturnRows(
+			pgxmock.NewRows([]string{"net"}).AddRow(0))
 		mock.ExpectQuery("UPDATE shifts").WithArgs(100000, 0, 0, 0, 0, 0, (*string)(nil), false, 1).WillReturnRows(
 			pgxmock.NewRows([]string{"closed_at", "updated_at"}).AddRow(now, now))
 		mock.ExpectCommit().WillReturnError(boom)

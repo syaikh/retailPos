@@ -13,6 +13,7 @@ import (
 
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
+	"retail-pos-system/internal/customergroup"
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 )
@@ -53,13 +54,14 @@ func insertTestProduct(ctx context.Context, t *testing.T, sku string, name strin
 	return id
 }
 
-// newWiredRepo returns a pricing Repository with the product/category/brand
-// owner providers wired, mirroring production wiring (internal/wiring).
+// newWiredRepo returns a pricing Repository with the product/category/brand/
+// customer-group owner providers wired, mirroring production wiring (internal/wiring).
 func newWiredRepo() *Repository {
 	repo := NewRepository(dbPool)
 	repo.SetProductPricingProvider(product.PricingLookup{})
 	repo.SetCategorySearchProvider(category.NamesProvider{})
 	repo.SetBrandSearchProvider(brand.NamesProvider{})
+	repo.SetCustomerGroupExistsProvider(customergroup.PricingLookup{})
 	return repo
 }
 

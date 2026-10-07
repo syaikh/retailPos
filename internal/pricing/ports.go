@@ -46,7 +46,17 @@ type CategoryNameSearchProvider interface {
 // (internal/brand); pricing routes the brand-name EXISTS clause through this
 // port instead of querying brands directly.
 type BrandNameSearchProvider interface {
-	// BrandIDsByName returns the IDs of brands whose name ILIKE-matches the
-	// given search pattern (caller supplies the '%' pattern).
+	// BrandIDsByName returns the IDs of brands whose name ILIKE-matches
+	// the given search pattern (caller supplies the '%' pattern).
 	BrandIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error)
+}
+
+// CustomerGroupExistsProvider resolves customer-group existence for the price
+// resolver's customer_group_id validation. customer_groups is owned by the
+// referensi bounded context (internal/customergroup); pricing routes the
+// existence check through this port instead of querying customer_groups
+// directly.
+type CustomerGroupExistsProvider interface {
+	// CustomerGroupExists reports whether the customer group ID exists.
+	CustomerGroupExists(ctx context.Context, db shared.DBPool, customerGroupID int) (bool, error)
 }

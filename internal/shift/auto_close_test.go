@@ -126,6 +126,10 @@ func TestAutoCloser_Run_Unit(t *testing.T) {
 		mock.ExpectQuery("FROM sales").WithArgs(pgxmock.AnyArg()).WillReturnRows(
 			pgxmock.NewRows([]string{"cash", "non_cash", "total", "count"}).AddRow(0, 0, 0, 0))
 
+		// CashMovementNet → net cash movements for the shift
+		mock.ExpectQuery("FROM cash_movements").WithArgs(10).WillReturnRows(
+			pgxmock.NewRows([]string{"net"}).AddRow(0))
+
 		// CloseShift → begin, lock, cart check, summary in tx, update, commit
 		mock.ExpectBegin()
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(10, 5).WillReturnRows(
@@ -135,6 +139,8 @@ func TestAutoCloser_Run_Unit(t *testing.T) {
 			pgxmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery("FROM sales").WithArgs(10).WillReturnRows(
 			pgxmock.NewRows([]string{"cash", "non_cash", "total", "count"}).AddRow(0, 0, 0, 0))
+		mock.ExpectQuery("FROM cash_movements").WithArgs(10).WillReturnRows(
+			pgxmock.NewRows([]string{"net"}).AddRow(0))
 		mock.ExpectQuery("UPDATE shifts").WithArgs(
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
@@ -164,6 +170,9 @@ func TestAutoCloser_Run_Unit(t *testing.T) {
 		// Second shift: summary succeeds
 		mock.ExpectQuery("FROM sales").WithArgs(pgxmock.AnyArg()).WillReturnRows(
 			pgxmock.NewRows([]string{"cash", "non_cash", "total", "count"}).AddRow(0, 0, 0, 0))
+		// Second shift: cash movement net
+		mock.ExpectQuery("FROM cash_movements").WithArgs(11).WillReturnRows(
+			pgxmock.NewRows([]string{"net"}).AddRow(0))
 		// Second shift: close succeeds
 		mock.ExpectBegin()
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(11, 6).WillReturnRows(
@@ -173,6 +182,8 @@ func TestAutoCloser_Run_Unit(t *testing.T) {
 			pgxmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery("FROM sales").WithArgs(11).WillReturnRows(
 			pgxmock.NewRows([]string{"cash", "non_cash", "total", "count"}).AddRow(0, 0, 0, 0))
+		mock.ExpectQuery("FROM cash_movements").WithArgs(11).WillReturnRows(
+			pgxmock.NewRows([]string{"net"}).AddRow(0))
 		mock.ExpectQuery("UPDATE shifts").WithArgs(
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
@@ -199,11 +210,15 @@ func TestAutoCloser_Run_Unit(t *testing.T) {
 		// First shift: summary OK, close fails
 		mock.ExpectQuery("FROM sales").WithArgs(pgxmock.AnyArg()).WillReturnRows(
 			pgxmock.NewRows([]string{"cash", "non_cash", "total", "count"}).AddRow(0, 0, 0, 0))
+		mock.ExpectQuery("FROM cash_movements").WithArgs(10).WillReturnRows(
+			pgxmock.NewRows([]string{"net"}).AddRow(0))
 		mock.ExpectBegin().WillReturnError(errors.New("tx boom"))
 
 		// Second shift: summary OK, close succeeds
 		mock.ExpectQuery("FROM sales").WithArgs(pgxmock.AnyArg()).WillReturnRows(
 			pgxmock.NewRows([]string{"cash", "non_cash", "total", "count"}).AddRow(0, 0, 0, 0))
+		mock.ExpectQuery("FROM cash_movements").WithArgs(11).WillReturnRows(
+			pgxmock.NewRows([]string{"net"}).AddRow(0))
 
 		mock.ExpectBegin()
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(11, 6).WillReturnRows(
@@ -213,6 +228,8 @@ func TestAutoCloser_Run_Unit(t *testing.T) {
 			pgxmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery("FROM sales").WithArgs(11).WillReturnRows(
 			pgxmock.NewRows([]string{"cash", "non_cash", "total", "count"}).AddRow(0, 0, 0, 0))
+		mock.ExpectQuery("FROM cash_movements").WithArgs(11).WillReturnRows(
+			pgxmock.NewRows([]string{"net"}).AddRow(0))
 		mock.ExpectQuery("UPDATE shifts").WithArgs(
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
