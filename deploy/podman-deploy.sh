@@ -561,6 +561,18 @@ migrate() {
 
 seed() {
     log_info "Running dummy data injection via Go..."
+    # The bulk seeder defaults to -truncate=true and truncates 41 tables, so it
+    # must never run against anything but the local dev setup — same hard-refuse
+    # guards as scripts/reset-dev-db.sh (D2). The production volumes are never
+    # named retail_pos.
+    if [ "${ENV:-development}" = "production" ]; then
+        log_error "refusing to seed: ENV=production"
+        return 1
+    fi
+    if [ "$DB_NAME" != "retail_pos" ]; then
+        log_error "refusing to seed: DB_NAME='$DB_NAME' (expected 'retail_pos')"
+        return 1
+    fi
     # Run from host (ensure DB is accessible)
     DB_HOST=localhost \
     DB_PORT=5432 \

@@ -44,20 +44,31 @@ func (s *service) SetSettingsProvider(p SettingsProvider) {
 
 const defaultDiscrepancyThreshold = 50000
 
-func (s *service) getDiscrepancyThreshold(ctx context.Context) int {
-	if s.settings == nil {
+// thresholdFromSettings resolves the discrepancy threshold from the
+// shift_discrepancy_threshold app setting, falling back to
+// defaultDiscrepancyThreshold when the provider is nil (unwired repository),
+// the setting is missing, or the value parses to a non-positive number. It is
+// shared by the audit path (service.GetDiscrepancyThreshold) and the
+// close/auto-close flagging path (repository.CloseShiftTx), so changing the
+// setting via the UI updates both (backend review X1).
+func thresholdFromSettings(ctx context.Context, settings SettingsProvider) int {
+	if settings == nil {
 		return defaultDiscrepancyThreshold
 	}
-	settings, err := s.settings.GetMultiple(ctx, []string{"shift_discrepancy_threshold"})
+	vals, err := settings.GetMultiple(ctx, []string{"shift_discrepancy_threshold"})
 	if err != nil {
 		return defaultDiscrepancyThreshold
 	}
-	if v, ok := settings["shift_discrepancy_threshold"]; ok {
+	if v, ok := vals["shift_discrepancy_threshold"]; ok {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			return n
 		}
 	}
 	return defaultDiscrepancyThreshold
+}
+
+func (s *service) getDiscrepancyThreshold(ctx context.Context) int {
+	return thresholdFromSettings(ctx, s.settings)
 }
 
 func (s *service) GetDiscrepancyThreshold(ctx context.Context) int {

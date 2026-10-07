@@ -1044,6 +1044,35 @@ func (m *mockPriceResolver) ResolveSnapshotsBatch(ctx context.Context, items []R
 	return result, nil
 }
 
+// mockGroupNotFoundResolver returns a pricing error that satisfies the
+// customerGroupNotFound marker (mirroring internal/pricing's inline sentinel),
+// so ResolveCheckoutPrices must surface it as ErrInvalidCustomerGroup.
+type mockGroupNotFoundResolver struct{}
+
+func (m *mockGroupNotFoundResolver) ResolveSnapshotsBatch(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error) {
+	return nil, fmt.Errorf("%w: customer group %d", testCustomerGroupNotFoundError{}, 999)
+}
+
+type testCustomerGroupNotFoundError struct{}
+
+func (testCustomerGroupNotFoundError) Error() string          { return "customer group not found" }
+func (testCustomerGroupNotFoundError) CustomerGroupNotFound() {}
+
+func TestResolveCheckoutPrices_UnknownCustomerGroup(t *testing.T) {
+	repo := newTestRepo(t)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	svc.SetPriceResolver(&mockGroupNotFoundResolver{})
+
+	_, err := svc.ResolveCheckoutPrices(context.Background(), []ResolveItem{{ProductID: 1, Quantity: 1}})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidCustomerGroup)
+	assert.NotErrorIs(t, err, ErrCheckoutProductNotFound)
+}
+
 type mockSimplePriceStore struct {
 	prices map[int]int
 }

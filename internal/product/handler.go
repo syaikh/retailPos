@@ -66,10 +66,13 @@ func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
-	r.GET("/products", h.GetProducts)
+	r.GET("/products", auth, perm(permissions.ProductView), h.GetProducts)
 	r.GET("/products/next-sku", h.GetNextSKU)
 
-	r.GET("/products/:id", auth, h.GetProductByID)
+	// The catalog read surface enforces product.view explicitly; product reads
+	// reach the UI through these routes only. (Product SKU/Search endpoints and
+	// internal service ports are covered separately.)
+	r.GET("/products/:id", auth, perm(permissions.ProductView), h.GetProductByID)
 	r.POST("/products", auth, perm(permissions.ProductCreate), h.CreateProduct)
 	r.PUT("/products/:id", auth, perm(permissions.ProductUpdate), h.UpdateProduct)
 	r.DELETE("/products/:id", auth, perm(permissions.ProductDelete), h.DeleteProduct)

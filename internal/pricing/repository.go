@@ -108,6 +108,19 @@ func (r *Repository) GetBasePrice(ctx context.Context, productID int) (int, erro
 	return price, nil
 }
 
+// CustomerGroupExists reports whether a customer group id exists, so the
+// resolver can reject a bogus customer_group_id instead of silently falling
+// back to generic (customer_group_id IS NULL) pricing rules.
+func (r *Repository) CustomerGroupExists(ctx context.Context, customerGroupID int) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM customer_groups WHERE id = $1)`, customerGroupID).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 func (r *Repository) GetProductScope(ctx context.Context, productID int) (categoryID *int, brandID *int, err error) {
 	scopes, err := r.productScopesByIDs(ctx, []int{productID})
 	if err != nil {
@@ -771,14 +784,22 @@ func (r *Repository) BulkUpdatePricingRules(ctx context.Context, payloads []Rule
 	return count, nil
 }
 
-func (r *Repository) GetAllForExport(ctx context.Context) ([]Rule, error) {
-	rows, err := r.db.Query(ctx, `
+func (r *Repository) GetAllForExport(ctx context.Context, storeID *int) ([]Rule, error) {
+	query := `
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
 		       customer_group_id, store_id, recurrence_days, time_from, time_to,
 		       allow_combine, is_active, status, effective_from, effective_until, created_at, updated_at
-		FROM pricing_rules ORDER BY id ASC
-	`)
+		FROM pricing_rules`
+	args := []interface{}{}
+	if storeID != nil {
+		// A store-scoped caller may export its own rules and the global ones;
+		// never another store's negotiated terms.
+		query += " WHERE (store_id IS NULL OR store_id = $1)"
+		args = append(args, *storeID)
+	}
+	query += " ORDER BY id ASC"
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

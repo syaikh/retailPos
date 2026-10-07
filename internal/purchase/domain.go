@@ -111,34 +111,12 @@ type GoodsReceiptItem struct {
 	CreatedAt           string `json:"created_at"`
 }
 
-type CreatePurchaseOrderRequest struct {
-	SupplierID              int                   `json:"supplier_id" binding:"required"`
-	StoreID                 *int                  `json:"store_id,omitempty"`
-	WarehouseID             *int                  `json:"warehouse_id,omitempty"`
-	ExpectedDate            string                `json:"expected_date,omitempty"`
-	PaymentTerm             string                `json:"payment_term,omitempty"`
-	DeliveryAddress         string                `json:"delivery_address,omitempty"`
-	SupplierReferenceNumber string                `json:"supplier_reference_number,omitempty"`
-	Notes                   string                `json:"notes,omitempty"`
-	Items                   []CreatePOItemRequest `json:"items" binding:"required"`
-}
-
 type CreatePOItemRequest struct {
 	ProductID      int     `json:"product_id" binding:"required"`
 	QtyOrdered     int     `json:"qty_ordered" binding:"required,min=1"`
 	UnitCost       int     `json:"unit_cost" binding:"min=0"`
 	DiscountAmount int     `json:"discount_amount"`
 	Notes          *string `json:"notes,omitempty"`
-}
-
-type UpdatePurchaseOrderRequest struct {
-	SupplierID              int                   `json:"supplier_id" binding:"required"`
-	ExpectedDate            string                `json:"expected_date,omitempty"`
-	PaymentTerm             string                `json:"payment_term,omitempty"`
-	DeliveryAddress         string                `json:"delivery_address,omitempty"`
-	SupplierReferenceNumber string                `json:"supplier_reference_number,omitempty"`
-	Notes                   string                `json:"notes,omitempty"`
-	Items                   []UpdatePOItemRequest `json:"items" binding:"required"`
 }
 
 type UpdatePOItemRequest struct {

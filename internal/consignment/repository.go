@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -577,6 +578,41 @@ func (r *Repository) LockConsignmentStock(ctx context.Context, tx pgx.Tx, produc
 	return &s, nil
 }
 
+// LockConsignmentStocks locks the ledger rows for a set of checkout lines FOR
+// UPDATE in a single statement, then returns them keyed by product id. Products
+// without a ledger row are absent from the map (store-owned). Batching the
+// per-line lock into one statement keeps the number of checkout round-trips
+// bounded by the transaction, not the cart size (backend review P1).
+func (r *Repository) LockConsignmentStocks(ctx context.Context, tx pgx.Tx, productIDs []int) (map[int]*StockRow, error) {
+	if len(productIDs) == 0 {
+		return map[int]*StockRow{}, nil
+	}
+	rows, err := tx.Query(ctx, `
+		SELECT cs.product_id, cs.supplier_id, cs.arrangement_id, cs.store_id,
+		       cs.available_qty, cs.pending_return_qty, cs.updated_at
+		FROM consignment_stock cs
+		WHERE cs.product_id = ANY($1)
+		FOR UPDATE
+	`, productIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int]*StockRow, len(productIDs))
+	for rows.Next() {
+		s := StockRow{}
+		var updatedAt sql.NullTime
+		if err := rows.Scan(&s.ProductID, &s.SupplierID, &s.ArrangementID, &s.StoreID,
+			&s.AvailableQty, &s.PendingReturnQty, &updatedAt); err != nil {
+			return nil, err
+		}
+		s.UpdatedAt = nullTimePtr(updatedAt)
+		result[s.ProductID] = &s
+	}
+	return result, rows.Err()
+}
+
 // UpsertConsignmentStock adds delta to available_qty for the owning row,
 // creating it (supplier_id, arrangement_id, store_id) when missing. On conflict
 // the owner columns are refreshed to the incoming supplier/arrangement so a
@@ -638,6 +674,50 @@ func (r *Repository) ReduceAvailable(ctx context.Context, tx pgx.Tx, productID, 
 		return err
 	}
 	if tag.RowsAffected() == 0 {
+		return ErrInsufficientConsignmentStock
+	}
+	return nil
+}
+
+// ReduceAvailableBatch decreases available_qty by each delta in a single
+// conditional UPDATE, guarding against negatives. Checkout calls it once for
+// the consignment-owned lines it already locked in LockConsignmentStocks, so a
+// cart-sized checkout does not issue one statement per line (backend review
+// P1). The whole batch fails closed with ErrInsufficientConsignmentStock when
+// any row trails its delta, which after the FOR UPDATE pre-check can only be a
+// logic bug — the same transaction has already validated every delta.
+func (r *Repository) ReduceAvailableBatch(ctx context.Context, tx pgx.Tx, deltas map[int]int) error {
+	if len(deltas) == 0 {
+		return nil
+	}
+
+	products := make([]int, 0, len(deltas))
+	for p := range deltas {
+		products = append(products, p)
+	}
+	sort.Ints(products)
+
+	var query strings.Builder
+	query.WriteString(`
+		UPDATE consignment_stock cs
+		SET available_qty = cs.available_qty - d.qty, updated_at = now()
+		FROM (VALUES `)
+	args := make([]any, 0, len(products)*2)
+	for i, p := range products {
+		if i > 0 {
+			query.WriteString(",")
+		}
+		fmt.Fprintf(&query, "($%d::integer, $%d::integer)", i*2+1, i*2+2)
+		args = append(args, p, deltas[p])
+	}
+	query.WriteString(`) AS d(product_id, qty)
+		WHERE cs.product_id = d.product_id AND cs.available_qty >= d.qty`)
+
+	tag, err := tx.Exec(ctx, query.String(), args...)
+	if err != nil {
+		return err
+	}
+	if int(tag.RowsAffected()) != len(products) {
 		return ErrInsufficientConsignmentStock
 	}
 	return nil
@@ -1247,7 +1327,12 @@ func (r *Repository) InsertConsignmentSaleItem(ctx context.Context, tx pgx.Tx, r
 // --- Unsettled consignment sale items (settlement reads) ---
 
 // ListUnsettledSaleItems returns consignment sale items of a supplier/store
-// that are not yet covered by a settlement, newest first (BR-24).
+// that are not yet covered by a settlement, newest first (BR-24). Inside a
+// settlement's Unit of Work the rows are locked FOR UPDATE so concurrent
+// settlements for the same supplier/store serialize: a racing settlement
+// blocks on the lock, re-evaluates the settled filter against the committed
+// rows, and returns empty instead of double-covering the same sale items
+// (backend review B5).
 func (r *Repository) ListUnsettledSaleItems(ctx context.Context, q queryer, supplierID, storeID int) ([]SaleItemRecord, error) {
 	rows, err := q.Query(ctx, `
 		SELECT i.id, i.sale_id, i.invoice_number, i.product_id,
@@ -1255,6 +1340,7 @@ func (r *Repository) ListUnsettledSaleItems(ctx context.Context, q queryer, supp
 		FROM consignment_sale_items i
 		WHERE i.supplier_id = $1 AND i.store_id = $2 AND i.settlement_id IS NULL
 		ORDER BY i.created_at DESC
+		FOR UPDATE
 	`, supplierID, storeID)
 	if err != nil {
 		return nil, err
@@ -1380,7 +1466,10 @@ func (r *Repository) GetSettlementByID(ctx context.Context, q queryer, id int) (
 }
 
 // GetSettlementByIDQuery returns a settlement header WITHOUT items/payouts,
-// for in-transaction checks that only need the totals/status.
+// for in-transaction checks that only need the totals/status. The row is
+// locked FOR UPDATE so concurrent payouts serialize: the second payout blocks
+// and re-reads the committed status and totals, so it cannot over-pay or
+// double-close a settlement settled nearly simultaneously (backend review B5).
 func (r *Repository) GetSettlementByIDQuery(ctx context.Context, q queryer, id int) (*Settlement, error) {
 	var s Settlement
 	var paidAt, createdAt sql.NullTime
@@ -1389,6 +1478,7 @@ func (r *Repository) GetSettlementByIDQuery(ctx context.Context, q queryer, id i
 		       st.total_sale_value, st.total_store_share, st.total_payable, st.status, st.created_by, st.created_at, st.paid_at
 		FROM consignment_settlements st
 		WHERE st.id = $1
+		FOR UPDATE
 	`, id).Scan(&s.ID, &s.SettlementNumber, &s.SupplierID, &s.StoreID,
 		&s.TotalSaleValue, &s.TotalStoreShare, &s.TotalPayable, &s.Status, &s.CreatedBy, &createdAt, &paidAt)
 	if err != nil {

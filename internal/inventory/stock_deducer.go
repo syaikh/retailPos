@@ -3,6 +3,8 @@ package inventory
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -22,23 +24,34 @@ type StockDeducer struct{}
 // Create Sale → Create Payment in one transaction), so the caller's tx must be
 // used to preserve atomicity.
 //
-// P2-1 D2: deduction is an atomic conditional decrement — each item issues a
-// single `UPDATE ... SET quantity = quantity - n WHERE quantity >= n` and the
-// sale aborts with ErrInsufficientStock when 0 rows are affected. Combined with
-// the quantity pre-check (which detects missing stock rows under a row lock),
-// a duplicate or concurrent deduction can never drive product_stock negative.
-// No global CHECK constraint is added; stock-opname absolute writes via
+// P2-1 D2: deduction is an atomic conditional decrement issued as ONE statement
+// for the whole checkout — a single `UPDATE ... SET quantity = quantity - <net
+// per product> CASE ... WHERE quantity >= <net>` — so a cart-sized checkout
+// does not run one UPDATE per line (backend review P2). Combined with the
+// quantity pre-check (which detects missing stock rows under a row lock), a
+// duplicate or concurrent deduction can never drive product_stock negative. No
+// global CHECK constraint is added; stock-opname absolute writes via
 // inventory_adjustments keep their semantics.
 //
 // On any error the caller MUST roll back (or otherwise discard) the transaction:
-// items are decremented as they are processed, so a multi-item deduction that
-// fails midway leaves earlier items already subtracted inside the tx. All current
-// callers run this inside a deferred Rollback, so the fail-closed guarantee holds.
+// the single UPDATE is all-or-nothing, and callers run this inside a deferred
+// Rollback, so the fail-closed guarantee holds.
 func (StockDeducer) DeductStock(ctx context.Context, tx pgx.Tx, items []shared.StockDeductItem) error {
-	productIDs := make([]int, len(items))
-	for i, item := range items {
-		productIDs[i] = item.ProductID
+	if len(items) == 0 {
+		return nil
 	}
+
+	// Net quantity per product so duplicate lines still subtract fully (the
+	// per-row semantics of the old one-UPDATE-per-line loop).
+	net := make(map[int]int, len(items))
+	for _, item := range items {
+		net[item.ProductID] += item.Quantity
+	}
+	productIDs := make([]int, 0, len(net))
+	for p := range net {
+		productIDs = append(productIDs, p)
+	}
+	sort.Ints(productIDs)
 
 	// Lock the target rows and detect missing stock records. The FOR UPDATE
 	// serializes concurrent deductions on the same rows, and lets us distinguish
@@ -64,19 +77,34 @@ func (StockDeducer) DeductStock(ctx context.Context, tx pgx.Tx, items []shared.S
 		}
 	}
 
-	// Atomic check-and-decrement per item. The WHERE clause re-checks the
+	// One conditional check-and-decrement for the entire checkout. Per product
+	// the CASE subtracts its net quantity and the WHERE guard re-checks the
 	// available quantity, so even a stale pre-read (or a duplicate line item
-	// that slipped past dedupe) fails closed instead of overselling.
-	for _, item := range items {
-		tag, err := tx.Exec(ctx, `UPDATE product_stock SET quantity = quantity - $1
-			WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL AND quantity >= $1`,
-			item.Quantity, item.ProductID)
-		if err != nil {
-			return fmt.Errorf("deduct stock: %w", err)
-		}
-		if tag.RowsAffected() == 0 {
-			return shared.ErrInsufficientStock
-		}
+	// that slipped past dedupe) fails closed instead of overselling; the
+	// affected-row count must equal the number of distinct products.
+	var query strings.Builder
+	query.WriteString(`UPDATE product_stock SET quantity = quantity - CASE product_id`)
+	args := make([]any, 0, len(productIDs)*2+1)
+	for i, p := range productIDs {
+		fmt.Fprintf(&query, " WHEN $%d THEN $%d", i*2+1, i*2+2)
+		args = append(args, p, net[p])
+	}
+	args = append(args, productIDs) // $len(productIDs)*2+1
+	query.WriteString(` ELSE 0 END`)
+	query.WriteString(` WHERE warehouse_id IS NULL AND store_id IS NULL`)
+	fmt.Fprintf(&query, ` AND product_id = ANY($%d)`, len(productIDs)*2+1)
+	query.WriteString(` AND quantity >= CASE product_id`)
+	for i := range productIDs {
+		fmt.Fprintf(&query, " WHEN $%d THEN $%d", i*2+1, i*2+2)
+	}
+	query.WriteString(` ELSE 0 END`)
+
+	tag, err := tx.Exec(ctx, query.String(), args...)
+	if err != nil {
+		return fmt.Errorf("deduct stock: %w", err)
+	}
+	if int(tag.RowsAffected()) != len(productIDs) {
+		return shared.ErrInsufficientStock
 	}
 
 	return nil

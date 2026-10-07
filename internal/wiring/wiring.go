@@ -535,7 +535,6 @@ func Initialize(p Providers) *Dependencies {
 	d.CustomerGroupSvc = customergroup.NewService(d.CustomerGroupRepo)
 	d.StoreSvc = store.NewService(d.StoreRepo)
 	d.ShiftSvc = shift.NewService(d.ShiftRepo)
-	d.ShiftSvc.SetSettingsProvider(d.AppSettingsSvc)
 	d.StockOpnameSvc = stockopname.NewService(d.StockOpnameRepo, d.Bus)
 	d.StockOpnameSvc.SetStockApplier(inventory.StockApplier{})
 	d.StorageLocationSvc = storagelocation.NewService(d.StorageLocationRepo)
@@ -545,6 +544,12 @@ func Initialize(p Providers) *Dependencies {
 
 	d.AppSettingsRepo = appsettings.NewRepository(p.DB)
 	d.AppSettingsSvc = appsettings.NewService(d.AppSettingsRepo)
+
+	// Settings providers must be wired after AppSettingsSvc exists. The service
+	// reads the live shift_discrepancy_threshold on the audit path; the
+	// repository reads it on the close/auto-close path (backend review X1).
+	d.ShiftSvc.SetSettingsProvider(d.AppSettingsSvc)
+	d.ShiftRepo.SetSettingsProvider(d.AppSettingsSvc)
 
 	d.UserH = user.NewHandler(d.UserSvc, d.AuditSvc)
 	d.AuthH = user.NewAuthHandler(d.AuthSvc, d.AuditSvc)

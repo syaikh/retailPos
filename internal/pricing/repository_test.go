@@ -711,7 +711,7 @@ func TestPricingRepository_GetAllForExport(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, rule))
 
-	rules, err := repo.GetAllForExport(ctx)
+	rules, err := repo.GetAllForExport(ctx, nil)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(rules), 1)
 }

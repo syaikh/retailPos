@@ -2420,6 +2420,9 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conrelid = 'public.product_suppliers'::regclass AND conname = 'product_suppliers_product_id_supplier_id_key'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'public.product_suppliers'::regclass AND conname = 'product_suppliers_product_id_supplier_id_store_id_key'
     ) THEN
         ALTER TABLE ONLY public.product_suppliers ADD CONSTRAINT product_suppliers_product_id_supplier_id_key UNIQUE (product_id, supplier_id);
     END IF;
@@ -3005,7 +3008,19 @@ CREATE INDEX IF NOT EXISTS idx_product_stock_store_id ON public.product_stock US
 
 CREATE INDEX IF NOT EXISTS idx_product_stock_warehouse_id ON public.product_stock USING btree (warehouse_id);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_product_suppliers_one_preferred ON public.product_suppliers USING btree (product_id) WHERE (is_preferred = true);
+DO $$
+BEGIN
+    -- 058 replaced this global partial index with the per-store variant. Skip
+    -- when 058 has already run, so a baseline replay cannot reinstall a
+    -- wrong-shaped index (or hit a duplicate key) over per-store rows.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = current_schema() AND tablename = 'product_suppliers' AND indexname = 'idx_product_suppliers_one_preferred_per_store'
+    ) THEN
+        CREATE UNIQUE INDEX idx_product_suppliers_one_preferred ON public.product_suppliers USING btree (product_id) WHERE (is_preferred = true);
+    END IF;
+END;
+$$;
 
 CREATE INDEX IF NOT EXISTS idx_product_suppliers_product ON public.product_suppliers USING btree (product_id);
 
@@ -4586,7 +4601,12 @@ $$;
 
 DO $$
 BEGIN
-    IF NOT EXISTS (
+    -- 058 retires suppliers.store_id (D3 Option C), so a replay over a database
+    -- that already ran it must not try to add a foreign key on a dead column.
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'suppliers' AND column_name = 'store_id'
+    ) AND NOT EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conrelid = 'public.suppliers'::regclass AND conname = 'suppliers_store_id_fkey'
     ) THEN

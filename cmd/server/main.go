@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -100,8 +101,24 @@ func main() {
 			slog.Error("DB_HOST environment variable is required when DATABASE_URL is not set")
 			os.Exit(1)
 		}
-		dsn = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&timezone=Asia/Jakarta",
-			dbUser, dbPass, dbHost, dbPort, dbName, cfg.DBSSLMode)
+		// Build the DSN through net/url so a password containing reserved
+		// characters (@ : / ? #) is escaped instead of corrupting the DSN or
+		// pointing the connection at a different target (D3).
+		host := dbHost
+		if dbPort != "" {
+			host = net.JoinHostPort(dbHost, dbPort)
+		}
+		u := &url.URL{
+			Scheme: "postgres",
+			User:   url.UserPassword(dbUser, dbPass),
+			Host:   host,
+			Path:   "/" + dbName,
+		}
+		q := u.Query()
+		q.Set("sslmode", cfg.DBSSLMode)
+		q.Set("timezone", "Asia/Jakarta")
+		u.RawQuery = q.Encode()
+		dsn = u.String()
 	}
 	poolCfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
@@ -205,7 +222,7 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "timestamp": time.Now().In(shared.JakartaLocation()).Format(time.RFC3339)})
 	})
 
-	router.GET("/metrics", func(c *gin.Context) {
+	router.GET("/metrics", authMiddleware, middleware.AdminOnly(), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"metrics":   metrics.Snapshot(),
 			"timestamp": time.Now().In(shared.JakartaLocation()).Format(time.RFC3339),
@@ -224,7 +241,7 @@ func main() {
 	}()
 
 	docs.SwaggerInfo.BasePath = "/api"
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	router.GET("/swagger/*any", authMiddleware, middleware.AdminOnly(), ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	port := os.Getenv("PORT")
 	if port == "" {

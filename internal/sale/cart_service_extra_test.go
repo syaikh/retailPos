@@ -465,6 +465,6 @@ func TestSaleRepository_UpdateCartItemQuantity_MissingItem(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	err = repo.UpdateCartItemQuantity(ctx, tx, cart.ID, 999999, 2, 24000, 24000, 0)
+	err = repo.UpdateCartItemQuantity(ctx, tx, cart.ID, &CartItem{ID: 999999, Quantity: 2, Subtotal: 24000, DPPAmount: 24000})
 	assert.ErrorIs(t, err, ErrCartItemNotFound)
 }

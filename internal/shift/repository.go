@@ -27,6 +27,7 @@ type Repository struct {
 	usernameProvider         UsernameProvider
 	paymentBreakdownProvider PaymentBreakdownProvider
 	cartSessionChecker       CartSessionChecker
+	settings                 SettingsProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -65,6 +66,13 @@ func (r *Repository) SetPaymentBreakdownProvider(p PaymentBreakdownProvider) {
 // path runs; an unwired repository fails fast at the read point.
 func (r *Repository) SetCartSessionChecker(p CartSessionChecker) {
 	r.cartSessionChecker = p
+}
+
+// SetSettingsProvider wires the app-settings implementation of the
+// SettingsProvider port so close-time needs_review flagging reads the live
+// shift_discrepancy_threshold instead of a drifted copy (backend review X1).
+func (r *Repository) SetSettingsProvider(p SettingsProvider) {
+	r.settings = p
 }
 
 func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
@@ -226,10 +234,18 @@ func (r *Repository) CloseShiftTx(ctx context.Context, tx pgx.Tx, shiftID, userI
 		return nil, fmt.Errorf("failed to calculate shift summary: %w", err)
 	}
 
-	discrepancy := closingBalance - shift.OpeningBalance - summary.TotalCashSales
+	// Cash movements change the drawer without touching sales: reconcile the
+	// observed closing balance against opening + cash sales + net movements so
+	// a legit paid_in / cash_drop / paid_out is not flagged as a discrepancy.
+	cashMovementNet, err := r.cashMovementNetInTx(ctx, tx, shiftID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate cash movement net: %w", err)
+	}
 
-	const discrepancyThreshold = 50000
-	needsReview := discrepancy < -discrepancyThreshold || discrepancy > discrepancyThreshold
+	discrepancy := closingBalance - shift.OpeningBalance - summary.TotalCashSales - cashMovementNet
+
+	threshold := thresholdFromSettings(ctx, r.settings)
+	needsReview := discrepancy < -threshold || discrepancy > threshold
 
 	var closedAt, updatedAt time.Time
 	err = tx.QueryRow(ctx, `

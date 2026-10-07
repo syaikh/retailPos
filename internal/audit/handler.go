@@ -94,8 +94,14 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 		}
 	}
 
-	startDate := parseDateParam(c.Query("start_date"))
-	endDate := parseDateParam(c.Query("end_date"))
+	startDate, ok := queryDateParam(c, "start_date")
+	if !ok {
+		return
+	}
+	endDate, ok := queryDateParam(c, "end_date")
+	if !ok {
+		return
+	}
 
 	storeID := shared.GetStoreID(c)
 
@@ -167,8 +173,14 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 		}
 	}
 
-	startDate := parseDateParam(c.Query("start_date"))
-	endDate := parseDateParam(c.Query("end_date"))
+	startDate, ok := queryDateParam(c, "start_date")
+	if !ok {
+		return
+	}
+	endDate, ok := queryDateParam(c, "end_date")
+	if !ok {
+		return
+	}
 
 	storeID := shared.GetStoreID(c)
 
@@ -378,17 +390,21 @@ func GenerateAuditDescription(log *Log) string {
 	return ""
 }
 
-func parseDateParam(s string) string {
-	if s == "" {
-		return ""
+// queryDateParam reads an optional date filter. It returns (value, true) when
+// the parameter is absent, and validates a present value through the shared
+// parser, writing a 400 and returning ("", false) on anything invalid — a
+// typo'd date now fails loudly instead of silently dropping the filter (backend
+// review X2).
+func queryDateParam(c *gin.Context, name string) (string, bool) {
+	val := c.Query(name)
+	if val == "" {
+		return "", true
 	}
-	if _, err := time.Parse(time.RFC3339, s); err == nil {
-		return s
+	if _, err := shared.ParseJakartaFilterDate(val); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid " + name})
+		return "", false
 	}
-	if _, err := time.Parse("2006-01-02", s); err == nil {
-		return s
-	}
-	return ""
+	return val, true
 }
 
 func formatEntityID(entityID *int) string {

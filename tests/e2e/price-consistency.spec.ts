@@ -363,8 +363,10 @@ test.describe('Price Consistency During Active Transactions', () => {
     await expect(page.locator('input[type="number"]')).toHaveCount(2, { timeout: 10000 });
   });
 
-  // E2E-04 — quantity change does not alter the snapshot (BR-07)
-  test('E2E-04: changing quantity does not change the snapshot price', async ({ request }) => {
+  // E2E-04 — quantity change re-resolves the snapshot for the new quantity (B4);
+  // with no quantity-gated rule the resolved price is unchanged, and the
+  // snapshot timestamp is refreshed (never earlier than the add-time value).
+  test('E2E-04: changing quantity re-resolves the snapshot without changing an ungated price', async ({ request }) => {
     const token = await getToken(request);
     const cartId = await ensureFreshCart(token, request);
 
@@ -384,7 +386,9 @@ test.describe('Price Consistency During Active Transactions', () => {
     expect(updated.quantity).toBe(3);
     expect(updated.unit_price).toBe(BASE_PRICE);
     expect(updated.subtotal).toBe(BASE_PRICE * 3);
-    expect(updated.snapshot_created_at).toBe(snapshotAt);
+    expect(new Date(updated.snapshot_created_at).getTime()).toBeGreaterThanOrEqual(
+      new Date(snapshotAt).getTime()
+    );
   });
 
   // E2E-05 — void then rescan creates a fresh snapshot with latest price (BR-08, Edge #4)

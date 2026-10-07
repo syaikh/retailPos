@@ -378,6 +378,20 @@ jobs:
             psql -h localhost -p 5432 -U pos -d retail_pos_test -v ON_ERROR_STOP=1 -f "$f"
           done
           echo "Migrations complete"
+      # Replay the whole set over the freshly-migrated database. Every migration
+      # is permanently re-runnable (the replay contract) and 058 in particular
+      # retires suppliers.store_id, so this pass proves a prod replay over an
+      # already-migrated schema does not die on the baseline's restore guards.
+      - name: Replay migrations (double-apply must be a no-op)
+        env:
+          PGPASSWORD: testpassword
+        run: |
+          set -euo pipefail
+          for f in database/migrations/*.sql; do
+            echo "Replaying $f"
+            psql -h localhost -p 5432 -U pos -d retail_pos_test -v ON_ERROR_STOP=1 -f "$f"
+          done
+          echo "Replay complete"
       - name: Verify server starts
         env:
           DB_HOST: localhost

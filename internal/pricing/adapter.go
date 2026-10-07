@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/shared"
 	importexportshared "retail-pos-system/internal/shared/importexport"
 )
@@ -202,7 +203,8 @@ func (r *pricingRepoAdapter) Update(ctx context.Context, entities []interface{})
 }
 
 func (r *pricingRepoAdapter) ExportData(ctx context.Context, _ importexportshared.ModuleSchema) ([]map[string]interface{}, error) {
-	rules, err := r.repo.GetAllForExport(ctx)
+	storeID := middleware.StoreIDFromContext(ctx)
+	rules, err := r.repo.GetAllForExport(ctx, storeID)
 	if err != nil {
 		return nil, err
 	}

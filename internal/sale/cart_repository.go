@@ -197,7 +197,7 @@ func (r *Repository) ListHeldCarts(ctx context.Context, cashierID int) ([]CartSe
 			cartMap[carts[i].ID] = &carts[i]
 		}
 		itemRows, err := r.db.Query(ctx, `
-			SELECT id, cart_session_id, product_id, product_name, quantity, unit_price, original_price, discount,
+			SELECT id, cart_session_id, customer_group_id, product_id, product_name, quantity, unit_price, original_price, discount,
 			       pricing_rule_id, pricing_rule_name, pricing_rule_type, pricing_type, cost, tax_class_id, tax_rate,
 			       snapshot_created_at, subtotal, dpp_amount, tax_amount
 			FROM cart_items WHERE cart_session_id = ANY($1)
@@ -312,12 +312,12 @@ func (r *Repository) UpdateCartCustomer(ctx context.Context, tx pgx.Tx, cartID i
 func (r *Repository) InsertCartItem(ctx context.Context, tx pgx.Tx, item *CartItem) error {
 	var createdAt, updatedAt, snapshotCreatedAt time.Time
 	err := tx.QueryRow(ctx, `
-		INSERT INTO cart_items (cart_session_id, product_id, product_name, quantity, unit_price, original_price, discount,
+		INSERT INTO cart_items (cart_session_id, customer_group_id, product_id, product_name, quantity, unit_price, original_price, discount,
 		       pricing_rule_id, pricing_rule_name, pricing_rule_type, pricing_type, cost, tax_class_id, tax_rate,
 		       snapshot_created_at, subtotal, dpp_amount, tax_amount)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 		RETURNING id, snapshot_created_at, created_at, updated_at
-	`, item.CartSessionID, item.ProductID, item.ProductName, item.Quantity, item.UnitPrice, item.OriginalPrice,
+	`, item.CartSessionID, item.CustomerGroupID, item.ProductID, item.ProductName, item.Quantity, item.UnitPrice, item.OriginalPrice,
 		item.Discount, item.PricingRuleID, item.PricingRuleName, item.PricingRuleType, item.Type,
 		item.Cost, item.TaxClassID, item.TaxRate, item.SnapshotCreatedAt, item.Subtotal, item.DPPAmount, item.TaxAmount).
 		Scan(&item.ID, &snapshotCreatedAt, &createdAt, &updatedAt)
@@ -330,7 +330,7 @@ func (r *Repository) InsertCartItem(ctx context.Context, tx pgx.Tx, item *CartIt
 
 func (r *Repository) GetCartItems(ctx context.Context, cartID int) ([]CartItem, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, cart_session_id, product_id, product_name, quantity, unit_price, original_price, discount,
+		SELECT id, cart_session_id, customer_group_id, product_id, product_name, quantity, unit_price, original_price, discount,
 		       pricing_rule_id, pricing_rule_name, pricing_rule_type, pricing_type, cost, tax_class_id, tax_rate,
 		       snapshot_created_at, subtotal, dpp_amount, tax_amount
 		FROM cart_items WHERE cart_session_id = $1
@@ -358,13 +358,14 @@ func (r *Repository) GetCartItems(ctx context.Context, cartID int) ([]CartItem, 
 func scanCartItem(row pgx.Row) (*CartItem, error) {
 	var item CartItem
 	var snapshotCreatedAt time.Time
+	var customerGroupID sql.NullInt64
 	var taxClassID sql.NullInt64
 	var taxRate sql.NullFloat64
 	var pricingRuleID sql.NullInt64
 	var pricingRuleName, pricingRuleType, pricingType sql.NullString
 
 	err := row.Scan(
-		&item.ID, &item.CartSessionID, &item.ProductID, &item.ProductName,
+		&item.ID, &item.CartSessionID, &customerGroupID, &item.ProductID, &item.ProductName,
 		&item.Quantity, &item.UnitPrice, &item.OriginalPrice, &item.Discount,
 		&pricingRuleID, &pricingRuleName, &pricingRuleType, &pricingType,
 		&item.Cost, &taxClassID, &taxRate,
@@ -372,6 +373,10 @@ func scanCartItem(row pgx.Row) (*CartItem, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan cart item: %w", err)
+	}
+	if customerGroupID.Valid {
+		v := int(customerGroupID.Int64)
+		item.CustomerGroupID = &v
 	}
 	if pricingRuleID.Valid {
 		v := int(pricingRuleID.Int64)
@@ -401,11 +406,24 @@ func scanCartItem(row pgx.Row) (*CartItem, error) {
 	return &item, nil
 }
 
-func (r *Repository) UpdateCartItemQuantity(ctx context.Context, tx pgx.Tx, cartID, itemID, quantity, subtotal, dppAmount, taxAmount int) error {
+// UpdateCartItemQuantity persists a quantity change together with the price
+// snapshot re-resolved for the new quantity, so a line's stored snapshot always
+// matches its quantity (backend review B4). customer_group_id is deliberately
+// untouched: the line's pricing context never changes on a quantity edit.
+func (r *Repository) UpdateCartItemQuantity(ctx context.Context, tx pgx.Tx, cartID int, item *CartItem) error {
 	tag, err := tx.Exec(ctx, `
-		UPDATE cart_items SET quantity = $1, subtotal = $2, dpp_amount = $3, tax_amount = $4, updated_at = NOW()
-		WHERE id = $5 AND cart_session_id = $6
-	`, quantity, subtotal, dppAmount, taxAmount, itemID, cartID)
+		UPDATE cart_items
+		SET quantity = $1, unit_price = $2, original_price = $3, discount = $4,
+		    pricing_rule_id = $5, pricing_rule_name = $6, pricing_rule_type = $7,
+		    pricing_type = $8, cost = $9, tax_class_id = $10, tax_rate = $11,
+		    snapshot_created_at = $12, subtotal = $13, dpp_amount = $14,
+		    tax_amount = $15, updated_at = NOW()
+		WHERE id = $16 AND cart_session_id = $17
+	`, item.Quantity, item.UnitPrice, item.OriginalPrice, item.Discount,
+		item.PricingRuleID, item.PricingRuleName, item.PricingRuleType,
+		item.Type, item.Cost, item.TaxClassID, item.TaxRate,
+		item.SnapshotCreatedAt, item.Subtotal, item.DPPAmount, item.TaxAmount,
+		item.ID, cartID)
 	if err != nil {
 		return fmt.Errorf("update cart item quantity: %w", err)
 	}
@@ -433,7 +451,7 @@ func (r *Repository) DeleteCartItem(ctx context.Context, tx pgx.Tx, cartID, item
 // LoadCartItemsForCheckout loads all items of a cart for checkout.
 func (r *Repository) LoadCartItemsForCheckout(ctx context.Context, tx pgx.Tx, cartID int) ([]CartItem, error) {
 	rows, err := tx.Query(ctx, `
-		SELECT id, cart_session_id, product_id, product_name, quantity, unit_price, original_price, discount,
+		SELECT id, cart_session_id, customer_group_id, product_id, product_name, quantity, unit_price, original_price, discount,
 		       pricing_rule_id, pricing_rule_name, pricing_rule_type, pricing_type, cost, tax_class_id, tax_rate,
 		       snapshot_created_at, subtotal, dpp_amount, tax_amount
 		FROM cart_items WHERE cart_session_id = $1

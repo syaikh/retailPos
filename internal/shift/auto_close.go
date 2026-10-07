@@ -47,7 +47,13 @@ func (a *AutoCloser) Run(ctx context.Context) error {
 			continue
 		}
 
-		expectedCash := s.OpeningBalance + summary.TotalCashSales
+		netMovements, err := a.repo.CashMovementNet(ctx, s.ID)
+		if err != nil {
+			slog.Error("auto-close: failed to get cash movement net", "shift_id", s.ID, "error", err)
+			continue
+		}
+
+		expectedCash := s.OpeningBalance + summary.TotalCashSales + netMovements
 
 		notes := fmt.Sprintf("Auto-closed after %d hours of inactivity", hours)
 		_, err = a.repo.CloseShift(ctx, s.ID, s.UserID, expectedCash, &notes)

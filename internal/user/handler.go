@@ -49,6 +49,35 @@ func isAdmin(c *gin.Context) bool {
 	return shared.GetRole(c) == permissions.RoleSuperadmin
 }
 
+// roleRank maps a role name to a privilege rank: lower is more privileged.
+// superadmin (0) is the only rank that may mint, edit, or banish a superadmin
+// account. Roles outside the seeded set rank as least privileged, so a custom
+// role never reads as above the caller's own.
+func roleRank(name string) int {
+	switch name {
+	case permissions.RoleSuperadmin:
+		return 0
+	case permissions.RoleManager:
+		return 1
+	case permissions.RoleSupervisor:
+		return 2
+	case permissions.RoleCashier, permissions.RoleFinance, permissions.RoleInventoryStaff:
+		return 3
+	default:
+		return 3
+	}
+}
+
+// roleAssignmentAllowed reports whether the caller may grant the target role.
+// An actor may hand out any role whose rank is at or below its own, and nothing
+// more privileged: a manager can create a fellow manager but never a superadmin.
+func roleAssignmentAllowed(c *gin.Context, target Role) bool {
+	if isAdmin(c) {
+		return true
+	}
+	return roleRank(target.Name) >= roleRank(shared.GetRole(c))
+}
+
 // bindStoreScopedUser resolves the store a user row may be written to.
 //
 // A user with store_id IS NULL is a legitimate *global* (HQ) identity, unlike a
@@ -279,6 +308,12 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role"})
 		return
 	}
+	// Role ceiling: never mint an account more privileged than the caller.
+	// Superadmin is the only role allowed to create superadmins.
+	if role == nil || !roleAssignmentAllowed(c, *role) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "cannot assign this role"})
+		return
+	}
 	// Resolve the effective store before the operational-role check below, so a
 	// store-scoped caller is stamped with its own store instead of being
 	// rejected for omitting one it is not allowed to choose.
@@ -383,6 +418,35 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
+	}
+
+	// Role ceiling. A more-privileged account is never editable by a lesser
+	// one, and no account may be moved into a role more privileged than the
+	// caller — otherwise a manager could rewrite a superadmin's record or step
+	// itself up through another user. Superadmin is unrestricted and skip this
+	// entirely. Unresolvable roles fail closed: a caller who cannot prove a
+	// target sits at or below its own rank may not manage it.
+	if !isAdmin(c) {
+		existingRole, err := h.svc.GetRoleByID(c.Request.Context(), existing.RoleID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role"})
+			return
+		}
+		if existingRole == nil || !roleAssignmentAllowed(c, *existingRole) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "cannot modify a user with a more privileged role"})
+			return
+		}
+		if req.RoleID != nil {
+			targetRole, err := h.svc.GetRoleByID(c.Request.Context(), *req.RoleID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role"})
+				return
+			}
+			if targetRole == nil || !roleAssignmentAllowed(c, *targetRole) {
+				c.JSON(http.StatusForbidden, gin.H{"error": "cannot assign this role"})
+				return
+			}
+		}
 	}
 
 	// Scope-check the row being edited before any field is applied, so a

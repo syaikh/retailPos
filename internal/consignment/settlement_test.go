@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/shared"
@@ -450,4 +451,58 @@ func TestService_ListSettlementsWithNilStore(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, admin, 1)
 	require.NotEmpty(t, admin[0].SupplierName, "SupplierName should be hydrated on admin list")
+}
+
+// TestService_SettlementItemUniqueRejectsDoubleCover pins the backend review
+// B5 last line of defence (migration 064): even bypassing the service-level
+// FOR UPDATE serialization, a sale item may belong to at most one settlement
+// because consignment_settlement_items.consignment_sale_item_id is UNIQUE. A
+// double cover would otherwise mean two payouts for the same goods.
+func TestService_SettlementItemUniqueRejectsDoubleCover(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	product := insertTestProduct(ctx, t, "SET-UNIQ")
+	svc, sup, store := setupArrangement(t, product)
+	userID := insertTestUser(ctx, t)
+
+	saleID := insertTestSale(ctx, t, store, "SET-UNIQ-1")
+	insertConsignmentSaleItem(ctx, t, svc, shared.ConsignmentSaleRecord{
+		SaleID: saleID, InvoiceNumber: "SET-UNIQ-1", ProductID: product,
+		SupplierID: sup, ArrangementID: arrID(t, svc, store), StoreID: store,
+		Quantity: 1, UnitPrice: 1000, Subtotal: 1000,
+		StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+	})
+
+	st, err := svc.CreateSettlement(ctx, &CreateSettlementRequest{SupplierID: sup}, userID, &store)
+	require.NoError(t, err)
+	require.Len(t, st.Items, 1)
+
+	// A second settlement for the same supplier/store finds nothing unsettled:
+	// the sale rows are re-read FOR UPDATE inside the Unit of Work and the
+	// settled filter is re-evaluated.
+	_, err = svc.CreateSettlement(ctx, &CreateSettlementRequest{SupplierID: sup}, userID, &store)
+	require.ErrorIs(t, err, ErrEmptySettlement)
+
+	// And inserting a second settlement line for the eagerly-settled sale item
+	// is rejected at the database: unique_violation (23505).
+	src := st.Items[0]
+	tx, err := svc.repo.BeginTx(ctx)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	pid := src.ProductID
+	dup := SettlementItem{
+		ConsignmentSettlementID: st.ID,
+		ConsignmentSaleItemID:   src.ConsignmentSaleItemID,
+		ProductID:               pid,
+		Quantity:                src.Quantity,
+		UnitPrice:               src.UnitPrice,
+		Subtotal:                src.Subtotal,
+		StoreShare:              src.StoreShare,
+	}
+	err = svc.repo.InsertSettlementItem(ctx, tx, &dup)
+	var pgErr *pgconn.PgError
+	require.ErrorAs(t, err, &pgErr, "duplicate settlement line must fail at the UNIQUE constraint")
+	require.Equal(t, "23505", pgErr.Code, "expected SQLSTATE 23505 (unique_violation)")
 }

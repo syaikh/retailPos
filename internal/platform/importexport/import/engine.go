@@ -50,6 +50,12 @@ const (
 	// client spray tokens and exhaust memory. When full, new previews are
 	// rejected with ErrPreviewLimitReached (surfaced as HTTP 429).
 	maxConcurrentPreviews = 100
+
+	// historyBatchSize bounds the import_rows/import_errors INSERT to one
+	// statement per N rows, and progressEveryRows throttles the per-row
+	// import_jobs progress UPDATE to one per N rows (backend review P3).
+	historyBatchSize  = 200
+	progressEveryRows = 100
 )
 
 // ErrPreviewLimitReached is returned when the preview store is full and no new
@@ -217,12 +223,33 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 
 	var insertEntities, updateEntities []interface{}
 	var mapErrMsgs []string
+	var historyRows []history.RowRecord
+	var historyErrors []history.ErrorRecord
+	flushHistory := func() {
+		if e.historyStore == nil {
+			historyRows = historyRows[:0]
+			historyErrors = historyErrors[:0]
+			return
+		}
+		if len(historyRows) > 0 {
+			_ = e.historyStore.SaveRows(ctx, jobID, historyRows)
+			historyRows = historyRows[:0]
+		}
+		if len(historyErrors) > 0 {
+			_ = e.historyStore.SaveErrors(ctx, jobID, historyErrors)
+			historyErrors = historyErrors[:0]
+		}
+	}
+	historyBuffersFull := func() bool {
+		return len(historyRows) >= historyBatchSize || len(historyErrors) >= historyBatchSize
+	}
 	for _, pr := range state.Result.Rows {
 		rowIdx := pr.RowNumber - 2
 		if rowIdx < 0 || rowIdx >= len(state.Rows) {
 			continue
 		}
 		if e.isCancelled(ctx, jobID) {
+			flushHistory()
 			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusCancelled)
 			return
 		}
@@ -239,10 +266,18 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 
 		status := pr.Status
 		if status == "error" {
-			if e.historyStore != nil {
-				for _, verr := range pr.Errors {
-					_ = e.historyStore.SaveError(ctx, jobID, verr.Row, verr.Field, verr.Value, verr.Reason, verr.Suggestion, string(verr.Stage))
-				}
+			for _, verr := range pr.Errors {
+				historyErrors = append(historyErrors, history.ErrorRecord{
+					RowNumber:  verr.Row,
+					Field:      verr.Field,
+					Value:      verr.Value,
+					Reason:     verr.Reason,
+					Suggestion: verr.Suggestion,
+					Stage:      string(verr.Stage),
+				})
+			}
+			if historyBuffersFull() {
+				flushHistory()
 			}
 			continue
 		}
@@ -251,8 +286,14 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 		if err != nil {
 			msg := fmt.Sprintf("row %d: %s", pr.RowNumber, err.Error())
 			mapErrMsgs = append(mapErrMsgs, msg)
-			if e.historyStore != nil {
-				_ = e.historyStore.SaveError(ctx, jobID, pr.RowNumber, "General", "", err.Error(), "", "transform")
+			historyErrors = append(historyErrors, history.ErrorRecord{
+				RowNumber: pr.RowNumber,
+				Field:     "General",
+				Reason:    err.Error(),
+				Stage:     "transform",
+			})
+			if historyBuffersFull() {
+				flushHistory()
 			}
 			continue
 		}
@@ -263,13 +304,23 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 			updateEntities = append(updateEntities, entity)
 		}
 
-		if e.historyStore != nil {
-			_ = e.historyStore.SaveRow(ctx, jobID, pr.RowNumber, status, nil, pr.OldValues, pr.NewValues)
+		historyRows = append(historyRows, history.RowRecord{
+			RowNumber: pr.RowNumber,
+			Status:    status,
+			OldValues: pr.OldValues,
+			NewValues: pr.NewValues,
+		})
+		if historyBuffersFull() {
+			flushHistory()
 		}
 
 		processed := len(insertEntities) + len(updateEntities)
-		_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, state.Result.ErrorCount, len(insertEntities), len(updateEntities))
+		if processed%progressEveryRows == 0 {
+			_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, state.Result.ErrorCount, len(insertEntities), len(updateEntities))
+		}
 	}
+
+	flushHistory()
 
 	if e.isCancelled(ctx, jobID) {
 		_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusCancelled)

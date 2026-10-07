@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/schema"
@@ -66,6 +67,76 @@ func (s *Store) SaveError(ctx context.Context, jobID int64, rowNumber int, field
 	`, jobID, rowNumber, strPtr(field), strPtr(value), reason, strPtr(suggestion), stage)
 	if err != nil {
 		return fmt.Errorf("save error: %w", err)
+	}
+	return nil
+}
+
+// RowRecord is one import_rows row destined for a batched insert.
+type RowRecord struct {
+	RowNumber int
+	Status    string
+	EntityID  *int
+	OldValues map[string]interface{}
+	NewValues map[string]interface{}
+}
+
+// SaveRows inserts a batch of import_rows in a single statement. The engine
+// accumulates rows and flushes every historyBatchSize rows instead of issuing
+// one autocommitted INSERT per CSV row (backend review P3).
+func (s *Store) SaveRows(ctx context.Context, jobID int64, rows []RowRecord) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	var b strings.Builder
+	b.WriteString(`INSERT INTO import_rows (import_job_id, row_number, status, entity_id, old_values, new_values) VALUES `)
+	args := make([]any, 0, len(rows)*6)
+	for i, r := range rows {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		fmt.Fprintf(&b, "($%d, $%d, $%d, $%d, $%d, $%d)", i*6+1, i*6+2, i*6+3, i*6+4, i*6+5, i*6+6)
+		var oldJSON, newJSON []byte
+		if len(r.OldValues) > 0 {
+			oldJSON, _ = json.Marshal(r.OldValues)
+		}
+		if len(r.NewValues) > 0 {
+			newJSON, _ = json.Marshal(r.NewValues)
+		}
+		args = append(args, jobID, r.RowNumber, r.Status, r.EntityID, oldJSON, newJSON)
+	}
+	_, err := s.db.Exec(ctx, b.String(), args...)
+	if err != nil {
+		return fmt.Errorf("save rows: %w", err)
+	}
+	return nil
+}
+
+// ErrorRecord is one import_errors row destined for a batched insert.
+type ErrorRecord struct {
+	RowNumber                               int
+	Field, Value, Reason, Suggestion, Stage string
+}
+
+// SaveErrors inserts a batch of import_errors in a single statement, mirroring
+// SaveRows so validation/transform errors are not one autocommit per CSV row
+// (backend review P3).
+func (s *Store) SaveErrors(ctx context.Context, jobID int64, errs []ErrorRecord) error {
+	if len(errs) == 0 {
+		return nil
+	}
+	var b strings.Builder
+	b.WriteString(`INSERT INTO import_errors (import_job_id, row_number, field, value, reason, suggestion, stage) VALUES `)
+	args := make([]any, 0, len(errs)*7)
+	for i, er := range errs {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		fmt.Fprintf(&b, "($%d, $%d, $%d, $%d, $%d, $%d, $%d)", i*7+1, i*7+2, i*7+3, i*7+4, i*7+5, i*7+6, i*7+7)
+		args = append(args, jobID, er.RowNumber, strPtr(er.Field), strPtr(er.Value), er.Reason, strPtr(er.Suggestion), er.Stage)
+	}
+	_, err := s.db.Exec(ctx, b.String(), args...)
+	if err != nil {
+		return fmt.Errorf("save errors: %w", err)
 	}
 	return nil
 }

@@ -18,6 +18,7 @@ type ResolverRepo interface {
 	GetBasePricesBatch(ctx context.Context, productIDs []int) (map[int]int, error)
 	GetProductScopesBatch(ctx context.Context, productIDs []int) (map[int]ProductScope, error)
 	GetActiveRulesBatch(ctx context.Context, productIDs []int, now time.Time) (map[int][]Rule, error)
+	CustomerGroupExists(ctx context.Context, customerGroupID int) (bool, error)
 	GetProductCostAndTax(ctx context.Context, productID int) (ProductCostTax, error)
 	GetProductCostAndTaxBatch(ctx context.Context, productIDs []int) (map[int]ProductCostTax, error)
 }
@@ -32,8 +33,29 @@ func NewResolver(repo ResolverRepo) *Resolver {
 	return &Resolver{repo: repo}
 }
 
+// validateCustomerGroup rejects resolution for a customer_group_id that does
+// not exist, so a bogus id cannot silently fall back to base pricing while the
+// caller still attributes the sale to a group that was never validated.
+func (r *Resolver) validateCustomerGroup(ctx context.Context, customerGroupID *int) error {
+	if customerGroupID == nil || *customerGroupID <= 0 {
+		return nil
+	}
+	exists, err := r.repo.CustomerGroupExists(ctx, *customerGroupID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("%w: customer group %d", ErrCustomerGroupNotFound, *customerGroupID)
+	}
+	return nil
+}
+
 // Resolve returns the effective selling price for a product at a given quantity and context.
 func (r *Resolver) Resolve(ctx context.Context, rc ResolveContext) (*ResolvedPrice, error) {
+	if err := r.validateCustomerGroup(ctx, rc.CustomerGroupID); err != nil {
+		return nil, err
+	}
+
 	basePrice, err := r.repo.GetBasePrice(ctx, rc.ProductID)
 	if err != nil {
 		return nil, err
@@ -59,6 +81,20 @@ func (r *Resolver) Resolve(ctx context.Context, rc ResolveContext) (*ResolvedPri
 func (r *Resolver) ResolveBatch(ctx context.Context, items []ResolveItem) ([]ResolvedPrice, error) {
 	if len(items) == 0 {
 		return []ResolvedPrice{}, nil
+	}
+
+	// Validate every distinct customer group once per request before touching
+	// any pricing, so a bogus id is rejected up front rather than silently
+	// degrading that item to base pricing.
+	seenGroups := make(map[int]bool)
+	for _, item := range items {
+		if item.CustomerGroupID == nil || *item.CustomerGroupID <= 0 || seenGroups[*item.CustomerGroupID] {
+			continue
+		}
+		seenGroups[*item.CustomerGroupID] = true
+		if err := r.validateCustomerGroup(ctx, item.CustomerGroupID); err != nil {
+			return nil, err
+		}
 	}
 
 	seen := make(map[int]bool)

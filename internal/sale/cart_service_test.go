@@ -270,13 +270,94 @@ func TestCartService_IT03_QuantityUpdateKeepsPrice(t *testing.T) {
 	cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 1, nil, cashierID)
 	require.NoError(t, err)
 
-	snapshotCreatedAt := cart.Items[0].SnapshotCreatedAt
 	cart, err = svc.UpdateCartItemQuantity(ctx, cart.ID, cart.Items[0].ID, 3, cashierID)
 	require.NoError(t, err)
 	require.Len(t, cart.Items, 1)
-	assert.Equal(t, 3500, cart.Items[0].UnitPrice, "unit price unchanged")
+	// B4: the line is re-resolved for the new quantity, but with no
+	// quantity-gated rule on this product the resolved price is identical --
+	// only the snapshot timestamp is refreshed (RFC3339 has no sub-second part,
+	// so it may still equal the add-time value when both land in the same
+	// second; assert the price, not the timestamp).
+	assert.Equal(t, 3, cart.Items[0].Quantity, "quantity updated")
+	assert.Equal(t, 3500, cart.Items[0].UnitPrice, "unit price unchanged when no quantity-gated rule applies")
 	assert.Equal(t, 10500, cart.Items[0].Subtotal, "subtotal scales with qty")
-	assert.Equal(t, snapshotCreatedAt, cart.Items[0].SnapshotCreatedAt, "snapshot_created_at unchanged")
+}
+
+// TestCartService_QuantityUpdateReappliesQuantityGatedRule covers backend
+// review B4: a rule gated on minimum quantity must re-apply when the quantity
+// edit moves the line into its range. Freezing the add-time snapshot kept the
+// pre-tier price on the cart path while direct checkout resolved the
+// discounted one.
+func TestCartService_QuantityUpdateReappliesQuantityGatedRule(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	svc, _ := newCartTestService(ctx, t)
+
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-QTYTIER-PROD", "Qty Tier Product", 5000, 100, 11)
+
+	// status/is_active must be set explicitly, as in the store-scoped fixture:
+	// migration 055 defaults new rules to pending/inactive.
+	_, err := dbPool.Exec(ctx, `
+		INSERT INTO pricing_rules (product_id, pricing_type, name, minimum_quantity, priority, pricing_method, pricing_value, is_active, status)
+		VALUES ($1, 'special_price', 'qty-5-promo', 5, 0, 'fixed_price', 3000, true, 'approved')
+	`, prodID)
+	require.NoError(t, err)
+
+	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
+	require.NoError(t, err)
+	cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 1, nil, cashierID)
+	require.NoError(t, err)
+	require.Len(t, cart.Items, 1)
+	assert.Equal(t, 5000, cart.Items[0].UnitPrice, "quantity tier not met at qty 1")
+
+	cart, err = svc.UpdateCartItemQuantity(ctx, cart.ID, cart.Items[0].ID, 5, cashierID)
+	require.NoError(t, err)
+	require.Len(t, cart.Items, 1)
+	assert.Equal(t, 3000, cart.Items[0].UnitPrice, "quantity-gated rule must re-apply after the quantity edit")
+	assert.Equal(t, 15000, cart.Items[0].Subtotal, "subtotal follows the re-resolved unit price")
+	require.NotNil(t, cart.Items[0].PricingRuleID, "the applied rule is recorded on the line")
+	require.NotNil(t, cart.Items[0].PricingRuleName)
+	assert.Equal(t, "qty-5-promo", *cart.Items[0].PricingRuleName)
+}
+
+// TestCartService_QuantityUpdateKeepsCustomerGroupContext covers backend
+// review B4: the customer group a line was added under must survive a quantity
+// edit, or a group-restricted rule silently stops applying at exactly the
+// moment the line's quantity changes. Requires the cart_items.customer_group_id
+// column (migration 063).
+func TestCartService_QuantityUpdateKeepsCustomerGroupContext(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	svc, _ := newCartTestService(ctx, t)
+
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-GRPCTX-PROD", "Group Ctx Product", 5000, 100, 11)
+
+	var groupID int
+	err := dbPool.QueryRow(ctx, `INSERT INTO customer_groups (name) VALUES ('qty-update-group') RETURNING id`).Scan(&groupID)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO pricing_rules (product_id, pricing_type, name, minimum_quantity, priority, pricing_method, pricing_value, customer_group_id, is_active, status)
+		VALUES ($1, 'special_price', 'group-qty-5-promo', 5, 0, 'fixed_price', 3000, $2, true, 'approved')
+	`, prodID, groupID)
+	require.NoError(t, err)
+
+	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
+	require.NoError(t, err)
+	cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 1, &groupID, cashierID)
+	require.NoError(t, err)
+	require.Len(t, cart.Items, 1)
+	require.NotNil(t, cart.Items[0].CustomerGroupID, "the line records the group it was priced under")
+	assert.Equal(t, groupID, *cart.Items[0].CustomerGroupID)
+	assert.Equal(t, 5000, cart.Items[0].UnitPrice, "group rule not met at qty 1")
+
+	cart, err = svc.UpdateCartItemQuantity(ctx, cart.ID, cart.Items[0].ID, 5, cashierID)
+	require.NoError(t, err)
+	require.Len(t, cart.Items, 1)
+	assert.Equal(t, 3000, cart.Items[0].UnitPrice, "group context must survive the quantity edit")
+	assert.Equal(t, 15000, cart.Items[0].Subtotal, "subtotal follows the group-restricted price")
 }
 
 func TestCartService_IT04_VoidThenRescanCreatesNewSnapshot(t *testing.T) {

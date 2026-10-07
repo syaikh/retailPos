@@ -59,6 +59,7 @@ type CartSession struct {
 type CartItem struct {
 	ID                int      `json:"id"`
 	CartSessionID     int      `json:"cart_session_id"`
+	CustomerGroupID   *int     `json:"customer_group_id,omitempty"`
 	ProductID         int      `json:"product_id"`
 	ProductName       string   `json:"product_name"`
 	Quantity          int      `json:"quantity"`

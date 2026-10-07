@@ -1,0 +1,14 @@
+-- 063_cart_item_customer_group.sql
+--
+-- Backend review B4: a cart line's pricing context (the customer group it was
+-- priced under) was never persisted -- only the resolved snapshot was -- so a
+-- quantity edit could not re-resolve quantity-tiered or group-restricted
+-- pricing with the same context the line was added under. The price resolution
+-- on UpdateCartItemQuantity now reads the group back from the line itself.
+--
+-- Permanently re-runnable per the migration replay contract: ADD COLUMN with an
+-- inline REFERENCES skips silently when the column already exists, so a replay
+-- neither re-adds the column nor re-creates the FK. Existing lines keep NULL --
+-- their group was never recorded -- and re-resolve without group-restricted
+-- rules, which is the pre-migration behaviour, not a regression.
+ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS customer_group_id integer REFERENCES customer_groups(id) ON DELETE SET NULL;

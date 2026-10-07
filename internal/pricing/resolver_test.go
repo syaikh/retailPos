@@ -2,6 +2,7 @@ package pricing
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,16 @@ type mockRepo struct {
 	scopes     map[int]ProductScope
 	rules      map[int][]Rule
 	costTax    map[int]ProductCostTax
+	// customerGroupExistsFn controls the CustomerGroupExists stub; nil means
+	// every group exists.
+	customerGroupExistsFn func(int) (bool, error)
+}
+
+func (m *mockRepo) CustomerGroupExists(_ context.Context, customerGroupID int) (bool, error) {
+	if m.customerGroupExistsFn != nil {
+		return m.customerGroupExistsFn(customerGroupID)
+	}
+	return true, nil
 }
 
 func (m *mockRepo) GetBasePrice(_ context.Context, productID int) (int, error) {
@@ -150,6 +161,56 @@ func TestResolver_Resolve_ProductNotFound(t *testing.T) {
 	_, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 999, Quantity: 1})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrProductNotFound)
+}
+
+func TestResolver_Resolve_UnknownCustomerGroupRejected(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 15000},
+		rules:      map[int][]Rule{},
+		customerGroupExistsFn: func(id int) (bool, error) {
+			return false, nil
+		},
+	}
+	resolver := NewResolver(repo)
+
+	groupID := 999
+	_, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1, CustomerGroupID: &groupID})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrCustomerGroupNotFound)
+}
+
+func TestResolver_ResolveBatch_UnknownCustomerGroupRejected(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 15000, 2: 20000},
+		rules:      map[int][]Rule{},
+		customerGroupExistsFn: func(id int) (bool, error) {
+			return false, nil
+		},
+	}
+	resolver := NewResolver(repo)
+
+	groupID := 999
+	_, err := resolver.ResolveBatch(context.Background(), []ResolveItem{
+		{ProductID: 1, Quantity: 1, CustomerGroupID: &groupID},
+		{ProductID: 2, Quantity: 1, CustomerGroupID: &groupID},
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrCustomerGroupNotFound)
+}
+
+func TestResolver_Resolve_KnownCustomerGroupAllowed(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 15000},
+		rules: map[int][]Rule{
+			1: {rule(10, PricingTypePromotion, PricingMethodFixedPrice, 12000, 1, 0, true)},
+		},
+	}
+	resolver := NewResolver(repo)
+
+	groupID := 5
+	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1, CustomerGroupID: &groupID})
+	require.NoError(t, err)
+	assert.Equal(t, 12000, result.UnitPrice)
 }
 
 func TestResolver_Resolve_FixedPriceRule(t *testing.T) {
@@ -1100,4 +1161,74 @@ func TestResolver_ResolveSnapshot_ErrorPropagates(t *testing.T) {
 	resolver := NewResolver(repo)
 	_, err := resolver.ResolveSnapshot(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.ErrorIs(t, err, ErrProductNotFound)
+}
+
+// TestComputePrice_RoundToNearestCent pins the float -> integer-cent
+// conversion in computePrice. Base prices and snapshots are integer cents, so
+// a fractional-cent result must round to the nearest cent (half up), never
+// truncate. Exact half-cent results, which only arise when the arithmetic is
+// dyadic (0.25/0.5/0.75 percent factors), are asserted explicitly so a future
+// change that shifts rounding strategy fails loudly.
+func TestComputePrice_RoundToNearestCent(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     int
+		method   Method
+		value    float64
+		expected int
+	}{
+		{"fixed price integer", 29999, PricingMethodFixedPrice, 29999, 29999},
+		{"fixed price exact half cent", 20000, PricingMethodFixedPrice, 19999.5, 20000},
+		{"discount pct whole", 100000, PricingMethodDiscountPct, 10, 90000},
+		{"discount pct fractional round nearest", 333333, PricingMethodDiscountPct, 30, 233333},
+		{"discount pct exact half cent rounds up", 200002, PricingMethodDiscountPct, 25, 150002},
+		{"discount pct exact half cent on 50%", 500001, PricingMethodDiscountPct, 50, 250001},
+		{"discount amount exact by construction", 200001, PricingMethodDiscountAmt, 1005, 198996},
+		{"discount amount clamps at zero", 5000, PricingMethodDiscountAmt, 9000, 0},
+		{"markup pct fractional round nearest", 99997, PricingMethodMarkupPct, 15, 114997},
+		{"markup pct exact half cent rounds up", 300001, PricingMethodMarkupPct, 50, 450002},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, computePrice(tt.base, &Rule{Method: tt.method, PricingValue: tt.value}))
+		})
+	}
+}
+
+// TestResolver_Resolve_RoundsToNearestCent asserts the resolver produces the
+// same integer-cent prices as computePrice and keeps the discount invariant
+// (unit + discount == original for non-markup rules), so the snapshot path
+// that feeds cart_items cannot drift from the rounding contract.
+func TestResolver_Resolve_RoundsToNearestCent(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 333333, 2: 200002, 3: 300001},
+		rules: map[int][]Rule{
+			1: {rule(10, PricingTypePromotion, PricingMethodDiscountPct, 30, 1, 0, true)},
+			2: {rule(11, PricingTypePromotion, PricingMethodDiscountPct, 25, 1, 0, true)},
+			3: {rule(12, PricingTypeSpecialPrice, PricingMethodMarkupPct, 15, 1, 0, true)},
+		},
+	}
+	resolver := NewResolver(repo)
+
+	tests := []struct {
+		product  int
+		unit     int
+		original int
+		discount int
+	}{
+		{1, 233333, 333333, 100000},
+		{2, 150002, 200002, 50000},
+		{3, 345001, 300001, 0}, // markup carries no discount
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("product_%d", tt.product), func(t *testing.T) {
+			result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: tt.product, Quantity: 1})
+			require.NoError(t, err)
+			assert.Equal(t, tt.unit, result.UnitPrice)
+			assert.Equal(t, tt.original, result.OriginalPrice)
+			assert.Equal(t, tt.discount, result.Discount)
+		})
+	}
 }

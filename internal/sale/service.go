@@ -19,7 +19,10 @@ var ErrPriceMismatch = errors.New("price mismatch: client-submitted price does n
 var ErrSaleNotFound = errors.New("sale not found")
 var ErrParkedSaleNotRecalled = errors.New("parked sale not in recalled state")
 var ErrPermissionDenied = errors.New("permission denied")
-var ErrCheckoutProductNotFound = errors.New("checkout product not found")
+var (
+	ErrCheckoutProductNotFound = errors.New("checkout product not found")
+	ErrInvalidCustomerGroup    = errors.New("invalid customer group")
+)
 var ErrStoreRequired = errors.New("store not configured for this user")
 
 // productNotFound is a marker interface satisfied by pricing subsystem errors
@@ -27,6 +30,14 @@ var ErrStoreRequired = errors.New("store not configured for this user")
 // via errors.As without importing internal/pricing.
 type productNotFound interface {
 	ProductNotFound()
+}
+
+// customerGroupNotFound is a marker interface satisfied by pricing subsystem
+// errors when a pricing context names a customer group that does not exist. It
+// mirrors productNotFound so sale can reject a bogus customer_group_id without
+// importing internal/pricing.
+type customerGroupNotFound interface {
+	CustomerGroupNotFound()
 }
 
 type ProductPriceGetter interface {
@@ -64,7 +75,7 @@ type Repo interface {
 	RecallSaleTx(ctx context.Context, tx pgx.Tx, saleID int, ownerID, storeID *int) (*Sale, error)
 	StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error
 	UpdateCartCustomer(ctx context.Context, tx pgx.Tx, cartID int, customerID *int) error
-	UpdateCartItemQuantity(ctx context.Context, tx pgx.Tx, cartID, itemID, quantity, subtotal, dppAmount, taxAmount int) error
+	UpdateCartItemQuantity(ctx context.Context, tx pgx.Tx, cartID int, item *CartItem) error
 	UpdateCartStatus(ctx context.Context, tx pgx.Tx, cartID int, status string, expiredAt *time.Time) error
 	UpdateCartTotals(ctx context.Context, tx pgx.Tx, cartID, subtotal, discount, tax, totalAmount int) error
 }
@@ -106,6 +117,10 @@ func (s *service) ResolveCheckoutPrices(ctx context.Context, items []ResolveItem
 	}
 	snaps, err := s.resolver.ResolveSnapshotsBatch(ctx, items)
 	if err != nil {
+		var cgnf customerGroupNotFound
+		if errors.As(err, &cgnf) {
+			return nil, fmt.Errorf("%w: %w", ErrInvalidCustomerGroup, err)
+		}
 		var pnf productNotFound
 		if errors.As(err, &pnf) {
 			return nil, fmt.Errorf("%w: %w", ErrCheckoutProductNotFound, err)

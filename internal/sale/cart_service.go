@@ -112,6 +112,62 @@ func (s *service) UpdateCartCustomer(ctx context.Context, cartID int, customerID
 
 // ==================== UC-02: ADD CART ITEM ====================
 
+// resolveLineSnapshot resolves the authoritative price snapshot for one line
+// under the given quantity and pricing context, mapping pricing-subsystem
+// errors onto the sale domain so handlers surface them as 400s. Shared by the
+// add and quantity-update paths so both price identically (backend review B4).
+func (s *service) resolveLineSnapshot(ctx context.Context, cart *CartSession, productID, quantity int, customerGroupID *int) (*PriceSnapshot, error) {
+	snapshots, err := s.resolver.ResolveSnapshotsBatch(ctx, []ResolveItem{{
+		ProductID:       productID,
+		Quantity:        quantity,
+		CustomerGroupID: customerGroupID,
+		StoreID:         cart.StoreID,
+	}})
+	if err != nil {
+		var cgnf customerGroupNotFound
+		if errors.As(err, &cgnf) {
+			return nil, fmt.Errorf("%w: %w", ErrInvalidCustomerGroup, err)
+		}
+		var pnf productNotFound
+		if errors.As(err, &pnf) {
+			return nil, fmt.Errorf("%w: %w", ErrCheckoutProductNotFound, err)
+		}
+		return nil, fmt.Errorf("resolve price snapshot: %w", err)
+	}
+	if len(snapshots) != 1 {
+		return nil, fmt.Errorf("price resolver returned %d snapshots, want 1", len(snapshots))
+	}
+	return &snapshots[0], nil
+}
+
+// applyLineSnapshot writes a resolved snapshot onto a cart line and recomputes
+// its line totals, so a freshly priced line is identical whether it was just
+// added or re-resolved after a quantity edit.
+func applyLineSnapshot(item *CartItem, snap *PriceSnapshot, quantity int) {
+	item.ProductName = snap.ProductName
+	item.Quantity = quantity
+	item.UnitPrice = snap.UnitPrice
+	item.OriginalPrice = snap.OriginalPrice
+	item.Discount = snap.Discount
+	item.Type = stringPtr(string(snap.Type))
+	item.Cost = snap.Cost
+	item.TaxClassID = snap.TaxClassID
+	item.TaxRate = snap.TaxRate
+	item.SnapshotCreatedAt = snap.SnapshotAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	item.PricingRuleID = nil
+	item.PricingRuleName = nil
+	item.PricingRuleType = nil
+	if snap.Rule != nil {
+		ruleID := snap.Rule.ID
+		ruleName := snap.Rule.Name
+		ruleType := string(snap.Rule.Type)
+		item.PricingRuleID = &ruleID
+		item.PricingRuleName = &ruleName
+		item.PricingRuleType = &ruleType
+	}
+	item.Subtotal, item.DPPAmount, item.TaxAmount = computeLineTotals(quantity, snap.UnitPrice, snap.TaxRate)
+}
+
 // AddCartItem resolves a server-side price snapshot and adds the item to the open cart.
 func (s *service) AddCartItem(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error) {
 	if quantity <= 0 {
@@ -143,47 +199,17 @@ func (s *service) AddCartItem(ctx context.Context, cartID int, productID, quanti
 		return nil, ErrCartNotOpen
 	}
 
-	snapshots, err := s.resolver.ResolveSnapshotsBatch(ctx, []ResolveItem{{
-		ProductID:       productID,
-		Quantity:        quantity,
-		CustomerGroupID: customerGroupID,
-		StoreID:         cart.StoreID,
-	}})
+	snap, err := s.resolveLineSnapshot(ctx, cart, productID, quantity, customerGroupID)
 	if err != nil {
-		var pnf productNotFound
-		if errors.As(err, &pnf) {
-			return nil, fmt.Errorf("%w: %w", ErrCheckoutProductNotFound, err)
-		}
-		return nil, fmt.Errorf("resolve price snapshot: %w", err)
+		return nil, err
 	}
-	snap := snapshots[0]
 
 	item := &CartItem{
-		CartSessionID:     cartID,
-		ProductID:         snap.ProductID,
-		ProductName:       snap.ProductName,
-		Quantity:          quantity,
-		UnitPrice:         snap.UnitPrice,
-		OriginalPrice:     snap.OriginalPrice,
-		Discount:          snap.Discount,
-		PricingRuleID:     nil,
-		PricingRuleName:   nil,
-		PricingRuleType:   nil,
-		Type:              stringPtr(string(snap.Type)),
-		Cost:              snap.Cost,
-		TaxClassID:        snap.TaxClassID,
-		TaxRate:           snap.TaxRate,
-		SnapshotCreatedAt: snap.SnapshotAt.In(shared.JakartaLocation()).Format(time.RFC3339),
+		CartSessionID:   cartID,
+		ProductID:       snap.ProductID,
+		CustomerGroupID: customerGroupID,
 	}
-	if snap.Rule != nil {
-		ruleID := snap.Rule.ID
-		ruleName := snap.Rule.Name
-		ruleType := string(snap.Rule.Type)
-		item.PricingRuleID = &ruleID
-		item.PricingRuleName = &ruleName
-		item.PricingRuleType = &ruleType
-	}
-	item.Subtotal, item.DPPAmount, item.TaxAmount = computeLineTotals(quantity, snap.UnitPrice, snap.TaxRate)
+	applyLineSnapshot(item, snap, quantity)
 
 	if err := s.repo.InsertCartItem(ctx, tx, item); err != nil {
 		return nil, err
@@ -201,11 +227,19 @@ func (s *service) AddCartItem(ctx context.Context, cartID int, productID, quanti
 
 // ==================== UC-03: UPDATE QUANTITY ====================
 
-// UpdateCartItemQuantity changes the quantity of an existing cart item.
-// The unit price snapshot is preserved; only line totals are recomputed.
+// UpdateCartItemQuantity changes the quantity of an existing cart item and
+// re-resolves its price snapshot for the new quantity. A rule gated on minimum
+// quantity must re-apply when the edit moves the line into its range, and
+// direct checkout always resolves with the checked-out quantities, so freezing
+// the add-time snapshot drifted the two flows apart (backend review B4). The
+// customer group the line was added under is persisted on the line, so
+// group-restricted pricing keeps applying across the edit.
 func (s *service) UpdateCartItemQuantity(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error) {
 	if quantity <= 0 {
 		return nil, ErrCartItemQuantity
+	}
+	if s.resolver == nil {
+		return nil, errors.New("price resolver is not configured")
 	}
 
 	cart, err := s.repo.GetCartSessionByID(ctx, cartID)
@@ -245,8 +279,13 @@ func (s *service) UpdateCartItemQuantity(ctx context.Context, cartID, itemID, qu
 		return nil, ErrCartItemNotFound
 	}
 
-	subtotal, dpp, tax := computeLineTotals(quantity, target.UnitPrice, target.TaxRate)
-	if err := s.repo.UpdateCartItemQuantity(ctx, tx, cartID, itemID, quantity, subtotal, dpp, tax); err != nil {
+	snap, err := s.resolveLineSnapshot(ctx, cart, target.ProductID, quantity, target.CustomerGroupID)
+	if err != nil {
+		return nil, err
+	}
+	applyLineSnapshot(target, snap, quantity)
+
+	if err := s.repo.UpdateCartItemQuantity(ctx, tx, cartID, target); err != nil {
 		return nil, err
 	}
 

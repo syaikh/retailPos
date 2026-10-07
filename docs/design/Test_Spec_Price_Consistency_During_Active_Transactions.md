@@ -70,15 +70,21 @@ Gunakan mock `*Repository` + mock `pricing.PriceResolver` (pola yang sudah ada d
 
 - item A di-resolve; ubah master data (mock) → add item B → snapshot A **tetap** (BR-06). Verifikasi resolver dipanggil hanya untuk B.
 
-**RT-07 — UpdateCartItemQuantity tidak mengubah snapshot**
+**RT-07 — UpdateCartItemQuantity re-resolve snapshot (backend review B4)**
 
 | Kasus | `unit_price` | `original_price` | `discount` | `cost` | `tax_rate` | `snapshot_created_at` |
 |-------|--------------|------------------|------------|--------|------------|------------------------|
-| qty naik | tetap | tetap | tetap | tetap | tetap | tetap |
-| qty turun | tetap | tetap | tetap | tetap | tetap | tetap |
+| qty naik, tanpa rule ber-qty | tetap | tetap | tetap | tetap | tetap | di-resolve ulang (bisa sama bila dalam detik yang sama) |
+| qty naik masuk range rule (mis. min qty) | **ikut rule** | ikut rule | ikut rule | ikut rule | ikut rule | di-resolve ulang |
+| qty turun keluar range rule | **ikut rule eligible baru** | ikut rule | ikut rule | ikut rule | ikut rule | di-resolve ulang |
 | qty = 0/negatif | error `ErrCartItemQuantity`; tidak ada update | | | | | |
 
-`subtotal`, `dpp_amount`, `tax_amount` mengikuti qty baru.
+Re-resolve memakai `customer_group_id` baris (kolom baru di `cart_items`,
+migrasi `063_cart_item_customer_group.sql`) dan `store_id` cart, sehingga
+konteks grup/toko tetap berlaku saat edit. `subtotal`, `dpp_amount`,
+`tax_amount` mengikuti hasil resolve untuk qty baru — konsisten dengan jalur
+checkout langsung yang selalu resolve dengan qty yang dibayar. Hold/resume
+tidak dipengaruhi: keduanya tetap tidak re-resolve (RT-09, RT-10).
 
 **RT-08 — Void item**
 
@@ -168,10 +174,12 @@ File: `internal/sale/repository_test.go` (alur cart) dan `internal/sale/service_
 3. **Assert**: cart berisi dua baris P — `3500` (snapshot lama) dan `3000` (snapshot baru), `snapshot_created_at` berbeda.
 4. `subtotal = 3500 + 3000 = 6500`.
 
-### 3.3 `IT-03 — perubahan quantity tidak mengubah harga (BR-07)`
+### 3.3 `IT-03 — qty update re-resolve snapshot (BR-07, backend review B4)`
 
-1. Add item (snapshot 3500). Update qty 1→3.
-2. **Assert**: `unit_price` tetap 3500; `subtotal` 10500; `snapshot_created_at` tetap.
+1. Add item tanpa rule ber-qty (snapshot 3500). Update qty 1→3.
+2. **Assert**: `unit_price` tetap 3500; `subtotal` 10500; snapshot di-resolve ulang (timestamp bisa sama bila dalam detik yang sama — assert harga, bukan timestamp).
+3. (regresi B4) Dengan rule `minimum_quantity=5`: add qty 1 → harga dasar; update qty ke 5 → `unit_price` ikut rule, `pricing_rule_*` terisi.
+4. (regresi B4) Dengan rule ber-`customer_group_id`: add dengan grup → update qty → grup bertahan di baris (`cart_items.customer_group_id`, migrasi 063) dan rule grup tetap berlaku.
 
 ### 3.4 `IT-04 — void lalu scan ulang membuat snapshot baru (BR-08)`
 
@@ -246,11 +254,11 @@ Konfigurasi: `playwright.config.js` yang ada (baseURL `http://localhost:5173`, A
 3. **Assert**: cart menampilkan dua baris — 3500 dan 3000.
 4. Checkout → `sale_items` memuat dua harga berbeda.
 
-### 4.4 E2E-04 — perubahan quantity tidak mengubah harga (BR-07)
+### 4.4 E2E-04 — qty update re-resolve, harga tetap tanpa rule ber-qty (BR-07)
 
 1. Add produk P (3500).
 2. Ubah qty 1→3.
-3. **Assert**: harga satuan tetap 3500, subtotal 10500.
+3. **Assert**: harga satuan tetap 3500, subtotal 10500; `snapshot_created_at` tidak lebih awal dari snapshot add (di-resolve ulang).
 
 ### 4.5 E2E-05 — void lalu scan ulang memakai harga terbaru (BR-08, Edge Case #4)
 
@@ -308,12 +316,12 @@ Konfigurasi: `playwright.config.js` yang ada (baseURL `http://localhost:5173`, A
 | Business Rule / Edge Case | Unit | Integration | E2E |
 |---------------------------|------|-------------|-----|
 | BR-01 Snapshot dibuat saat add | RT-05, RT-06 | IT-01..IT-07 | E2E-01, E2E-09 |
-| BR-02 Immutable setelah snapshot | RT-06, RT-12 | IT-01..IT-03 | E2E-01, E2E-03 |
+| BR-02 Immutable setelah snapshot | RT-06, RT-12 | IT-01, IT-02 | E2E-01, E2E-03 |
 | BR-03 Perubahan master data → transaksi berikutnya | RT-06 | IT-01, IT-02, IT-07 | E2E-03, E2E-08 |
 | BR-04 Transaksi baru pakai harga terbaru | RT-05 | IT-02, IT-05 | E2E-03, E2E-07 |
 | BR-05 Hold tidak refresh harga | RT-09, RT-10 | IT-01 | E2E-02 |
 | BR-06 Add item setelah resume → snapshot baru item baru | RT-06 | IT-02 | E2E-03 |
-| BR-07 Qty update tidak ubah harga | RT-07 | IT-03 | E2E-04 |
+| BR-07 Qty update re-resolve; harga tetap tanpa rule ber-qty (B4) | RT-07 | IT-03 (+regresi B4) | E2E-04 |
 | BR-08 Void lalu scan ulang → snapshot baru | RT-08 | IT-04 | E2E-05 |
 | BR-09 Promo hanya untuk add berikutnya | RT-01 (promo) | IT-05, IT-06 | E2E-06, E2E-07 |
 | Hold expiration (BP Rule 9) | RT-11 | IT-10 | (opsional E2E) |

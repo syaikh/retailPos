@@ -262,7 +262,7 @@ func parseDateParam(c *gin.Context, paramName string) (time.Time, bool) {
 	if val == "" {
 		return time.Time{}, false
 	}
-	t, err := time.ParseInLocation("2006-01-02", val, shared.JakartaLocation())
+	t, err := shared.ParseJakartaFilterDate(val)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid " + paramName})
 		return time.Time{}, false

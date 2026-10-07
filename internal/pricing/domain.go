@@ -39,6 +39,29 @@ func (e *productNotFoundError) Error() string {
 // product-not-found errors via errors.As without importing internal/pricing.
 func (e *productNotFoundError) ProductNotFound() {}
 
+// ErrCustomerGroupNotFound is returned when a pricing context names a customer
+// group that does not exist. Without this guard an arbitrary customer_group_id
+// silently matched no group rules and fell back to base pricing while the sale
+// still recorded the bogus group id. Callers wrap it with the offending id
+// (e.g. fmt.Errorf("%w: customer group %d", ErrCustomerGroupNotFound, id)) and
+// the sale package detects it via errors.As without importing this package.
+var ErrCustomerGroupNotFound = &customerGroupNotFoundError{}
+
+type customerGroupNotFoundError struct {
+	customerGroupID int
+}
+
+func (e *customerGroupNotFoundError) Error() string {
+	if e == nil || e.customerGroupID == 0 {
+		return "customer group not found"
+	}
+	return fmt.Sprintf("customer group %d not found", e.customerGroupID)
+}
+
+// CustomerGroupNotFound is a marker method so the sale package can detect
+// unknown-customer-group errors via errors.As without importing internal/pricing.
+func (e *customerGroupNotFoundError) CustomerGroupNotFound() {}
+
 // Type is a classification label — it describes what kind of pricing applies.
 type Type string
 

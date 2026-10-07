@@ -423,6 +423,18 @@ func (h *Handler) ListPOs(c *gin.Context) {
 	supplierID := c.Query("supplier_id")
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
+	if startDate != "" {
+		if _, err := shared.ParseJakartaFilterDate(startDate); err != nil {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid start_date")
+			return
+		}
+	}
+	if endDate != "" {
+		if _, err := shared.ParseJakartaFilterDate(endDate); err != nil {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid end_date")
+			return
+		}
+	}
 	storeID := shared.GetStoreID(c)
 
 	pos, total, err := h.svc.List(c.Request.Context(), limit, offset, search, sortBy, sortDir, status, supplierID, startDate, endDate, storeID)

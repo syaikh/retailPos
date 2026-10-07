@@ -1,7 +1,6 @@
 package sale
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,21 +15,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 )
-
-type CartService interface {
-	CreateOrGetOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error)
-	GetOpenCart(ctx context.Context, cashierID int) (*CartSession, error)
-	GetCartByID(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
-	ListHeldCarts(ctx context.Context, cashierID int) ([]CartSession, error)
-	UpdateCartCustomer(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error)
-	AddCartItem(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error)
-	UpdateCartItemQuantity(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error)
-	RemoveCartItem(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error)
-	HoldCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
-	ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
-	CancelCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
-	CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
-}
 
 // RegisterCartRoutes registers the POS cart API under the given router group.
 func (h *Handler) RegisterCartRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
@@ -96,6 +80,8 @@ func (h *Handler) cartError(c *gin.Context, err error) {
 		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
 	case errors.Is(err, ErrCheckoutProductNotFound):
 		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+	case errors.Is(err, ErrInvalidCustomerGroup):
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "customer group tidak ditemukan")
 	case errors.Is(err, shared.ErrShiftNotOpen):
 		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "shift is closed or no longer exists")
 	default:

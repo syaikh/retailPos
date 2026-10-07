@@ -134,3 +134,37 @@ func (r *Repository) ShiftCashMovementSummary(ctx context.Context, shiftID int) 
 	s.NetEffect = -s.CashDrops + s.PaidIns - s.PaidOuts
 	return s, nil
 }
+
+// CashMovementNet returns the net drawer change from cash movements:
+// paid_in adds to the drawer, cash_drop and paid_out remove from it.
+func (r *Repository) CashMovementNet(ctx context.Context, shiftID int) (int, error) {
+	var net int
+	err := r.db.QueryRow(ctx, `
+		SELECT COALESCE(SUM(
+			CASE WHEN type = 'paid_in' THEN amount
+			     WHEN type IN ('cash_drop', 'paid_out') THEN -amount
+			     ELSE 0 END
+		), 0)
+		FROM cash_movements WHERE shift_id = $1
+	`, shiftID).Scan(&net)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get cash movement net: %w", err)
+	}
+	return net, nil
+}
+
+func (r *Repository) cashMovementNetInTx(ctx context.Context, tx pgx.Tx, shiftID int) (int, error) {
+	var net int
+	err := tx.QueryRow(ctx, `
+		SELECT COALESCE(SUM(
+			CASE WHEN type = 'paid_in' THEN amount
+			     WHEN type IN ('cash_drop', 'paid_out') THEN -amount
+			     ELSE 0 END
+		), 0)
+		FROM cash_movements WHERE shift_id = $1
+	`, shiftID).Scan(&net)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get cash movement net: %w", err)
+	}
+	return net, nil
+}

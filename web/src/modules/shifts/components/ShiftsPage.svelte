@@ -36,6 +36,8 @@
     ArrowLeftRight,
   } from "lucide-svelte";
   import type { Shift } from "../types";
+  import type { ShiftReportData } from "../types";
+  import { getShiftReport } from "../services/shift-service";
 
   const store = useShiftStore();
   const rbac = useRBAC();
@@ -67,6 +69,7 @@
   } | null>(null);
   let showCashMovementModal = $state(false);
   let showExpected = $state(false);
+  let closeDialogReport = $state<ShiftReportData | null>(null);
   let stores = $state<Store[]>([]);
   let selectedStoreId = $state<number | null>(null);
 
@@ -463,9 +466,17 @@
           {/if}
           <Button
             variant="danger"
-            onclick={() => {
+            onclick={async () => {
               showCloseModal = true;
               closingBalance = store.activeShift?.opening_balance || 0;
+              closeDialogReport = null;
+              if (store.activeShift) {
+                try {
+                  closeDialogReport = await getShiftReport(store.activeShift.id);
+                } catch {
+                  closeDialogReport = null;
+                }
+              }
             }}
           >
             <Lock size={16} class="mr-2" />
@@ -878,7 +889,8 @@
             <p class="text-lg font-bold text-primary">
               {formatMoney(
                 store.activeShift.opening_balance +
-                  store.activeShift.cash_sales,
+                  store.activeShift.cash_sales +
+                  (closeDialogReport?.cash_movement_summary?.net_effect || 0),
               )}
             </p>
           </div>
@@ -914,7 +926,9 @@
           <CashBreakdown bind:total={closingBalance} />
           {#if closingBalance > 0 && store.activeShift}
             {@const expected =
-              store.activeShift.opening_balance + store.activeShift.cash_sales}
+              store.activeShift.opening_balance +
+              store.activeShift.cash_sales +
+              (closeDialogReport?.cash_movement_summary?.net_effect || 0)}
             {@const disc = closingBalance - expected}
             <p
               class="text-xs mt-1 {disc === 0 ? 'text-success' : 'text-danger'}"
