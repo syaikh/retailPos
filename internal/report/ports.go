@@ -14,9 +14,10 @@ import (
 // products, product_stock, or sale_items tables directly. When sale/product/inventory
 // are extracted to microservices, only the adapter implementation in the owning
 // module needs to change; report/ports.go and report/repository.go are untouched.
+// The reporting materialized views (mv_*) are report's own read model and are
+// queried directly by report/repository.go — they need no port.
 type SaleStatsProvider interface {
 	GetCompletedSalesStats(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (revenue int, orders int, err error)
-	GetAllCompletedSalesStats(ctx context.Context, db shared.DBPool, storeID *int) (revenue int, orders int, err error)
 	GetActiveCustomerCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error)
 	GetWeeklySales(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.WeeklyReportItem, error)
 	GetMonthlySales(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.MonthlyReportItem, error)

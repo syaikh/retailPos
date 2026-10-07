@@ -38,22 +38,6 @@ func (ReportAdapter) GetCompletedSalesStats(ctx context.Context, db shared.DBPoo
 	return
 }
 
-func (ReportAdapter) GetAllCompletedSalesStats(ctx context.Context, db shared.DBPool, storeID *int) (revenue int, orders int, err error) {
-	// Read from mv_dashboard_totals (refreshed by the coordinator at each
-	// Jakarta hour boundary) instead of scanning the raw sales table, keeping
-	// the all-time dashboard total as cheap as the charts. The view holds the
-	// same completed-sale rows grouped per store, so the global/store filters
-	// produce identical results to the former raw query.
-	query := `SELECT COALESCE(SUM(total_revenue), 0), COALESCE(SUM(transaction_count), 0) FROM mv_dashboard_totals`
-	args := []interface{}{}
-	if storeID != nil {
-		query += ` WHERE (store_id IS NULL OR store_id = $1)`
-		args = append(args, *storeID)
-	}
-	err = db.QueryRow(ctx, query, args...).Scan(&revenue, &orders)
-	return
-}
-
 func (ReportAdapter) GetActiveCustomerCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error) {
 	query := `SELECT COUNT(DISTINCT customer_id) FROM sales WHERE status = 'completed' AND customer_id IS NOT NULL`
 	args := []interface{}{}

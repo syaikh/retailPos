@@ -182,6 +182,7 @@ Baca/tulis lintas modul dienkapsulasi lewat interface kecil yang dideklarasikan 
 | `storagelocation` | `storage_locations` | strict |
 | `user` | `users`, `roles`, `permissions`, `role_permissions`, `refresh_tokens`, `audit_logs` | strict |
 | `platform` | `import_jobs`, `import_snapshots`, `import_rows`, `import_errors`, `outbox`, `dead_letter_events` | strict |
+| `consignment` | `consignment_arrangements`, `consignment_terms`, `consignment_stock`, `consignment_receipts`, `consignment_receipt_items`, `consignment_pending_returns`, `consignment_returns`, `consignment_return_items`, `consignment_sale_items`, `consignment_settlements`, `consignment_settlement_items`, `consignment_payouts`, `consignment_receipt_edits` | strict |
 | `appsettings` | `app_settings` | strict |
 | `report` | read model `mv_*` (hanya baca) | **lax** |
 
@@ -205,11 +206,19 @@ Semua debt sebelumnya sudah di-port (2026-09-08):
 | `shift→cart_sessions` (`SELECT` di CloseShiftTx) | `CartSessionChecker` | `shift/ports.go`, `sale/cart_session_provider.go` |
 | `shift→users` (`LEFT JOIN` di ListCashMovements) | `UsernameProvider` | `shift/ports.go`, `user/name_provider.go` |
 
-Saat ini hanya tersisa entri `consignment: {}` sebagai placeholder modul baru yang belum di-hardened ke strict ownership.
+Saat ini peta `crossContextDebt` **kosong** — semua debt yang pernah diakui sudah di-port. Pekerjaan terakhir (2026-10-07, lihat `docs/audits/cross-module-query-audit.md`):
+
+| Debt | Port yang menggantikan | File port |
+|---|---|---|
+| `consignment→products` (5 pembacaan di repository) | `ProductMetaProvider.SearchProductOptions`, `ProductMetaProvider.ProductIDsByNameOrSKU` | `consignment/ports.go`, `product/product_meta_provider.go` |
+| `consignment→product_stock` (pengecualian stok di picker; tidak pernah terdaftar di manifest) | `StockReader.StoreOwnedQuantities` | `consignment/ports.go`, `inventory/consignment_adjuster.go` |
+
+`consignment` sekaligus dipromosikan ke strict ownership (13 tabel `consignment_*`), dan `appsettings` terdaftar di `domainModules`, sehingga tidak ada lagi celah modul yang tidak diperiksa.
 
 ### 5.4 Batasan yang tersisa
 
 - **`report` tetap lax (read model):** analitik diizinkan `SELECT` ke tabel domain mana pun (CQRS read-model allowance), tapi tidak boleh menulis tabel domain. Ini disengaja dan konsisten dengan §2.8.
 - **`audit` adalah shared infrastructure:** boleh diimpor/dibaca dari mana saja; tidak ditegakkan oleh `internal/archtest`.
+- **`cmd/dummy` di luar scope aturan modul:** seeder pengembangan (`./seed-dev.sh`) menulis hampir semua tabel sekaligus. Ini alat developer, bukan bagian aplikasi, jadi aturan kepemilikan tabel sengaja tidak menerapkannya — keputusan yang disengaja, bukan kelalaian. Hal yang sama berlaku untuk `internal/shared/testdb.go` (hanya dijalankan saat setup test).
 - Posting stock opname bergantung pada tiga port inventory (`StockApplier`, `StockLocker`, `MovementWriter`) yang berjalan pada `tx` pemanggil agar atomis (lihat `ADR_Cross_Module_Transaction_Strategy`).
 

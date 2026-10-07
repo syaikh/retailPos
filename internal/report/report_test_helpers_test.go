@@ -29,17 +29,6 @@ func (a *testSaleStatsAdapter) GetCompletedSalesStats(ctx context.Context, db sh
 	return
 }
 
-func (a *testSaleStatsAdapter) GetAllCompletedSalesStats(ctx context.Context, db shared.DBPool, storeID *int) (revenue int, orders int, err error) {
-	query := `SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM sales WHERE status = 'completed'`
-	args := []interface{}{}
-	if storeID != nil {
-		query += ` AND (store_id IS NULL OR store_id = $1)`
-		args = append(args, *storeID)
-	}
-	err = db.QueryRow(ctx, query, args...).Scan(&revenue, &orders)
-	return
-}
-
 func (a *testSaleStatsAdapter) GetActiveCustomerCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error) {
 	query := `SELECT COUNT(DISTINCT customer_id) FROM sales WHERE status = 'completed' AND customer_id IS NOT NULL`
 	args := []interface{}{}

@@ -1,4 +1,4 @@
-package sale
+package report
 
 import (
 	"context"
@@ -34,18 +34,27 @@ func rawAllTimeStats(ctx context.Context, t *testing.T, storeID *int) rawStats {
 	return s
 }
 
-func refreshDashboardMVs(ctx context.Context, t *testing.T) {
+func insertParityCashier(ctx context.Context, t *testing.T) int {
 	t.Helper()
-	_, err := dbPool.Exec(ctx, "SELECT refresh_sales_mv()")
+	username := fmt.Sprintf("parity_cashier_%d", time.Now().UnixNano())
+	var id int
+	err := dbPool.QueryRow(ctx,
+		`INSERT INTO users (username, email, password_hash, role_id)
+		 VALUES ($1, $2, 'hash', 1) RETURNING id`,
+		username, username+"@test.com",
+	).Scan(&id)
 	require.NoError(t, err)
+	return id
 }
 
 func insertParityCustomer(ctx context.Context, t *testing.T) int {
 	t.Helper()
+	phone := fmt.Sprintf("08%09d", time.Now().UnixNano()%1_000_000_000)
 	var id int
 	err := dbPool.QueryRow(ctx,
 		`INSERT INTO customers (name, phone, email, is_walk_in, is_active, store_id)
-		 VALUES ('Parity Customer', '08123', 'parity@test.com', true, true, 1) RETURNING id`,
+		 VALUES ('Parity Customer', $1, $2, true, true, 1) RETURNING id`,
+		phone, phone+"@test.com",
 	).Scan(&id)
 	require.NoError(t, err)
 	return id
@@ -68,7 +77,10 @@ func insertParitySale(ctx context.Context, t *testing.T, cashierID, customerID i
 	return id
 }
 
-func TestReportAdapter_GetAllCompletedSalesStats_MVParity(t *testing.T) {
+// TestRepository_GetAllCompletedSalesStats_MVParity pins the all-time
+// dashboard totals to the mv_dashboard_totals read model and asserts they
+// match the equivalent raw sales query (global and per store).
+func TestRepository_GetAllCompletedSalesStats_MVParity(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, shared.TruncateTestData(dbPool))
 
@@ -76,7 +88,7 @@ func TestReportAdapter_GetAllCompletedSalesStats_MVParity(t *testing.T) {
 	require.NoError(t, dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ('Parity Store A') RETURNING id`).Scan(&storeA))
 	require.NoError(t, dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ('Parity Store B') RETURNING id`).Scan(&storeB))
 
-	cashierID := insertTestCashier(ctx, t)
+	cashierID := insertParityCashier(ctx, t)
 	customerID := insertParityCustomer(ctx, t)
 
 	// Completed sales across stores, including a legacy sale without a store.
@@ -98,11 +110,11 @@ func TestReportAdapter_GetAllCompletedSalesStats_MVParity(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	refreshDashboardMVs(ctx, t)
+	refreshMaterializedViews(ctx, t)
 
-	adapter := ReportAdapter{}
+	repo := NewRepository(dbPool)
 
-	globRev, globOrders, err := adapter.GetAllCompletedSalesStats(ctx, dbPool, nil)
+	globRev, globOrders, err := repo.getAllCompletedSalesStats(ctx, nil)
 	require.NoError(t, err)
 
 	// Global: 4 completed sales across stores and the legacy no-store sale
@@ -115,13 +127,13 @@ func TestReportAdapter_GetAllCompletedSalesStats_MVParity(t *testing.T) {
 	assert.Equal(t, 4, globOrders, "global order count")
 
 	rawStoreA := rawAllTimeStats(ctx, t, &storeA)
-	gotRev, gotOrders, err := adapter.GetAllCompletedSalesStats(ctx, dbPool, &storeA)
+	gotRev, gotOrders, err := repo.getAllCompletedSalesStats(ctx, &storeA)
 	require.NoError(t, err)
 	assert.Equal(t, rawStoreA.revenue, gotRev, "store A revenue parity")
 	assert.Equal(t, rawStoreA.orders, gotOrders, "store A orders parity")
 
 	rawStoreB := rawAllTimeStats(ctx, t, &storeB)
-	gotRev, gotOrders, err = adapter.GetAllCompletedSalesStats(ctx, dbPool, &storeB)
+	gotRev, gotOrders, err = repo.getAllCompletedSalesStats(ctx, &storeB)
 	require.NoError(t, err)
 	assert.Equal(t, rawStoreB.revenue, gotRev, "store B revenue parity")
 	assert.Equal(t, rawStoreB.orders, gotOrders, "store B orders parity")

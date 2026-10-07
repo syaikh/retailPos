@@ -663,6 +663,9 @@ func TestReportRepository_DashboardStats_Seeded(t *testing.T) {
 
 	// Seed a sale
 	_, _, amount, _ := seedSale(ctx, t)
+	// The all-time totals come from mv_dashboard_totals, so the view must be
+	// rebuilt before asserting on them.
+	refreshMaterializedViews(ctx, t)
 
 	stats, err := repo.GetDashboardStats(ctx, nil, shared.JakartaLocation())
 	require.NoError(t, err)

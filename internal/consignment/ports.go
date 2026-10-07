@@ -49,6 +49,17 @@ type StoreNameProvider interface {
 type ProductMetaProvider interface {
 	ProductMetasByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]shared.ProductMeta, error)
 	ActiveProductOptions(ctx context.Context, db shared.DBPool) ([]shared.ProductOption, error)
+	// SearchProductOptions answers the add-term picker's search box: active
+	// products matching the text (full-text search_vector plus ILIKE on
+	// name/SKU) ordered by name, plus whether the text exactly equals a product
+	// name (case-insensitive).
+	SearchProductOptions(ctx context.Context, db shared.DBPool, search string) ([]shared.ProductOption, bool, error)
+	// ProductIDsByNameOrSKU resolves a name/SKU search text to product IDs so
+	// listing filters can match on product_id instead of joining products.
+	// Every product row matches, including soft-deleted ones, because the
+	// history of an existing document must stay searchable after its product is
+	// retired.
+	ProductIDsByNameOrSKU(ctx context.Context, db shared.DBPool, search string) ([]int, error)
 }
 
 // UsernameProvider is the user-side read port, implemented by internal/user.

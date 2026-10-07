@@ -17,7 +17,7 @@ const modulePrefix = "retail-pos-system/internal/"
 // infrastructure (audit, config, events, eventbus, middleware, ownership,
 // permissions, shared) is intentionally importable from anywhere.
 var domainModules = []string{
-	"brand", "category", "consignment", "customer", "customergroup", "inventory",
+	"appsettings", "brand", "category", "consignment", "customer", "customergroup", "inventory",
 	"platform", "pricing", "product", "purchase", "report", "sale",
 	"shift", "stockopname", "storagelocation", "store", "supplier", "uom", "user",
 }
@@ -32,7 +32,12 @@ var isolatedModules = []string{
 	"uom", "user",
 }
 
-var sqlKeywordRe = regexp.MustCompile(`\b(?:FROM|INTO|UPDATE|JOIN|REFERENCES|TABLE)\s+([a-z_]+)`)
+// sqlKeywordRe pulls table names out of SQL string literals. The name may be
+// quoted (`FROM "sales"`), schema-qualified (`FROM public.sales`, alias-qualified
+// or not), or both — the optional groups exist so that neither a quote mark nor
+// a schema prefix can hide a reference from the scan. Unknown names (CTE
+// aliases, `IF`, subquery labels) are dropped later by collectSQLTableRefs.
+var sqlKeywordRe = regexp.MustCompile(`\b(?:FROM|INTO|UPDATE|JOIN|REFERENCES|TABLE)\s+(?:[\w"]+\.)?"?([a-zA-Z_][a-zA-Z0-9_]*)"?`)
 
 // tableContext assigns every real table to its owning bounded context, per
 // ADR Modular_Monolith_Module_Boundaries §2.8.
@@ -93,8 +98,9 @@ var tableContext = map[string]string{
 	"customer_groups":   "referensi",
 	"suppliers":         "referensi",
 	// Analitik (read model)
-	"mv_daily_sales":  "analitik",
-	"mv_hourly_sales": "analitik",
+	"mv_daily_sales":      "analitik",
+	"mv_hourly_sales":     "analitik",
+	"mv_dashboard_totals": "analitik",
 	// Platform (config)
 	"app_settings": "platform",
 	// Platform
@@ -200,6 +206,21 @@ var strictModuleTables = map[string]map[string]bool{
 		"inventory_adjustments":         true,
 		"inventory_adjustment_items":    true,
 	},
+	"consignment": {
+		"consignment_arrangements":     true,
+		"consignment_terms":            true,
+		"consignment_stock":            true,
+		"consignment_receipts":         true,
+		"consignment_receipt_items":    true,
+		"consignment_pending_returns":  true,
+		"consignment_returns":          true,
+		"consignment_return_items":     true,
+		"consignment_sale_items":       true,
+		"consignment_settlements":      true,
+		"consignment_settlement_items": true,
+		"consignment_payouts":          true,
+		"consignment_receipt_edits":    true,
+	},
 	"store": {
 		"stores":     true,
 		"warehouses": true,
@@ -232,10 +253,9 @@ var strictModuleTables = map[string]map[string]bool{
 // porting (ADR §4 step 3: reads behind Query interfaces, step 4: writes behind
 // Application Services). The ownership rule rejects these; the manifest keeps
 // CI green while tracking the backlog. Remove an entry once its table access
-// is ported.
-var crossContextDebt = map[string]map[string]bool{
-	"consignment": {"products": true},
-}
+// is ported — an entry whose table the module no longer references is reported
+// as stale, so the backlog cannot rot.
+var crossContextDebt = map[string]map[string]bool{}
 
 func nonTestGoFiles(t *testing.T, dir string) []string {
 	t.Helper()
@@ -286,7 +306,11 @@ func knownTables(t *testing.T) map[string]bool {
 	for table := range tableContext {
 		out[table] = true
 	}
-	createRe := regexp.MustCompile(`(?i)CREATE\s+(?:(?:OR REPLACE|UNLOGGED|MATERIALIZED)\s+)*(?:TABLE|VIEW)\s+(?:IF NOT EXISTS\s+)?(\w+)`)
+	// The schema qualifier (public.users) is optional and stripped: every
+	// statement in 000_baseline.sql is schema-qualified, and capturing only
+	// the first word would reduce the whole harvest to {"public"}. Quotes
+	// (CREATE TABLE "users") are equally optional.
+	createRe := regexp.MustCompile(`(?i)CREATE\s+(?:(?:OR REPLACE|UNLOGGED|MATERIALIZED)\s+)*(?:TABLE|VIEW)\s+(?:IF NOT EXISTS\s+)?(?:\w+\.)?"?(\w+)"?`)
 	files, err := filepath.Glob(filepath.Join("..", "..", "database", "migrations", "*.sql"))
 	if err != nil {
 		t.Fatalf("glob migrations: %v", err)
@@ -414,6 +438,40 @@ func TestModuleSQLTableOwnership(t *testing.T) {
 		for table := range tables {
 			if !violated[module][table] {
 				t.Errorf("stale crossContextDebt entry: %s no longer references %q — remove the entry", module, table)
+			}
+		}
+	}
+}
+
+// TestSQLTableRefPattern pins the scanner's tolerance for quoted and
+// schema-qualified names: neither a quote mark nor a schema prefix may hide a
+// table reference from the ownership scan.
+func TestSQLTableRefPattern(t *testing.T) {
+	cases := []struct {
+		sql  string
+		want [][2]string // {keyword, table} pairs in match order
+	}{
+		{`SELECT id FROM sales WHERE total > 0`, [][2]string{{"FROM", "sales"}}},
+		{`INSERT INTO "sales" (id, total) VALUES ($1, $2)`, [][2]string{{"INTO", "sales"}}},
+		{`UPDATE "public"."sales" SET total = 0`, [][2]string{{"UPDATE", "sales"}}},
+		{`REFERENCES "products" (id)`, [][2]string{{"REFERENCES", "products"}}},
+		{
+			`FROM public.sales s JOIN "sale_items" i ON i.sale_id = s.id`,
+			[][2]string{{"FROM", "sales"}, {"JOIN", "sale_items"}},
+		},
+	}
+	for _, tc := range cases {
+		var got [][2]string
+		for _, m := range sqlKeywordRe.FindAllStringSubmatch(tc.sql, -1) {
+			got = append(got, [2]string{strings.Fields(m[0])[0], strings.ToLower(m[1])})
+		}
+		if len(got) != len(tc.want) {
+			t.Errorf("%q: got %d matches %v, want %d %v", tc.sql, len(got), got, len(tc.want), tc.want)
+			continue
+		}
+		for i := range tc.want {
+			if got[i] != tc.want[i] {
+				t.Errorf("%q: match %d = %v, want %v", tc.sql, i, got[i], tc.want[i])
 			}
 		}
 	}

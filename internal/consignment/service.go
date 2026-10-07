@@ -423,8 +423,18 @@ func (s *Service) ListAddTermProductOptions(ctx context.Context, arrangementID i
 	if err != nil {
 		return nil, err
 	}
+	return s.availableForTerms(ctx, a, options)
+}
 
-	terms, err := s.repo.ListTerms(ctx, s.repo.db, arrangementID)
+// availableForTerms drops the products that SetTerms would refuse for this
+// arrangement: products already covered by a term, products held live by
+// another supplier, and store-owned products still carrying global stock that
+// no consignment ledger row claims. The ownership questions are answered
+// through the StockReader port rather than a product_stock query. Candidates
+// keep their input order (the product catalog and search results arrive
+// name-ordered).
+func (s *Service) availableForTerms(ctx context.Context, a *Arrangement, options []shared.ProductOption) ([]shared.ProductOption, error) {
+	terms, err := s.repo.ListTerms(ctx, s.repo.db, a.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -472,9 +482,13 @@ func (s *Service) ListAddTermProductOptions(ctx context.Context, arrangementID i
 	return available, nil
 }
 
+// addTermSearchLimit caps how many search hits the add-term search box returns,
+// matching the page size the previous single-query implementation produced.
+const addTermSearchLimit = 10
+
 // SearchAvailableProducts searches for active products that match the search
 // query and are available for adding as terms. It applies the same exclusivity
-// rules as ListAddTermProductOptions but filters at the database level.
+// rules as ListAddTermProductOptions.
 // Returns matching products and whether the search text exactly matches any
 // product name (case-insensitive).
 func (s *Service) SearchAvailableProducts(ctx context.Context, arrangementID int, search string, claimsStore *int) ([]shared.ProductOption, bool, error) {
@@ -489,7 +503,19 @@ func (s *Service) SearchAvailableProducts(ctx context.Context, arrangementID int
 	if a.Status == StatusEnded {
 		return []shared.ProductOption{}, false, nil
 	}
-	return s.repo.SearchAvailableProducts(ctx, arrangementID, search, a.SupplierID, claimsStore)
+
+	candidates, exactMatch, err := s.repo.SearchProducts(ctx, search)
+	if err != nil {
+		return nil, false, err
+	}
+	available, err := s.availableForTerms(ctx, a, candidates)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(available) > addTermSearchLimit {
+		available = available[:addTermSearchLimit]
+	}
+	return available, exactMatch, nil
 }
 
 // --- Receipts ---

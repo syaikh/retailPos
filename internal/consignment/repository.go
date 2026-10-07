@@ -458,77 +458,28 @@ func (r *Repository) DeleteTerm(ctx context.Context, tx pgx.Tx, arrangementID, p
 	return nil
 }
 
-// SearchAvailableProducts returns active products that match the search query
-// and are available for adding as terms to the arrangement. It applies the same
-// exclusivity rules as ListAddTermProductOptions but filters at the database
-// level using full-text search (search_vector) and ILIKE on name/SKU.
-// Returns the matching products and whether the search text exactly matches
-// any product name (case-insensitive).
-func (r *Repository) SearchAvailableProducts(ctx context.Context, arrangementID int, search string, supplierID int, storeID *int) ([]shared.ProductOption, bool, error) {
-	// First check for exact name match (case-insensitive)
-	var exactMatch bool
-	err := r.db.QueryRow(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM products
-			WHERE LOWER(name) = LOWER($1)
-			  AND deleted_at IS NULL AND status = 'active'
-		)
-	`, search).Scan(&exactMatch)
-	if err != nil {
-		return nil, false, fmt.Errorf("check exact match: %w", err)
-	}
-
-	// Search for available products using full-text search + ILIKE
-	rows, err := r.db.Query(ctx, `
-		SELECT p.id, COALESCE(p.sku, ''), p.name
-		FROM products p
-		WHERE p.deleted_at IS NULL
-		  AND p.status = 'active'
-		  AND (
-		    p.search_vector @@ plainto_tsquery('english', $1)
-		    OR p.name ILIKE '%' || $1 || '%'
-		    OR p.sku ILIKE '%' || $1 || '%'
-		  )
-		  AND p.id NOT IN (
-		    SELECT ct.product_id FROM consignment_terms ct
-		    WHERE ct.arrangement_id = $2
-		  )
-		  AND p.id NOT IN (
-		    SELECT ps.product_id FROM product_stock ps
-		    WHERE ps.warehouse_id IS NULL
-		      AND ps.store_id IS NULL
-		      AND ps.location_id IS NULL
-		      AND ps.quantity > 0
-		      AND NOT EXISTS (
-		        SELECT 1 FROM consignment_stock cs
-		        WHERE cs.product_id = ps.product_id
-		      )
-		  )
-		  AND p.id NOT IN (
-		    SELECT cs.product_id FROM consignment_stock cs
-		    WHERE cs.supplier_id != $3
-		      AND (cs.available_qty > 0 OR cs.pending_return_qty > 0)
-		  )
-		ORDER BY p.name ASC
-		LIMIT 10
-	`, search, arrangementID, supplierID)
+// SearchProducts returns active products matching the search query, ordered by
+// name, plus whether the search text exactly matches a product name
+// (case-insensitive). The products-table search runs behind the product-side
+// read port; eligibility filtering (terms, ownership ledger, store-owned
+// stock) is applied by the caller against tables this module owns.
+func (r *Repository) SearchProducts(ctx context.Context, search string) ([]shared.ProductOption, bool, error) {
+	options, exactMatch, err := r.productMetaProviderOrPanic().SearchProductOptions(ctx, r.db, search)
 	if err != nil {
 		return nil, false, fmt.Errorf("search available products: %w", err)
 	}
-	defer rows.Close()
-
-	var options []shared.ProductOption
-	for rows.Next() {
-		var o shared.ProductOption
-		if err := rows.Scan(&o.ID, &o.SKU, &o.Name); err != nil {
-			return nil, false, fmt.Errorf("scan product option: %w", err)
-		}
-		options = append(options, o)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, false, err
-	}
 	return options, exactMatch, nil
+}
+
+// productIDsForSearch resolves a name/SKU search text to product IDs through
+// the product-side read port, so a listing can filter its own rows by
+// product_id instead of joining products.
+func (r *Repository) productIDsForSearch(ctx context.Context, search string) ([]int, error) {
+	ids, err := r.productMetaProviderOrPanic().ProductIDsByNameOrSKU(ctx, r.db, search)
+	if err != nil {
+		return nil, fmt.Errorf("resolve product search: %w", err)
+	}
+	return ids, nil
 }
 
 // --- Consignment stock ledger (consignment-owned) ---
@@ -808,8 +759,12 @@ func (r *Repository) ListConsignmentStockPaged(ctx context.Context, q queryer, s
 		args = append(args, *storeID)
 	}
 	if search != "" {
-		args = append(args, "%"+search+"%")
-		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM products p WHERE p.id = cs.product_id AND (p.name ILIKE $%d OR p.sku ILIKE $%d))", len(args), len(args)))
+		ids, err := r.productIDsForSearch(ctx, search)
+		if err != nil {
+			return nil, 0, err
+		}
+		args = append(args, ids)
+		conds = append(conds, fmt.Sprintf("cs.product_id = ANY($%d)", len(args)))
 	}
 	where := ""
 	if len(conds) > 0 {
@@ -949,8 +904,12 @@ func (r *Repository) ListReceipts(ctx context.Context, q queryer, supplierID int
 		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM consignment_receipt_items cri WHERE cri.consignment_receipt_id = r.id AND cri.product_id = $%d)", len(args)))
 	}
 	if search != "" {
-		args = append(args, "%"+search+"%")
-		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM consignment_receipt_items cri JOIN products p ON p.id = cri.product_id WHERE cri.consignment_receipt_id = r.id AND (p.name ILIKE $%d OR p.sku ILIKE $%d))", len(args), len(args)))
+		ids, err := r.productIDsForSearch(ctx, search)
+		if err != nil {
+			return nil, 0, err
+		}
+		args = append(args, ids)
+		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM consignment_receipt_items cri WHERE cri.consignment_receipt_id = r.id AND cri.product_id = ANY($%d))", len(args)))
 	}
 	where := " WHERE " + strings.Join(conds, " AND ")
 
@@ -1545,8 +1504,12 @@ func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID 
 		conds = append(conds, fmt.Sprintf("st.status = $%d", len(args)))
 	}
 	if search != "" {
-		args = append(args, "%"+search+"%")
-		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM consignment_settlement_items csi JOIN consignment_sale_items csi2 ON csi2.id = csi.consignment_sale_item_id JOIN products p ON p.id = csi2.product_id WHERE csi.consignment_settlement_id = st.id AND p.name ILIKE $%d)", len(args)))
+		ids, err := r.productIDsForSearch(ctx, search)
+		if err != nil {
+			return nil, 0, err
+		}
+		args = append(args, ids)
+		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM consignment_settlement_items csi JOIN consignment_sale_items csi2 ON csi2.id = csi.consignment_sale_item_id WHERE csi.consignment_settlement_id = st.id AND csi2.product_id = ANY($%d))", len(args)))
 	}
 	where := ""
 	if len(conds) > 0 {

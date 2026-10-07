@@ -533,6 +533,26 @@ func (r *Repository) GetSalesMonthlyReport(ctx context.Context, start, end time.
 	return r.saleStats.GetMonthlySales(ctx, r.db, start, end, storeID)
 }
 
+// getAllCompletedSalesStats returns the all-time completed-sale totals from
+// mv_dashboard_totals (refreshed by the coordinator at each Jakarta hour
+// boundary) instead of scanning the raw sales table, keeping the all-time
+// dashboard total as cheap as the charts. The view holds the same
+// completed-sale rows grouped per store, so the global/store filters produce
+// identical results to a raw query.
+//
+// The view belongs to this module's read model, so the query lives here
+// rather than behind SaleStatsProvider.
+func (r *Repository) getAllCompletedSalesStats(ctx context.Context, storeID *int) (revenue int, orders int, err error) {
+	query := `SELECT COALESCE(SUM(total_revenue), 0), COALESCE(SUM(transaction_count), 0) FROM mv_dashboard_totals`
+	args := []interface{}{}
+	if storeID != nil {
+		query += ` WHERE (store_id IS NULL OR store_id = $1)`
+		args = append(args, *storeID)
+	}
+	err = r.db.QueryRow(ctx, query, args...).Scan(&revenue, &orders)
+	return
+}
+
 func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakartaLoc *time.Location) (*DashboardStats, error) {
 	key := "dashboard:stats"
 	if storeID != nil {
@@ -573,7 +593,7 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 
 	go func() {
 		defer wg.Done()
-		rev, sales, err := r.saleStats.GetAllCompletedSalesStats(ctx, r.db, storeID)
+		rev, sales, err := r.getAllCompletedSalesStats(ctx, storeID)
 		if err != nil {
 			slog.Error("dashboard: all-time stats failed", "err", err)
 			return

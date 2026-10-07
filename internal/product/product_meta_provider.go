@@ -70,6 +70,75 @@ func (MetaLookup) ActiveProductOptions(ctx context.Context, db shared.DBPool) ([
 	return options, rows.Err()
 }
 
+// SearchProductOptions answers a product-name/SKU search over the active
+// catalog: matching products ordered by name, plus whether search exactly
+// equals one product's name (case-insensitive), which the consignment add-term
+// picker surfaces as an exact-match hint. Deleted and non-active products are
+// omitted.
+func (MetaLookup) SearchProductOptions(ctx context.Context, db shared.DBPool, search string) ([]shared.ProductOption, bool, error) {
+	var exactMatch bool
+	if err := db.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM products
+			WHERE LOWER(name) = LOWER($1)
+			  AND deleted_at IS NULL AND status = 'active'
+		)
+	`, search).Scan(&exactMatch); err != nil {
+		return nil, false, fmt.Errorf("failed to check exact product match: %w", err)
+	}
+
+	rows, err := db.Query(ctx, `
+		SELECT id, COALESCE(sku, ''), name
+		FROM products
+		WHERE deleted_at IS NULL
+		  AND status = 'active'
+		  AND (
+		    search_vector @@ plainto_tsquery('english', $1)
+		    OR name ILIKE '%' || $1 || '%'
+		    OR sku ILIKE '%' || $1 || '%'
+		  )
+		ORDER BY name ASC
+	`, search)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to search product options: %w", err)
+	}
+	defer rows.Close()
+	var options []shared.ProductOption
+	for rows.Next() {
+		var o shared.ProductOption
+		if err := rows.Scan(&o.ID, &o.SKU, &o.Name); err != nil {
+			return nil, false, fmt.Errorf("failed to scan product option: %w", err)
+		}
+		options = append(options, o)
+	}
+	return options, exactMatch, rows.Err()
+}
+
+// ProductIDsByNameOrSKU returns the IDs of every product row whose name or SKU
+// contains the search text (case-insensitive). Consumers use the result to
+// filter their own rows by product_id without joining products.
+func (MetaLookup) ProductIDsByNameOrSKU(ctx context.Context, db shared.DBPool, search string) ([]int, error) {
+	rows, err := db.Query(ctx, `
+		SELECT id FROM products
+		WHERE name ILIKE '%' || $1 || '%' OR sku ILIKE '%' || $1 || '%'
+	`, search)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search product ids: %w", err)
+	}
+	defer rows.Close()
+	// Never nil: consumers pass the slice straight into `= ANY($n)`, where a
+	// NULL parameter would be read as "unknown" instead of "matches nothing".
+	ids := []int{}
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan product id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // ProductCostsByIDs returns product unit costs keyed by product ID. IDs with
 // no matching product are absent from the map. Cost is governed by the
 // product.cost.view permission on display paths; this provider serves backend
