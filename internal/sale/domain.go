@@ -10,7 +10,11 @@ import (
 // ==================== DOMAIN ERRORS ====================
 
 var (
-	ErrPaymentTotalMismatch     = errors.New("total payments do not match sale total amount")
+	ErrPaymentTotalMismatch = errors.New("total payments do not match sale total amount")
+	// ErrDuplicatePaymentMethod is retained for the HTTP error mapping and for
+	// clients that key off the message, but validatePayments no longer returns
+	// it: repeated non-cash rows are allowed (S1). Only ErrMultipleCashPayments
+	// still rejects a repeated method.
 	ErrDuplicatePaymentMethod   = errors.New("duplicate payment method in split payment")
 	ErrPaymentMethodInactive    = errors.New("payment method is not active")
 	ErrPaymentReferenceRequired = errors.New("reference number is required for this payment method")

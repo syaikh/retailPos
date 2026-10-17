@@ -29,6 +29,21 @@ This project uses a semantic codebase index at `.opencode/index`, use semantic t
 - Do not repeatedly re-index because a query returned no result — first consider whether the query is vague, wrong tool selected, or target outside index.
 - **Never run `index_codebase` with `force=true`, or `/index force`, on your own initiative.** A full re-index is expensive and the user runs it themselves. If the index is stale or a symbol you just wrote is not found, say so and let the user re-index; fall back to `grep`/`Read` in the meantime rather than triggering a rebuild.
 
+### Known index limitations
+
+- **A Go method is indexed under its return type, not its name.** The name
+  attributed to `func (s *service) Foo(...) error` is `"error"`; a method
+  returning `bool`/`int`/`string` is stored as `"bool"`/`"int"`/`"string"`, and
+  one with multiple or unnamed results is `method_declaration (anonymous)`.
+  Free functions (`function_declaration`) keep their real names. Consequence:
+  `call_graph`, `call_graph_path`, and the `symbol`/`from`/`to` arguments of
+  `codebase_context`/`codebase_edit_context` cannot resolve a Go **method** by
+  name — `validatePayments` and `CreateSale` both miss. Retrieve the declaration
+  with `codebase_peek`/`codebase_search`, then enumerate callers with
+  `grep -rn '<method>' internal`.
+- **`pr_impact` diffs the branch against its base**, so it reports zero changed
+  files for uncommitted work. Commit or stash first, or run it on a branch.
+
 ## Environment Configuration
 
 All database connection parameters are in `.env.example`:

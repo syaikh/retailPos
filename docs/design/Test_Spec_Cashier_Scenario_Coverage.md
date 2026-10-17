@@ -82,7 +82,7 @@ English locale forced via `localStorage.pos.locale='en'` (fixtures.ts).
 | CS-D1 | Allocations must equal total exactly | Underpay / overpay | Done button disabled (UI); API 400 `ErrPaymentTotalMismatch` | `CheckoutModal.svelte:49-51,393`; `service.go:247-249` |
 | CS-D2 | Max 10 payment rows | API send 11 allocations | 400 `ErrMaxPaymentsExceeded` | `service.go:190-192`; `domain.go:22` |
 | CS-D3 | Single CASH entry only | API send two CASH rows | 400 | `service.go:222-226` |
-| CS-D4 | Duplicate non-cash method rejected | Two QRIS rows | 400 (covered pos-flow.spec) | `service.go:227-231` |
+| CS-D4 | Duplicate non-cash method allowed (S1) | Two QRIS rows summing to the total | 201, both payment rows recorded | `payment-validation.spec.ts` (CS-D4); `service.go` `validatePayments` |
 | CS-D5 | Zero-amount rows allowed if sum=total | One row Rp 0 + one exact row | Completes (CurrencyInput forbids negatives) | `CurrencyInput.svelte:37-53` |
 | CS-D6 | Reference prefill per method | Select CARD / E_WALLET / TRANSFER | Prefills `EDC/{ddmmyy}/{rand}` / `EW/…` / `REF/…`; editable | `CheckoutModal.svelte:71-96,329-342` |
 | CS-D7 | requires_reference enforced | Method flagged, blank ref | 400 | `service.go:234-236` |

@@ -630,15 +630,15 @@
 ### Colors
 - **Current**: Excellent token system in `app.css` with semantic naming
 - **Issue**: `ImportSummary.svelte` and `PreviewTable.svelte` use hardcoded `emerald-400`, `amber-400`, `rose-400` instead of `success`, `warning`, `danger` tokens
-- **Issue**: `Modal.svelte` uses `bg-surface` (may not resolve) instead of `bg-surface-default`
+- **Issue**: ~~`Modal.svelte` uses `bg-surface` (may not resolve) instead of `bg-surface-default`~~ *(Corrected 2026-10-17: `Modal.svelte:108` now uses `bg-surface-default`.)*
 - **Recommendation**: Replace all hardcoded colors with semantic tokens. Fix Modal.
 
 ### Interaction Patterns
-- **Modal**: Shared `Modal` has focus trap and Escape-to-close — good. Missing backdrop click-to-close.
+- **Modal**: Shared `Modal` has focus trap and Escape-to-close — good. ~~Missing backdrop click-to-close.~~ *(Corrected 2026-10-17: backdrop click-to-close is present at `Modal.svelte:99-101`; the panel also sets `tabindex="-1"` and `stopPropagation`.)*
 - **Drawer**: 5 custom implementations, no shared component. All handle Escape and backdrop click.
 - **Dropdown**: Shared `Dropdown.svelte` is well-implemented with keyboard navigation, arrow keys, and `role="menu"`.
 - **Toast**: Shared `Toast.svelte` with `aria-live="polite"` and `role="alert"` — good.
-- **Confirm**: Uses native `confirm()` in POS; custom modals elsewhere. No shared pattern.
+- **Confirm**: ~~Uses native `confirm()` in POS; custom modals elsewhere. No shared pattern.~~ *(Corrected 2026-10-17: POS checkout uses an in-dialog confirm step in `CheckoutModal.svelte`; a shared `ConfirmDeleteModal.svelte` wrapping `Modal` exists. Native `confirm()` remains in consignment, stock-opname, and purchase-orders — not POS.)*
 
 ### Page Layouts
 - **Current**: Most pages follow `space-y-5` → toolbar → card → table + pagination
@@ -654,7 +654,7 @@
 |---|----------|---------|-------------|-------------------|
 | 1 | POS: Select customer during checkout | Must close checkout, open customer modal, select, reopen checkout | Keep checkout open; show customer selection inline or as a nested overlay | High |
 | 2 | POS: Exact cash payment | Press F6 (undiscoverable) | Show "Exact" as a clickable preset button alongside 50k/100k/etc. | Medium |
-| 3 | POS: Clear cart | `confirm()` native dialog | Instant clear with undo toast | Medium |
+| 3 | POS: Clear cart | ~~`confirm()` native dialog~~ *(Corrected 2026-10-17: clears immediately, no confirmation — `PosPage.svelte:416`)* | Instant clear with undo toast | Medium |
 | 4 | Product search → add to cart | Must click "Add" button per product | Add Enter-to-add-first-result for barcode scanner fast path | High |
 | 5 | Settings CRUD | Must navigate between Categories/Brands/UoM pages | Add tabbed settings page or combined management view | Medium |
 | 6 | Import workflow | Import wizard exists but is complex | Verify wizard works end-to-end; ensure progress feedback is clear | Low |

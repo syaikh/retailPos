@@ -55,6 +55,8 @@ test.describe('Thermal Receipt Print Flow', () => {
     });
 
     await page.getByRole('dialog').locator('button:has-text("Enter")').click();
+    // U2: Done opens the confirm view; confirm by id (locale-independent).
+    await page.locator("#confirm-finalize").click();
     await page.waitForFunction(() => (window as any)._printCallCount >= 1, { timeout: 10000 });
 
     await expect(page.locator('#thermal-receipt')).toBeVisible({ timeout: 5000 });
@@ -99,6 +101,8 @@ test.describe('Thermal Receipt Print Flow', () => {
     await openCheckoutAndPayExact(page);
 
     await page.getByRole('dialog').locator('button:has-text("Enter")').click();
+    // U2: Done opens the confirm view; confirm by id (locale-independent).
+    await page.locator("#confirm-finalize").click();
     await page.waitForTimeout(600);
 
     await page.emulateMedia({ media: 'print' });
@@ -128,6 +132,8 @@ test.describe('Thermal Receipt Print Flow', () => {
     });
 
     await page.getByRole('dialog').locator('button:has-text("Enter")').click();
+    // U2: Done opens the confirm view; confirm by id (locale-independent).
+    await page.locator("#confirm-finalize").click();
     await page.waitForFunction(() => (window as any)._printCallCount >= 1, { timeout: 10000 });
 
     let printCalls = await page.evaluate(() => (window as any)._printCallCount || 0);
@@ -159,6 +165,8 @@ test.describe('Thermal Receipt Print Flow', () => {
     await expect(doneButton).toBeEnabled({ timeout: 5000 });
 
     await doneButton.click();
+    // U2: Done opens the confirm view; confirm by id (locale-independent).
+    await page.locator("#confirm-finalize").click();
     await page.waitForSelector('#thermal-receipt', { state: 'visible', timeout: 5000 });
 
     // The receipt must render a CHANGE line with a positive amount.

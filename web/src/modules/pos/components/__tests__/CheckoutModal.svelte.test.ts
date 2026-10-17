@@ -16,7 +16,7 @@ describe("CheckoutModal.svelte source-structure guards", () => {
 
   it("imports icons from lucide-svelte", () => {
     expect(src).toContain(
-      'import { X, Check, User, ChevronRight, Trash2 } from "lucide-svelte"',
+      'import { X, Check, User, ChevronRight, Trash2, Plus } from "lucide-svelte"',
     );
   });
 
@@ -67,7 +67,7 @@ describe("CheckoutModal.svelte source-structure guards", () => {
   it("renders dialog with aria-modal", () => {
     expect(src).toContain('role="dialog"');
     expect(src).toContain('aria-modal="true"');
-    expect(src).toContain("aria-label={labels.payment}");
+    expect(src).toContain('tabindex="-1"');
   });
 
   it("renders total amount display", () => {
@@ -170,5 +170,50 @@ describe("CheckoutModal.svelte source-structure guards", () => {
     );
     expect(src).toContain("{labels.changeDue}");
     expect(src).toContain('changeDue.toLocaleString("id-ID")');
+  });
+
+  it("routes Done and Enter through a confirm step before finalizing (U2)", () => {
+    expect(src).toContain("let confirmStep = $state(false)");
+    expect(src).toContain("function openConfirm");
+    expect(src).toContain("onclick={openConfirm}");
+    expect(src).toContain(
+      'if (e.key === "Enter" && canComplete && !confirmStep)',
+    );
+    expect(src).toContain("{labels.confirmPayment}");
+    expect(src).toContain("{labels.confirmEnter}");
+    expect(src).toContain('id="confirm-finalize"');
+    expect(src).toContain("if (confirmStep) {");
+  });
+
+  it("returns focus to the dialog when leaving the confirm step (U2)", () => {
+    expect(src).toContain("checkout-done");
+    expect(src).toContain("wasConfirmStep");
+  });
+
+  it("lists each payment method individually in the confirm summary", () => {
+    expect(src).toContain("const confirmRows = $derived(");
+    expect(src).toContain("{#each confirmRows as row (row.id)}");
+  });
+
+  it("supports multiple allocations of the same non-cash method (S1)", () => {
+    expect(src).toContain("function addAnotherAllocation");
+    expect(src).toContain("addAnotherAllocation(alloc.methodCode)");
+    expect(src).toContain("title={labels.addAnotherPayment}");
+    expect(src).toContain("MAX_PAYMENTS_PER_SALE");
+    expect(src).toContain("allocations.length >= MAX_PAYMENTS_PER_SALE");
+  });
+
+  it("has a global reset-amounts action that keeps the rows (S3)", () => {
+    expect(src).toContain("function resetAmounts");
+    expect(src).toContain("onclick={resetAmounts}");
+    expect(src).toContain(
+      "allocations = allocations.map((a) => ({ ...a, amount: 0 }))",
+    );
+  });
+
+  it("titles the dialog 'Payment — Split' when there is more than one allocation (S4)", () => {
+    expect(src).toContain(
+      "allocations.length > 1 ? labels.paymentSplit : labels.payment",
+    );
   });
 });

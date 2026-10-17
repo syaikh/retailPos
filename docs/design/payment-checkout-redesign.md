@@ -1,6 +1,6 @@
 # Payment & Split-Payment — Redesign Plan
 
-**Status:** Phase 1 (frontend quick wins) specified with exact edits. Phases 2–3 deferred (require backend decision on cash change).
+**Status (updated 2026-10-17):** Phase 1 + 1b shipped. Phase 2 C1 (backend cash change) and K3 (receipt CHANGE line) shipped in `5dc160a2` — the "requires backend decision" deferral is resolved. Phase 2 U2 and Phase 3 S1/S3/S4 implemented 2026-10-17 in the working tree (uncommitted): the last open items are closed.
 **Scope:** `web/src/modules/pos/components/CheckoutModal.svelte` + `web/src/shared/i18n/{en,id}.ts`.
 **Goal:** Remove the highest-frequency cashier errors in the payment/split-payment flow with low-risk frontend changes, without waiting on the backend cash-change workstream (C1).
 
@@ -44,11 +44,11 @@
 EXACT (normal):   TOTAL 85.000 │ PAID 85.000 │ REMAINING    0 ✓
 SHORT (under):    TOTAL 85.000 │ PAID 70.000 │ REMAINING 15.000 ⚠   (red)
 OVER (overshot):  TOTAL 85.000 │ PAID 90.000 │ OVERPAID  5.000 ⚠   (red, press Reset)
-OVER-TENDER (C1): TOTAL 85.000 │ PAID 100.000 │ CHANGE 15.000 💵   (green, Phase 2)
+OVER-TENDER (C1): TOTAL 85.000 │ PAID 100.000 │ CHANGE 15.000 💵   (green, shipped)
 ```
 - Replaces the silent disabled-Done dead-end with explicit, colored feedback.
 
-### 1.3 Confirm step (fixes U2 — Phase 2, shown for context)
+### 1.3 Confirm step (fixes U2 — implemented 2026-10-17)
 
 ```
 ┌──────────────────────────────────────┐
@@ -62,7 +62,11 @@ OVER-TENDER (C1): TOTAL 85.000 │ PAID 100.000 │ CHANGE 15.000 💵   (green,
 └──────────────────────────────────────┘
 ```
 
-### 1.4 Receipt with Change (fixes K3 — Phase 2, depends on C1)
+The summary lists each allocation individually (method label + amount) rather than
+a single aggregated "Paid" row, so a mis-keyed line in a multi-tender split is
+visible before finalizing. The cash-only case above is unchanged.
+
+### 1.4 Receipt with Change (fixes K3 — shipped with C1)
 
 ```
          TOKO SEJAHTERA
@@ -396,23 +400,25 @@ File: `shared/i18n/en.ts` and `shared/i18n/id.ts` — add near the POS labels:
 
 ---
 
-## 3. Phase 2 — Deferred (requires backend decision on C1)
+## 3. Phase 2 — C1/K3/U2 shipped
 
-- **C1 Cash change:** backend `change_due` column; relax `validatePayments` (`internal/sale/service.go:247`) from `totalPaid == totalAmount` to `totalPaid >= totalAmount`; derive `change = cashTendered − total`; return in `presentSale`; map into `ReceiptData.changeDue`.
-- **K3 Receipt change line:** in `app/components/ReceiptPrintOverlay.svelte` render `changeDue` when `> 0`; remove hardcoded `0` in `PosPage.svelte:452` and `TransactionDrawer.svelte:103`.
-- **U2 Confirm step:** lightweight summary modal consistent with the app's existing `ConfirmDeleteModal` pattern before `handleFinalize`.
+- **C1 Cash change — ✅ SHIPPED** (`5dc160a2`, migration `033_cash_change.sql`). Backend `change_due` column on `sale_payments`; `validatePayments` (`internal/sale/service.go:265`) rejects only `totalPaid < totalAmount`, derives `change = cashTendered − total` (`:269-278`) with `ErrPaymentOverTenderNonCash` guard; returned via `presentSale` (`ChangeDue` in `domain.go:42`); `shiftContribution` subtracts change from cash sales. Frontend `ReceiptData.changeDue` wired.
+- **K3 Receipt change line — ✅ SHIPPED.** `ReceiptPrintOverlay.svelte:94-98` renders `changeDue > 0`; hardcoded `0` removed — `PosPage.svelte:519` and `TransactionDrawer.svelte:123` read `sale.change_due ?? 0`.
+- **U2 Confirm step — ✅ IMPLEMENTED (2026-10-17, uncommitted).** `confirmStep` state in `CheckoutModal.svelte` swaps the dialog body for a summary view (Total / Cash / Paid / Change, per mockup 1.3) instead of finalizing: Done and Enter call `openConfirm()`, "Confirm [Enter]" calls `handleFinalize`, while Cancel / Escape / backdrop return to the edit view (Escape closes the dialog only from the edit view). Focus moves to the Confirm button and the Tab trap stays active in both views.
 
-## 4. Phase 3 — Later
+## 4. Phase 3 — S1/S3/S4 shipped
 
-- **S1 Multi same-method:** remove `ErrDuplicatePaymentMethod` for non-cash methods (`internal/sale/service.go:228`) to allow two cards / two e-wallets / two gift cards.
-- **S3/S4 polish:** distinguish "Reset amounts" vs "Remove all"; label the dialog "Payment — Split" when `allocations.length > 1`.
+- **S1 Multi same-method — ✅ IMPLEMENTED (2026-10-17, uncommitted).** `validatePayments` (`internal/sale/service.go`) no longer returns `ErrDuplicatePaymentMethod` for repeated non-cash rows — only `ErrMultipleCashPayments` still enforces one cash row. Each non-cash allocation row gains a "+" button (`addAnotherAllocation`) that appends another row of the same method prefilled with the remaining balance; the backend row cap (`MaxPaymentsPerSale`) still applies.
+- **S3/S4 polish — ✅ IMPLEMENTED (2026-10-17, uncommitted).**
+  - S3: a global "Reset amounts" action sits beside "Remove all" in the allocation header; `resetAmounts()` zeroes every row's amount while keeping the rows (unlike "Remove all", which deletes them).
+  - S4: the dialog `<h2>` renders `{allocations.length > 1 ? labels.paymentSplit : labels.payment}`; the `aria-label` stays `{labels.payment}` so existing role-based lookups keep matching.
 
 ---
 
-## 5. Verification (after Phase 1 edits)
+## 5. Verification
 
 ```bash
 cd web && npm run build        # compile/type check
 cd web && npx vitest run src/modules/pos   # any existing pos component tests
 ```
-Manual: open POS → add items → Pay (F4) → confirm CASH row defaults to total, summary bar shows Paid=Remaining=0 ✓, Done enabled; reduce CASH amount → Remaining turns red ⚠ and Done disabled; add CARD → leave reference empty → Done disabled + red input; fill reference → Done enabled.
+Manual: open POS → add items → Pay (F4) → confirm CASH row defaults to total, summary bar shows Paid=Remaining=0 ✓, Done enabled; reduce CASH amount → Remaining turns red ⚠ and Done disabled; add CARD → leave reference empty → Done disabled + red input; fill reference → Done enabled. Then press Done (or Enter) → the confirm view shows Total plus one row per payment method (and Change on a cash over-tender) with focus on Confirm; Cancel / Escape / backdrop return to the edit view (Escape from the edit view closes the dialog); Confirm finalizes. With a split (e.g. CARD + QRIS) the title reads "Payment — Split", each non-cash row has a "+" to append another row of the same method, and "Reset amounts" zeroes every row without removing it.

@@ -50,6 +50,8 @@ test.describe('Hold & Recall UI Flow', () => {
     await selesaiBtn.waitFor({ state: 'visible', timeout: 5000 });
     await expect(selesaiBtn).toBeEnabled({ timeout: 3000 });
     await selesaiBtn.click();
+    // U2: Done opens the confirm view; confirm by id (locale-independent).
+    await page.locator("#confirm-finalize").click();
     await page.waitForTimeout(2000);
 
     await expect(page.locator('text=Your cart is empty')).toBeVisible({ timeout: 8000 });

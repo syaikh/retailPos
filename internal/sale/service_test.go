@@ -856,13 +856,13 @@ func TestSaleService_ValidatePayments(t *testing.T) {
 		assert.ErrorIs(t, err, ErrPaymentTotalMismatch)
 	})
 
-	t.Run("duplicate non-cash method returns error", func(t *testing.T) {
+	t.Run("duplicate non-cash method is allowed", func(t *testing.T) {
 		sale, items := makeSale("INV-SPLIT-DUP-001", 50000)
 		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{
 			{PaymentMethodCode: "QRIS", Amount: 25000},
 			{PaymentMethodCode: "QRIS", Amount: 25000},
 		})
-		assert.ErrorIs(t, err, ErrDuplicatePaymentMethod)
+		assert.NoError(t, err)
 	})
 
 	t.Run("inactive payment method returns error", func(t *testing.T) {

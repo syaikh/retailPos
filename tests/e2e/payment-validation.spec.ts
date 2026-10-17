@@ -101,7 +101,7 @@ test.describe('Payment Validation via Cart Checkout (CS-D*)', () => {
     expect(res.body.error.message).toContain('only one cash payment');
   });
 
-  test('CS-D4: duplicate non-cash method is rejected with 400', async ({ request }) => {
+  test('CS-D4: duplicate non-cash method is allowed and both rows are recorded (S1)', async ({ request }) => {
     const { cartId, total } = await newCartWithOneItem(request);
     const res = await cashier.post(`/api/pos/cart/${cartId}/checkout`, {
       payments: [
@@ -109,8 +109,10 @@ test.describe('Payment Validation via Cart Checkout (CS-D*)', () => {
         { payment_method_code: 'QRIS', amount: total - Math.floor(total / 2), reference_number: 'R2' },
       ],
     });
-    expect(res.status).toBe(400);
-    expect(res.body.error.message.toLowerCase()).toContain('duplicate');
+    expect(res.status).toBe(201);
+    const sale = res.body.data;
+    tracker.trackSale(sale.id);
+    expect(sale.payments).toHaveLength(2);
   });
 
   test('CS-D5: reference-required method without reference is rejected', async ({ request }) => {

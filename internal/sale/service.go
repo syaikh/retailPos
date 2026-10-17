@@ -218,7 +218,6 @@ func (s *service) validatePayments(ctx context.Context, totalAmount int, payment
 
 	var totalPaid, cashTotal, nonCashTotal int
 	result := make([]Payment, 0, len(payments))
-	seenMethods := make(map[string]bool)
 	cashCount := 0
 
 	for _, p := range payments {
@@ -234,7 +233,6 @@ func (s *service) validatePayments(ctx context.Context, totalAmount int, payment
 			return nil, 0, ErrPaymentMethodInactive
 		}
 
-		methodUpper := strings.ToUpper(p.PaymentMethodCode)
 		if strings.EqualFold(p.PaymentMethodCode, "CASH") {
 			cashCount++
 			if cashCount > 1 {
@@ -242,12 +240,8 @@ func (s *service) validatePayments(ctx context.Context, totalAmount int, payment
 			}
 			cashTotal += p.Amount
 		} else {
-			if seenMethods[methodUpper] {
-				return nil, 0, ErrDuplicatePaymentMethod
-			}
 			nonCashTotal += p.Amount
 		}
-		seenMethods[methodUpper] = true
 
 		if pm.RequiresReference && strings.TrimSpace(p.ReferenceNumber) == "" {
 			return nil, 0, ErrPaymentReferenceRequired

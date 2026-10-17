@@ -91,9 +91,11 @@ test.describe('Silent receipt printing (real print-agent)', () => {
     await page.keyboard.press('F7');
     await expect(page.getByRole('dialog').locator('button:has-text("Enter")')).toBeEnabled({ timeout: 5000 });
 
-    // Click Done — finalizeSale fires processCheckout() as fire-and-forget,
-    // so we must wait for the cart to clear (indicating the sale completed).
+    // Click Done, then Confirm — finalizeSale fires processCheckout() as
+    // fire-and-forget, so we must wait for the cart to clear (sale completed).
     await page.getByRole('dialog').locator('button:has-text("Enter")').click();
+    // U2: Done opens the confirm view; confirm by id (locale-independent).
+    await page.locator("#confirm-finalize").click();
     await expect(page.locator('text=Your cart is empty')).toBeVisible({ timeout: 10000 });
 
     // Now lastSale should be set. The Print button in CartPanel shows the

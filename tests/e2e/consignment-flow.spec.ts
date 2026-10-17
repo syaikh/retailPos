@@ -173,6 +173,8 @@ test.describe('Consignment Supplier - Full Flow', () => {
       (resp) => resp.url().includes('/pos/cart/') && resp.url().includes('/checkout') && resp.request().method() === 'POST'
     );
     await doneBtn.click();
+    // U2: Done opens the confirm view; confirm by id (locale-independent).
+    await page.locator("#confirm-finalize").click();
     const checkoutResponse = await checkoutResponsePromise;
     expect(checkoutResponse.status(), `checkout failed: ${checkoutResponse.status()} ${await checkoutResponse.text()}`).toBe(201);
 
