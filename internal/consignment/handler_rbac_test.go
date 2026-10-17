@@ -458,6 +458,22 @@ func TestHandler_ReconciliationAuthorization(t *testing.T) {
 	arr, err := svc.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierID, StoreID: storeID}, testUserID, nil)
 	require.NoError(t, err)
 
+	// A term is needed before any count body can name a product of this
+	// arrangement; counting zero against zero keeps the assertion about the
+	// permission gate rather than about stock.
+	product := insertTestProduct(ctx, t, "RECON-RBAC")
+	_, err = svc.SetTerms(ctx, arr.ID, []SetTermsRequest{{
+		ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+	}}, testUserID, nil)
+	require.NoError(t, err)
+
+	newDraft := func(t *testing.T) int {
+		t.Helper()
+		rec, err := svc.CreateReconciliation(ctx, &CreateReconciliationRequest{ArrangementID: arr.ID}, testUserID, &storeID)
+		require.NoError(t, err)
+		return rec.ID
+	}
+
 	t.Run("listing reconciliations requires consignment.view", func(t *testing.T) {
 		rView := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentView)}, &storeID, testUserID)
 		assert.Equal(t, http.StatusOK,
@@ -490,4 +506,82 @@ func TestHandler_ReconciliationAuthorization(t *testing.T) {
 		r := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentReconcile)}, &storeID, testUserID)
 		assert.Equal(t, http.StatusCreated, doConsignmentRequest(r, http.MethodPost, "/api/consignment/reconciliations", body).Code)
 	})
+
+	t.Run("reading one reconciliation requires consignment.view", func(t *testing.T) {
+		path := fmt.Sprintf("/api/consignment/reconciliations/%d", newDraft(t))
+
+		rView := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentView)}, &storeID, testUserID)
+		assert.Equal(t, http.StatusOK, doConsignmentRequest(rView, http.MethodGet, path, "").Code)
+
+		// reconcile alone is a write grant: it does not unlock the read.
+		rReconcile := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentReconcile)}, &storeID, testUserID)
+		assert.Equal(t, http.StatusForbidden, doConsignmentRequest(rReconcile, http.MethodGet, path, "").Code)
+	})
+
+	t.Run("saving a count requires consignment.reconcile", func(t *testing.T) {
+		path := fmt.Sprintf("/api/consignment/reconciliations/%d/count", newDraft(t))
+		body := fmt.Sprintf(`{"items":[{"product_id":%d,"physical_available":0}]}`, product)
+
+		rView := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentView)}, &storeID, testUserID)
+		assert.Equal(t, http.StatusForbidden, doConsignmentRequest(rView, http.MethodPut, path, body).Code)
+
+		rReconcile := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentReconcile)}, &storeID, testUserID)
+		assert.Equal(t, http.StatusOK, doConsignmentRequest(rReconcile, http.MethodPut, path, body).Code)
+	})
+
+	t.Run("posting requires consignment.reconcile", func(t *testing.T) {
+		id := newDraft(t)
+		countPath := fmt.Sprintf("/api/consignment/reconciliations/%d/count", id)
+		countBody := fmt.Sprintf(`{"items":[{"product_id":%d,"physical_available":0}]}`, product)
+		postPath := fmt.Sprintf("/api/consignment/reconciliations/%d/post", id)
+
+		rReconcile := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentReconcile)}, &storeID, testUserID)
+		require.Equal(t, http.StatusOK, doConsignmentRequest(rReconcile, http.MethodPut, countPath, countBody).Code)
+
+		rView := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentView)}, &storeID, testUserID)
+		assert.Equal(t, http.StatusForbidden, doConsignmentRequest(rView, http.MethodPost, postPath, "").Code)
+
+		assert.Equal(t, http.StatusOK, doConsignmentRequest(rReconcile, http.MethodPost, postPath, "").Code)
+	})
+}
+
+// TestHandler_PostReconciliation_ErrorMapping pins the HTTP status of the D5
+// post branch clients branch on: a surplus that collides with store-owned
+// stock is a conflict (CNS-201), never a 500, and the refused post moves no
+// stock.
+func TestHandler_PostReconciliation_ErrorMapping(t *testing.T) {
+	ctx := context.Background()
+	storeID := insertTestStore(ctx, t)
+	testUserID := insertTestUser(ctx, t)
+
+	svc := newTestService(t)
+	supplierID := insertTestSupplier(ctx, t, "Konsinyasi ErrorMap Supplier", true)
+	arr, err := svc.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierID, StoreID: storeID}, testUserID, nil)
+	require.NoError(t, err)
+
+	// Terms are set while the store owns nothing, then the store's own units
+	// are seeded: the SKU is store-owned with no consignment ledger row.
+	product := insertTestProduct(ctx, t, "RECON-ERRMAP")
+	_, err = svc.SetTerms(ctx, arr.ID, []SetTermsRequest{{
+		ProductID: product, Price: 10000, StoreShareType: ShareTypePercentage, StoreShareValue: 20,
+	}}, testUserID, nil)
+	require.NoError(t, err)
+	seedStoreOwnedStock(ctx, t, product, 5)
+
+	rec, err := svc.CreateReconciliation(ctx, &CreateReconciliationRequest{ArrangementID: arr.ID}, testUserID, &storeID)
+	require.NoError(t, err)
+	_, err = svc.SaveReconciliationCount(ctx, rec.ID, &SaveReconciliationCountRequest{
+		Items: []ReconciliationItemInput{{ProductID: product, PhysicalAvailable: intPtr(3), Reason: ReasonUnrecordedReceipt}},
+	}, testUserID, &storeID)
+	require.NoError(t, err)
+
+	r := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentReconcile)}, &storeID, testUserID)
+	w := doConsignmentRequest(r, http.MethodPost, fmt.Sprintf("/api/consignment/reconciliations/%d/post", rec.ID), "")
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "store-owned")
+
+	assert.Equal(t, 5, globalStockQty(ctx, t, product), "the refused post moved no stock")
+	still, err := svc.GetReconciliation(ctx, rec.ID, &storeID)
+	require.NoError(t, err)
+	require.Equal(t, ReconcileStatusCounted, still.Status)
 }

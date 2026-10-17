@@ -102,6 +102,22 @@ func TestService_ForceReturn(t *testing.T) {
 		row, err := svcA.repo.GetConsignmentStock(ctx, svcA.repo.db, product)
 		require.NoError(t, err)
 		require.Nil(t, row)
+
+		// And the release is real: a second consignment supplier can now set
+		// terms for the SKU and take ownership of it with its own receipt.
+		svcB, supplierB, storeB := setupArrangement(t, product)
+		_, err = svcB.CreateReceipt(ctx, &ReceiptRequest{
+			ArrangementID: arrID(t, svcB, storeB),
+			Items:         []ReceiptItemRequest{{ProductID: product, AcceptedQty: 3}},
+		}, userID, &storeB)
+		require.NoError(t, err)
+
+		row, err = svcB.repo.GetConsignmentStock(ctx, svcB.repo.db, product)
+		require.NoError(t, err)
+		require.NotNil(t, row, "the released SKU must be claimable by another supplier")
+		require.Equal(t, supplierB, row.SupplierID)
+		require.Equal(t, 3, row.AvailableQty)
+		require.Equal(t, 3, globalStockQty(ctx, t, product))
 	})
 
 	t.Run("returns ErrNothingToReturn when nothing is owned", func(t *testing.T) {

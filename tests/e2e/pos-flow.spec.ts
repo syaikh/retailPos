@@ -306,7 +306,7 @@ test.describe('POS API Tests', () => {
     expect(body.error.message).toContain('total payments do not match');
   });
 
-  test('should reject split tender with duplicate payment method (400)', async ({ request }) => {
+  test('should reject split tender with two cash rows (400)', async ({ request }) => {
     const { headers } = auth;
     const totalAmount = product.price * 1;
 
@@ -327,6 +327,41 @@ test.describe('POS API Tests', () => {
     expect(res.status()).toBe(400);
     const body = await res.json();
     expect(body.error.message).toContain('only one cash payment per transaction is allowed');
+  });
+
+  test('should allow split tender with a repeated non-cash method', async ({ request }) => {
+    const { headers } = auth;
+    const qty = 1;
+    // Dedicated product keeps the total deterministic (no pricing rule/tax).
+    const prodRes = await request.post(`${API_BASE}/api/products`, {
+      headers,
+      data: { name: `E2E Dup QRIS ${Date.now()}`, sku: `E2E-DUP-${Date.now()}`, price: 10000, cost: 5000, stock: 10, status: 'active' },
+    });
+    expect(prodRes.ok()).toBeTruthy();
+    const prodBody = await prodRes.json();
+    const pid = prodBody.data?.id ?? prodBody.id;
+    const totalAmount = 10000 * qty;
+    const first = Math.floor(totalAmount / 2);
+    const second = totalAmount - first;
+
+    const res = await request.post(`${API_BASE}/api/sales`, {
+      headers,
+      data: {
+        payment_method: 'QRIS',
+        status: 'completed',
+        items: [{ product_id: pid, quantity: qty }],
+        payments: [
+          { payment_method_code: 'QRIS', amount: first },
+          { payment_method_code: 'QRIS', amount: second },
+        ],
+      },
+    });
+
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.data.status).toBe('completed');
+    expect(body.data.payments).toHaveLength(2);
+    expect(body.data.payments.every((p: any) => p.payment_method_code === 'QRIS')).toBeTruthy();
   });
 
   test('should reject payment method that requires reference without one (400)', async ({ request }) => {

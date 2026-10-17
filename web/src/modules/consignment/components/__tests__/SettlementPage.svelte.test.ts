@@ -73,4 +73,16 @@ describe("SettlementPage.svelte source-structure guards", () => {
   it("accepts initialTab prop", () => {
     expect(src).toContain("initialTab");
   });
+
+  it("surfaces open liability in the preview summary", () => {
+    expect(src).toContain("{#if preview.total_liability > 0}");
+    expect(src).toContain("formatCurrency(preview.total_liability)");
+    expect(src).toContain("formatCurrency(preview.total_payable)");
+  });
+
+  it("surfaces liability on the settlement detail", () => {
+    expect(src).toContain("{#if detailSettlement.total_liability > 0}");
+    expect(src).toContain("formatCurrency(detailSettlement.total_liability)");
+    expect(src).toContain("formatCurrency(detailSettlement.total_payable)");
+  });
 });

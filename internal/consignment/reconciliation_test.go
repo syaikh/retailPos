@@ -214,6 +214,114 @@ func TestService_ReconciliationValidation(t *testing.T) {
 		otherStore := store + 999999
 		_, err := svc.GetReconciliation(ctx, rec.ID, &otherStore)
 		require.ErrorIs(t, err, ErrStoreForbidden)
+		_, err = svc.GetReconciliationCountSheet(ctx, arrangementID, &otherStore)
+		require.ErrorIs(t, err, ErrStoreForbidden)
+		_, err = svc.SaveReconciliationCount(ctx, rec.ID, &SaveReconciliationCountRequest{
+			Items: []ReconciliationItemInput{{ProductID: product, PhysicalAvailable: intPtr(10)}},
+		}, userID, &otherStore)
+		require.ErrorIs(t, err, ErrStoreForbidden)
+		_, err = svc.PostReconciliation(ctx, rec.ID, userID, &otherStore)
+		require.ErrorIs(t, err, ErrStoreForbidden)
+	})
+
+	t.Run("rejects a reconciliation on an ended arrangement", func(t *testing.T) {
+		otherSvc, _, otherStore := setupArrangement(t)
+		otherArrangement := arrID(t, otherSvc, otherStore)
+		_, err := otherSvc.EndArrangement(ctx, otherArrangement, &otherStore)
+		require.NoError(t, err)
+
+		_, err = svc.CreateReconciliation(ctx, &CreateReconciliationRequest{ArrangementID: otherArrangement}, userID, &otherStore)
+		require.ErrorIs(t, err, ErrArrangementEnded)
+	})
+}
+
+// TestService_ReconciliationEmptyCount covers the post-time backstop for a
+// document that carries no counted items. The HTTP binding enforces
+// `binding:"required,min=1"` on the request body, so an empty save can only
+// arrive through the service boundary — posting it must still refuse rather
+// than flip a void document to posted.
+func TestService_ReconciliationEmptyCount(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	product := insertTestProduct(ctx, t, "RECON-EMPTY")
+	svc, _, store := setupArrangement(t, product)
+	userID := insertTestUser(ctx, t)
+
+	rec, err := svc.CreateReconciliation(ctx, &CreateReconciliationRequest{ArrangementID: arrID(t, svc, store)}, userID, &store)
+	require.NoError(t, err)
+
+	counted, err := svc.SaveReconciliationCount(ctx, rec.ID, &SaveReconciliationCountRequest{}, userID, &store)
+	require.NoError(t, err)
+	require.Equal(t, ReconcileStatusCounted, counted.Status)
+	require.Empty(t, counted.Items)
+
+	_, err = svc.PostReconciliation(ctx, rec.ID, userID, &store)
+	require.ErrorIs(t, err, ErrReconciliationEmpty)
+}
+
+// TestService_ReconciliationReleasedStock covers the D5 post-time branches that
+// fire when the ledger row is already gone by posting time: a surplus re-claims
+// the SKU for this arrangement, while the same surplus over store-owned stock
+// is refused because those units belong to the store, not the supplier.
+func TestService_ReconciliationReleasedStock(t *testing.T) {
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	released := insertTestProduct(ctx, t, "RECON-RELEASED")
+	owned := insertTestProduct(ctx, t, "RECON-STORE-OWNED")
+	svc, sup, store := setupArrangement(t, released, owned)
+	userID := insertTestUser(ctx, t)
+	arrangementID := arrID(t, svc, store)
+
+	t.Run("surplus re-claims a released SKU", func(t *testing.T) {
+		// Nothing was ever received, and the store owns no units: the whole
+		// count is an unrecorded receipt, so posting re-creates ownership.
+		rec, err := svc.CreateReconciliation(ctx, &CreateReconciliationRequest{ArrangementID: arrangementID}, userID, &store)
+		require.NoError(t, err)
+		counted, err := svc.SaveReconciliationCount(ctx, rec.ID, &SaveReconciliationCountRequest{
+			Items: []ReconciliationItemInput{{ProductID: released, PhysicalAvailable: intPtr(3), Reason: ReasonUnrecordedReceipt}},
+		}, userID, &store)
+		require.NoError(t, err)
+		require.Equal(t, 3, counted.Items[0].Variance)
+
+		posted, err := svc.PostReconciliation(ctx, rec.ID, userID, &store)
+		require.NoError(t, err)
+		require.Equal(t, ReconcileStatusPosted, posted.Status)
+
+		row, err := svc.repo.GetConsignmentStock(ctx, svc.repo.db, released)
+		require.NoError(t, err)
+		require.NotNil(t, row, "the surplus re-creates the released ownership row")
+		require.Equal(t, sup, row.SupplierID)
+		require.Equal(t, arrangementID, row.ArrangementID)
+		require.Equal(t, 3, row.AvailableQty)
+		require.Equal(t, 3, globalStockQty(ctx, t, released))
+		require.Zero(t, posted.TotalLiability, "a surplus never creates a liability")
+	})
+
+	t.Run("surplus over store-owned stock is a conflict", func(t *testing.T) {
+		// The store still holds units of this product outright and no ledger
+		// row exists, so the SKU cannot be claimed by the reconciliation.
+		seedStoreOwnedStock(ctx, t, owned, 5)
+
+		rec, err := svc.CreateReconciliation(ctx, &CreateReconciliationRequest{ArrangementID: arrangementID}, userID, &store)
+		require.NoError(t, err)
+		_, err = svc.SaveReconciliationCount(ctx, rec.ID, &SaveReconciliationCountRequest{
+			Items: []ReconciliationItemInput{{ProductID: owned, PhysicalAvailable: intPtr(3), Reason: ReasonUnrecordedReceipt}},
+		}, userID, &store)
+		require.NoError(t, err)
+
+		_, err = svc.PostReconciliation(ctx, rec.ID, userID, &store)
+		require.ErrorIs(t, err, ErrConflictStoreStock)
+
+		// The refused post changed nothing: still counted, still store-owned.
+		still, err := svc.GetReconciliation(ctx, rec.ID, &store)
+		require.NoError(t, err)
+		require.Equal(t, ReconcileStatusCounted, still.Status)
+		require.Equal(t, 5, globalStockQty(ctx, t, owned))
+		row, err := svc.repo.GetConsignmentStock(ctx, svc.repo.db, owned)
+		require.NoError(t, err)
+		require.Nil(t, row)
 	})
 }
 

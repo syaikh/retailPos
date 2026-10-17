@@ -46,4 +46,14 @@ describe("main.svelte source-structure guards", () => {
     expect(guard).toBeGreaterThan(-1);
     expect(checked).toBeGreaterThan(guard);
   });
+
+  it("mounts the consignment print overlay app-wide", () => {
+    expect(src).toContain(
+      'import ConsignmentPrintOverlay from "$modules/consignment/components/ConsignmentPrintOverlay.svelte"',
+    );
+    expect(src).toContain("<ConsignmentPrintOverlay />");
+    expect(src.indexOf("<ConsignmentPrintOverlay />")).toBeGreaterThan(
+      src.indexOf("<ReceiptPrintOverlay />"),
+    );
+  });
 });
