@@ -30,6 +30,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.POST("/consignment/arrangements", auth, perm(permissions.ConsignmentCreate), h.CreateArrangement)
 	r.GET("/consignment/arrangements/:id", auth, perm(permissions.ConsignmentView), h.GetArrangement)
 	r.POST("/consignment/arrangements/:id/end", auth, perm(permissions.ConsignmentUpdate), h.EndArrangement)
+	r.POST("/consignment/arrangements/:id/force-return", auth, perm(permissions.ConsignmentForceReturn), h.ForceReturn)
 	r.GET("/consignment/arrangements/:id/available-products", auth, perm(permissions.ConsignmentView), h.ListAddTermProductOptions)
 	r.PUT("/consignment/arrangements/:id/terms", auth, perm(permissions.ConsignmentUpdate), h.SetTerms)
 	r.POST("/consignment/arrangements/:id/terms", auth, perm(permissions.ConsignmentUpdate), h.AddTerm)
@@ -50,6 +51,12 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/consignment/settlements/:id", auth, perm(permissions.ConsignmentView), h.GetSettlement)
 	r.GET("/consignment/payment-methods", auth, middleware.RequireAnyPermission(string(permissions.ConsignmentPay), string(permissions.ConsignmentSettle)), h.ListPaymentMethods)
 	r.POST("/consignment/settlements/:id/payouts", auth, perm(permissions.ConsignmentPay), h.CreatePayout)
+	r.GET("/consignment/arrangements/:id/count-sheet", auth, perm(permissions.ConsignmentReconcile), h.GetReconciliationCountSheet)
+	r.GET("/consignment/reconciliations", auth, perm(permissions.ConsignmentView), h.ListReconciliations)
+	r.POST("/consignment/reconciliations", auth, perm(permissions.ConsignmentReconcile), h.CreateReconciliation)
+	r.GET("/consignment/reconciliations/:id", auth, perm(permissions.ConsignmentView), h.GetReconciliation)
+	r.PUT("/consignment/reconciliations/:id/count", auth, perm(permissions.ConsignmentReconcile), h.SaveReconciliationCount)
+	r.POST("/consignment/reconciliations/:id/post", auth, perm(permissions.ConsignmentReconcile), h.PostReconciliation)
 }
 
 func (h *Handler) ListSuppliers(c *gin.Context) {
@@ -126,6 +133,29 @@ func (h *Handler) EndArrangement(c *gin.Context) {
 	}
 	h.writeAudit(c, "end_arrangement", a.ID, fmt.Sprintf("Ended consignment arrangement with supplier %d", a.SupplierID), nil)
 	c.JSON(http.StatusOK, gin.H{"data": a})
+}
+
+// ForceReturn releases all remaining consignment ownership (available stock and
+// open pending returns) for an arrangement via a single "termination" return.
+// Requires consignment.force_return (superadmin/manager).
+func (h *Handler) ForceReturn(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	uid := userID(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "invalid user"))
+		return
+	}
+	ret, err := h.svc.ForceReturn(c.Request.Context(), id, uid, shared.GetStoreID(c))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	h.writeAudit(c, "force_return_arrangement", id, fmt.Sprintf("Force-returned remaining consignment stock for arrangement %d as %s", id, ret.ReturnNumber), nil)
+	c.JSON(http.StatusOK, gin.H{"data": ret})
 }
 
 func (h *Handler) ListAddTermProductOptions(c *gin.Context) {
@@ -579,6 +609,142 @@ func (h *Handler) CreatePayout(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"data": payout})
 }
 
+// --- physical reconciliation (§15.10) ---
+
+func (h *Handler) CreateReconciliation(c *gin.Context) {
+	var req CreateReconciliationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
+		return
+	}
+	uid := userID(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "invalid user"))
+		return
+	}
+	rec, err := h.svc.CreateReconciliation(c.Request.Context(), &req, uid, shared.GetStoreID(c))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	h.writeAudit(c, "create_reconciliation", rec.ID, fmt.Sprintf("Created consignment reconciliation %s", rec.ReconciliationNumber), nil)
+	c.JSON(http.StatusCreated, gin.H{"data": rec})
+}
+
+func (h *Handler) GetReconciliation(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	rec, err := h.svc.GetReconciliation(c.Request.Context(), id, shared.GetStoreID(c))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": rec})
+}
+
+func (h *Handler) SaveReconciliationCount(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req SaveReconciliationCountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
+		return
+	}
+	uid := userID(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "invalid user"))
+		return
+	}
+	rec, err := h.svc.SaveReconciliationCount(c.Request.Context(), id, &req, uid, shared.GetStoreID(c))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	h.writeAudit(c, "save_reconciliation_count", id, fmt.Sprintf("Saved count for reconciliation %s", rec.ReconciliationNumber), nil)
+	c.JSON(http.StatusOK, gin.H{"data": rec})
+}
+
+func (h *Handler) PostReconciliation(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	uid := userID(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "invalid user"))
+		return
+	}
+	rec, err := h.svc.PostReconciliation(c.Request.Context(), id, uid, shared.GetStoreID(c))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	h.writeAudit(c, "post_reconciliation", id, fmt.Sprintf("Posted reconciliation %s", rec.ReconciliationNumber), nil)
+	c.JSON(http.StatusOK, gin.H{"data": rec})
+}
+
+func (h *Handler) GetReconciliationCountSheet(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	rows, err := h.svc.GetReconciliationCountSheet(c.Request.Context(), id, shared.GetStoreID(c))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	if rows == nil {
+		rows = []ReconciliationCountSheetRow{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": rows})
+}
+
+func (h *Handler) ListReconciliations(c *gin.Context) {
+	var supplierID *int
+	if sid := queryInt(c, "supplier_id"); sid > 0 {
+		supplierID = &sid
+	}
+	var status *string
+	if s := c.Query("status"); s != "" {
+		status = &s
+	}
+	ctx := c.Request.Context()
+	storeID := shared.GetStoreID(c)
+	limit, offset, paged, ok := pageLimit(c)
+	if !ok {
+		return
+	}
+	if paged {
+		recs, total, err := h.svc.ListReconciliations(ctx, supplierID, storeID, status, limit, offset)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		if recs == nil {
+			recs = []Reconciliation{}
+		}
+		shared.JSONPaginated(c, recs, total, limit, offset)
+		return
+	}
+	recs, _, err := h.svc.ListReconciliations(ctx, supplierID, storeID, status, 0, 0)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	if recs == nil {
+		recs = []Reconciliation{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": recs})
+}
+
 // --- helpers ---
 
 func (h *Handler) writeAudit(c *gin.Context, action string, entityID int, description string, extra map[string]interface{}) {
@@ -652,6 +818,7 @@ func writeError(c *gin.Context, err error) {
 	case errors.Is(err, ErrConsignmentNotFound),
 		errors.Is(err, ErrReturnNotFound),
 		errors.Is(err, ErrPendingReturnNotFound),
+		errors.Is(err, ErrReconciliationNotFound),
 		errors.Is(err, ErrSettlementNotFound):
 		status, code = http.StatusNotFound, "CNS-103"
 	case errors.Is(err, ErrNotConsignmentSupplier),
@@ -665,6 +832,11 @@ func writeError(c *gin.Context, err error) {
 		errors.Is(err, ErrInvalidReason),
 		errors.Is(err, ErrPaymentMethodNotFound),
 		errors.Is(err, ErrEmptySettlement),
+		errors.Is(err, ErrReconciliationReasonRequired),
+		errors.Is(err, ErrInvalidReconciliationReason),
+		errors.Is(err, ErrReconciliationEmpty),
+		errors.Is(err, ErrReconciliationProductMismatch),
+		errors.Is(err, ErrDuplicateReconciliationProduct),
 		errors.Is(err, ErrStoreRequired):
 		status, code = http.StatusBadRequest, "CNS-102"
 	case errors.Is(err, ErrActiveArrangementExists),
@@ -672,6 +844,9 @@ func writeError(c *gin.Context, err error) {
 		errors.Is(err, ErrConflictOtherSupplier),
 		errors.Is(err, ErrPendingReturnBlocksTransfer),
 		errors.Is(err, ErrSettlementAlreadyPaid),
+		errors.Is(err, ErrInvalidReconciliationStatus),
+		errors.Is(err, ErrReconciliationStale),
+		errors.Is(err, ErrNothingToReturn),
 		errors.Is(err, ErrStockMustBeReturned):
 		status, code = http.StatusConflict, "CNS-201"
 	case errors.Is(err, ErrInsufficientConsignmentStock),

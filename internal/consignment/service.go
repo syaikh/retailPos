@@ -217,6 +217,66 @@ func (s *Service) EndArrangement(ctx context.Context, arrangementID int, claimsS
 	return updated, nil
 }
 
+// ForceReturn releases all remaining consignment ownership for an arrangement
+// in a single formal return with reason "termination": every unit still in
+// available stock and every open pending return. It is the store-sovereign
+// escape hatch for BR-05b (permission consignment.force_return) when a supplier
+// has abandoned their stock, so the SKU stops being locked against other
+// consignment suppliers. Unsettled sales are untouched (they settle normally)
+// and the arrangement is NOT ended implicitly — the caller ends it separately.
+func (s *Service) ForceReturn(ctx context.Context, arrangementID, userID int, claimsStore *int) (*Return, error) {
+	a, err := s.repo.GetArrangementByID(ctx, s.repo.db, arrangementID)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkArrangementStore(a, claimsStore); err != nil {
+		return nil, err
+	}
+	applyLazyEnded(a)
+	if a.Status == StatusEnded {
+		return nil, ErrArrangementEnded
+	}
+
+	stock, err := s.repo.ListConsignmentStock(ctx, s.repo.db, &a.SupplierID, &a.StoreID)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]ReturnItemRequest, 0, len(stock))
+	for _, row := range stock {
+		if row.ArrangementID != a.ID || row.AvailableQty <= 0 {
+			continue
+		}
+		items = append(items, ReturnItemRequest{
+			ProductID: row.ProductID,
+			Qty:       row.AvailableQty,
+			Reason:    ReasonTermination,
+		})
+	}
+
+	pending, err := s.repo.ListOpenPendingReturnsByArrangement(ctx, s.repo.db, a.ID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range pending {
+		items = append(items, ReturnItemRequest{
+			ProductID:       pending[i].ProductID,
+			Qty:             pending[i].Qty,
+			Reason:          ReasonTermination,
+			PendingReturnID: &pending[i].ID,
+		})
+	}
+
+	if len(items) == 0 {
+		return nil, ErrNothingToReturn
+	}
+
+	return s.CreateReturn(ctx, &ReturnRequest{
+		ArrangementID: a.ID,
+		Notes:         "Forced return — remaining ownership released",
+		Items:         items,
+	}, userID, claimsStore)
+}
+
 // SetTerms replaces the pricing/commission terms of an arrangement. All
 // products must be owned by the arrangement's supplier (BR-02/03 guard).
 func (s *Service) SetTerms(ctx context.Context, arrangementID int, reqs []SetTermsRequest, userID int, claimsStore *int) ([]Term, error) {
@@ -1109,13 +1169,25 @@ func (s *Service) CreateReturn(ctx context.Context, req *ReturnRequest, userID i
 	if len(req.Items) == 0 {
 		return nil, ErrInvalidQty
 	}
-	// Check for duplicate products
-	seen := make(map[int]bool)
+	// A product may legitimately appear twice: once for a pending return it
+	// still owns (linked by pending_return_id) and once for its remaining
+	// available stock. Reject only true duplicates — the same open pending
+	// return twice, or two available-stock lines for one product — because the
+	// two item kinds take different stock paths in the loop below.
+	seenAvailable := make(map[int]bool)
+	seenPending := make(map[int]bool)
 	for _, r := range req.Items {
-		if seen[r.ProductID] {
+		if r.PendingReturnID != nil {
+			if seenPending[*r.PendingReturnID] {
+				return nil, ErrDuplicateProduct
+			}
+			seenPending[*r.PendingReturnID] = true
+			continue
+		}
+		if seenAvailable[r.ProductID] {
 			return nil, ErrDuplicateProduct
 		}
-		seen[r.ProductID] = true
+		seenAvailable[r.ProductID] = true
 	}
 	a, err := s.repo.GetArrangementByID(ctx, s.repo.db, req.ArrangementID)
 	if err != nil {
@@ -1319,10 +1391,14 @@ func (s *Service) GetSettlementPreview(ctx context.Context, supplierID int, clai
 	if err != nil {
 		return nil, err
 	}
-	if len(items) == 0 {
+	liabilities, err := s.repo.ListOpenLiabilityItems(ctx, s.repo.db, supplierID, *storeID)
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 && len(liabilities) == 0 {
 		return nil, ErrEmptySettlement
 	}
-	preview := buildSettlementPreview(supplierID, *storeID, items)
+	preview := buildSettlementPreview(supplierID, *storeID, items, liabilities)
 	if err := s.hydrateSettlementItemProductNames(ctx, preview.Items); err != nil {
 		return nil, err
 	}
@@ -1357,10 +1433,14 @@ func (s *Service) CreateSettlement(ctx context.Context, req *CreateSettlementReq
 	if err != nil {
 		return nil, err
 	}
-	if len(items) == 0 {
+	liabilities, err := s.repo.ListOpenLiabilityItems(ctx, tx, req.SupplierID, *storeID)
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 && len(liabilities) == 0 {
 		return nil, ErrEmptySettlement
 	}
-	preview := buildSettlementPreview(req.SupplierID, *storeID, items)
+	preview := buildSettlementPreview(req.SupplierID, *storeID, items, liabilities)
 
 	number, err := s.repo.NextSettlementNumber(ctx, tx)
 	if err != nil {
@@ -1372,6 +1452,7 @@ func (s *Service) CreateSettlement(ctx context.Context, req *CreateSettlementReq
 		StoreID:          *storeID,
 		TotalSaleValue:   preview.TotalSaleValue,
 		TotalStoreShare:  preview.TotalStoreShare,
+		TotalLiability:   preview.TotalLiability,
 		TotalPayable:     preview.TotalPayable,
 		Status:           SettlementPendingPayment,
 		CreatedBy:        userID,
@@ -1397,6 +1478,14 @@ func (s *Service) CreateSettlement(ctx context.Context, req *CreateSettlementReq
 		}
 	}
 	if err := s.repo.MarkSaleItemsSettled(ctx, tx, ids, settlement.ID); err != nil {
+		return nil, err
+	}
+
+	liabilityIDs := make([]int, 0, len(liabilities))
+	for _, l := range liabilities {
+		liabilityIDs = append(liabilityIDs, l.ID)
+	}
+	if err := s.repo.MarkReconciliationItemsSettled(ctx, tx, liabilityIDs, settlement.ID); err != nil {
 		return nil, err
 	}
 
@@ -1543,7 +1632,7 @@ func (s *Service) CreatePayout(ctx context.Context, settlementID int, req *Creat
 	return payout, nil
 }
 
-func buildSettlementPreview(supplierID, storeID int, items []SaleItemRecord) *Settlement {
+func buildSettlementPreview(supplierID, storeID int, items []SaleItemRecord, liabilities []ReconciliationItem) *Settlement {
 	settlement := &Settlement{
 		SupplierID: supplierID,
 		StoreID:    storeID,
@@ -1564,7 +1653,14 @@ func buildSettlementPreview(supplierID, storeID int, items []SaleItemRecord) *Se
 			StoreShare:            it.StoreShareAmount,
 		})
 	}
-	settlement.TotalPayable = settlement.TotalSaleValue - settlement.TotalStoreShare
+	// Store-fault liabilities from posted reconciliations ride along on the same
+	// payout (D3b): the supplier is repaid the entitlement it lost, so the
+	// liability is added to what the store owes. Liability items are not
+	// settlement items — they only move the totals.
+	for _, l := range liabilities {
+		settlement.TotalLiability += l.LiabilityAmount
+	}
+	settlement.TotalPayable = settlement.TotalSaleValue - settlement.TotalStoreShare + settlement.TotalLiability
 	return settlement
 }
 
@@ -1888,4 +1984,418 @@ func appendIfMissing(s []int, v int) []int {
 		}
 	}
 	return append(s, v)
+}
+
+// --- Physical reconciliation (§15.10) ---
+
+// validReconciliationReason is the vocabulary accepted for a non-zero variance.
+// `customer_return` and `termination` do not apply to a stock count; the rest
+// of the pending-return reasons plus the reconciliation-specific ones do.
+func validReconciliationReason(reason string) bool {
+	switch reason {
+	case ReasonDamaged, ReasonExpired, ReasonMiscount, ReasonLost,
+		ReasonStolen, ReasonUnrecordedReceipt, ReasonOther:
+		return true
+	}
+	return false
+}
+
+// reasonCreatesLiability marks the store-fault shortfall reasons that the store
+// owes the supplier (D3a).
+func reasonCreatesLiability(reason string) bool {
+	return reason == ReasonLost || reason == ReasonStolen
+}
+
+// CreateReconciliation opens a draft count for an active arrangement.
+func (s *Service) CreateReconciliation(ctx context.Context, req *CreateReconciliationRequest, userID int, claimsStore *int) (*Reconciliation, error) {
+	a, err := s.repo.GetArrangementByID(ctx, s.repo.db, req.ArrangementID)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkArrangementStore(a, claimsStore); err != nil {
+		return nil, err
+	}
+	applyLazyEnded(a)
+	if a.Status == StatusEnded {
+		return nil, ErrArrangementEnded
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	number, err := s.repo.NextReconciliationNumber(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	rec := &Reconciliation{
+		ReconciliationNumber: number,
+		ArrangementID:        a.ID,
+		SupplierID:           a.SupplierID,
+		StoreID:              a.StoreID,
+		Notes:                req.Notes,
+		CreatedBy:            userID,
+	}
+	if err := s.repo.InsertReconciliation(ctx, tx, rec); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return s.GetReconciliation(ctx, rec.ID, claimsStore)
+}
+
+func (s *Service) GetReconciliation(ctx context.Context, id int, claimsStore *int) (*Reconciliation, error) {
+	rec, err := s.repo.GetReconciliationByID(ctx, s.repo.db, id)
+	if err != nil {
+		return nil, err
+	}
+	if claimsStore != nil && rec.StoreID != *claimsStore {
+		return nil, ErrStoreForbidden
+	}
+	if err := s.hydrateReconciliationItemProductNames(ctx, rec.Items); err != nil {
+		return nil, err
+	}
+	recs := []Reconciliation{*rec}
+	if err := s.hydrateReconciliationNames(ctx, recs); err != nil {
+		return nil, err
+	}
+	*rec = recs[0]
+	rec.Summarize()
+	return rec, nil
+}
+
+func (s *Service) ListReconciliations(ctx context.Context, supplierID *int, claimsStore *int, status *string, limit, offset int) ([]Reconciliation, int, error) {
+	storeID, err := resolveStore(claimsStore, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	recs, total, err := s.repo.ListReconciliations(ctx, s.repo.db, supplierID, storeID, status, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	if err := s.hydrateReconciliationNames(ctx, recs); err != nil {
+		return nil, 0, err
+	}
+	return recs, total, nil
+}
+
+// GetReconciliationCountSheet lists an arrangement's products with their current
+// ledger quantity and negotiated price so the count screen can render a full
+// row per product.
+func (s *Service) GetReconciliationCountSheet(ctx context.Context, arrangementID int, claimsStore *int) ([]ReconciliationCountSheetRow, error) {
+	a, err := s.repo.GetArrangementByID(ctx, s.repo.db, arrangementID)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkArrangementStore(a, claimsStore); err != nil {
+		return nil, err
+	}
+	rows, err := s.repo.ListArrangementCountSheet(ctx, s.repo.db, arrangementID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.hydrateCountSheetProductNames(ctx, rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// SaveReconciliationCount records the physical counts and moves the document
+// draft -> counted. SystemAvailable is snapshotted from the ledger right now so
+// the variance is fixed at count time; posting later applies that variance.
+func (s *Service) SaveReconciliationCount(ctx context.Context, id int, req *SaveReconciliationCountRequest, userID int, claimsStore *int) (*Reconciliation, error) {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	rec, err := s.repo.LockReconciliation(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	if claimsStore != nil && rec.StoreID != *claimsStore {
+		return nil, ErrStoreForbidden
+	}
+	if rec.Status != ReconcileStatusDraft {
+		return nil, ErrInvalidReconciliationStatus
+	}
+
+	termsByArr, err := s.repo.ListTermsByArrangements(ctx, tx, []int{rec.ArrangementID})
+	if err != nil {
+		return nil, err
+	}
+	owned := make(map[int]bool)
+	for _, t := range termsByArr[rec.ArrangementID] {
+		owned[t.ProductID] = true
+	}
+
+	sheet, err := s.repo.ListArrangementCountSheet(ctx, tx, rec.ArrangementID)
+	if err != nil {
+		return nil, err
+	}
+	systemByProduct := make(map[int]int, len(sheet))
+	for _, row := range sheet {
+		systemByProduct[row.ProductID] = row.SystemAvailable
+	}
+
+	seen := make(map[int]bool, len(req.Items))
+	items := make([]ReconciliationItem, 0, len(req.Items))
+	for _, in := range req.Items {
+		if !owned[in.ProductID] {
+			return nil, ErrReconciliationProductMismatch
+		}
+		if seen[in.ProductID] {
+			return nil, ErrDuplicateReconciliationProduct
+		}
+		seen[in.ProductID] = true
+		physical := *in.PhysicalAvailable
+		system := systemByProduct[in.ProductID]
+		variance := physical - system
+		reason := in.Reason
+		if variance != 0 {
+			if reason == "" {
+				return nil, ErrReconciliationReasonRequired
+			}
+			if !validReconciliationReason(reason) {
+				return nil, ErrInvalidReconciliationReason
+			}
+		} else {
+			reason = ""
+		}
+		items = append(items, ReconciliationItem{
+			ReconciliationID:  rec.ID,
+			ProductID:         in.ProductID,
+			SystemAvailable:   system,
+			PhysicalAvailable: physical,
+			Variance:          variance,
+			Reason:            reason,
+		})
+	}
+
+	if err := s.repo.DeleteReconciliationItems(ctx, tx, rec.ID); err != nil {
+		return nil, err
+	}
+	for i := range items {
+		if err := s.repo.InsertReconciliationItem(ctx, tx, &items[i]); err != nil {
+			return nil, err
+		}
+	}
+	if err := s.repo.MarkReconciliationCounted(ctx, tx, rec.ID, userID, req.Notes); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return s.GetReconciliation(ctx, id, claimsStore)
+}
+
+// PostReconciliation applies the counted variance to both ledgers (the
+// consignment ownership table and product_stock/inventory_movements), prices any
+// store-fault shortfall, and moves the document counted -> posted. Posting is
+// the only step that changes stock.
+func (s *Service) PostReconciliation(ctx context.Context, id int, userID int, claimsStore *int) (*Reconciliation, error) {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	rec, err := s.repo.LockReconciliation(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	if claimsStore != nil && rec.StoreID != *claimsStore {
+		return nil, ErrStoreForbidden
+	}
+	if rec.Status != ReconcileStatusCounted {
+		return nil, ErrInvalidReconciliationStatus
+	}
+
+	items, err := s.repo.getReconciliationItems(ctx, tx, rec.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return nil, ErrReconciliationEmpty
+	}
+
+	// Lock the arrangement's ledger rows so a concurrent checkout on these
+	// products serializes with the correction.
+	productIDs := make([]int, 0, len(items))
+	for _, it := range items {
+		productIDs = appendIfMissing(productIDs, it.ProductID)
+	}
+	stocks, err := s.repo.LockConsignmentStocks(ctx, tx, productIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Re-validate ownership against the lock we just took. The count may have
+	// been saved (draft -> counted) before this post, and in that window the SKU
+	// can be released by a forced return or re-owned by another supplier's
+	// receipt. Applying the stale variance would silently drag the owner columns
+	// back to this arrangement (BR-03), so refuse instead of corrupting the ledger.
+	for i := range items {
+		it := &items[i]
+		if it.Variance == 0 {
+			continue
+		}
+		row := stocks[it.ProductID]
+		if row == nil {
+			// No ledger row: the SKU was fully released since the count. Only a
+			// surplus (D5 unrecorded receipt) may re-create ownership, and only
+			// when the product is not store-owned; a shortfall has nothing to
+			// remove.
+			if it.Variance < 0 {
+				return nil, ErrReconciliationStale
+			}
+			storeOwned, err := s.hasStoreOwnedStock(ctx, it.ProductID)
+			if err != nil {
+				return nil, err
+			}
+			if storeOwned {
+				return nil, ErrConflictStoreStock
+			}
+			continue
+		}
+		if row.SupplierID != rec.SupplierID || row.ArrangementID != rec.ArrangementID {
+			return nil, ErrReconciliationStale
+		}
+	}
+
+	termsByArr, err := s.repo.ListTermsByArrangements(ctx, tx, []int{rec.ArrangementID})
+	if err != nil {
+		return nil, err
+	}
+	termByProduct := make(map[int]Term)
+	for _, t := range termsByArr[rec.ArrangementID] {
+		termByProduct[t.ProductID] = t
+	}
+
+	adjuster := s.repo.stockAdjusterOrPanic()
+	for i := range items {
+		it := &items[i]
+		if it.Variance == 0 {
+			continue
+		}
+		if it.Reason == "" {
+			return nil, ErrReconciliationReasonRequired
+		}
+		if !validReconciliationReason(it.Reason) {
+			return nil, ErrInvalidReconciliationReason
+		}
+
+		available, err := s.repo.UpsertConsignmentStock(ctx, tx, it.ProductID, rec.SupplierID, rec.ArrangementID, rec.StoreID, it.Variance)
+		if err != nil {
+			return nil, err
+		}
+		if available == 0 {
+			if err := s.repo.ReleaseOwnership(ctx, tx, it.ProductID); err != nil {
+				return nil, err
+			}
+		}
+
+		delta := shared.ConsignmentStockDelta{
+			ProductID:      it.ProductID,
+			Delta:          it.Variance,
+			MovementType:   MovementTypeConsignmentReconciliation,
+			ReferenceID:    rec.ID,
+			ReferenceTable: "consignment_reconciliations",
+			UserID:         userID,
+			Notes:          fmt.Sprintf("Reconciliation %s", rec.ReconciliationNumber),
+		}
+		if err := adjuster.ApplyConsignmentDelta(ctx, tx, delta); err != nil {
+			return nil, err
+		}
+
+		if it.Variance < 0 && reasonCreatesLiability(it.Reason) {
+			liability := 0
+			if t, ok := termByProduct[it.ProductID]; ok {
+				shortfall := -it.Variance
+				liability = t.Price*shortfall - computeStoreShare(t.Price, shortfall, t.StoreShareType, t.StoreShareValue)
+			}
+			if liability < 0 {
+				liability = 0
+			}
+			if err := s.repo.SetReconciliationItemLiability(ctx, tx, it.ID, liability); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if err := s.repo.MarkReconciliationPosted(ctx, tx, rec.ID, userID); err != nil {
+		return nil, err
+	}
+	if err := s.repo.TouchVisit(ctx, tx, rec.ArrangementID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return s.GetReconciliation(ctx, id, claimsStore)
+}
+
+func (s *Service) hydrateReconciliationNames(ctx context.Context, recs []Reconciliation) error {
+	if len(recs) == 0 {
+		return nil
+	}
+	supplierIDs := make([]int, 0, len(recs))
+	storeIDs := make([]int, 0, len(recs))
+	for _, rec := range recs {
+		supplierIDs = appendIfMissing(supplierIDs, rec.SupplierID)
+		storeIDs = appendIfMissing(storeIDs, rec.StoreID)
+	}
+	supplierNames, err := s.repo.supplierStoreOrPanic().SupplierNamesByIDs(ctx, s.repo.db, supplierIDs)
+	if err != nil {
+		return fmt.Errorf("lookup supplier names: %w", err)
+	}
+	storeNames, err := s.repo.storeNameProviderOrPanic().StoreNamesByIDs(ctx, s.repo.db, storeIDs)
+	if err != nil {
+		return fmt.Errorf("lookup store names: %w", err)
+	}
+	for i := range recs {
+		recs[i].SupplierName = supplierNames[recs[i].SupplierID]
+		recs[i].StoreName = storeNames[recs[i].StoreID]
+	}
+	return nil
+}
+
+func (s *Service) hydrateReconciliationItemProductNames(ctx context.Context, items []ReconciliationItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(items))
+	for _, it := range items {
+		ids = appendIfMissing(ids, it.ProductID)
+	}
+	return s.hydrateProductNames(ctx, ids, func(id int, sku, name string) {
+		for i := range items {
+			if items[i].ProductID == id {
+				items[i].ProductSKU = sku
+				items[i].ProductName = name
+			}
+		}
+	})
+}
+
+func (s *Service) hydrateCountSheetProductNames(ctx context.Context, rows []ReconciliationCountSheetRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(rows))
+	for _, r := range rows {
+		ids = appendIfMissing(ids, r.ProductID)
+	}
+	return s.hydrateProductNames(ctx, ids, func(id int, sku, name string) {
+		for i := range rows {
+			if rows[i].ProductID == id {
+				rows[i].ProductSKU = sku
+				rows[i].ProductName = name
+			}
+		}
+	})
 }

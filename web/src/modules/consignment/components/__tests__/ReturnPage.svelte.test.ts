@@ -72,4 +72,13 @@ describe("ReturnPage.svelte source-structure guards", () => {
     expect(src).toContain("product_sku");
     expect(src).toContain("copySku");
   });
+
+  it("prints a return document from the detail modal", () => {
+    expect(src).toContain(
+      'import { printConsignmentDocument } from "../lib/print"',
+    );
+    expect(src).toContain("printConsignmentDocument({");
+    expect(src).toContain('kind: "return"');
+    expect(src).toContain("labels.consignmentPrintReturn");
+  });
 });

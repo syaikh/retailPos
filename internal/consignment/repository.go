@@ -1118,6 +1118,41 @@ func (r *Repository) ListOpenPendingReturns(ctx context.Context, q queryer, supp
 	return result, total, rows.Err()
 }
 
+// ListOpenPendingReturnsByArrangement returns every open pending return for an
+// arrangement. Correctness path (force-return building), so it is deliberately
+// unbounded, mirroring ListConsignmentStock.
+func (r *Repository) ListOpenPendingReturnsByArrangement(ctx context.Context, q queryer, arrangementID int) ([]PendingReturn, error) {
+	rows, err := q.Query(ctx, `
+		SELECT pr.id, pr.supplier_id, pr.product_id,
+		       pr.arrangement_id, pr.store_id, pr.qty, pr.reason, COALESCE(pr.notes,''), pr.status,
+		       pr.returned_at, pr.created_by, pr.created_at
+		FROM consignment_pending_returns pr
+		WHERE pr.arrangement_id = $1 AND pr.status = 'open'
+		ORDER BY pr.created_at ASC, pr.id ASC`, arrangementID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []PendingReturn
+	for rows.Next() {
+		var pr PendingReturn
+		var returnedAt, createdAt sql.NullTime
+		if err := rows.Scan(&pr.ID, &pr.SupplierID, &pr.ProductID,
+			&pr.ArrangementID, &pr.StoreID, &pr.Qty, &pr.Reason, &pr.Notes, &pr.Status,
+			&returnedAt, &pr.CreatedBy, &createdAt); err != nil {
+			return nil, err
+		}
+		pr.CreatedAt = createdAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
+		if returnedAt.Valid {
+			rt := returnedAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
+			pr.ReturnedAt = &rt
+		}
+		result = append(result, pr)
+	}
+	return result, rows.Err()
+}
+
 // --- Returns ---
 
 func (r *Repository) InsertReturn(ctx context.Context, tx pgx.Tx, ret *Return) error {
@@ -1349,10 +1384,10 @@ func (r *Repository) scanSaleItemRecords(rows pgx.Rows) ([]SaleItemRecord, error
 func (r *Repository) InsertSettlement(ctx context.Context, tx pgx.Tx, s *Settlement) error {
 	var createdAt time.Time
 	err := tx.QueryRow(ctx, `
-		INSERT INTO consignment_settlements (settlement_number, supplier_id, store_id, total_sale_value, total_store_share, total_payable, status, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, 'pending_payment', $7)
+		INSERT INTO consignment_settlements (settlement_number, supplier_id, store_id, total_sale_value, total_store_share, total_liability, total_payable, status, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_payment', $8)
 		RETURNING id, created_at
-	`, s.SettlementNumber, s.SupplierID, s.StoreID, s.TotalSaleValue, s.TotalStoreShare, s.TotalPayable, s.CreatedBy).
+	`, s.SettlementNumber, s.SupplierID, s.StoreID, s.TotalSaleValue, s.TotalStoreShare, s.TotalLiability, s.TotalPayable, s.CreatedBy).
 		Scan(&s.ID, &createdAt)
 	if err != nil {
 		return err
@@ -1395,11 +1430,11 @@ func (r *Repository) GetSettlementByID(ctx context.Context, q queryer, id int) (
 	var paidAt, createdAt sql.NullTime
 	err := q.QueryRow(ctx, `
 		SELECT st.id, st.settlement_number, st.supplier_id, st.store_id,
-		       st.total_sale_value, st.total_store_share, st.total_payable, st.status, st.created_by, st.created_at, st.paid_at
+		       st.total_sale_value, st.total_store_share, st.total_liability, st.total_payable, st.status, st.created_by, st.created_at, st.paid_at
 		FROM consignment_settlements st
 		WHERE st.id = $1
 	`, id).Scan(&s.ID, &s.SettlementNumber, &s.SupplierID, &s.StoreID,
-		&s.TotalSaleValue, &s.TotalStoreShare, &s.TotalPayable, &s.Status, &s.CreatedBy, &createdAt, &paidAt)
+		&s.TotalSaleValue, &s.TotalStoreShare, &s.TotalLiability, &s.TotalPayable, &s.Status, &s.CreatedBy, &createdAt, &paidAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrSettlementNotFound
@@ -1434,12 +1469,12 @@ func (r *Repository) GetSettlementByIDQuery(ctx context.Context, q queryer, id i
 	var paidAt, createdAt sql.NullTime
 	err := q.QueryRow(ctx, `
 		SELECT st.id, st.settlement_number, st.supplier_id, st.store_id,
-		       st.total_sale_value, st.total_store_share, st.total_payable, st.status, st.created_by, st.created_at, st.paid_at
+		       st.total_sale_value, st.total_store_share, st.total_liability, st.total_payable, st.status, st.created_by, st.created_at, st.paid_at
 		FROM consignment_settlements st
 		WHERE st.id = $1
 		FOR UPDATE
 	`, id).Scan(&s.ID, &s.SettlementNumber, &s.SupplierID, &s.StoreID,
-		&s.TotalSaleValue, &s.TotalStoreShare, &s.TotalPayable, &s.Status, &s.CreatedBy, &createdAt, &paidAt)
+		&s.TotalSaleValue, &s.TotalStoreShare, &s.TotalLiability, &s.TotalPayable, &s.Status, &s.CreatedBy, &createdAt, &paidAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrSettlementNotFound
@@ -1525,7 +1560,7 @@ func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID 
 
 	query := `
 		SELECT st.id, st.settlement_number, st.supplier_id, st.store_id,
-		       st.total_sale_value, st.total_store_share, st.total_payable, st.status, st.created_by, st.created_at, st.paid_at
+		       st.total_sale_value, st.total_store_share, st.total_liability, st.total_payable, st.status, st.created_by, st.created_at, st.paid_at
 		FROM consignment_settlements st
 	` + where + ` ORDER BY st.created_at DESC, st.id DESC`
 	query, args = appendPage(query, args, limit, offset)
@@ -1540,7 +1575,7 @@ func (r *Repository) ListSettlements(ctx context.Context, q queryer, supplierID 
 		var s Settlement
 		var paidAt, createdAt sql.NullTime
 		if err := rows.Scan(&s.ID, &s.SettlementNumber, &s.SupplierID, &s.StoreID,
-			&s.TotalSaleValue, &s.TotalStoreShare, &s.TotalPayable, &s.Status, &s.CreatedBy, &createdAt, &paidAt); err != nil {
+			&s.TotalSaleValue, &s.TotalStoreShare, &s.TotalLiability, &s.TotalPayable, &s.Status, &s.CreatedBy, &createdAt, &paidAt); err != nil {
 			return nil, 0, err
 		}
 		s.CreatedAt = createdAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -1830,4 +1865,372 @@ func computeStoreShare(unitPrice, quantity int, shareType string, shareValue flo
 		return int(float64(unitPrice) * float64(quantity) * shareValue / 100.0)
 	}
 	return int(shareValue) * quantity
+}
+
+// --- Physical reconciliation (§15.10) ---
+
+func (r *Repository) NextReconciliationNumber(ctx context.Context, tx pgx.Tx) (string, error) {
+	return nextDocumentNumber(ctx, tx, "consignment_reconciliation_seq", "RECON")
+}
+
+func (r *Repository) InsertReconciliation(ctx context.Context, tx pgx.Tx, rec *Reconciliation) error {
+	var createdAt time.Time
+	err := tx.QueryRow(ctx, `
+		INSERT INTO consignment_reconciliations
+			(reconciliation_number, arrangement_id, supplier_id, store_id, status, notes, created_by)
+		VALUES ($1, $2, $3, $4, 'draft', $5, $6)
+		RETURNING id, created_at
+	`, rec.ReconciliationNumber, rec.ArrangementID, rec.SupplierID, rec.StoreID, rec.Notes, rec.CreatedBy).
+		Scan(&rec.ID, &createdAt)
+	if err != nil {
+		return err
+	}
+	rec.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	rec.Status = ReconcileStatusDraft
+	return nil
+}
+
+func (r *Repository) InsertReconciliationItem(ctx context.Context, tx pgx.Tx, it *ReconciliationItem) error {
+	var createdAt time.Time
+	// reason is nullable: a zero-variance row records no reason, and an empty
+	// string would look like a reason to a reader.
+	var reason any
+	if it.Reason != "" {
+		reason = it.Reason
+	}
+	err := tx.QueryRow(ctx, `
+		INSERT INTO consignment_reconciliation_items
+			(reconciliation_id, product_id, system_available, physical_available, variance, reason, liability_amount)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, created_at
+	`, it.ReconciliationID, it.ProductID, it.SystemAvailable, it.PhysicalAvailable, it.Variance, reason, it.LiabilityAmount).
+		Scan(&it.ID, &createdAt)
+	if err != nil {
+		return err
+	}
+	it.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	return nil
+}
+
+// DeleteReconciliationItems clears the previous count of a draft before a fresh
+// count is saved, so re-saving replaces rather than duplicates.
+func (r *Repository) DeleteReconciliationItems(ctx context.Context, tx pgx.Tx, reconciliationID int) error {
+	_, err := tx.Exec(ctx, `DELETE FROM consignment_reconciliation_items WHERE reconciliation_id = $1`, reconciliationID)
+	return err
+}
+
+// LockReconciliation reads the header FOR UPDATE so post/count transitions on
+// the same document serialize (a second actor blocks, re-reads the committed
+// status, and is rejected instead of double-posting stock).
+func (r *Repository) LockReconciliation(ctx context.Context, tx pgx.Tx, id int) (*Reconciliation, error) {
+	rec, err := scanReconciliationHeader(tx.QueryRow(ctx, `
+		SELECT id, reconciliation_number, arrangement_id, supplier_id, store_id, status,
+		       notes, counted_by, posted_by, created_by, created_at, posted_at
+		FROM consignment_reconciliations
+		WHERE id = $1
+		FOR UPDATE
+	`, id))
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrReconciliationNotFound
+		}
+		return nil, err
+	}
+	return rec, nil
+}
+
+func (r *Repository) GetReconciliationByID(ctx context.Context, q queryer, id int) (*Reconciliation, error) {
+	rec, err := scanReconciliationHeader(q.QueryRow(ctx, `
+		SELECT id, reconciliation_number, arrangement_id, supplier_id, store_id, status,
+		       notes, counted_by, posted_by, created_by, created_at, posted_at
+		FROM consignment_reconciliations
+		WHERE id = $1
+	`, id))
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrReconciliationNotFound
+		}
+		return nil, err
+	}
+	items, err := r.getReconciliationItems(ctx, q, id)
+	if err != nil {
+		return nil, err
+	}
+	rec.Items = items
+	rec.Summarize()
+	return rec, nil
+}
+
+func scanReconciliationHeader(row pgx.Row) (*Reconciliation, error) {
+	var rec Reconciliation
+	var notes sql.NullString
+	var countedBy, postedBy sql.NullInt64
+	var postedAt sql.NullTime
+	var createdAt time.Time
+	if err := row.Scan(&rec.ID, &rec.ReconciliationNumber, &rec.ArrangementID, &rec.SupplierID,
+		&rec.StoreID, &rec.Status, &notes, &countedBy, &postedBy, &rec.CreatedBy,
+		&createdAt, &postedAt); err != nil {
+		return nil, err
+	}
+	rec.Notes = notes.String
+	if countedBy.Valid {
+		v := int(countedBy.Int64)
+		rec.CountedBy = &v
+	}
+	if postedBy.Valid {
+		v := int(postedBy.Int64)
+		rec.PostedBy = &v
+	}
+	rec.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	if postedAt.Valid {
+		pt := postedAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
+		rec.PostedAt = &pt
+	}
+	return &rec, nil
+}
+
+func (r *Repository) getReconciliationItems(ctx context.Context, q queryer, reconciliationID int) ([]ReconciliationItem, error) {
+	rows, err := q.Query(ctx, `
+		SELECT id, reconciliation_id, product_id, system_available, physical_available,
+		       variance, reason, liability_amount, settled_settlement_id, created_at
+		FROM consignment_reconciliation_items
+		WHERE reconciliation_id = $1
+		ORDER BY id ASC
+	`, reconciliationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanReconciliationItems(rows)
+}
+
+// getReconciliationItemsByIDs loads the items of several reconciliations in one
+// round-trip and groups them by reconciliation id, so a list view can compute
+// per-record totals without an N+1 query.
+func (r *Repository) getReconciliationItemsByIDs(ctx context.Context, q queryer, ids []int) (map[int][]ReconciliationItem, error) {
+	rows, err := q.Query(ctx, `
+		SELECT id, reconciliation_id, product_id, system_available, physical_available,
+		       variance, reason, liability_amount, settled_settlement_id, created_at
+		FROM consignment_reconciliation_items
+		WHERE reconciliation_id = ANY($1)
+		ORDER BY id ASC
+	`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items, err := scanReconciliationItems(rows)
+	if err != nil {
+		return nil, err
+	}
+	grouped := make(map[int][]ReconciliationItem, len(ids))
+	for _, it := range items {
+		grouped[it.ReconciliationID] = append(grouped[it.ReconciliationID], it)
+	}
+	return grouped, nil
+}
+
+func scanReconciliationItems(rows pgx.Rows) ([]ReconciliationItem, error) {
+	var result []ReconciliationItem
+	for rows.Next() {
+		var it ReconciliationItem
+		var reason sql.NullString
+		var settled sql.NullInt64
+		var createdAt time.Time
+		if err := rows.Scan(&it.ID, &it.ReconciliationID, &it.ProductID, &it.SystemAvailable,
+			&it.PhysicalAvailable, &it.Variance, &reason, &it.LiabilityAmount, &settled, &createdAt); err != nil {
+			return nil, err
+		}
+		it.Reason = reason.String
+		if settled.Valid {
+			v := int(settled.Int64)
+			it.SettledSettlementID = &v
+		}
+		it.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		result = append(result, it)
+	}
+	return result, rows.Err()
+}
+
+// MarkReconciliationCounted flips draft -> counted. The status predicate is the
+// concurrency guard: a second save on an already-counted doc updates nothing.
+func (r *Repository) MarkReconciliationCounted(ctx context.Context, tx pgx.Tx, id, countedBy int, notes *string) error {
+	tag, err := tx.Exec(ctx, `
+		UPDATE consignment_reconciliations
+		SET status = 'counted', counted_by = $2, notes = COALESCE($3, notes)
+		WHERE id = $1 AND status = 'draft'
+	`, id, countedBy, notes)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrInvalidReconciliationStatus
+	}
+	return nil
+}
+
+// MarkReconciliationPosted flips counted -> posted and stamps the poster/time.
+func (r *Repository) MarkReconciliationPosted(ctx context.Context, tx pgx.Tx, id, postedBy int) error {
+	tag, err := tx.Exec(ctx, `
+		UPDATE consignment_reconciliations
+		SET status = 'posted', posted_by = $2, posted_at = now()
+		WHERE id = $1 AND status = 'counted'
+	`, id, postedBy)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrInvalidReconciliationStatus
+	}
+	return nil
+}
+
+func (r *Repository) SetReconciliationItemLiability(ctx context.Context, tx pgx.Tx, itemID, amount int) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE consignment_reconciliation_items SET liability_amount = $2 WHERE id = $1
+	`, itemID, amount)
+	return err
+}
+
+// ListReconciliations returns one page of reconciliation headers (limit 0 =
+// legacy full list capped at legacyListCap); total is only computed in paged
+// mode. Items are not loaded — list rows are headers.
+func (r *Repository) ListReconciliations(ctx context.Context, q queryer, supplierID, storeID *int, status *string, limit, offset int) ([]Reconciliation, int, error) {
+	var conds []string
+	var args []any
+	if supplierID != nil {
+		args = append(args, *supplierID)
+		conds = append(conds, fmt.Sprintf("rec.supplier_id = $%d", len(args)))
+	}
+	if storeID != nil {
+		args = append(args, *storeID)
+		conds = append(conds, fmt.Sprintf("rec.store_id = $%d", len(args)))
+	}
+	if status != nil {
+		args = append(args, *status)
+		conds = append(conds, fmt.Sprintf("rec.status = $%d", len(args)))
+	}
+	where := ""
+	if len(conds) > 0 {
+		where = " WHERE " + joinConds(conds)
+	}
+
+	var total int
+	if limit > 0 {
+		if err := q.QueryRow(ctx, `SELECT COUNT(*) FROM consignment_reconciliations rec`+where, args...).Scan(&total); err != nil {
+			return nil, 0, err
+		}
+	}
+
+	query := `
+		SELECT rec.id, rec.reconciliation_number, rec.arrangement_id, rec.supplier_id, rec.store_id,
+		       rec.status, rec.notes, rec.counted_by, rec.posted_by, rec.created_by, rec.created_at, rec.posted_at
+		FROM consignment_reconciliations rec
+	` + where + ` ORDER BY rec.created_at DESC, rec.id DESC`
+	query, args = appendPage(query, args, limit, offset)
+	rows, err := q.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var result []Reconciliation
+	for rows.Next() {
+		rec, err := scanReconciliationHeader(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		result = append(result, *rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	rows.Close()
+
+	// List views show per-record totals (shortfall/surplus/liability), which are
+	// derived from the items. Load them in one query, summarize, then drop them
+	// so the list payload stays header-sized.
+	if len(result) > 0 {
+		ids := make([]int, 0, len(result))
+		for i := range result {
+			ids = append(ids, result[i].ID)
+		}
+		itemsByRec, err := r.getReconciliationItemsByIDs(ctx, q, ids)
+		if err != nil {
+			return nil, 0, err
+		}
+		for i := range result {
+			result[i].Items = itemsByRec[result[i].ID]
+			result[i].Summarize()
+			result[i].Items = nil
+		}
+	}
+	return result, total, nil
+}
+
+// ListArrangementCountSheet returns every arrangement product with its current
+// ledger quantity and negotiated price/share, so the count screen can show a
+// full row per product and preview a store-fault liability before saving.
+func (r *Repository) ListArrangementCountSheet(ctx context.Context, q queryer, arrangementID int) ([]ReconciliationCountSheetRow, error) {
+	rows, err := q.Query(ctx, `
+		SELECT t.product_id, t.price, t.store_share_type, t.store_share_value,
+		       COALESCE(cs.available_qty, 0), COALESCE(cs.pending_return_qty, 0)
+		FROM consignment_terms t
+		LEFT JOIN consignment_stock cs
+		       ON cs.product_id = t.product_id AND cs.arrangement_id = t.arrangement_id
+		WHERE t.arrangement_id = $1
+		ORDER BY t.product_id ASC
+	`, arrangementID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []ReconciliationCountSheetRow
+	for rows.Next() {
+		var row ReconciliationCountSheetRow
+		if err := rows.Scan(&row.ProductID, &row.Price, &row.StoreShareType, &row.StoreShareValue,
+			&row.SystemAvailable, &row.PendingReturnQty); err != nil {
+			return nil, err
+		}
+		result = append(result, row)
+	}
+	return result, rows.Err()
+}
+
+// ListOpenLiabilityItems returns the supplier/store's unsettled store-fault
+// liabilities (posted reconciliations only). Rows are locked FOR UPDATE so a
+// racing settlement blocks, re-evaluates the settled filter, and returns empty
+// instead of double-consuming the same liability.
+func (r *Repository) ListOpenLiabilityItems(ctx context.Context, q queryer, supplierID, storeID int) ([]ReconciliationItem, error) {
+	rows, err := q.Query(ctx, `
+		SELECT i.id, i.reconciliation_id, i.product_id, i.system_available, i.physical_available,
+		       i.variance, i.reason, i.liability_amount, i.settled_settlement_id, i.created_at
+		FROM consignment_reconciliation_items i
+		JOIN consignment_reconciliations rec ON rec.id = i.reconciliation_id
+		WHERE rec.supplier_id = $1 AND rec.store_id = $2
+		  AND rec.status = 'posted'
+		  AND i.liability_amount > 0
+		  AND i.settled_settlement_id IS NULL
+		ORDER BY i.id ASC
+		FOR UPDATE OF i
+	`, supplierID, storeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanReconciliationItems(rows)
+}
+
+// MarkReconciliationItemsSettled closes the liability window atomically.
+func (r *Repository) MarkReconciliationItemsSettled(ctx context.Context, tx pgx.Tx, ids []int, settlementID int) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := tx.Exec(ctx, `
+		UPDATE consignment_reconciliation_items
+		SET settled_settlement_id = $2
+		WHERE id = ANY($1)
+	`, ids, settlementID)
+	return err
 }

@@ -66,9 +66,12 @@ deployment, API, and architecture documentation, see the
     - [Tab 3: Retur Tertunda (Pending Return)](#tab-3-retur-tertunda-pending-return)
     - [Tab 4: Retur (Formal Return)](#tab-4-retur-formal-return)
     - [Tab 5: Settlement & Payout](#tab-5-penyelesaian-settlement--payout)
-    - [Tab 6: Stok (Consignment Stock)](#tab-6-stok-consignment-stock)
+    - [Tab 6: Rekonsiliasi (Physical Reconciliation)](#tab-6-rekonsiliasi-physical-reconciliation)
+    - [Tab 7: Stok (Consignment Stock)](#tab-7-stok-consignment-stock)
     - [Quick Reference: Document Numbers](#quick-reference-document-numbers)
+    - [Printing Receipts and Returns](#printing-receipts-and-returns)
     - [Quick Reference: Stock Math](#quick-reference-stock-math)
+    - [Force Return — Mengakhiri dengan Sisa Stok](#mengakhiri-kesepakatan-dengan-sisa-stok-force-return)
     - [Complete Walkthrough — End-to-End Example](#complete-walkthrough--end-to-end-example)
 15. [Reports](#15-reports)
 16. [Store Management](#16-store-management)
@@ -813,7 +816,7 @@ Open **Konsinyasi** from the sidebar. You'll see the **Arrangements List** — a
 > If no consignment suppliers appear in the dropdown, go to **Suppliers** first and toggle the **Supplier Konsinyasi** (Consignment Supplier) flag on the supplier you want to use.
 
 **Opening an arrangement:**
-Click the **Buka** (Open) button on any row. This opens the arrangement detail view with six tabs. A back arrow (< Kembali (Back)) at the top-left returns you to the list.
+Click the **Buka** (Open) button on any row. This opens the arrangement detail view with seven tabs (**Rekonsiliasi** appears greyed out unless your role has `consignment.reconcile`). A back arrow (< Kembali (Back)) at the top-left returns you to the list.
 
 The arrangement header shows the supplier name, status badge (**Aktif** / **Berakhir**), and the last visit date.
 
@@ -932,6 +935,8 @@ This shows all completed POS sales of consignment items that have **not yet been
 - **Hak Toko** (Store Share) — your store's total share.
 - **Terhutang ke Pemasok** (Owed to Supplier) — the amount you owe the supplier (= Total Penjualan minus Hak Toko).
 
+When a posted reconciliation left an open liability for this supplier, a fourth total appears: **Kewajiban Rekonsiliasi** (Reconciliation Liability). It is added to **Terhutang ke Pemasok**, so you reimburse the supplier for the consignment units the store lost or that were stolen (see [Tab 6: Rekonsiliasi](#tab-6-rekonsiliasi-physical-reconciliation)).
+
 **Creating a settlement:**
 
 1. Review the unsettled items in the preview.
@@ -961,7 +966,43 @@ This lists all past settlements with columns: No. Penyelesaian (CS-YYYY-xxxxxx),
 
 ---
 
-### Tab 6: Stok (Consignment Stock)
+### Tab 6: Rekonsiliasi (Physical Reconciliation)
+
+System stock can drift from what is physically on the shelf (damage, miscount, theft). This tab lets you count the **available** consignment stock against the system and post the correction.
+
+> **Permission-gated:** requires `consignment.reconcile` (Superadmin, Manager, Inventory Staff). The tab is greyed out for everyone else.
+
+#### Starting a count
+
+1. Click **Hitung Baru** (New Count). A confirmation number `RECON-YYYY-xxxxxx` is issued and the **Lembar Hitung** (Count Sheet) opens.
+2. The sheet lists every consignment product on the arrangement with columns: **Produk** (Product), **Sistem** (System qty), **Fisik** (Physical — type your count), **Selisih** (Difference), **Alasan** (Reason), **Kewajiban** (Liability).
+3. **Alasan** is required for every row where the count differs from the system. Choose from: **Salah Hitung** (Misdcount), **Hilang** (Lost), **Dicuri** (Stolen), **Penerimaan Tak Tercatat** (Unrecorded Receipt), **Rusak** (Damaged), **Kadaluarsa** (Expired), **Lainnya** (Other).
+4. Optional **Catatan** (Notes) for the whole count.
+5. Click **Simpan Hitung** (Save Count). Status moves to **Terhitung** (Counted).
+
+#### The liability
+
+Only two reasons make the store pay the supplier: **Hilang** (Lost) and **Dicuri** (Stolen). The **Kewajiban** column computes the store's liability per row — the shortfall's value minus your store share — and the footer shows **Total Kekurangan** (total shortfall units), **Total Kelebihan** (total surplus units) and **Total Kewajiban** (total liability).
+
+> **Liability rides the next settlement.** A saved liability is picked up by the next settlement you create for this supplier and added to **Terhutang ke Pemasok** (Owed to Supplier), so you pay the supplier for the units that went missing on your floor.
+
+All other reasons write the difference off without a charge, and a **positive** difference (you counted more than the system) never creates a liability.
+
+#### Posting
+
+1. On a **Terhitung** count, click **Posting**.
+2. A confirmation warns you it cannot be undone and shows the net difference: *"Posting menerapkan setiap selisih ke stok dan tidak dapat dibatalkan. Kurang {shortfall} unit, lebih {surplus} unit."*
+3. Confirm. Status becomes **Terposting** (Posted).
+
+Posting corrects **both** ledgers in one move: the supplier's `consignment_stock` and your `product_stock`. The arrangement's stock view and inventory movements update immediately.
+
+> A count can only be edited while it is **Draf** (Draft). Once counted or posted, the actions reduce to **Posting** for counted records — nothing can be edited after posting.
+
+The bottom card lists every count with **Nomor** (RECON-YYYY-xxxxxx), date, status badge, and totals, so you can review what was counted and when.
+
+---
+
+### Tab 7: Stok (Consignment Stock)
 
 This is a read-only view of the consignment stock for this supplier.
 
@@ -988,6 +1029,16 @@ This is a read-only view of the consignment stock for this supplier.
 
 Every number carries the **year it was created**, and the suffix starts at `000001` — so the first receipt of 2026 is `CR-2026-000001`.
 
+### Printing Receipts and Returns
+
+Every formal receipt (`CR-…`) and return (`RT-…`) can be printed as a paper hand-over proof for the supplier or courier.
+
+1. Open the arrangement, then the **Penerimaan** (Receiving) or **Retur** (Return) tab.
+2. Click a document's row to open its detail modal.
+3. Click **Cetak Penerimaan** (Print Receipt) or **Cetak Retur** (Print Return). The browser's print dialog opens with an A4 document: store header (name, address, phone, logo), document number and date, supplier, arrangement reference, the item table, notes, and signature blocks for the store and supplier.
+
+Printing uses your browser's own printer settings — pick "Save as PDF" there to keep a digital copy. It is available to anyone who can open the document detail (no extra permission), and the print-agent setting (`VITE_PRINT_AGENT_URL`) does not affect it.
+
 ### Quick Reference: Stock Math
 
 | Event | Available Stock | Pending Return |
@@ -999,6 +1050,14 @@ Every number carries the **year it was created**, and the suffix starts at `0000
 | Formal Return with no pending return linked | decreases | — |
 
 There is no separate "total stock" quantity — consignment stock is stored as exactly two numbers, **Available** and **Pending Return**. Their sum is the total.
+
+### Mengakhiri Kesepakatan dengan Sisa Stok (Force Return)
+
+Normally you return remaining stock in stages, then end the arrangement. When a supplier has effectively abandoned their stock, **Manager** and **Superadmin** have a one-click escape hatch: **Paksa Kembalikan Semua Stok** (Force Return All Stock). It releases **every** unit still owned by that supplier — available stock *and* open pending returns — in a single return document with reason **Pengakhiran kesepakatan** (Arrangement termination).
+
+> **Permission-gated:** this action requires the `consignment.force_return` permission (Manager and Superadmin only). Other roles see the ordinary **Kembalikan Semua Stok Tersisa** (Return All Remaining Stock) banner instead.
+
+After the forced return, the SKU is no longer locked to that supplier, so it can be assigned to another consignment supplier. Unsettled sales from before are **not** affected — they settle through the usual settlement flow. The arrangement is **not** ended automatically; use **Akhiri Kesepakatan** (End Arrangement) afterwards once you are ready. If there is nothing left to release, the action returns a *no stock to return* conflict.
 
 ### Complete Walkthrough — End-to-End Example
 
@@ -1154,10 +1213,12 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 | Stock opname — create/assign/verify/post/close | ✓ | ✓ | ✓ | — | ✓ | — |
 | Stock opname — count/submit | ✓ | ✓ | ✓ | ✓ | ✓ | — |
 | Stock opname — export/report | ✓ | ✓ | ✓ | — | ✓ | — |
-| Konsinyasi — view | ✓ | ✓ | ✓ | — | — | ✓ |
+| Konsinyasi — view | ✓ | ✓ | ✓ | — | ✓ | ✓ |
 | Konsinyasi — create/update terms | ✓ | ✓ | ✓ | — | — | — |
 | Konsinyasi — settle | ✓ | ✓ | ✓ | — | — | — |
 | Konsinyasi — pay supplier | ✓ | ✓ | — | — | — | ✓ |
+| Konsinyasi — force return remaining stock | ✓ | ✓ | — | — | — | — |
+| Konsinyasi — reconcile physical stock | ✓ | ✓ | — | — | ✓ | — |
 | Stores — manage | ✓ | ◐ (update/delete, no create) | — | — | — | — |
 | Users — create/edit | ✓ | ✓ | — | — | — | — |
 | Users — delete | ✓ | — | — | — | — | — |

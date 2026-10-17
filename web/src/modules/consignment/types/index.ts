@@ -159,6 +159,7 @@ export interface Settlement {
   store_id: number;
   total_sale_value: number;
   total_store_share: number;
+  total_liability: number;
   total_payable: number;
   status: string;
   created_by: number;
@@ -166,6 +167,66 @@ export interface Settlement {
   paid_at?: string;
   items: SettlementItem[];
   payouts: Payout[];
+}
+
+export interface ReconciliationItem {
+  id: number;
+  reconciliation_id: number;
+  product_id: number;
+  product_sku?: string;
+  product_name?: string;
+  system_available: number;
+  physical_available: number;
+  variance: number;
+  reason?: string;
+  liability_amount: number;
+  settled_settlement_id?: number;
+  created_at?: string;
+}
+
+export interface Reconciliation {
+  id: number;
+  reconciliation_number: string;
+  arrangement_id: number;
+  supplier_id: number;
+  supplier_name?: string;
+  store_id: number;
+  store_name?: string;
+  status: string;
+  notes?: string;
+  counted_by?: number;
+  posted_by?: number;
+  created_by: number;
+  created_at: string;
+  posted_at?: string;
+  items?: ReconciliationItem[];
+  total_shortfall: number;
+  total_surplus: number;
+  total_liability: number;
+}
+
+// One arrangement product on the count screen: the current ledger quantity plus
+// the negotiated price/share so the UI can preview a store-fault liability.
+export interface ReconciliationCountSheetRow {
+  product_id: number;
+  product_sku?: string;
+  product_name?: string;
+  system_available: number;
+  pending_return_qty: number;
+  price: number;
+  store_share_type: string;
+  store_share_value: number;
+}
+
+export interface ReconciliationItemPayload {
+  product_id: number;
+  physical_available: number;
+  reason?: string;
+}
+
+export interface SaveReconciliationCountPayload {
+  items: ReconciliationItemPayload[];
+  notes?: string;
 }
 
 export interface PaymentMethod {
@@ -274,6 +335,15 @@ export const RETURN_REASON_CUSTOMER_RETURN = "customer_return";
 export const RETURN_REASON_TERMINATION = "termination";
 export const RETURN_REASON_OTHER = "other";
 
+export const RECONCILE_STATUS_DRAFT = "draft";
+export const RECONCILE_STATUS_COUNTED = "counted";
+export const RECONCILE_STATUS_POSTED = "posted";
+
+export const RECONCILE_REASON_MISCOUNT = "miscount";
+export const RECONCILE_REASON_LOST = "lost";
+export const RECONCILE_REASON_STOLEN = "stolen";
+export const RECONCILE_REASON_UNRECORDED_RECEIPT = "unrecorded_receipt";
+
 export const ARRANGEMENT_STATUS_LABELS: Record<string, keyof Labels> = {
   [ARRANGEMENT_STATUS_ACTIVE]: "arrangementStatusActive",
   [ARRANGEMENT_STATUS_ENDED]: "arrangementStatusEnded",
@@ -309,3 +379,37 @@ export const RETURN_REASONS = [
   RETURN_REASON_TERMINATION,
   RETURN_REASON_OTHER,
 ];
+
+export const RECONCILE_STATUS_LABELS: Record<string, keyof Labels> = {
+  [RECONCILE_STATUS_DRAFT]: "reconcileStatusDraft",
+  [RECONCILE_STATUS_COUNTED]: "reconcileStatusCounted",
+  [RECONCILE_STATUS_POSTED]: "reconcileStatusPosted",
+};
+
+// Reasons offered on a stock count. `customer_return` and `termination` are
+// deliberately absent: they describe a return flow, not a missing-units cause.
+export const RECONCILE_REASON_LABELS: Record<string, keyof Labels> = {
+  [RECONCILE_REASON_MISCOUNT]: "reconcileReasonMiscount",
+  [RECONCILE_REASON_LOST]: "reconcileReasonLost",
+  [RECONCILE_REASON_STOLEN]: "reconcileReasonStolen",
+  [RECONCILE_REASON_UNRECORDED_RECEIPT]: "reconcileReasonUnrecordedReceipt",
+  [RETURN_REASON_DAMAGED]: "returnReasonDamaged",
+  [RETURN_REASON_EXPIRED]: "returnReasonExpired",
+  [RETURN_REASON_OTHER]: "returnReasonOther",
+};
+
+export const RECONCILE_REASONS = [
+  RECONCILE_REASON_MISCOUNT,
+  RECONCILE_REASON_LOST,
+  RECONCILE_REASON_STOLEN,
+  RECONCILE_REASON_UNRECORDED_RECEIPT,
+  RETURN_REASON_DAMAGED,
+  RETURN_REASON_EXPIRED,
+  RETURN_REASON_OTHER,
+];
+
+// Mirrors the server rule: only lost/stolen missing stock becomes an amount the
+// store owes the supplier (D3a).
+export function reconcileReasonCreatesLiability(reason: string): boolean {
+  return reason === RECONCILE_REASON_LOST || reason === RECONCILE_REASON_STOLEN;
+}

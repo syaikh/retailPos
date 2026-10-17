@@ -13,8 +13,11 @@ import type {
   PendingReturnPayload,
   Receipt,
   ReceiptPayload,
+  Reconciliation,
+  ReconciliationCountSheetRow,
   ReturnItemPayload,
   ReturnPayload,
+  SaveReconciliationCountPayload,
   Settlement,
   SetTermsPayload,
   StockRow,
@@ -246,6 +249,19 @@ export async function createReturn(
   return res.data.data;
 }
 
+// forceReturnAllStock releases all remaining ownership (available stock and
+// open pending returns) for an arrangement in one server-side call. Requires
+// the consignment.force_return permission. Used when a supplier has abandoned
+// their stock and the arrangement must be released to end it.
+export async function forceReturnAllStock(
+  arrangementId: number,
+): Promise<ConsignmentReturn> {
+  const res = await apiClient.post(
+    `/consignment/arrangements/${arrangementId}/force-return`,
+  );
+  return res.data.data;
+}
+
 export async function bulkReturnAllStock(
   arrangementId: number,
   supplierId: number,
@@ -382,4 +398,60 @@ export async function getSupplierSummary(supplierId: number): Promise<{
     unsettled_value: unsettledValue,
     unsettled_qty: unsettledQty,
   };
+}
+
+// --- physical reconciliation (§15.10) ---
+
+// getReconciliationCountSheet returns every product on the arrangement with its
+// current ledger quantity and negotiated price/share, for the count screen.
+export async function getReconciliationCountSheet(
+  arrangementId: number,
+): Promise<ReconciliationCountSheetRow[]> {
+  const res = await apiClient.get(
+    `/consignment/arrangements/${arrangementId}/count-sheet`,
+  );
+  return res.data.data || [];
+}
+
+export async function listReconciliations(
+  supplierId?: number,
+  status?: string,
+  params: ConsignmentListParams = {},
+): Promise<{ data: Reconciliation[]; total: number }> {
+  const query: Record<string, string | number | undefined> = { ...params };
+  if (supplierId) query.supplier_id = supplierId;
+  if (status) query.status = status;
+  const res = await apiClient.get("/consignment/reconciliations", {
+    params: query,
+  });
+  return { data: res.data.data || [], total: res.data.total || 0 };
+}
+
+export async function getReconciliation(id: number): Promise<Reconciliation> {
+  const res = await apiClient.get(`/consignment/reconciliations/${id}`);
+  return res.data.data;
+}
+
+export async function createReconciliation(payload: {
+  arrangement_id: number;
+  notes?: string;
+}): Promise<Reconciliation> {
+  const res = await apiClient.post("/consignment/reconciliations", payload);
+  return res.data.data;
+}
+
+export async function saveReconciliationCount(
+  id: number,
+  payload: SaveReconciliationCountPayload,
+): Promise<Reconciliation> {
+  const res = await apiClient.put(
+    `/consignment/reconciliations/${id}/count`,
+    payload,
+  );
+  return res.data.data;
+}
+
+export async function postReconciliation(id: number): Promise<Reconciliation> {
+  const res = await apiClient.post(`/consignment/reconciliations/${id}/post`);
+  return res.data.data;
 }

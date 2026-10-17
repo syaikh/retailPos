@@ -136,6 +136,8 @@ export const Permissions = {
     update: "consignment.update",
     settle: "consignment.settle",
     pay: "consignment.pay",
+    forceReturn: "consignment.force_return",
+    reconcile: "consignment.reconcile",
   },
   appSettings: {
     view: "app_settings.view",

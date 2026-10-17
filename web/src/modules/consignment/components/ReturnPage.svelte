@@ -11,7 +11,7 @@
     EmptyState,
     Pagination,
   } from "$shared/ui";
-  import { Plus, Trash2, RotateCcw, Copy, Check } from "lucide-svelte";
+  import { Plus, Trash2, RotateCcw, Copy, Check, Printer } from "lucide-svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { labels, t } from "$shared/i18n";
   import {
@@ -30,6 +30,7 @@
   } from "../types";
   import { RETURN_REASON_LABELS, RETURN_REASONS } from "../types";
   import { formatDateTime } from "../lib/format";
+  import { printConsignmentDocument } from "../lib/print";
 
   const {
     arrangement,
@@ -588,7 +589,20 @@
     </div>
   {/if}
   {#snippet footer()}
-    <div class="flex justify-end">
+    <div class="flex justify-end gap-3">
+      {#if selectedReturn}
+        <Button
+          variant="secondary"
+          onclick={() =>
+            printConsignmentDocument({
+              kind: "return",
+              doc: selectedReturn!,
+            })}
+        >
+          <Printer class="w-4 h-4" />
+          {labels.consignmentPrintReturn}
+        </Button>
+      {/if}
       <Button variant="secondary" onclick={() => (showDetailModal = false)}>
         {labels.cancel}
       </Button>

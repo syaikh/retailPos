@@ -82,4 +82,13 @@ describe("ReceiptEntry.svelte source-structure guards", () => {
   it("resets pagination when filter changes", () => {
     expect(src).toContain("pageOffset = 0");
   });
+
+  it("prints a receipt document from the detail modal", () => {
+    expect(src).toContain(
+      'import { printConsignmentDocument } from "../lib/print"',
+    );
+    expect(src).toContain("printConsignmentDocument({");
+    expect(src).toContain('kind: "receipt"');
+    expect(src).toContain("labels.consignmentPrintReceipt");
+  });
 });

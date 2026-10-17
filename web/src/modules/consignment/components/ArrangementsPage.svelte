@@ -23,6 +23,7 @@
     AlertTriangle,
     ExternalLink,
     Square,
+    ClipboardCheck,
   } from "lucide-svelte";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { Roles } from "$shared/constants/roles";
@@ -37,6 +38,7 @@
     listStock,
     fetchAllPages,
     bulkReturnAllStock,
+    forceReturnAllStock,
   } from "../services/consignment-service";
   import { getActiveStores } from "$modules/stores/services/stores-service";
   import type { Arrangement, ConsignmentSupplierRef, StockRow } from "../types";
@@ -53,6 +55,7 @@
   import ReturnPage from "./ReturnPage.svelte";
   import SettlementPage from "./SettlementPage.svelte";
   import StockPage from "./StockPage.svelte";
+  import ReconciliationPage from "./ReconciliationPage.svelte";
 
   const authStore = useAuthStore();
   const rbac = useRBAC();
@@ -62,6 +65,12 @@
   const canUpdate = $derived(userPermissions.includes("consignment.update"));
   const canSettle = $derived(userPermissions.includes("consignment.settle"));
   const canPay = $derived(userPermissions.includes("consignment.pay"));
+  const canForceReturn = $derived(
+    userPermissions.includes("consignment.force_return"),
+  );
+  const canReconcile = $derived(
+    userPermissions.includes("consignment.reconcile"),
+  );
 
   let loading = $state(true);
   let arrangements = $state<Arrangement[]>([]);
@@ -81,7 +90,13 @@
 
   let activeArrangement = $state<Arrangement | null>(null);
   let activeTab = $state<
-    "terms" | "receipt" | "pending" | "return" | "settlement" | "stock"
+    | "terms"
+    | "receipt"
+    | "pending"
+    | "return"
+    | "settlement"
+    | "reconcile"
+    | "stock"
   >("receipt");
 
   let showEndModal = $state(false);
@@ -90,6 +105,8 @@
 
   let showBulkReturnModal = $state(false);
   let bulkReturning = $state(false);
+  let showForceReturnModal = $state(false);
+  let forceReturning = $state(false);
   let arrangementStock = $state<StockRow[]>([]);
   let returnRefreshKey = $state(0);
 
@@ -277,6 +294,23 @@
     }
   }
 
+  async function confirmForceReturn() {
+    if (!activeArrangement) return;
+    forceReturning = true;
+    try {
+      await forceReturnAllStock(activeArrangement.id);
+      toast.success(labels.consignmentForceReturnSuccess);
+      showForceReturnModal = false;
+      showReturnBanner = false;
+      returnRefreshKey++;
+      await refreshArrangement();
+    } catch (e: unknown) {
+      toast.error(getApiErrorMessage(e, labels.consignmentForceReturnError));
+    } finally {
+      forceReturning = false;
+    }
+  }
+
   onMount(load);
 </script>
 
@@ -347,13 +381,23 @@
           <span>{t("consignmentReturnStockToEnd")}</span>
         </div>
         <div class="flex items-center gap-2">
-          <Button
-            variant="danger"
-            size="sm"
-            onclick={() => (showBulkReturnModal = true)}
-          >
-            {labels.consignmentReturnAllStock}
-          </Button>
+          {#if canForceReturn}
+            <Button
+              variant="danger"
+              size="sm"
+              onclick={() => (showForceReturnModal = true)}
+            >
+              {labels.consignmentForceReturn}
+            </Button>
+          {:else}
+            <Button
+              variant="danger"
+              size="sm"
+              onclick={() => (showBulkReturnModal = true)}
+            >
+              {labels.consignmentReturnAllStock}
+            </Button>
+          {/if}
           <Button
             variant="ghost"
             size="sm"
@@ -408,6 +452,15 @@
         {labels.consignmentTabSettlement}
       </Button>
       <Button
+        variant={activeTab === "reconcile" ? "primary" : "ghost"}
+        size="sm"
+        onclick={() => (activeTab = "reconcile")}
+        disabled={!canReconcile}
+      >
+        <ClipboardCheck class="w-4 h-4" />
+        {labels.consignmentTabReconcile}
+      </Button>
+      <Button
         variant={activeTab === "stock" ? "primary" : "ghost"}
         size="sm"
         onclick={() => (activeTab = "stock")}
@@ -449,6 +502,12 @@
         {canSettle}
         {canPay}
         onsettled={refreshArrangement}
+      />
+    {:else if activeTab === "reconcile"}
+      <ReconciliationPage
+        arrangement={activeArrangement}
+        {canReconcile}
+        oncreated={refreshArrangement}
       />
     {:else}
       <StockPage arrangement={activeArrangement} />
@@ -752,6 +811,69 @@
         disabled={bulkReturning || filteredStock.length === 0}
       >
         {bulkReturning ? labels.saving : labels.consignmentReturnAllStock}
+      </Button>
+    </div>
+  {/snippet}
+</Modal>
+
+<Modal
+  bind:open={showForceReturnModal}
+  title={labels.consignmentForceReturn}
+  size="md"
+>
+  <div class="space-y-4">
+    <p class="text-sm text-text-secondary">
+      {labels.consignmentForceReturnDescription}
+    </p>
+    {#if filteredStock.length > 0}
+      <div class="rounded-lg border border-border-default overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-muted/50">
+            <tr
+              class="text-left text-xs uppercase tracking-wider text-text-secondary"
+            >
+              <th class="p-3">{labels.consignmentProduct}</th>
+              <th class="p-3 text-right">{labels.consignmentAvailableStock}</th>
+              <th class="p-3 text-right">
+                {labels.consignmentPendingReturnQty}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each filteredStock as row (row.product_id || row)}
+              <tr class="border-t border-border/40">
+                <td class="p-3 text-text-primary">{row.product_name}</td>
+                <td class="p-3 text-right text-text-primary font-medium">
+                  {row.available_qty}
+                </td>
+                <td class="p-3 text-right text-text-primary font-medium">
+                  {row.pending_return_qty}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {:else}
+      <p class="text-sm text-amber-600">{labels.consignmentNoStockToReturn}</p>
+    {/if}
+    <div
+      class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800"
+    >
+      {labels.consignmentBulkReturnWarning}
+    </div>
+  </div>
+  {#snippet footer()}
+    <div class="flex justify-end gap-3 w-full">
+      <Button variant="secondary" onclick={() => (showForceReturnModal = false)}
+        >{labels.cancel}</Button
+      >
+      <Button
+        variant="danger"
+        onclick={confirmForceReturn}
+        disabled={forceReturning || filteredStock.length === 0}
+      >
+        {forceReturning ? labels.saving : labels.consignmentForceReturn}
       </Button>
     </div>
   {/snippet}

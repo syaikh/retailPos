@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGet = vi.fn();
 const mockPost = vi.fn();
+const mockPut = vi.fn();
 const mockDelete = vi.fn();
 
 vi.mock("$shared/api/http-client", () => ({
   default: {
     get: (...args: unknown[]) => mockGet(...args),
     post: (...args: unknown[]) => mockPost(...args),
+    put: (...args: unknown[]) => mockPut(...args),
     delete: (...args: unknown[]) => mockDelete(...args),
   },
 }));
@@ -242,6 +244,38 @@ describe("consignment-service", () => {
     });
   });
 
+  describe("forceReturnAllStock", () => {
+    it("posts to the arrangement force-return endpoint and returns the return document", async () => {
+      const returnResult = {
+        id: 7,
+        return_number: "RET-007",
+        items: [],
+      };
+      mockPost.mockResolvedValueOnce({
+        data: { data: returnResult },
+      });
+
+      const { forceReturnAllStock } = await import("../consignment-service");
+      const result = await forceReturnAllStock(42);
+
+      expect(result).toEqual(returnResult);
+      expect(mockPost).toHaveBeenCalledWith(
+        "/consignment/arrangements/42/force-return",
+      );
+      // Server resolves stock and pending returns; the client sends no body.
+      expect(mockPost.mock.calls[0]).toHaveLength(1);
+    });
+
+    it("propagates the server error when there is nothing to return", async () => {
+      mockPost.mockRejectedValueOnce(new Error("No stock to return"));
+
+      const { forceReturnAllStock } = await import("../consignment-service");
+      await expect(forceReturnAllStock(42)).rejects.toThrow(
+        "No stock to return",
+      );
+    });
+  });
+
   describe("addTerm", () => {
     it("posts term payload and returns created term", async () => {
       const term = {
@@ -470,6 +504,104 @@ describe("consignment-service", () => {
       expect(mockGet).toHaveBeenCalledWith("/consignment/receipts", {
         params: { supplier_id: 5, product_id: 999 },
       });
+    });
+  });
+
+  describe("reconciliation", () => {
+    it("fetches the count sheet for an arrangement", async () => {
+      const sheet = [
+        {
+          product_id: 10,
+          product_name: "Product A",
+          system_available: 8,
+          price: 10000,
+          store_share_type: "percentage",
+          store_share_value: 20,
+        },
+      ];
+      mockGet.mockResolvedValueOnce({ data: { data: sheet } });
+
+      const { getReconciliationCountSheet } =
+        await import("../consignment-service");
+      const result = await getReconciliationCountSheet(42);
+
+      expect(result).toEqual(sheet);
+      expect(mockGet).toHaveBeenCalledWith(
+        "/consignment/arrangements/42/count-sheet",
+      );
+    });
+
+    it("lists reconciliations with supplier and status filters", async () => {
+      const records = [
+        { id: 1, reconciliation_number: "RECON-001", status: "posted" },
+      ];
+      mockGet.mockResolvedValueOnce({
+        data: { data: records, total: 3 },
+      });
+
+      const { listReconciliations } = await import("../consignment-service");
+      const result = await listReconciliations(5, "posted", {
+        limit: 20,
+        offset: 0,
+      });
+
+      expect(result).toEqual({ data: records, total: 3 });
+      expect(mockGet).toHaveBeenCalledWith("/consignment/reconciliations", {
+        params: { limit: 20, offset: 0, supplier_id: 5, status: "posted" },
+      });
+    });
+
+    it("gets a single reconciliation by id", async () => {
+      const rec = { id: 9, reconciliation_number: "RECON-009" };
+      mockGet.mockResolvedValueOnce({ data: { data: rec } });
+
+      const { getReconciliation } = await import("../consignment-service");
+      expect(await getReconciliation(9)).toEqual(rec);
+      expect(mockGet).toHaveBeenCalledWith("/consignment/reconciliations/9");
+    });
+
+    it("creates a reconciliation for an arrangement", async () => {
+      const rec = { id: 1, reconciliation_number: "RECON-001" };
+      mockPost.mockResolvedValueOnce({ data: { data: rec } });
+
+      const { createReconciliation } = await import("../consignment-service");
+      const result = await createReconciliation({ arrangement_id: 42 });
+
+      expect(result).toEqual(rec);
+      expect(mockPost).toHaveBeenCalledWith("/consignment/reconciliations", {
+        arrangement_id: 42,
+      });
+    });
+
+    it("saves a physical count via PUT", async () => {
+      const rec = { id: 1, reconciliation_number: "RECON-001" };
+      mockPut.mockResolvedValueOnce({ data: { data: rec } });
+
+      const { saveReconciliationCount } =
+        await import("../consignment-service");
+      const payload = {
+        items: [{ product_id: 10, physical_available: 7, reason: "lost" }],
+      };
+      const result = await saveReconciliationCount(1, payload);
+
+      expect(result).toEqual(rec);
+      expect(mockPut).toHaveBeenCalledWith(
+        "/consignment/reconciliations/1/count",
+        payload,
+      );
+    });
+
+    it("posts a reconciliation via POST", async () => {
+      const rec = { id: 1, reconciliation_number: "RECON-001" };
+      mockPost.mockResolvedValueOnce({ data: { data: rec } });
+
+      const { postReconciliation } = await import("../consignment-service");
+      const result = await postReconciliation(1);
+
+      expect(result).toEqual(rec);
+      expect(mockPost).toHaveBeenCalledWith(
+        "/consignment/reconciliations/1/post",
+      );
     });
   });
 });

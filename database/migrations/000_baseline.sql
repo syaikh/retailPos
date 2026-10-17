@@ -4752,6 +4752,12 @@ ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions (id, code, name, description)
 VALUES (95, 'customer_group.export', 'Export Customer Groups', NULL)
 ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions (id, code, name, description)
+VALUES (96, 'consignment.force_return', 'Paksa Pengembalian Stok Konsinyasi', 'Bisa memaksa pengembalian seluruh stok konsinyasi yang tersisa')
+ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions (id, code, name, description)
+VALUES (97, 'consignment.reconcile', 'Rekonsiliasi Stok Konsinyasi', 'Bisa menghitung dan memposting rekonsiliasi fisik stok konsinyasi')
+ON CONFLICT DO NOTHING;
 
 INSERT INTO public.permissions (id, code, name, description)
 VALUES (25, 'customer_group.view', 'Lihat Data Customer Group', NULL)
@@ -5048,7 +5054,7 @@ INSERT INTO public.users (id, username, email, password_hash, role_id, store_id,
 VALUES (6, 'finance', 'finance@retailpos.local', crypt('admin123', gen_salt('bf', 14)), 6, 1, TRUE, NULL, 'id', 'light', TRUE)
 ON CONFLICT DO NOTHING;
 
--- role_permissions (272 rows across 6 roles), resolved by role name and
+-- role_permissions (292 rows across 6 roles), resolved by role name and
 -- permission code rather than by id, so the section stays correct
 -- even where ids differ on an upgraded database.
 
@@ -5068,27 +5074,27 @@ JOIN public.permissions p ON p.code = ANY (ARRAY['audit.view', 'consignment.pay'
 WHERE r.name = 'finance'
 ON CONFLICT DO NOTHING;
 
--- inventory_staff: 19 permissions
+-- inventory_staff: 21 permissions
 INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM public.roles r
-JOIN public.permissions p ON p.code = ANY (ARRAY['inventory.adjust', 'stock_opname.assign', 'stock_opname.cancel', 'stock_opname.close', 'stock_opname.count', 'stock_opname.create', 'stock_opname.export', 'stock_opname.post', 'stock_opname.recount', 'stock_opname.report', 'stock_opname.submit', 'stock_opname.verify', 'stock_opname.view', 'storage_location.create', 'storage_location.delete', 'storage_location.update', 'storage_location.view', 'store.export', 'store.import'])
+JOIN public.permissions p ON p.code = ANY (ARRAY['consignment.reconcile', 'consignment.view', 'inventory.adjust', 'stock_opname.assign', 'stock_opname.cancel', 'stock_opname.close', 'stock_opname.count', 'stock_opname.create', 'stock_opname.export', 'stock_opname.post', 'stock_opname.recount', 'stock_opname.report', 'stock_opname.submit', 'stock_opname.verify', 'stock_opname.view', 'storage_location.create', 'storage_location.delete', 'storage_location.update', 'storage_location.view', 'store.export', 'store.import'])
 WHERE r.name = 'inventory_staff'
 ON CONFLICT DO NOTHING;
 
--- manager: 88 permissions
+-- manager: 90 permissions
 INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM public.roles r
-JOIN public.permissions p ON p.code = ANY (ARRAY['app_settings.view', 'audit.export', 'audit.view', 'category.create', 'category.delete', 'category.export', 'category.import', 'category.update', 'category.view', 'consignment.create', 'consignment.pay', 'consignment.settle', 'consignment.update', 'consignment.view', 'customer.create', 'customer.delete', 'customer.export', 'customer.import', 'customer.update', 'customer.view', 'customer_group.create', 'customer_group.delete', 'customer_group.export', 'customer_group.import', 'customer_group.update', 'customer_group.view', 'dashboard.view', 'inventory.adjust', 'pricing.approve', 'pricing.create', 'pricing.delete', 'pricing.update', 'pricing.view', 'product.cost.view', 'product.create', 'product.delete', 'product.export', 'product.history.view', 'product.import', 'product.update', 'product.view', 'purchase_order.cancel', 'purchase_order.confirm', 'purchase_order.create', 'purchase_order.receive', 'purchase_order.update', 'purchase_order.view', 'receipt.print', 'report.view', 'role.create', 'role.view', 'sale.create', 'sale.detail', 'sale.park', 'sale.view', 'shift.audit', 'shift.cash_movement', 'shift.create', 'shift.review', 'shift.view', 'stock_opname.assign', 'stock_opname.cancel', 'stock_opname.close', 'stock_opname.count', 'stock_opname.create', 'stock_opname.export', 'stock_opname.post', 'stock_opname.recount', 'stock_opname.report', 'stock_opname.submit', 'stock_opname.verify', 'stock_opname.view', 'storage_location.create', 'storage_location.delete', 'storage_location.update', 'storage_location.view', 'store.delete', 'store.export', 'store.import', 'store.update', 'store.view', 'supplier.create', 'supplier.delete', 'supplier.update', 'supplier.view', 'user.create', 'user.update', 'user.view'])
+JOIN public.permissions p ON p.code = ANY (ARRAY['app_settings.view', 'audit.export', 'audit.view', 'category.create', 'category.delete', 'category.export', 'category.import', 'category.update', 'category.view', 'consignment.create', 'consignment.force_return', 'consignment.pay', 'consignment.reconcile', 'consignment.settle', 'consignment.update', 'consignment.view', 'customer.create', 'customer.delete', 'customer.export', 'customer.import', 'customer.update', 'customer.view', 'customer_group.create', 'customer_group.delete', 'customer_group.export', 'customer_group.import', 'customer_group.update', 'customer_group.view', 'dashboard.view', 'inventory.adjust', 'pricing.approve', 'pricing.create', 'pricing.delete', 'pricing.update', 'pricing.view', 'product.cost.view', 'product.create', 'product.delete', 'product.export', 'product.history.view', 'product.import', 'product.update', 'product.view', 'purchase_order.cancel', 'purchase_order.confirm', 'purchase_order.create', 'purchase_order.receive', 'purchase_order.update', 'purchase_order.view', 'receipt.print', 'report.view', 'role.create', 'role.view', 'sale.create', 'sale.detail', 'sale.park', 'sale.view', 'shift.audit', 'shift.cash_movement', 'shift.create', 'shift.review', 'shift.view', 'stock_opname.assign', 'stock_opname.cancel', 'stock_opname.close', 'stock_opname.count', 'stock_opname.create', 'stock_opname.export', 'stock_opname.post', 'stock_opname.recount', 'stock_opname.report', 'stock_opname.submit', 'stock_opname.verify', 'stock_opname.view', 'storage_location.create', 'storage_location.delete', 'storage_location.update', 'storage_location.view', 'store.delete', 'store.export', 'store.import', 'store.update', 'store.view', 'supplier.create', 'supplier.delete', 'supplier.update', 'supplier.view', 'user.create', 'user.update', 'user.view'])
 WHERE r.name = 'manager'
 ON CONFLICT DO NOTHING;
 
--- superadmin: 94 permissions
+-- superadmin: 96 permissions
 INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM public.roles r
-JOIN public.permissions p ON p.code = ANY (ARRAY['app_settings.update', 'app_settings.view', 'audit.export', 'audit.view', 'category.create', 'category.delete', 'category.export', 'category.import', 'category.update', 'category.view', 'consignment.create', 'consignment.pay', 'consignment.settle', 'consignment.update', 'consignment.view', 'customer.create', 'customer.delete', 'customer.export', 'customer.import', 'customer.update', 'customer.view', 'customer_group.create', 'customer_group.delete', 'customer_group.export', 'customer_group.import', 'customer_group.update', 'customer_group.view', 'dashboard.view', 'inventory.adjust', 'pricing.approve', 'pricing.create', 'pricing.delete', 'pricing.update', 'pricing.view', 'product.cost.view', 'product.create', 'product.delete', 'product.export', 'product.history.view', 'product.import', 'product.update', 'product.view', 'purchase_order.cancel', 'purchase_order.confirm', 'purchase_order.create', 'purchase_order.delete', 'purchase_order.receive', 'purchase_order.update', 'purchase_order.view', 'receipt.print', 'report.view', 'role.create', 'role.delete', 'role.update', 'role.view', 'sale.create', 'sale.detail', 'sale.park', 'sale.view', 'shift.audit', 'shift.cash_movement', 'shift.create', 'shift.review', 'shift.view', 'stock_opname.assign', 'stock_opname.cancel', 'stock_opname.close', 'stock_opname.count', 'stock_opname.create', 'stock_opname.export', 'stock_opname.post', 'stock_opname.recount', 'stock_opname.report', 'stock_opname.submit', 'stock_opname.verify', 'stock_opname.view', 'storage_location.create', 'storage_location.delete', 'storage_location.update', 'storage_location.view', 'store.create', 'store.delete', 'store.export', 'store.import', 'store.update', 'store.view', 'supplier.create', 'supplier.delete', 'supplier.update', 'supplier.view', 'user.create', 'user.delete', 'user.update', 'user.view'])
+JOIN public.permissions p ON p.code = ANY (ARRAY['app_settings.update', 'app_settings.view', 'audit.export', 'audit.view', 'category.create', 'category.delete', 'category.export', 'category.import', 'category.update', 'category.view', 'consignment.create', 'consignment.force_return', 'consignment.pay', 'consignment.reconcile', 'consignment.settle', 'consignment.update', 'consignment.view', 'customer.create', 'customer.delete', 'customer.export', 'customer.import', 'customer.update', 'customer.view', 'customer_group.create', 'customer_group.delete', 'customer_group.export', 'customer_group.import', 'customer_group.update', 'customer_group.view', 'dashboard.view', 'inventory.adjust', 'pricing.approve', 'pricing.create', 'pricing.delete', 'pricing.update', 'pricing.view', 'product.cost.view', 'product.create', 'product.delete', 'product.export', 'product.history.view', 'product.import', 'product.update', 'product.view', 'purchase_order.cancel', 'purchase_order.confirm', 'purchase_order.create', 'purchase_order.delete', 'purchase_order.receive', 'purchase_order.update', 'purchase_order.view', 'receipt.print', 'report.view', 'role.create', 'role.delete', 'role.update', 'role.view', 'sale.create', 'sale.detail', 'sale.park', 'sale.view', 'shift.audit', 'shift.cash_movement', 'shift.create', 'shift.review', 'shift.view', 'stock_opname.assign', 'stock_opname.cancel', 'stock_opname.close', 'stock_opname.count', 'stock_opname.create', 'stock_opname.export', 'stock_opname.post', 'stock_opname.recount', 'stock_opname.report', 'stock_opname.submit', 'stock_opname.verify', 'stock_opname.view', 'storage_location.create', 'storage_location.delete', 'storage_location.update', 'storage_location.view', 'store.create', 'store.delete', 'store.export', 'store.import', 'store.update', 'store.view', 'supplier.create', 'supplier.delete', 'supplier.update', 'supplier.view', 'user.create', 'user.delete', 'user.update', 'user.view'])
 WHERE r.name = 'superadmin'
 ON CONFLICT DO NOTHING;
 

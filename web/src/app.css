@@ -17,6 +17,24 @@
   z-index: -1;
 }
 
+/* Consignment document container — hidden on screen, only visible when printing */
+.consignment-print-container {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  width: 210mm;
+  background: white;
+  color: #000;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 10pt;
+  line-height: 1.4;
+  z-index: -1;
+}
+
 @media print {
   body {
     background: white !important;
@@ -24,8 +42,8 @@
     padding: 0 !important;
   }
 
-  /* Hide everything except the thermal receipt container */
-  #app > *:not(.thermal-receipt-container) {
+  /* Hide everything except the printable containers */
+  #app > *:not(.thermal-receipt-container):not(.consignment-print-container) {
     display: none !important;
   }
 
@@ -146,6 +164,126 @@
     font-size: 9pt !important;
     margin-top: 3mm !important;
     line-height: 1.4 !important;
+  }
+
+  /* Consignment document (A4) */
+  .consignment-print-container {
+    display: block !important;
+    position: static !important;
+    left: auto !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    z-index: 9999 !important;
+  }
+
+  .consignment-print-doc {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    padding: 12mm 15mm !important;
+    background: white !important;
+    color: #000 !important;
+    font-size: 10pt !important;
+  }
+
+  .consignment-print-doc * {
+    color: #000 !important;
+    background: transparent !important;
+    visibility: visible !important;
+  }
+
+  .consignment-print-header {
+    text-align: center !important;
+    border-bottom: 1px solid #000 !important;
+    padding-bottom: 4mm !important;
+    margin-bottom: 6mm !important;
+  }
+
+  .consignment-print-logo {
+    max-height: 18mm !important;
+    margin: 0 auto 2mm !important;
+    display: block !important;
+  }
+
+  .consignment-print-store {
+    font-size: 16pt !important;
+    font-weight: bold !important;
+  }
+
+  .consignment-print-store-detail {
+    font-size: 9pt !important;
+  }
+
+  .consignment-print-title {
+    text-align: center !important;
+    font-size: 14pt !important;
+    font-weight: bold !important;
+    text-transform: uppercase !important;
+    margin: 0 0 6mm !important;
+  }
+
+  .consignment-print-meta {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 1mm 10mm !important;
+    margin-bottom: 6mm !important;
+    font-size: 10pt !important;
+  }
+
+  .consignment-print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-bottom: 6mm !important;
+    font-size: 10pt !important;
+  }
+
+  .consignment-print-table th,
+  .consignment-print-table td {
+    border: 1px solid #000 !important;
+    padding: 1.5mm 2mm !important;
+    text-align: left !important;
+    vertical-align: top !important;
+  }
+
+  .consignment-print-table thead th {
+    background: #eee !important;
+    font-weight: bold !important;
+  }
+
+  .consignment-print-table .text-right {
+    text-align: right !important;
+  }
+
+  .consignment-print-total {
+    text-align: right !important;
+    font-weight: bold !important;
+    margin-bottom: 12mm !important;
+  }
+
+  .consignment-print-notes {
+    font-size: 10pt !important;
+    margin-bottom: 6mm !important;
+  }
+
+  .consignment-print-signatures {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 20mm !important;
+    margin-top: 20mm !important;
+    text-align: center !important;
+  }
+
+  .consignment-print-signature-line {
+    border-top: 1px solid #000 !important;
+    padding-top: 2mm !important;
+  }
+
+  .consignment-print-footer {
+    margin-top: 10mm !important;
+    font-size: 8pt !important;
+    text-align: center !important;
   }
 
   @page {

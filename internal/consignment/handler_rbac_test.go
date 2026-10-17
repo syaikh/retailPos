@@ -170,6 +170,43 @@ func TestHandler_CreateArrangement_StoreRequired(t *testing.T) {
 	})
 }
 
+// TestHandler_ForceReturn_RequiresForceReturnPermission pins the authorization
+// of POST /consignment/arrangements/:id/force-return to the dedicated
+// consignment.force_return code (superadmin/manager). A holder whose request is
+// authorized but has nothing to release falls through to the service and gets
+// 409 CNS-201, proving the gate passed rather than short-circuited.
+func TestHandler_ForceReturn_RequiresForceReturnPermission(t *testing.T) {
+	ctx := context.Background()
+	storeID := insertTestStore(ctx, t)
+	testUserID := insertTestUser(ctx, t)
+
+	svc := newTestService(t)
+	supplierID := insertTestSupplier(ctx, t, "Konsinyasi ForceReturn Supplier", true)
+	arr, err := svc.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierID, StoreID: storeID}, testUserID, nil)
+	require.NoError(t, err)
+
+	path := fmt.Sprintf("/api/consignment/arrangements/%d/force-return", arr.ID)
+
+	tests := []struct {
+		name  string
+		perms []string
+		want  int
+	}{
+		{"consignment.force_return can force return", []string{string(permissions.ConsignmentForceReturn)}, http.StatusConflict},
+		{"consignment.create alone cannot force return", []string{string(permissions.ConsignmentCreate)}, http.StatusForbidden},
+		{"consignment.view alone cannot force return", []string{string(permissions.ConsignmentView)}, http.StatusForbidden},
+		{"unrelated permission is rejected", []string{"report.view"}, http.StatusForbidden},
+		{"no permissions is rejected", []string{}, http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := setupConsignmentRBACRouter(t, tt.perms, &storeID, testUserID)
+			w := doConsignmentRequest(r, http.MethodPost, path, "")
+			assert.Equal(t, tt.want, w.Code)
+		})
+	}
+}
+
 // TestHandler_ListAddTermProductOptions_RequiresView pins the authorization of
 // GET /consignment/arrangements/:id/available-products to consignment.view.
 func TestHandler_ListAddTermProductOptions_RequiresView(t *testing.T) {
@@ -404,5 +441,53 @@ func TestHandler_ListAddTermProductOptions_SearchParameter(t *testing.T) {
 			fmt.Sprintf("/api/consignment/arrangements/%d/available-products?search=", arr.ID), "")
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), "data")
+	})
+}
+
+// TestHandler_ReconciliationAuthorization pins the authorization gates of the
+// §15.10 physical-reconciliation endpoints: reading is consignment.view, while
+// creating/counting/posting and the count sheet require the dedicated
+// consignment.reconcile code (superadmin/manager/inventory_staff).
+func TestHandler_ReconciliationAuthorization(t *testing.T) {
+	ctx := context.Background()
+	storeID := insertTestStore(ctx, t)
+	testUserID := insertTestUser(ctx, t)
+
+	svc := newTestService(t)
+	supplierID := insertTestSupplier(ctx, t, "Konsinyasi Reconcile Supplier", true)
+	arr, err := svc.CreateArrangement(ctx, &CreateArrangementRequest{SupplierID: supplierID, StoreID: storeID}, testUserID, nil)
+	require.NoError(t, err)
+
+	t.Run("listing reconciliations requires consignment.view", func(t *testing.T) {
+		rView := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentView)}, &storeID, testUserID)
+		assert.Equal(t, http.StatusOK,
+			doConsignmentRequest(rView, http.MethodGet, "/api/consignment/reconciliations?supplier_id=1", "").Code)
+
+		rReconcile := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentReconcile)}, &storeID, testUserID)
+		assert.Equal(t, http.StatusForbidden,
+			doConsignmentRequest(rReconcile, http.MethodGet, "/api/consignment/reconciliations?supplier_id=1", "").Code)
+	})
+
+	t.Run("count sheet requires consignment.reconcile", func(t *testing.T) {
+		path := fmt.Sprintf("/api/consignment/arrangements/%d/count-sheet", arr.ID)
+		rView := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentView)}, &storeID, testUserID)
+		assert.Equal(t, http.StatusForbidden, doConsignmentRequest(rView, http.MethodGet, path, "").Code)
+
+		rReconcile := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentReconcile)}, &storeID, testUserID)
+		assert.Equal(t, http.StatusOK, doConsignmentRequest(rReconcile, http.MethodGet, path, "").Code)
+	})
+
+	t.Run("creating a reconciliation requires consignment.reconcile", func(t *testing.T) {
+		body := fmt.Sprintf(`{"arrangement_id":%d}`, arr.ID)
+		for _, perms := range [][]string{
+			{string(permissions.ConsignmentView)},
+			{string(permissions.ConsignmentCreate)},
+		} {
+			r := setupConsignmentRBACRouter(t, perms, &storeID, testUserID)
+			assert.Equal(t, http.StatusForbidden, doConsignmentRequest(r, http.MethodPost, "/api/consignment/reconciliations", body).Code)
+		}
+
+		r := setupConsignmentRBACRouter(t, []string{string(permissions.ConsignmentReconcile)}, &storeID, testUserID)
+		assert.Equal(t, http.StatusCreated, doConsignmentRequest(r, http.MethodPost, "/api/consignment/reconciliations", body).Code)
 	})
 }

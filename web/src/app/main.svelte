@@ -8,6 +8,7 @@
   import { initWebSocket } from "$app/providers/websocket";
   import { initAuth } from "$app/providers/auth-init";
   import ReceiptPrintOverlay from "$app/components/ReceiptPrintOverlay.svelte";
+  import ConsignmentPrintOverlay from "$modules/consignment/components/ConsignmentPrintOverlay.svelte";
   import NotFoundPage from "$app/components/NotFoundPage.svelte";
   import { fade } from "svelte/transition";
   import { routePermissions } from "$app/config/permissions";
@@ -344,3 +345,5 @@
 <Toast />
 
 <ReceiptPrintOverlay />
+
+<ConsignmentPrintOverlay />

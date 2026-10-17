@@ -278,6 +278,14 @@
             >{formatCurrency(preview.total_store_share)}</span
           ></span
         >
+        {#if preview.total_liability > 0}
+          <span class="text-text-secondary"
+            >{labels.consignmentLiability}:
+            <span class="font-semibold text-danger"
+              >{formatCurrency(preview.total_liability)}</span
+            ></span
+          >
+        {/if}
         <span class="text-text-secondary"
           >{labels.consignmentPayableToSupplier}:
           <span class="font-semibold text-primary"
@@ -480,6 +488,12 @@
           <div class="font-semibold text-primary">
             {formatCurrency(detailSettlement.total_payable)}
           </div>
+          {#if detailSettlement.total_liability > 0}
+            <div class="text-xs text-danger">
+              {labels.consignmentLiability}:
+              {formatCurrency(detailSettlement.total_liability)}
+            </div>
+          {/if}
         </div>
       </div>
 

@@ -12,7 +12,15 @@
     Pagination,
     SearchBar,
   } from "$shared/ui";
-  import { Plus, Trash2, Truck, Pencil, Copy, Check } from "lucide-svelte";
+  import {
+    Plus,
+    Trash2,
+    Truck,
+    Pencil,
+    Copy,
+    Check,
+    Printer,
+  } from "lucide-svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { labels, t } from "$shared/i18n";
   import {
@@ -23,6 +31,7 @@
   } from "../services/consignment-service";
   import type { Arrangement, Receipt } from "../types";
   import { formatCurrency, formatDateTime } from "../lib/format";
+  import { printConsignmentDocument } from "../lib/print";
 
   const {
     arrangement,
@@ -771,6 +780,17 @@
           >{labels.close}</Button
         >
         {#if detailReceipt}
+          <Button
+            variant="secondary"
+            onclick={() =>
+              printConsignmentDocument({
+                kind: "receipt",
+                doc: detailReceipt!,
+              })}
+          >
+            <Printer class="w-4 h-4" />
+            {labels.consignmentPrintReceipt}
+          </Button>
           {#if editWindowExpired}
             <span class="text-xs text-text-secondary italic self-center"
               >{labels.consignmentEditWindowExpired}</span

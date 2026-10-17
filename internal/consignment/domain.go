@@ -29,6 +29,7 @@ var (
 	ErrPaymentMethodNotFound        = errors.New("payment method not found")
 	ErrStoreRequired                = errors.New("store is required")
 	ErrStockMustBeReturned          = errors.New("all consignment stock must be returned before ending the arrangement")
+	ErrNothingToReturn              = errors.New("no consignment stock or open pending returns to release")
 
 	// Receipt edit errors
 	ErrReceiptNotFound          = errors.New("consignment receipt not found")
@@ -39,6 +40,16 @@ var (
 	ErrEditReasonRequired       = errors.New("reason for edit is required")
 	ErrNegativeStock            = errors.New("edit would result in negative stock")
 	ErrReceiptEditItemNotFound  = errors.New("receipt item not found in this receipt")
+
+	// Physical reconciliation (PRD §15.10)
+	ErrReconciliationNotFound         = errors.New("consignment reconciliation not found")
+	ErrInvalidReconciliationStatus    = errors.New("reconciliation is not in a state that allows this action")
+	ErrReconciliationReasonRequired   = errors.New("reason is required for a non-zero variance")
+	ErrInvalidReconciliationReason    = errors.New("invalid reconciliation reason")
+	ErrReconciliationEmpty            = errors.New("reconciliation has no counted items")
+	ErrReconciliationProductMismatch  = errors.New("product is not part of this arrangement")
+	ErrDuplicateReconciliationProduct = errors.New("duplicate product in reconciliation request")
+	ErrReconciliationStale            = errors.New("reconciliation is stale: stock ownership changed since the count")
 )
 
 const (
@@ -74,6 +85,23 @@ const (
 	MovementTypeConsignmentReturn         = "consignment_return"
 	MovementTypeConsignmentPendingReturn  = "consignment_pending_return"
 	MovementTypeConsignmentCustomerReturn = "consignment_customer_return"
+	MovementTypeConsignmentReconciliation = "consignment_reconciliation"
+)
+
+const (
+	ReconcileStatusDraft   = "draft"
+	ReconcileStatusCounted = "counted"
+	ReconcileStatusPosted  = "posted"
+)
+
+// Reconciliation reasons extend the pending-return vocabulary. `lost` and
+// `stolen` are the only store-fault reasons that create a liability (D3a);
+// the rest record the correction without a charge.
+const (
+	ReasonMiscount          = "miscount"
+	ReasonLost              = "lost"
+	ReasonStolen            = "stolen"
+	ReasonUnrecordedReceipt = "unrecorded_receipt"
 )
 
 // Arrangement is one consignment partnership (one supplier + one store). The
@@ -214,6 +242,7 @@ type Settlement struct {
 	StoreID          int              `json:"store_id"`
 	TotalSaleValue   int              `json:"total_sale_value"`
 	TotalStoreShare  int              `json:"total_store_share"`
+	TotalLiability   int              `json:"total_liability"`
 	TotalPayable     int              `json:"total_payable"`
 	Status           string           `json:"status"`
 	CreatedBy        int              `json:"created_by"`
@@ -365,4 +394,98 @@ type ReceiptEdit struct {
 	Reason    string `json:"reason"`
 	IPAddress string `json:"ip_address,omitempty"`
 	CreatedAt string `json:"created_at"`
+}
+
+// Reconciliation is a physical stock count of one arrangement's consignment
+// holdings (§15.10). It moves draft -> counted -> posted; posting is the only
+// step that touches stock, and it corrects both the consignment ledger and the
+// global product_stock in lockstep.
+type Reconciliation struct {
+	ID                   int                  `json:"id"`
+	ReconciliationNumber string               `json:"reconciliation_number"`
+	ArrangementID        int                  `json:"arrangement_id"`
+	SupplierID           int                  `json:"supplier_id"`
+	SupplierName         string               `json:"supplier_name,omitempty"`
+	StoreID              int                  `json:"store_id"`
+	StoreName            string               `json:"store_name,omitempty"`
+	Status               string               `json:"status"`
+	Notes                string               `json:"notes,omitempty"`
+	CountedBy            *int                 `json:"counted_by,omitempty"`
+	PostedBy             *int                 `json:"posted_by,omitempty"`
+	CreatedBy            int                  `json:"created_by"`
+	CreatedAt            string               `json:"created_at"`
+	PostedAt             *string              `json:"posted_at,omitempty"`
+	Items                []ReconciliationItem `json:"items,omitempty"`
+	TotalShortfall       int                  `json:"total_shortfall"`
+	TotalSurplus         int                  `json:"total_surplus"`
+	TotalLiability       int                  `json:"total_liability"`
+}
+
+// ReconciliationItem is one counted product. SystemAvailable is the ledger
+// quantity captured when the count is saved; Variance is physical - system.
+// LiabilityAmount is only non-zero when the shortfall is store-fault
+// (lost/stolen) and the reconciliation has been posted.
+type ReconciliationItem struct {
+	ID                  int    `json:"id"`
+	ReconciliationID    int    `json:"reconciliation_id"`
+	ProductID           int    `json:"product_id"`
+	ProductSKU          string `json:"product_sku,omitempty"`
+	ProductName         string `json:"product_name,omitempty"`
+	SystemAvailable     int    `json:"system_available"`
+	PhysicalAvailable   int    `json:"physical_available"`
+	Variance            int    `json:"variance"`
+	Reason              string `json:"reason,omitempty"`
+	LiabilityAmount     int    `json:"liability_amount"`
+	SettledSettlementID *int   `json:"settled_settlement_id,omitempty"`
+	CreatedAt           string `json:"created_at,omitempty"`
+}
+
+// ReconciliationCountSheetRow is one arrangement product offered on the count
+// screen: the current ledger quantity for SystemAvailable plus the negotiated
+// price/share so the UI can preview a store-fault liability before saving.
+type ReconciliationCountSheetRow struct {
+	ProductID        int     `json:"product_id"`
+	ProductSKU       string  `json:"product_sku,omitempty"`
+	ProductName      string  `json:"product_name,omitempty"`
+	SystemAvailable  int     `json:"system_available"`
+	PendingReturnQty int     `json:"pending_return_qty"`
+	Price            int     `json:"price"`
+	StoreShareType   string  `json:"store_share_type"`
+	StoreShareValue  float64 `json:"store_share_value"`
+}
+
+type CreateReconciliationRequest struct {
+	ArrangementID int    `json:"arrangement_id" binding:"required"`
+	Notes         string `json:"notes"`
+}
+
+// ReconciliationItemInput carries one physical count. PhysicalAvailable is a
+// pointer so a legitimate count of zero survives `required` (a plain int can
+// not distinguish 0 from omitted).
+type ReconciliationItemInput struct {
+	ProductID         int    `json:"product_id" binding:"required"`
+	PhysicalAvailable *int   `json:"physical_available" binding:"required,min=0"`
+	Reason            string `json:"reason"`
+}
+
+type SaveReconciliationCountRequest struct {
+	Items []ReconciliationItemInput `json:"items" binding:"required,min=1"`
+	Notes *string                   `json:"notes"`
+}
+
+// Summarize recomputes the derived totals from the loaded items: shortfall is
+// the sum of negative variances (missing units), surplus the sum of positive
+// ones, and liability the sum of the priced store-fault amounts.
+func (rec *Reconciliation) Summarize() {
+	rec.TotalShortfall, rec.TotalSurplus, rec.TotalLiability = 0, 0, 0
+	for i := range rec.Items {
+		v := rec.Items[i].Variance
+		switch {
+		case v < 0:
+			rec.TotalShortfall += -v
+		case v > 0:
+			rec.TotalSurplus += v
+		}
+		rec.TotalLiability += rec.Items[i].LiabilityAmount
+	}
 }

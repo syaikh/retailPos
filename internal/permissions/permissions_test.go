@@ -7,8 +7,8 @@ import (
 
 func TestRegistryCount(t *testing.T) {
 	got := len(All())
-	if got != 95 {
-		t.Fatalf("registry has %d codes, want 95", got)
+	if got != 97 {
+		t.Fatalf("registry has %d codes, want 97", got)
 	}
 }
 
@@ -75,11 +75,11 @@ func TestSpotCheckCodes(t *testing.T) {
 		PurchaseOrderView, PurchaseOrderCreate, PurchaseOrderUpdate, PurchaseOrderDelete, PurchaseOrderConfirm, PurchaseOrderReceive, PurchaseOrderCancel,
 		StockOpnameView, StockOpnameCreate, StockOpnameAssign, StockOpnameCount, StockOpnameSubmit, StockOpnameRecount, StockOpnameCancel, StockOpnameExport, StockOpnameVerify, StockOpnamePost, StockOpnameClose, StockOpnameReport,
 		StorageLocationView, StorageLocationCreate, StorageLocationUpdate, StorageLocationDelete,
-		ConsignmentView, ConsignmentCreate, ConsignmentUpdate, ConsignmentSettle, ConsignmentPay,
+		ConsignmentView, ConsignmentCreate, ConsignmentUpdate, ConsignmentSettle, ConsignmentPay, ConsignmentForceReturn, ConsignmentReconcile,
 		AppSettingsView, AppSettingsUpdate,
 	}
-	if len(spot) != 95 {
-		t.Fatalf("spot-check list has %d entries, want 95", len(spot))
+	if len(spot) != 97 {
+		t.Fatalf("spot-check list has %d entries, want 97", len(spot))
 	}
 	for _, c := range spot {
 		if !Exists(c) {
