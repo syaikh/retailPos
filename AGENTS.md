@@ -46,57 +46,12 @@ This project uses a semantic codebase index at `.opencode/index`, use semantic t
 
 ## Environment Configuration
 
-All database connection parameters are in `.env.example`:
-- `DB_HOST=localhost`, `DB_PORT=5433` (dev) / `5432` (default), `DB_USER=pos`, `DB_PASSWORD=admin123`, `DB_NAME=retail_pos`
-- `DATABASE_URL`, when set, replaces all of the above (`cmd/server/main.go:89`) and carries its own `sslmode`, so `DB_SSLMODE` is ignored. `DB_HOST` is only required when it is unset.
+All configuration variables and their defaults live in `.env.example` (and the code fallbacks in `internal/config` / `internal/middleware`). Copy `.env.example` to `.env` and adjust as needed. Non-obvious gotchas:
 
-**Required:** `JWT_SECRET` (256-bit, generate with `openssl rand -hex 32`) — server panics at startup if missing.
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `JWT_SECRET_REFRESH` | (derived) | Separate secret for refresh tokens |
-| `FRONTEND_PORT` | `5173` | Frontend dev server (Vite). Distinct from `HOST_FRONTEND_PORT`, which is the production publish |
-| `BACKEND_PORT` | `9095` | Backend dev server (Go) |
-| `DATABASE_PORT` | `5433` | Development database port |
-| `LOGIN_RATE_LIMIT_RPM` | `5` | Login rate limit requests per minute |
-| `LOGIN_RATE_LIMIT_BURST` | `5` | Login rate limit burst |
-| `RATE_LIMIT_RPS` | `50` | General API rate limit requests per second |
-| `RATE_LIMIT_BURST` | `100` | General API rate limit burst |
-| `REFRESH_RATE_LIMIT_RPM` | `10` | Token refresh rate limit RPM |
-| `REFRESH_RATE_LIMIT_BURST` | `10` | Token refresh rate limit burst |
-| `WS_RATE_LIMIT_RPM` | `20` | WebSocket upgrade rate limit RPM |
-| `WS_RATE_LIMIT_BURST` | `5` | WebSocket upgrade burst |
-| `STOCK_WARNING_THRESHOLD` | `10` | Stock warning level |
-| `STOCK_CRITICAL_THRESHOLD` | `5` | Stock critical level |
-| `CART_HOLD_TTL_HOURS` | `24` | Cart hold TTL in hours |
-| `REPORT_REFRESH_DEBOUNCE` | `30` | Report refresh retry delay (seconds, exponential backoff) |
-| `DB_SSLMODE` | `require` (prod) / `disable` (dev) | libpq `sslmode` for the `DB_*` DSN. Invalid values are rejected at startup and fall back to the environment default. Ignored when `DATABASE_URL` is set |
-| `CORS_ORIGIN` | `http://localhost:5173` (dev) | Allowed CORS origin; must not be `*` in production. `podman-deploy.sh` derives it from `HOST_FRONTEND_PORT`, default `8000` |
-| `COOKIE_DOMAIN` | (host-only) | `Domain` attribute on the refresh-token cookie |
-| `COOKIE_SECURE` | `false` | `Secure` attribute on auth cookies — set `true` behind TLS |
-| `ENV` | `development` | Log format: development/production |
-| `LOG_LEVEL` | `info` | Log level: debug/info/warn/error |
-| `VITE_PRINT_MODE` | | Receipt printing mode (frontend) |
-| `VITE_PRINT_AGENT_URL` | | Print agent URL (frontend). **Leave unset for a multi-register shop** — see below |
-
-The defaults above are the **code fallbacks** in `internal/config` and
-`internal/middleware`. `.env.example` deliberately ships looser login and
-refresh limiters (`60/60` and `120/120`) so E2E runs do not hit 429 — do not
-read those as the shipped defaults, and do not copy them to a deployment.
-
-`VITE_PRINT_AGENT_URL` is a build-time override that names **one** print agent
-for **every** register. The frontend falls back to `http://localhost:9123`, so
-each register finds the agent on its own PC and one build serves the whole shop.
-Set this only for development (frontend and agent on different machines) or a
-kiosk where printers sit on a server. In a shop with one printer PC per till,
-setting it sends every till's receipts to a single machine. The per-register
-setting in the print settings screen outranks it, so it stays correctable, and the
-frontend warns when the active address is not localhost in silent mode.
-`PRINT_TOKEN` was removed from the print agent: the only client is a browser, so
-a token shipped to a browser is not a secret. See
-`docs/guides/print-agent-production.md`.
-
-Copy `.env.example` to `.env` and adjust as needed.
+- `DATABASE_URL`, when set, replaces all `DB_*` parameters (`cmd/server/main.go:89`) and carries its own `sslmode`, so `DB_SSLMODE` is ignored. `DB_HOST` is only required when it is unset.
+- **Required:** `JWT_SECRET` (256-bit, generate with `openssl rand -hex 32`) — the server panics at startup if missing. `JWT_SECRET_REFRESH` defaults to a derived value.
+- `.env.example` deliberately ships looser login/refresh rate limiters (`60/60`, `120/120`) so E2E runs do not hit 429 — do not read those as the shipped defaults (`5/5`, `10/10`), and do not copy them to a deployment.
+- `VITE_PRINT_AGENT_URL` is a build-time override naming **one** print agent for **every** register. **Leave unset for a multi-register shop** — each register must find the agent on its own PC (the frontend falls back to `http://localhost:9123`). Only set it for development (frontend and agent on different machines) or a kiosk with a server-hosted print agent. See `docs/guides/print-agent-production.md`.
 
 ## Timezone Handling
 
@@ -119,42 +74,11 @@ Analytical queries are served from materialized views pre-aggregated in Jakarta 
 ## Git Commit Policy
 Never auto-commit. User will request commits explicitly.
 
-## Linting Conventions
+## Linting & CI (GitHub Actions)
 
-New/edited code must pass all linters on the next CI run. Load the `lint-code` skill for backend (golangci-lint, go vet, gofmt -s) and frontend (ESLint, Prettier, svelte-check) rules, depguard import boundaries, and the verified Svelte 5 `$effect` bare-read fix patterns. Do not run full suites locally — run targeted per-package/file checks only when the user asks.
+New/edited code must pass all linters on the next CI run. Load the `lint-code` skill for backend (golangci-lint, go vet, gofmt -s) and frontend (ESLint, Prettier, svelte-check) rules, depguard import boundaries, and the verified Svelte 5 `$effect` bare-read fix patterns.
 
-## CI/CD (GitHub Actions)
-
-**All validation — formatting, linting, type-checking, testing, building, and security scanning — runs in GitHub CI.** Do not run full suites locally. The CI workflow (`.github/workflows/ci.yml`) triggers on pushes to `main` and on pull requests.
-
-**Do not run these locally — CI performs them:**
-- `gofmt`, `go vet`, `go build`, `go test`, `go test -race`, `golangci-lint`, `govulncheck`
-- `npm run lint`, `npm run check` (svelte-check), `npm run build`, `npm run test:run`, `prettier --check`
-- Database migrations, integration health checks, CodeQL analysis
-
-**Do not execute lint, type-check, build, or test commands without being asked.** If the user wants to verify something, provide the exact command and let them run it themselves.
-
-For rapid iteration during development, only run the specific package or file you are changing.
-
-### CI Jobs
-
-| Job | What it checks |
-|-----|----------------|
-| Go: Format | `gofmt -s` formatting |
-| Go: Vet | `go vet ./...` |
-| Go: Build | `go build ./...` |
-| Go: Tests | `go test -p 1 -count=1 ./...` + race detector (with PostgreSQL) |
-| Go: Lint | `golangci-lint` (govet, staticcheck, errcheck, ineffassign, unused, revive, depguard, gosec) |
-| Go: Vulnerability Check | `govulncheck ./...` |
-| Secrets: Gitleaks | `gitleaks` full-history scan (`secrets-check` job) |
-| Frontend: Install | `npm ci` (dependency gate) |
-| Frontend: Format | `prettier --check` |
-| Frontend: Lint | `eslint .` (TypeScript + Svelte) |
-| Frontend: Type Check | `svelte-check --tsconfig ./tsconfig.json` |
-| Frontend: Tests | `vitest run` |
-| Frontend: Build | `vite build` |
-| Integration: Build & Migrate | Backend build + DB migrations + server health check + frontend build |
-| Security: CodeQL | GitHub CodeQL analysis (main branch only) |
+**All validation — formatting, linting, type-checking, testing, building, and security scanning — runs in GitHub CI** (`.github/workflows/ci.yml`, triggered on pushes to `main` and on pull requests). **Do not run these locally, and do not execute lint, type-check, build, or test commands without being asked** — if the user wants to verify something, provide the exact command and let them run it themselves. For rapid iteration during development, only run the specific package or file you are changing.
 
 E2E tests run in a separate workflow (`.github/workflows/e2e.yml`) with sharded Playwright tests against a full stack (PostgreSQL, backend, frontend, print-agent).
 
@@ -197,11 +121,9 @@ Two consequences worth knowing:
 ## Utilities
 
 - `scripts/kill-port.sh <port>` — force-kill process holding a TCP port. Useful when `go run` child keeps port occupied (killing the parent `go run` PID does NOT free the port).
-- `scripts/audit-store-fk-orphans.sh [--database NAME]` — read-only preflight for `059_store_fk_integrity.sql` (Wave 6). Reports `store_id` values in `customers`, `users`, `goods_receipts`, `purchase_orders` that point at a non-existent store, plus the migration-058 prerequisite (`suppliers.store_id` must be all-NULL). Pins `default_transaction_read_only=on`, so it cannot write; safe against production. Exit 1 = blockers found.
+- `scripts/audit-store-fk-orphans.sh [--database NAME]` — read-only preflight for `059_store_fk_integrity.sql`; reports `store_id` orphans (exit 1 = blockers). Safe against production.
 
 ## Seeding Dummy Data
-
-Never auto-commit. Changes must be committed manually.
 
 ```bash
 ./seed-dev.sh [flags]
@@ -237,11 +159,11 @@ Re-seeding (`-truncate=false`) continues document sequences and reuses existing 
 | `--keep-uploads` | Do not clear `uploads/logos/` |
 | `--reseed` | Run `./seed-dev.sh` afterwards (**not** a fresh install — the seeder recreates `stores`/`payment_methods`/`customer_groups` with new ids, so `stores(id=1)` and `customers(id=1)` drift off the baseline invariant) |
 
-Re-migrating cannot achieve this. `000_baseline.sql` is purely additive — 129 `ON CONFLICT` guards, forward-only `setval`, and a single `DELETE` that touches only `schema_migrations` — so replaying it over a drifted database leaves every extra store, user, role, grant, and sale in place. The script drops and recreates the database, then replays the same migrations a new deployment would.
+Re-migrating cannot achieve this: `000_baseline.sql` is purely additive, so replaying it over a drifted database leaves every extra store, user, role, grant, and sale in place. The script drops and recreates the database and replays the migrations a fresh deployment would.
 
-**Dev only.** The script hard-refuses (no override) on `ENV=production`, a non-`localhost` `DB_HOST`, a `DB_NAME` other than `retail_pos`, or a port served by a container other than `postgres-dev`. The production volumes are never named. The container-identity check is skipped with a warning when `podman` is not on `PATH` (a native postgres on `localhost:5433` is a legitimate setup); the other three guards still apply.
+**Dev only.** The script hard-refuses (no override) on `ENV=production`, a non-`localhost` `DB_HOST`, a `DB_NAME` other than `retail_pos`, or a port served by a container other than `postgres-dev`. The container-identity check is skipped with a warning when `podman` is not on `PATH`; the other three guards still apply.
 
-It ends by printing the manual steps the script cannot perform: restart the backend (in-memory caches survive a database swap), clear the browser's site data (the `refresh_token` cookie and `sessionStorage.access_token` point at the old database), and delete the Playwright token cache. Design rationale: `docs/design/dev-db-fresh-install-reset-plan.md`.
+After a reset it prints the manual steps it cannot perform (restart the backend, clear browser site data, delete the Playwright token cache). Design rationale: `docs/design/dev-db-fresh-install-reset-plan.md`.
 
 ## Deployment
 
@@ -249,20 +171,9 @@ It ends by printing the manual steps the script cannot perform: restart the back
 
 Migrations must be applied **before** deploying a new server binary. Permission codes are seeded in dot notation by `000_baseline.sql`; there is no startup validation of codes — a mismatch surfaces as permission failures at request time, not at boot.
 
-| Migration | Purpose |
-|-----------|---------|
-| `000_baseline.sql` | Version 1 baseline. Complete schema (60 tables, 1 view, 3 materialised views, 72 functions, 225 indexes, 676 constraints) plus reference data (6 roles, 97 permissions, 292 grants, the 6 system users, 5 payment methods, 3 customer groups, default store, walk-in customer, 7 `app_settings` keys). Ends by clearing the `schema_migrations` rows of the migrations it replaced and registering itself. |
-| `054_pricing_rule_created_by.sql` | Adds nullable `pricing_rules.created_by` (FK `ON DELETE SET NULL`, indexed) so a rule records its author and self-approval can be blocked. Nullable so pre-existing rules stay approvable. |
-| `055_pricing_rule_new_rows_start_pending.sql` | Realigns the `pricing_rules` column defaults with the approval workflow: `status` was `'approved'` and `is_active` was `true`, so any INSERT omitting them created an immediately-active rule. Both now default to `'pending'`/`false`. Affects new rows only — already-approved rules stay active. |
-| `056_revoke_supervisor_pricing_mutation.sql` | Removes `pricing.create`/`update`/`delete` from supervisor on databases that already granted them. Editing the baseline's `role_permissions` array is not sufficient: the baseline only INSERTs into that table, so a code dropped from a grant list stops being added on a fresh install but is never removed from an upgraded one. |
-| `057_pricing_retire_draft_status.sql` | Retires the `draft` pricing-rule status. Drops `chk_pricing_status` and re-adds it over `(pending, approved, rejected)`, then hardens the two columns `055` only defaulted: the check is the last line of defence if a future migration writes `status` directly. `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT` keeps a second runner pass a no-op; verified by re-inserting a `draft` row, which the new definition rejects. A `DO` block first remaps any legacy `draft` row to `pending` under an `EXISTS` guard, so a stray row cannot abort the migration. |
-| `058_supplier_terms_store_scope.sql` | Adds nullable `product_suppliers.store_id` (FK `stores(id)`, `ON DELETE CASCADE`) so negotiated terms and the preferred-supplier choice are per store while the supplier itself stays global. Replaces the old uniqueness with `UNIQUE NULLS NOT DISTINCT (product_id, supplier_id, store_id)` (PostgreSQL 15+; dev is 18.3) so the estate-wide default row (`store_id IS NULL`) and per-store overrides can coexist for one pair, and makes `is_preferred` unique per `(product_id, store_id)`. Existing links keep `store_id = NULL` and become the shared default. Adds a `(supplier_id, store_id)` index for the supplier-side listing, then drops `suppliers.store_id` — guarded by a `DO` block that raises if any row is still non-NULL, so a database with unmapped outliers aborts instead of silently losing them. |
-| `059_store_fk_integrity.sql` | Closes the last four `store_id` FK gaps (`customers`, `users`, `goods_receipts`, `purchase_orders`) with `ALTER TABLE ... DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT`, so a second runner pass is a no-op. Adding a FK **validates every existing row**, so this hard-fails on the first orphan rather than installing a `NOT VALID` constraint that leaves the rows unchecked — run `scripts/audit-store-fk-orphans.sh` first. `ON DELETE` differs per table because nullability forces it: `RESTRICT` for the three `NOT NULL` columns, `SET NULL` for `users` (an HQ identity with a NULL store is meaningful, not broken). Also indexes `goods_receipts.store_id` (a FK is not indexed automatically, and `RESTRICT` now scans it on every store delete) and drops `customers.store_id DEFAULT 1`, which had been silently filing every seeded customer under store 1. |
-| `060_supplier_governance.sql` | Supplier governance phase 2: adds `created_by`/`updated_by` (FK `users(id) ON DELETE SET NULL`, indexed) for provenance and `version integer NOT NULL DEFAULT 1` for optimistic concurrency — every update bumps it and a stale client copy is refused. Swaps the global `suppliers_code_key` constraint for the partial unique index `suppliers_code_active_key ON suppliers (code) WHERE deleted_at IS NULL`, so a code freed by a soft delete becomes reusable. The baseline performs the same swap, because `internal/shared/testdb.go` skips files already in `schema_migrations` and an existing database applies only this file. |
-| `065_consignment_force_return.sql` | Adds the `consignment.force_return` permission (PRD §15.9 forced-return release) and grants it to `superadmin` and `manager` only — the store-sovereign escape hatch that releases a supplier's abandoned consignment stock so the SKU stops being locked against other consignment suppliers. A `DO` block inserts the code under `WHERE NOT EXISTS` and grants per role under a `NOT EXISTS` guard, so a second runner pass is a no-op. The code and both grants are also added to `000_baseline.sql` (id 96) because it is the authoritative fresh-install seed and `internal/permissions`' baseline tests require every registered code to have a baseline row and grant; `permissions_test.go` count is now 96. |
-| `066_consignment_reconciliation.sql` | Phase 3 (PRD §15.10): consignment physical reconciliation. Adds `consignment_reconciliations` (header: `draft`/`counted`/`posted`, unique `RECON-…` number, arrangement/supplier/store, `counted_by`/`posted_by`) and `consignment_reconciliation_items` (`system_available`, `physical_available`, `variance`, `reason` required when variance ≠ 0, `liability_amount`, `settled_settlement_id`), plus `consignment_settlements.total_liability` (D3b). Adds `consignment.reconcile`, granted to `superadmin`/`manager`/`inventory_staff`, and `consignment.view` to `inventory_staff`; both mirrored into `000_baseline.sql` (id 97). All DDL guarded (`IF NOT EXISTS` / guarded `DO` blocks) so a re-run is a no-op; the schema is not mirrored into the baseline because every runner replays every file, so a fresh install already gets these tables from this file. `permissions_test.go` count is now 97. |
-
-The 32 migrations this file squashes (`000_squash.sql` + `001`–`007` + `031`–`053`) are preserved unmodified in `database/migrations/archive/pre-squash-migrations.tar.gz`; their per-migration purpose list is kept in `docs/design/squash-v1-baseline-plan.md`. **New migrations must start at `061_*.sql`.** (`054_pricing_rule_created_by.sql` records the rule's author for the self-approval check; `055_pricing_rule_new_rows_start_pending.sql` makes the schema defaults match that workflow; `056_revoke_supervisor_pricing_mutation.sql` removes the pricing mutation grants from supervisor on databases that already have them — the baseline only INSERTs grants, so a removed code needs an explicit DELETE. `057_pricing_retire_draft_status.sql` retires the `draft` pricing status, matching the code: the `status` column default was already `pending` in `055`, so only the `chk_pricing_status` constraint still admitted `draft`. `058_supplier_terms_store_scope.sql` is Wave 5/D3 Option C — it moves the store boundary off `suppliers` and onto `product_suppliers`. `059_store_fk_integrity.sql` is Wave 6 — it adds the four remaining `store_id` foreign keys and validates existing rows, so its prerequisite audit must pass first. `060_supplier_governance.sql` adds supplier provenance and optimistic concurrency and narrows the code uniqueness to live rows.)
+- Per-migration purpose: read the header comment of each `database/migrations/*.sql` file; design history is in `docs/design/squash-v1-baseline-plan.md`.
+- **New migrations continue from the highest existing number (currently `066`, next `067_*.sql`).** Any new permission code and its grants must also be added to `000_baseline.sql` — it is the authoritative fresh-install seed, and `internal/permissions` baseline tests require every registered code to have a baseline row and grant.
+- The 32 migrations squashed into the baseline (`000_squash.sql` + `001`–`007` + `031`–`053`) are preserved in `database/migrations/archive/pre-squash-migrations.tar.gz`.
 
 `000_baseline.sql` is generated, not hand-written: it was produced from a `pg_dump` of a fully-migrated reference database and normalised so that it replays on an empty database, on a database that already went through the legacy chain, and on every re-run. Anything it does not cover (timestamps, random-salt credential hashes, materialised-view contents) is deliberately excluded rather than frozen into the file.
 
@@ -272,15 +183,15 @@ All three non-test runners apply **every** file in `database/migrations/*.sql` (
 
 | Runner | Reads `schema_migrations` | Writes it |
 |--------|---------------------------|-----------|
-| `deploy/podman-deploy.sh:376-389` | no | yes, per file (`:388`) |
-| `.github/workflows/ci.yml:376-379` | no | no |
-| `.github/workflows/e2e.yml:63-66` | no | no |
+| `deploy/podman-deploy.sh:542-557` | no | yes, per file (`:555-556`) |
+| `.github/workflows/ci.yml:375-393` | no | no |
+| `.github/workflows/e2e.yml:62-66` | no | no |
 | `internal/shared/testdb.go:46-117` | **yes** (`:64`, `:70-79`, `:92`) | yes (`:75`, `:112`) |
 
 Consequences:
 
 - **Every migration must be permanently re-runnable.** Use `IF NOT EXISTS` / `ON CONFLICT DO NOTHING` / `DROP … IF EXISTS`. One statement that fails on a second run aborts the loop.
-- **`000_baseline.sql` self-registers as its last statement and deletes the rows of the 32 migrations it replaced.** The ledger therefore holds **one row per migration file** — 10 today (`000_baseline.sql` + `054`–`060` + `065` + `066`), not one row. The deletion is scoped to an explicit filename list, so migrations added later keep their own entries.
+- **`000_baseline.sql` self-registers as its last statement and deletes the rows of the 32 migrations it replaced.** The ledger therefore holds **one row per migration file**, not one row. The deletion is scoped to an explicit filename list, so migrations added later keep their own entries.
 - **`testdb.go` is the one ledger-aware runner, and it short-circuits three ways.** It returns early when the row count already equals the file count (`:66`), and — critically — when the ledger is empty but the schema is *not*, it writes every filename and returns without applying anything (`:70-79`). That second path is why a migration file which only an already-migrated database needs (see `060`'s own header comment) cannot be exercised through `testdb.go` alone. Per file it skips anything already recorded (`:92`).
 - **Never make a runner skip by filename.** The baseline is amended in place, so skipping would freeze old content in prod while CI/e2e (empty ledger) keep replaying — the two would diverge invisibly.
 - **Guarded DDL skips silently when the object already exists.** `ADD COLUMN IF NOT EXISTS x INTEGER REFERENCES parent(id)` adds neither column nor FK if the column pre-exists.
