@@ -214,7 +214,7 @@ Never auto-commit. Changes must be committed manually.
 
 Re-seeding (`-truncate=false`) continues document sequences and reuses existing products/suppliers/pricing rules, adding new transactions without key collisions. The seeder preserves `must_change_password` on the six system accounts (the e2e workflow unflags its own test users instead).
 
-`seed-dev.sh` is **not** a reset. It truncates 41 tables (`cmd/dummy/main.go`) but preserves `users` (ids, `store_id`, `must_change_password`) and never touches `roles`, `permissions`, `role_permissions`, or `app_settings`; `cart_sessions`, `cash_movements`, the four `import_*` tables, and `dead_letter_events` survive it entirely.
+`seed-dev.sh` is **not** a reset. It truncates 43 tables (`cmd/dummy/main.go`) but preserves `users` (ids, `store_id`, `must_change_password`) and never touches `roles`, `permissions`, `role_permissions`, or `app_settings`; `cart_sessions`, `cash_movements`, the four `import_*` tables, and `dead_letter_events` survive it entirely.
 
 ## Resetting the Dev Database to Fresh-Install State
 

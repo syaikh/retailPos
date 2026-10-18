@@ -707,6 +707,8 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 	// `users`; the snapshot above restores it below.
 	tables := []string{
 		// Consignment child tables first
+		"consignment_reconciliation_items",
+		"consignment_reconciliations",
 		"consignment_settlement_items",
 		"consignment_payouts",
 		"consignment_return_items",
