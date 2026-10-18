@@ -6,29 +6,41 @@ on:
   workflow_dispatch:
 
 jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.list.outputs.targets }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enumerate fuzz targets
+        id: list
+        run: |
+          set -euo pipefail
+          python3 scripts/list_fuzz_targets.py > /tmp/fuzz-targets.json
+          jq . /tmp/fuzz-targets.json
+          if [ "$(jq 'length' /tmp/fuzz-targets.json)" -eq 0 ]; then
+            echo "::error::no Fuzz* targets found — add one or delete this workflow"
+            exit 1
+          fi
+          echo "targets=$(jq -c . /tmp/fuzz-targets.json)" >> "$GITHUB_OUTPUT"
+
   fuzz:
+    needs: discover
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        pkg:
-          - ./internal/pricing/...
-          - ./internal/shared/...
+        include: ${{ fromJSON(needs.discover.outputs.targets) }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
-      - name: Run fuzz tests (limited time)
+          go-version-file: ${{ matrix.module == '.' && 'go.mod' || format('{0}/go.mod', matrix.module) }}
+          cache-dependency-path: ${{ matrix.module == '.' && 'go.sum' || format('{0}/go.sum', matrix.module) }}
+      - name: "Fuzz ${{ matrix.target }} (${{ matrix.pkg }})"
         run: |
-          set -euo pipefail
-          pkg="${{ matrix.pkg }}"
-          targets=$(go test -list '^Fuzz' "$pkg" | grep '^Fuzz' || true)
-          if [ -z "$targets" ]; then
-            echo "::error::no Fuzz* targets in $pkg — add one or drop this package from the matrix"
-            exit 1
-          fi
-          for t in $targets; do
-            echo "== Fuzzing $pkg $t"
-            go test -fuzz="^${t}\$" -fuzztime 5m "$pkg"
-          done
+          go -C "${{ matrix.module }}" test \
+            -run='^${{ matrix.target }}$' \
+            -fuzz='^${{ matrix.target }}$' \
+            -fuzztime 5m \
+            ${{ matrix.pkg }}

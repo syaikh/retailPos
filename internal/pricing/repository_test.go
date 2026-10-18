@@ -21,13 +21,10 @@ import (
 var dbPool *pgxpool.Pool
 
 func TestMain(m *testing.M) {
-	// The fuzz engine re-executes the test binary once per worker, and each
-	// worker runs TestMain. Concurrent RunMigrations/TruncateTestData from
-	// several workers contend on the same database and make workers die
-	// (surfaces as "fuzzing process terminated ... EOF"). Fuzz targets here
-	// are pure functions, so workers skip the database entirely; this also
-	// lets fuzzing run in CI jobs without a PostgreSQL service.
-	if fuzzTestMode() {
+	// The fuzz engine re-executes the test binary once per worker (and per
+	// worker TestMain runs again), so skip the database in fuzz mode: see
+	// shared.FuzzTestMode.
+	if shared.FuzzTestMode() {
 		os.Exit(m.Run())
 	}
 
@@ -47,17 +44,6 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(m.Run())
-}
-
-// fuzzTestMode reports whether the binary runs as a fuzz coordinator
-// (-test.fuzz=...) or a fuzz worker (-test.fuzzworker).
-func fuzzTestMode() bool {
-	for _, arg := range os.Args {
-		if strings.HasPrefix(arg, "-test.fuzz") {
-			return true
-		}
-	}
-	return false
 }
 
 func insertTestProduct(ctx context.Context, t *testing.T, sku string, name string, price int) int {

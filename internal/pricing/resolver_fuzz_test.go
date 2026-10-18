@@ -86,3 +86,61 @@ func FuzzComputePrice(f *testing.F) {
 		}
 	})
 }
+
+// FuzzSpecificityScore exercises the scope-precedence scoring that decides which
+// rule wins when several match a product. The precedence is product (3) >
+// category (2) > brand (1) > none (0), and every dereference must stay nil-safe:
+// a rule scoped to a category must not panic when the caller passes a nil
+// category id, and a query id must not be dereferenced when the rule leaves that
+// scope unset.
+func FuzzSpecificityScore(f *testing.F) {
+	f.Add(uint8(0), uint8(0), 7, 7)
+	f.Add(uint8(0), uint8(1), 7, 7)
+	f.Add(uint8(1), uint8(3), 7, 7)
+	f.Add(uint8(2), uint8(2), 7, 7)
+	f.Add(uint8(3), uint8(3), 7, 7)
+	f.Add(uint8(1), uint8(0), 7, 8)
+
+	f.Fuzz(func(t *testing.T, scopeSel, querySel uint8, ruleID, queryID int) {
+		rule := Rule{}
+		switch scopeSel % 4 {
+		case 0:
+			rule.ProductID = &ruleID
+		case 1:
+			rule.CategoryID = &ruleID
+		case 2:
+			rule.BrandID = &ruleID
+		case 3: // unscoped rule
+		}
+
+		productID := queryID
+		var categoryID, brandID *int
+		switch querySel % 4 {
+		case 1:
+			categoryID = &queryID
+		case 2:
+			brandID = &queryID
+		case 3:
+			categoryID, brandID = &queryID, &queryID
+		}
+
+		got := specificityScore(rule, productID, categoryID, brandID)
+
+		want := 0
+		switch {
+		case rule.ProductID != nil && *rule.ProductID == productID:
+			want = 3
+		case rule.CategoryID != nil && categoryID != nil && *rule.CategoryID == *categoryID:
+			want = 2
+		case rule.BrandID != nil && brandID != nil && *rule.BrandID == *brandID:
+			want = 1
+		}
+		if got != want {
+			t.Fatalf("specificityScore(product=%d category=%v brand=%v, rule product=%v category=%v brand=%v) = %d, want %d",
+				productID, categoryID, brandID, rule.ProductID, rule.CategoryID, rule.BrandID, got, want)
+		}
+		if got < 0 || got > 3 {
+			t.Fatalf("specificityScore returned %d outside 0..3", got)
+		}
+	})
+}

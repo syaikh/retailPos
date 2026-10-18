@@ -21,6 +21,12 @@ func uniqueSKU(base string) string {
 }
 
 func TestMain(m *testing.M) {
+	// Fuzz workers re-run TestMain; skip the database in fuzz mode so parallel
+	// workers do not contend on migrations/truncation (see shared.FuzzTestMode).
+	if shared.FuzzTestMode() {
+		os.Exit(m.Run())
+	}
+
 	pool, err := shared.NewTestDB()
 	if err != nil {
 		os.Exit(1)
