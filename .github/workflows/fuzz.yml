@@ -21,7 +21,14 @@ jobs:
           go-version: '1.24'
       - name: Run fuzz tests (limited time)
         run: |
-          for p in "${{ join(matrix.pkg, ' ') }}"; do
-            echo "Fuzzing $p"
-            go test -fuzz=Fuzz -fuzztime 5m $p || exit 1
+          set -euo pipefail
+          pkg="${{ matrix.pkg }}"
+          targets=$(go test -list '^Fuzz' "$pkg" | grep '^Fuzz' || true)
+          if [ -z "$targets" ]; then
+            echo "::error::no Fuzz* targets in $pkg — add one or drop this package from the matrix"
+            exit 1
+          fi
+          for t in $targets; do
+            echo "== Fuzzing $pkg $t"
+            go test -fuzz="^${t}\$" -fuzztime 5m "$pkg"
           done
