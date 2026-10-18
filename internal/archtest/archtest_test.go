@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -315,12 +316,13 @@ func knownTables(t *testing.T) map[string]bool {
 	// the first word would reduce the whole harvest to {"public"}. Quotes
 	// (CREATE TABLE "users") are equally optional.
 	createRe := regexp.MustCompile(`(?i)CREATE\s+(?:(?:OR REPLACE|UNLOGGED|MATERIALIZED)\s+)*(?:TABLE|VIEW)\s+(?:IF NOT EXISTS\s+)?(?:\w+\.)?"?(\w+)"?`)
-	files, err := filepath.Glob(filepath.Join("..", "..", "database", "migrations", "*.sql"))
+	migFS := os.DirFS(filepath.Join("..", "..", "database", "migrations"))
+	files, err := fs.Glob(migFS, "*.sql")
 	if err != nil {
 		t.Fatalf("glob migrations: %v", err)
 	}
 	for _, file := range files {
-		b, err := os.ReadFile(file)
+		b, err := fs.ReadFile(migFS, file)
 		if err != nil {
 			t.Fatalf("read %s: %v", file, err)
 		}

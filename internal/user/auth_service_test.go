@@ -245,16 +245,16 @@ func TestValidateSession_EmptyContext(t *testing.T) {
 func TestAuthService_ParseToken_NonHMAC(t *testing.T) {
 	svc := newTestAuthService(t)
 	// jwt with alg: RS256 (non-HMAC) - valid base64url header
-	token := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MX0."
-	_, err := svc.parseToken(token)
+	nonHMACJWT := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MX0."
+	_, err := svc.parseToken(nonHMACJWT)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected signing method")
 }
 
 func TestAuthService_ParseRefreshToken_NonHMAC(t *testing.T) {
 	svc := newTestAuthService(t)
-	token := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MX0."
-	_, err := svc.parseRefreshToken(token)
+	nonHMACJWT := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MX0."
+	_, err := svc.parseRefreshToken(nonHMACJWT)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected signing method")
 }

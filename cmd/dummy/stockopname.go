@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"math/rand"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // injectStockOpnames seeds realistic stock opname sessions across the date range.
@@ -99,9 +100,9 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			dayOffset = totalDays - 1
 		}
 		createdAt := startDate.AddDate(0, 0, dayOffset)
-		createdAt = createdAt.Add(time.Duration(8*3600+rand.Intn(8*3600)) * time.Second)
+		createdAt = createdAt.Add(time.Duration(8*3600+randIntn(8*3600)) * time.Second)
 		if createdAt.After(ref) {
-			createdAt = ref.Add(-time.Duration(3600+rand.Intn(2*3600)) * time.Second)
+			createdAt = ref.Add(-time.Duration(3600+randIntn(2*3600)) * time.Second)
 		}
 
 		// Only the most recent session is left active (for the in-progress demo).
@@ -109,39 +110,39 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 		status := "posted"
 		if isMostRecent {
 			status = "counting"
-		} else if rand.Intn(100) < 20 {
+		} else if randIntn(100) < 20 {
 			status = "cancelled"
 		}
-		isClosed := status == "posted" && rand.Intn(100) < 70
+		isClosed := status == "posted" && randIntn(100) < 70
 		if isClosed {
 			status = "closed"
 		}
 
-		createdBy := managerUserIDs[rand.Intn(len(managerUserIDs))]
+		createdBy := managerUserIDs[randIntn(len(managerUserIDs))]
 
 		scopeType := "store"
 		scopeID := 1
 		var warehouseID any
-		switch r := rand.Intn(100); {
+		switch r := randIntn(100); {
 		case r < 60:
 			if len(storeIDs) > 0 {
-				scopeID = storeIDs[rand.Intn(len(storeIDs))]
+				scopeID = storeIDs[randIntn(len(storeIDs))]
 			}
 		case r < 80:
 			scopeType = "category"
 			if len(categoryIDs) > 0 {
-				scopeID = categoryIDs[rand.Intn(len(categoryIDs))]
+				scopeID = categoryIDs[randIntn(len(categoryIDs))]
 			}
 		case r < 90:
 			scopeType = "warehouse"
-			scopeID = 1 + rand.Intn(3)
+			scopeID = 1 + randIntn(3)
 			warehouseID = scopeID
 		default:
 			scopeType = "product"
-			scopeID = 1 + rand.Intn(1000)
+			scopeID = 1 + randIntn(1000)
 		}
 
-		blindCount := rand.Intn(100) < 25
+		blindCount := randIntn(100) < 25
 
 		var seq int
 		if err := db.QueryRowContext(ctx, `SELECT nextval('so_seq')`).Scan(&seq); err != nil {
@@ -182,15 +183,15 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 		}
 
 		// Assignments: one supervisor + 1-3 counters.
-		supervisorID := managerUserIDs[rand.Intn(len(managerUserIDs))]
+		supervisorID := managerUserIDs[randIntn(len(managerUserIDs))]
 		shuffledCounters := make([]int, len(counterUserIDs))
 		copy(shuffledCounters, counterUserIDs)
-		rand.Shuffle(len(shuffledCounters), func(i, j int) { shuffledCounters[i], shuffledCounters[j] = shuffledCounters[j], shuffledCounters[i] })
-		numCounters := 1 + rand.Intn(3)
+		randShuffle(len(shuffledCounters), func(i, j int) { shuffledCounters[i], shuffledCounters[j] = shuffledCounters[j], shuffledCounters[i] })
+		numCounters := 1 + randIntn(3)
 		if numCounters > len(shuffledCounters) {
 			numCounters = len(shuffledCounters)
 		}
-		assignedAt := createdAt.Add(time.Duration(rand.Intn(3600)+600) * time.Second)
+		assignedAt := createdAt.Add(time.Duration(randIntn(3600)+600) * time.Second)
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO stock_opname_assignments (stock_opname_id, user_id, role, assigned_at)
 			VALUES ($1,$2,'supervisor',$3)
@@ -209,7 +210,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 		}
 
 		var counterIdx int
-		var approverID = managerUserIDs[rand.Intn(len(managerUserIDs))]
+		var approverID = managerUserIDs[randIntn(len(managerUserIDs))]
 		var totalDiff, totalAdj float64
 
 		// Collect item data first, then batch-insert to minimize round-trips.
@@ -237,17 +238,17 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			switch status {
 			case "posted", "closed":
 				physical = p.qty
-				r := rand.Intn(100)
+				r := randIntn(100)
 				if r >= 95 { // 5% large discrepancy
-					delta := float64(4 + rand.Intn(8))
-					if rand.Intn(2) == 0 {
+					delta := float64(4 + randIntn(8))
+					if randIntn(2) == 0 {
 						delta = -delta
 					}
 					physical = p.qty + delta
 					diff = delta
 				} else if r >= 85 { // 10% small discrepancy
-					delta := float64(1 + rand.Intn(3))
-					if rand.Intn(2) == 0 {
+					delta := float64(1 + randIntn(3))
+					if randIntn(2) == 0 {
 						delta = -delta
 					}
 					physical = p.qty + delta
@@ -260,9 +261,9 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 				itemStatus = "counted"
 
 			case "counting":
-				ratio := 0.45 + rand.Float64()*0.30
-				if rand.Float64() < ratio {
-					delta := float64(rand.Intn(3) - 1)
+				ratio := 0.45 + randFloat64()*0.30
+				if randFloat64() < ratio {
+					delta := float64(randIntn(3) - 1)
 					physical = p.qty + delta
 					if physical < 0 {
 						physical = 0
@@ -283,7 +284,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 				if diff != 0 {
 					remarks = stockOpnameRemarks()
 				}
-				countedAt = createdAt.Add(time.Duration(rand.Intn(6*3600)+3600) * time.Second)
+				countedAt = createdAt.Add(time.Duration(randIntn(6*3600)+3600) * time.Second)
 			}
 
 			itemSeeds = append(itemSeeds, itemSeed{
@@ -413,7 +414,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			// Counting/cancelled: set terminal state and commit.
 			switch status {
 			case "counting":
-				openedAt := createdAt.Add(time.Duration(rand.Intn(3600)+600) * time.Second)
+				openedAt := createdAt.Add(time.Duration(randIntn(3600)+600) * time.Second)
 				if _, err := tx.ExecContext(ctx, `
 					UPDATE stock_opnames SET opened_by = $1, opened_at = $2, updated_at = $2 WHERE id = $3
 				`, approverID, openedAt, sessionID); err != nil {
@@ -421,7 +422,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 					return fmt.Errorf("set opened session: %w", err)
 				}
 			case "cancelled":
-				cancelledAt := createdAt.Add(time.Duration(rand.Intn(6*3600)+1800) * time.Second)
+				cancelledAt := createdAt.Add(time.Duration(randIntn(6*3600)+1800) * time.Second)
 				if _, err := tx.ExecContext(ctx, `
 					UPDATE stock_opnames SET cancelled_at = $1, updated_at = $1 WHERE id = $2
 				`, cancelledAt, sessionID); err != nil {
@@ -544,7 +545,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 				VALUES `)
 				args := make([]interface{}, 0, len(chunk)*6)
 				for j, sd := range chunk {
-					movementAt := createdAt.Add(time.Duration(rand.Intn(12*3600)+8*3600) * time.Second)
+					movementAt := createdAt.Add(time.Duration(randIntn(12*3600)+8*3600) * time.Second)
 					if j > 0 {
 						sb.WriteString(", ")
 					}
@@ -561,9 +562,9 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 		}
 
 		// Terminal state fields (same as before).
-		postedAt := createdAt.Add(time.Duration(rand.Intn(24*3600)+24*3600) * time.Second)
-		verifiedAt := postedAt.Add(-time.Duration(1800+rand.Intn(3600)) * time.Second)
-		openedAt := createdAt.Add(time.Duration(rand.Intn(3600)+600) * time.Second)
+		postedAt := createdAt.Add(time.Duration(randIntn(24*3600)+24*3600) * time.Second)
+		verifiedAt := postedAt.Add(-time.Duration(1800+randIntn(3600)) * time.Second)
+		openedAt := createdAt.Add(time.Duration(randIntn(3600)+600) * time.Second)
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE stock_opnames
 			SET opened_by = $1, opened_at = $2,
@@ -641,7 +642,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 		}
 
 		if status == "closed" {
-			closedAt := postedAt.Add(time.Duration(rand.Intn(3600)+300) * time.Second)
+			closedAt := postedAt.Add(time.Duration(randIntn(3600)+300) * time.Second)
 			if _, err := tx.ExecContext(ctx, `
 				UPDATE stock_opnames SET closed_by = $1, closed_at = $2, updated_at = $2 WHERE id = $3
 			`, approverID, closedAt, sessionID); err != nil {
@@ -720,18 +721,12 @@ func getUserIDsByRoles(ctx context.Context, db *sql.DB, roles ...string) []int {
 	if len(roles) == 0 {
 		return nil
 	}
-	placeholders := make([]string, len(roles))
-	args := make([]interface{}, len(roles))
-	for i, r := range roles {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = r
-	}
 	rows, err := db.QueryContext(ctx, `
 		SELECT DISTINCT u.id
 		FROM users u
 		JOIN roles r ON r.id = u.role_id
-		WHERE u.is_active = true AND r.name IN (`+strings.Join(placeholders, ",")+`)
-	`, args...)
+		WHERE u.is_active = true AND r.name = ANY($1)
+	`, pq.Array(roles))
 	if err != nil {
 		return nil
 	}
@@ -756,7 +751,7 @@ func stockOpnameRemarks() string {
 		"Kesalahan pencatatan",
 		"Kemasan rusak",
 	}
-	return remarks[rand.Intn(len(remarks))]
+	return remarks[randIntn(len(remarks))]
 }
 
 // placeholder to keep log import used when seeder logging needs tweaks

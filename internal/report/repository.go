@@ -2,10 +2,11 @@ package report
 
 import (
 	"context"
+	crand "crypto/rand"
 	"fmt"
 	"log/slog"
 	"math"
-	"math/rand"
+	"math/big"
 	"sync"
 	"time"
 
@@ -22,6 +23,18 @@ type Repository struct {
 	saleStats    SaleStatsProvider
 	productStats ProductStatsProvider
 	stockStats   StockStatsProvider
+}
+
+// randIntn returns a uniform random int in [0, n) using crypto/rand.
+func randIntn(n int) int {
+	if n <= 0 {
+		return 0
+	}
+	v, err := crand.Int(crand.Reader, big.NewInt(int64(n)))
+	if err != nil {
+		return 0
+	}
+	return int(v.Int64())
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -216,7 +229,7 @@ func (r *Repository) GetPeriodComparison(
 	result.PreviousRevenuePerDay = int(math.Round(float64(result.PreviousRevenue) / float64(days)))
 
 	if r.cache != nil {
-		ttl := 25*time.Second + time.Duration(rand.Intn(10))*time.Second
+		ttl := 25*time.Second + time.Duration(randIntn(10))*time.Second
 		r.cache.SetWithTTL(key, &result, ttl)
 	}
 
@@ -306,7 +319,7 @@ func (r *Repository) GetDualChartData(
 	}
 
 	if r.cache != nil && len(current) > 0 {
-		ttl := 25*time.Second + time.Duration(rand.Intn(10))*time.Second
+		ttl := 25*time.Second + time.Duration(randIntn(10))*time.Second
 		r.cache.SetWithTTL(key, &dualResult{current, previous}, ttl)
 	}
 
@@ -362,7 +375,7 @@ func (r *Repository) GetLiveDashboardStats(ctx context.Context, storeID *int) (t
 	lowStockCount = int(lowStockCountInt64)
 
 	if r.cache != nil {
-		ttl := 10*time.Second + time.Duration(rand.Intn(5))*time.Second
+		ttl := 10*time.Second + time.Duration(randIntn(5))*time.Second
 		r.cache.SetWithTTL(key, &liveDashboardResult{todaysRevenue, todaysSales, totalProducts, lowStockCount}, ttl)
 	}
 
@@ -643,7 +656,7 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 	wg.Wait()
 
 	if r.cache != nil {
-		ttl := 10*time.Second + time.Duration(rand.Intn(5))*time.Second
+		ttl := 10*time.Second + time.Duration(randIntn(5))*time.Second
 		r.cache.SetWithTTL(key, &stats, ttl)
 	}
 

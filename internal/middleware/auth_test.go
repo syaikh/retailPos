@@ -231,7 +231,7 @@ func TestExtractToken(t *testing.T) {
 				c.Request.Header.Set("Authorization", tt.authHeader)
 			}
 			if tt.setCookie {
-				c.Request.AddCookie(&http.Cookie{Name: "access_token", Value: tt.cookieValue})
+				c.Request.AddCookie(&http.Cookie{Name: "access_token", Value: tt.cookieValue, HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
 			}
 
 			got := extractToken(c)
@@ -663,7 +663,7 @@ func TestNewModularAuthMiddleware_CookieFallback(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-	c.Request.AddCookie(&http.Cookie{Name: "access_token", Value: token})
+	c.Request.AddCookie(&http.Cookie{Name: "access_token", Value: token, HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
 	c.Request.Header.Set("User-Agent", "test-agent")
 	c.Request.RemoteAddr = "127.0.0.1:8080"
 

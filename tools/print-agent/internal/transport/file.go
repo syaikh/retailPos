@@ -18,7 +18,7 @@ func NewFile(dir string) (*FileTransport, error) {
 	if dir == "" {
 		dir = os.TempDir()
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, err
 	}
 	return &FileTransport{dir: dir}, nil
@@ -31,7 +31,7 @@ func (f *FileTransport) PathFor(jobID string) string {
 
 // Write renders the receipt to a .bin file named after the job.
 func (f *FileTransport) Write(jobID string, data []byte) error {
-	return os.WriteFile(f.PathFor(jobID), data, 0o644)
+	return os.WriteFile(f.PathFor(jobID), data, 0o600)
 }
 
 // Close is a no-op for the file transport.

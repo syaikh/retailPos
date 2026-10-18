@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
@@ -84,7 +85,7 @@ func refValues(rows []map[string]interface{}, key string) []string {
 
 func main() {
 	outDir := "docs/examples"
-	_ = os.MkdirAll(outDir, 0755)
+	_ = os.MkdirAll(outDir, 0750)
 
 	eng := template.NewEngine()
 
@@ -200,7 +201,7 @@ func generateExample(eng *template.Engine, outDir, filename string, s schema.Mod
 	}
 
 	path := fmt.Sprintf("%s/%s", outDir, filename)
-	f, err := os.Create(path)
+	f, err := os.Create(filepath.Clean(path))
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
 	}

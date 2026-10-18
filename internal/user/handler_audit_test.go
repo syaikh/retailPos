@@ -190,7 +190,7 @@ func TestAuditHandler_Logout(t *testing.T) {
 	r := setupMockAuthRouterWithAudit(svc)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/logout", nil)
-	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "test-token"})
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "test-token", HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -61,6 +62,9 @@ func setupSaleRouterWithPerms(t *testing.T, perms []string) *gin.Engine {
 	var id int
 	err := dbPool.QueryRow(ctx, `INSERT INTO users (username, email, password_hash, role_id) VALUES ('sale_handler_user', 'sale_handler@test.com', 'hash', 1) ON CONFLICT (username) DO UPDATE SET email = excluded.email RETURNING id`).Scan(&id)
 	require.NoError(t, err)
+	if id > math.MaxInt32 || id < math.MinInt32 {
+		panic("test user id exceeds int32 range")
+	}
 	testCashierID = int32(id)
 
 	r := gin.New()

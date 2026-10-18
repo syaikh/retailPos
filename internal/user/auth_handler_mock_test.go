@@ -176,7 +176,7 @@ func TestAuthHandler_RefreshToken_FromCookie(t *testing.T) {
 	r := setupMockAuthRouter(svc)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/auth/refresh", nil)
-	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "cookie-token"})
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "cookie-token", HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 }
@@ -406,7 +406,7 @@ func TestAuthHandler_Logout_Success(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/logout", nil)
-	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "some-token"})
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "some-token", HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "logged out")
@@ -464,7 +464,7 @@ func TestAuthHandler_Logout_ServiceError(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/logout", nil)
-	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "some-token"})
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "some-token", HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

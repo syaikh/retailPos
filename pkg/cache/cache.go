@@ -1,7 +1,9 @@
 package cache
 
 import (
-	"math/rand"
+	crand "crypto/rand"
+	"encoding/binary"
+	"math"
 	"sync"
 	"time"
 
@@ -79,7 +81,11 @@ func (c *Cache) Stats() (items int, evictions int) {
 	if m == nil {
 		return len(c.keys), 0
 	}
-	return len(c.keys), int(m.KeysEvicted())
+	evicted := m.KeysEvicted()
+	if evicted > uint64(math.MaxInt) {
+		return len(c.keys), math.MaxInt
+	}
+	return len(c.keys), int(evicted)
 }
 
 func jitter(ttl time.Duration) time.Duration {
@@ -87,5 +93,14 @@ func jitter(ttl time.Duration) time.Duration {
 		return 0
 	}
 	j := float64(ttl) * 0.1
-	return time.Duration(rand.Float64()*2*j - j)
+	return time.Duration(randFloat64()*2*j - j)
+}
+
+// randFloat64 returns a uniform random float in [0, 1) using crypto/rand.
+func randFloat64() float64 {
+	var b [8]byte
+	if _, err := crand.Read(b[:]); err != nil {
+		return 0.5
+	}
+	return float64(binary.LittleEndian.Uint64(b[:])>>11) / (1 << 53)
 }

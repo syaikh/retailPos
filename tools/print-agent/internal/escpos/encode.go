@@ -29,7 +29,7 @@ func encodeCP858(s string) []byte {
 	var buf bytes.Buffer
 	for _, r := range s {
 		if r < 0x80 {
-			buf.WriteByte(byte(r))
+			buf.WriteByte(byte(r & 0xFF))
 			continue
 		}
 		if alt, ok := latin1Fallback[r]; ok {

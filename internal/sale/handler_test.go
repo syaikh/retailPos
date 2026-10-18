@@ -3,6 +3,7 @@ package sale
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -77,6 +78,9 @@ func setupSaleRouter(t *testing.T) *gin.Engine {
 	err := dbPool.QueryRow(ctx, `INSERT INTO users (username, email, password_hash, role_id) VALUES ('sale_handler_user', 'sale_handler@test.com', 'hash', 1) ON CONFLICT (username) DO UPDATE SET email = excluded.email RETURNING id`).Scan(&id)
 	if err != nil {
 		panic(err)
+	}
+	if id > math.MaxInt32 || id < math.MinInt32 {
+		panic("test user id exceeds int32 range")
 	}
 	testCashierID = int32(id)
 

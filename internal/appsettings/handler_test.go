@@ -66,7 +66,7 @@ func TestHandler_GetPublicBranding_CacheHit(t *testing.T) {
 
 func TestHandler_ServeLogo_FromCache(t *testing.T) {
 	tmpDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "logo.png"), []byte("PNG-DATA"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "logo.png"), []byte("PNG-DATA"), 0600))
 
 	h := &Handler{logoDirAbs: tmpDir}
 	h.cache = &cacheEntry{
@@ -87,7 +87,7 @@ func TestHandler_ServeLogo_FromCache(t *testing.T) {
 
 func TestHandler_ServeLogo_FromCache_JPEG(t *testing.T) {
 	tmpDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "photo.jpg"), []byte("JPEG-DATA"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "photo.jpg"), []byte("JPEG-DATA"), 0600))
 
 	h := &Handler{logoDirAbs: tmpDir}
 	h.cache = &cacheEntry{

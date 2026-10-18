@@ -3,8 +3,8 @@ package shared
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -94,8 +94,7 @@ func RunMigrations(pool *pgxpool.Pool, migrationsDir string) error {
 			continue
 		}
 
-		path := filepath.Join(migrationsDir, f)
-		content, err := os.ReadFile(path)
+		content, err := fs.ReadFile(os.DirFS(migrationsDir), f)
 		if err != nil {
 			return fmt.Errorf("read %s: %w", f, err)
 		}

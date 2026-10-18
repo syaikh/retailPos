@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/rand"
 	"os"
 	"runtime"
 	"sort"
@@ -293,7 +292,7 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 
 	// Randomize categories if not specified (0 means random)
 	if numCategories == 0 {
-		numCategories = rand.Intn(36) + 65 // 65-100
+		numCategories = randIntn(36) + 65 // 65-100
 	}
 
 	// Validate and randomize new parameters
@@ -301,7 +300,7 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 		return fmt.Errorf("stores count must not be negative, got %d", numStores)
 	}
 	if numStores == 0 {
-		numStores = rand.Intn(21) + 20 // 20-40
+		numStores = randIntn(21) + 20 // 20-40
 	}
 	if numWarehousesPerStore < 0 {
 		return fmt.Errorf("warehouses count must not be negative, got %d", numWarehousesPerStore)
@@ -329,14 +328,14 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 		return fmt.Errorf("suppliers count must not be negative, got %d", numSuppliers)
 	}
 	if numSuppliers == 0 {
-		numSuppliers = rand.Intn(6) + 10 // 10-15
+		numSuppliers = randIntn(6) + 10 // 10-15
 	}
 	if numConsignment < 0 {
 		return fmt.Errorf("consignment count must not be negative, got %d", numConsignment)
 	}
 	if numConsignment == 0 {
 		// Default: 10-20% of suppliers
-		numConsignment = numSuppliers * (rand.Intn(11) + 10) / 100
+		numConsignment = numSuppliers * (randIntn(11) + 10) / 100
 		if numConsignment < 1 && numSuppliers > 0 {
 			numConsignment = 1
 		}
@@ -371,7 +370,7 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 				fmt.Printf("   Found %d existing products, reusing them for this re-seed\n", existingProducts)
 			}
 		} else {
-			numProducts = rand.Intn(1001) + 4500 // 4500-5500
+			numProducts = randIntn(1001) + 4500 // 4500-5500
 		}
 	}
 
@@ -399,7 +398,7 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	if numProducts == 0 {
 		var postTruncCount int
 		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM products`).Scan(&postTruncCount); err == nil && postTruncCount == 0 {
-			numProducts = rand.Intn(1001) + 4500 // 4500-5500
+			numProducts = randIntn(1001) + 4500 // 4500-5500
 		}
 	}
 
@@ -948,7 +947,7 @@ func ensureStores(ctx context.Context, db *sql.DB, numStores int) {
 	// Shuffle location names for variety
 	locations := make([]string, len(storeLocationNames))
 	copy(locations, storeLocationNames)
-	rand.Shuffle(len(locations), func(i, j int) {
+	randShuffle(len(locations), func(i, j int) {
 		locations[i], locations[j] = locations[j], locations[i]
 	})
 
@@ -972,8 +971,8 @@ func ensureStores(ctx context.Context, db *sql.DB, numStores int) {
 	created := 0
 	for i := 0; i < numStores && i < len(locations); i++ {
 		storeName := fmt.Sprintf("%s %s", centralCompanyName, locations[i])
-		address := fmt.Sprintf("Jl. Raya %s No. %d, %s", locations[i], 1+rand.Intn(100), locations[i])
-		phone := fmt.Sprintf("081%d%08d", i%10, rand.Intn(100000000))
+		address := fmt.Sprintf("Jl. Raya %s No. %d, %s", locations[i], 1+randIntn(100), locations[i])
+		phone := fmt.Sprintf("081%d%08d", i%10, randIntn(100000000))
 		if _, err := stmt.ExecContext(ctx, i+1, storeName, address, phone); err != nil {
 			fmt.Printf("Warning: failed to insert store %s: %v\n", storeName, err)
 			continue
@@ -1020,7 +1019,7 @@ func ensureWarehouses(ctx context.Context, db *sql.DB, numWarehousesPerStore int
 	// Shuffle warehouse names for variety
 	names := make([]string, len(warehouseNamePool))
 	copy(names, warehouseNamePool)
-	rand.Shuffle(len(names), func(i, j int) {
+	randShuffle(len(names), func(i, j int) {
 		names[i], names[j] = names[j], names[i]
 	})
 
@@ -1041,7 +1040,7 @@ func ensureWarehouses(ctx context.Context, db *sql.DB, numWarehousesPerStore int
 			whNum++
 			whName := names[j%len(names)]
 			code := fmt.Sprintf("WH-%03d", whNum)
-			address := fmt.Sprintf("Jl. Gudang No. %d, Gudang %s", 1+rand.Intn(50), whName)
+			address := fmt.Sprintf("Jl. Gudang No. %d, Gudang %s", 1+randIntn(50), whName)
 			if _, err := stmt.ExecContext(ctx, whName, code, address, storeID); err != nil {
 				fmt.Printf("Warning: failed to insert warehouse %s: %v\n", whName, err)
 				continue
@@ -1192,7 +1191,7 @@ func backfillRackStock(ctx context.Context, db *sql.DB) {
 	}
 
 	// Shuffle products and assign ~30% to rack stock
-	rand.Shuffle(len(productIDs), func(i, j int) { productIDs[i], productIDs[j] = productIDs[j], productIDs[i] })
+	randShuffle(len(productIDs), func(i, j int) { productIDs[i], productIDs[j] = productIDs[j], productIDs[i] })
 	rackProductCount := len(productIDs) * 30 / 100
 	if rackProductCount == 0 {
 		rackProductCount = 1
@@ -1214,14 +1213,14 @@ func backfillRackStock(ctx context.Context, db *sql.DB) {
 	for i := 0; i < rackProductCount; i++ {
 		prodID := productIDs[i]
 		// Pick a random warehouse and random location within it
-		wh := whList[rand.Intn(len(whList))]
+		wh := whList[randIntn(len(whList))]
 		if len(wh.locationIDs) == 0 {
 			continue
 		}
-		locID := wh.locationIDs[rand.Intn(len(wh.locationIDs))]
-		qty := 5 + rand.Intn(46) // 5-50 units per rack
-		reorderPoint := 5 + rand.Intn(10)
-		reorderQty := 10 + rand.Intn(41) // 10-50
+		locID := wh.locationIDs[randIntn(len(wh.locationIDs))]
+		qty := 5 + randIntn(46) // 5-50 units per rack
+		reorderPoint := 5 + randIntn(10)
+		reorderQty := 10 + randIntn(41) // 10-50
 
 		if _, err := stmt.ExecContext(ctx, prodID, wh.id, locID, qty, reorderPoint, reorderQty); err != nil {
 			// Skip silently (constraint violations, etc.)
@@ -1300,7 +1299,7 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo, nu
 	// Shuffle names for variety
 	names := make([]string, len(supplierCompanyNames))
 	copy(names, supplierCompanyNames)
-	rand.Shuffle(len(names), func(i, j int) {
+	randShuffle(len(names), func(i, j int) {
 		names[i], names[j] = names[j], names[i]
 	})
 
@@ -1328,13 +1327,13 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo, nu
 
 	for i := 0; i < numSuppliers; i++ {
 		supplierName := names[i]
-		contactFirst := customerFirstNames[rand.Intn(len(customerFirstNames))]
-		contactLast := customerLastNames[rand.Intn(len(customerLastNames))]
+		contactFirst := customerFirstNames[randIntn(len(customerFirstNames))]
+		contactLast := customerLastNames[randIntn(len(customerLastNames))]
 		contactName := fmt.Sprintf("%s %s", contactFirst, contactLast)
-		phone := fmt.Sprintf("021-%08d", rand.Intn(100000000))
+		phone := fmt.Sprintf("021-%08d", randIntn(100000000))
 		email := fmt.Sprintf("info@%s.co.id", strings.ToLower(strings.ReplaceAll(supplierName, " ", "")))
-		address := fmt.Sprintf("%s No. %d, %s", supplierStreets[rand.Intn(len(supplierStreets))], 1+rand.Intn(100), supplierCities[rand.Intn(len(supplierCities))])
-		createdAt := ref.AddDate(0, 0, -rand.Intn(90)-30)
+		address := fmt.Sprintf("%s No. %d, %s", supplierStreets[randIntn(len(supplierStreets))], 1+randIntn(100), supplierCities[randIntn(len(supplierCities))])
+		createdAt := ref.AddDate(0, 0, -randIntn(90)-30)
 
 		var id int
 		if err := supplierStmt.QueryRowContext(ctx, supplierName, fmt.Sprintf("SUP-%03d", i+1), contactName, phone, email, address, createdAt).Scan(&id); err != nil {
@@ -1362,7 +1361,7 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo, nu
 		defer func() { _ = linkStmt.Close() }()
 
 		for _, p := range products {
-			numLinks := 1 + rand.Intn(3) // 1-3 suppliers per product
+			numLinks := 1 + randIntn(3) // 1-3 suppliers per product
 			if numLinks > len(supplierIDs) {
 				numLinks = len(supplierIDs)
 			}
@@ -1370,15 +1369,15 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo, nu
 			// Shuffle supplier IDs for this product
 			shuffled := make([]int, len(supplierIDs))
 			copy(shuffled, supplierIDs)
-			rand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
+			randShuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
 
 			for j := 0; j < numLinks; j++ {
 				supID := shuffled[j]
 				sku := fmt.Sprintf("SKU-P%d-S%d", p.ID, supID)
-				unitCost := int(float64(p.Price) * (0.5 + rand.Float64()*0.3)) // 50-80% of product price
-				leadTime := 1 + rand.Intn(14)                                  // 1-14 days
-				isPreferred := j == 0                                          // first supplier is preferred
-				createdAt := ref.AddDate(0, 0, -rand.Intn(60))
+				unitCost := int(float64(p.Price) * (0.5 + randFloat64()*0.3)) // 50-80% of product price
+				leadTime := 1 + randIntn(14)                                  // 1-14 days
+				isPreferred := j == 0                                         // first supplier is preferred
+				createdAt := ref.AddDate(0, 0, -randIntn(60))
 
 				if _, err := linkStmt.ExecContext(ctx, p.ID, supID, sku, unitCost, leadTime, isPreferred, createdAt); err != nil {
 					// Silently skip constraint violations (e.g. preferred index)
@@ -1740,8 +1739,8 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		sku := generateSKU(catName, i)
 
 		// Price in IDR (multiply by 1000 since template prices are in thousands)
-		price := (rand.Intn(template.PriceMax-template.PriceMin+1) + template.PriceMin) * 1000
-		cost := int(float64(price) * (0.4 + rand.Float64()*0.3)) // 40-70% of price
+		price := (randIntn(template.PriceMax-template.PriceMin+1) + template.PriceMin) * 1000
+		cost := int(float64(price) * (0.4 + randFloat64()*0.3)) // 40-70% of price
 
 		// Generate barcode (6-13 characters)
 		barcode := generateBarcode(i)
@@ -1749,12 +1748,12 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		stock := generateStockLevel(catName)
 
 		// Random date within last 6 months (evenly distributed across the period)
-		randomDays := rand.Intn(150) + 30 // 30-180 days ago (6 month span)
+		randomDays := randIntn(150) + 30 // 30-180 days ago (6 month span)
 		createdAt := time.Now().In(jakartaTZ).AddDate(0, 0, -randomDays)
 
 		var id int
-		brandID := rand.Intn(5) + 1
-		uomID := rand.Intn(8) + 1
+		brandID := randIntn(5) + 1
+		uomID := randIntn(8) + 1
 		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, catID, brandID, uomID, createdAt).Scan(&id)
 		if err != nil {
 			// A pre-existing SKU (re-seed without truncation) is a routine
@@ -2263,7 +2262,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 	for _, dayOffset := range job.days {
 		dayDate := startDate.AddDate(0, 0, dayOffset)
 
-		salesForDay := 10 + rand.Intn(11)
+		salesForDay := 10 + randIntn(11)
 
 		for s := 0; s < salesForDay; s++ {
 			invoiceNum := job.startInvoice + invoiceCounter
@@ -2283,7 +2282,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 			}
 			// 30-50% of sales use the walk-in/general customer
 			customerID := randElemInt(job.customerIDs)
-			if rand.Intn(100) < 40 {
+			if randIntn(100) < 40 {
 				customerID = job.walkInCustomerID
 			}
 			paymentMethod := weightedRandomChoice(paymentMethods, paymentWeights)
@@ -2587,13 +2586,13 @@ func randomTime24Hour(dayDate, ref time.Time) time.Time {
 		if hour == currentHour {
 			maxMinute = currentMinute
 		}
-		minute = rand.Intn(maxMinute + 1)
+		minute = randIntn(maxMinute + 1)
 	} else {
-		minute = rand.Intn(60)
+		minute = randIntn(60)
 	}
 
 	return time.Date(dayDate.Year(), dayDate.Month(), dayDate.Day(),
-		hour, minute, rand.Intn(60), 0, jakartaTZ)
+		hour, minute, randIntn(60), 0, jakartaTZ)
 }
 
 // Helper functions for realistic data generation
@@ -2699,7 +2698,7 @@ func generateBarcode(index int) string {
 	// Generate first 12 random digits
 	digits := make([]int, 12)
 	for i := 0; i < 12; i++ {
-		digits[i] = rand.Intn(10)
+		digits[i] = randIntn(10)
 	}
 
 	// Calculate check digit (EAN-13 algorithm)
@@ -2727,15 +2726,15 @@ func generateStockLevel(category string) int {
 	// Different stock levels based on category
 	switch category {
 	case "Smartphones", "Laptops", "Cameras":
-		return rand.Intn(50) + 10 // 10-60 units (high-value items)
+		return randIntn(50) + 10 // 10-60 units (high-value items)
 	case "Groceries", "Snacks", "Beverages":
-		return rand.Intn(200) + 50 // 50-250 units (consumables)
+		return randIntn(200) + 50 // 50-250 units (consumables)
 	case "Books", "Magazines":
-		return rand.Intn(100) + 20 // 20-120 units (information goods)
+		return randIntn(100) + 20 // 20-120 units (information goods)
 	case "Furniture", "Kitchen Appliances":
-		return rand.Intn(20) + 5 // 5-25 units (large items)
+		return randIntn(20) + 5 // 5-25 units (large items)
 	default:
-		return rand.Intn(150) + 25 // 25-175 units (general)
+		return randIntn(150) + 25 // 25-175 units (general)
 	}
 }
 
@@ -2745,7 +2744,7 @@ func weightedRandomChoice(items []string, weights []int) string {
 		total += w
 	}
 
-	r := rand.Intn(total)
+	r := randIntn(total)
 	cumulative := 0
 
 	for i, item := range items {
@@ -2760,7 +2759,7 @@ func weightedRandomChoice(items []string, weights []int) string {
 
 func generateItemCount() int {
 	// Realistic distribution: most sales have 1-3 items, some have more
-	r := rand.Intn(100)
+	r := randIntn(100)
 	if r < 30 {
 		return 1
 	} else if r < 60 {
@@ -2772,7 +2771,7 @@ func generateItemCount() int {
 	} else if r < 95 {
 		return 5
 	}
-	return rand.Intn(4) + 5 // 5-8 items for large transactions
+	return randIntn(4) + 5 // 5-8 items for large transactions
 }
 
 func selectProductsForSale(products []ProductInfo, count int) []int {
@@ -2781,7 +2780,7 @@ func selectProductsForSale(products []ProductInfo, count int) []int {
 	}
 	selected := make([]int, 0, count)
 	for i := 0; i < count; i++ {
-		selectedProduct := products[rand.Intn(len(products))]
+		selectedProduct := products[randIntn(len(products))]
 		selected = append(selected, selectedProduct.ID)
 	}
 	return selected
@@ -2792,16 +2791,16 @@ func generateQuantity(category string) int {
 	switch category {
 	case "Groceries", "Snacks", "Beverages":
 		// Consumables often bought in multiples
-		if rand.Intn(100) < 70 {
-			return rand.Intn(3) + 1 // 1-3
+		if randIntn(100) < 70 {
+			return randIntn(3) + 1 // 1-3
 		}
-		return rand.Intn(5) + 4 // 4-8 for bulk
+		return randIntn(5) + 4 // 4-8 for bulk
 	case "Books", "Magazines":
-		return rand.Intn(3) + 1 // 1-3
+		return randIntn(3) + 1 // 1-3
 	case "Smartphones", "Laptops", "Cameras", "Furniture":
 		return 1 // Usually 1 of high-value items
 	default:
-		return rand.Intn(2) + 1 // 1-2 for most items
+		return randIntn(2) + 1 // 1-2 for most items
 	}
 }
 
@@ -2852,7 +2851,7 @@ func ensureCashierUsers(ctx context.Context, db *sql.DB, minCashiers, maxCashier
 		return fmt.Errorf("failed to count cashier users: %w", err)
 	}
 
-	target := minCashiers + rand.Intn(maxCashiers-minCashiers+1)
+	target := minCashiers + randIntn(maxCashiers-minCashiers+1)
 	if current >= target {
 		log.Printf("   ℹ️  %d cashier users already present (target %d), skipping top-up", current, target)
 		return nil
@@ -3005,14 +3004,14 @@ func randElem(s []string) string {
 	if len(s) == 0 {
 		return ""
 	}
-	return s[rand.Intn(len(s))]
+	return s[randIntn(len(s))]
 }
 
 func randElemInt(s []int) int {
 	if len(s) == 0 {
 		return 0
 	}
-	return s[rand.Intn(len(s))]
+	return s[randIntn(len(s))]
 }
 
 // promptTimeRange interactively asks user for time range selection
@@ -3070,13 +3069,41 @@ func promptTimeRange() int {
 	return 180 // fallback
 }
 
+// getDSN returns the connection string from DATABASE_URL, or composes one from
+// the DB_* variables (same names the backend reads) so callers that pass
+// DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME keep working. No password is
+// embedded in the binary.
 func getDSN() string {
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		// Default local DB -- sesuaikan dengan docker compose jika berbeda
-		dsn = "postgres://pos:admin123@localhost:5433/retail_pos?sslmode=disable&timezone=Asia/Jakarta"
+	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
+		return dsn
 	}
-	return dsn
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable&timezone=Asia/Jakarta",
+		envOr("DB_USER", "pos"), os.Getenv("DB_PASSWORD"),
+		envOr("DB_HOST", "localhost"), envOr("DB_PORT", "5433"),
+		envOr("DB_NAME", "retail_pos"))
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// auditLogRow is one parameterised audit_logs row; nil pointer columns insert
+// as NULL.
+type auditLogRow struct {
+	userID      int
+	role        string
+	action      string
+	entityType  string
+	entityID    *int
+	oldValues   *string
+	newValues   *string
+	ipAddress   string
+	userAgent   *string
+	description string
+	createdAt   time.Time
 }
 
 // generateAuditLogs creates audit log entries matching the seeded data
@@ -3085,20 +3112,19 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 		return nil
 	}
 
-	rows := make([]string, 0, 500)
+	rows := make([]auditLogRow, 0, 500)
 
 	addRow := func(userID int, role, action, entityType string, entityID *int, description string, createdAt time.Time) {
-		var eid any = "NULL"
-		if entityID != nil {
-			eid = *entityID
-		}
-		ip := randomPrivateIP()
-		rows = append(rows, fmt.Sprintf(
-			"(%d, '%s', '%s', '%s', %v, NULL, NULL, '%s', NULL, '%s', '%s')",
-			userID, escapeSQL(role), escapeSQL(action), escapeSQL(entityType),
-			eid, ip, escapeSQL(description),
-			createdAt.Format("2006-01-02 15:04:05-07"),
-		))
+		rows = append(rows, auditLogRow{
+			userID:      userID,
+			role:        role,
+			action:      action,
+			entityType:  entityType,
+			entityID:    entityID,
+			ipAddress:   randomPrivateIP(),
+			description: description,
+			createdAt:   createdAt,
+		})
 	}
 
 	userID := userIDs[0]
@@ -3106,15 +3132,15 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 
 	// Login events for first few users
 	for i := 0; i < len(userIDs) && i < 3; i++ {
-		loginTime := ref.Add(-time.Duration(rand.Intn(48)) * time.Hour)
+		loginTime := ref.Add(-time.Duration(randIntn(48)) * time.Hour)
 		addRow(userIDs[i], "superadmin", "login", "auth", nil, "User logged in", loginTime)
-		logoutTime := loginTime.Add(time.Duration(8+rand.Intn(4)) * time.Hour)
+		logoutTime := loginTime.Add(time.Duration(8+randIntn(4)) * time.Hour)
 		addRow(userIDs[i], "superadmin", "logout", "auth", nil, "User logged out", logoutTime)
 	}
 
 	// A few failed password-change attempts (brute-force / typo signals)
 	for i := 0; i < len(userIDs) && i < 2; i++ {
-		failTime := ref.Add(-time.Duration(rand.Intn(48)) * time.Hour)
+		failTime := ref.Add(-time.Duration(randIntn(48)) * time.Hour)
 		addRow(userIDs[i], "cashier", "password_change_failed", "auth", &userIDs[i],
 			"Failed password change: invalid current password", failTime)
 	}
@@ -3124,7 +3150,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 	pid := 1
 	poID := 1
 	for i := 0; i < len(userIDs) && i < 2; i++ {
-		t := ref.Add(-time.Duration(rand.Intn(72)) * time.Hour)
+		t := ref.Add(-time.Duration(randIntn(72)) * time.Hour)
 		addRow(userIDs[i], "manager", "inventory_adjustment", "inventory", &pid,
 			"Adjusted stock for product #1 by 10: restock", t)
 		addRow(userIDs[i], "manager", "inventory_transfer", "inventory", &pid,
@@ -3139,7 +3165,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 			"Updated application settings", t)
 	}
 	if len(userIDs) > 1 {
-		t := ref.Add(-time.Duration(rand.Intn(72)) * time.Hour)
+		t := ref.Add(-time.Duration(randIntn(72)) * time.Hour)
 		addRow(userIDs[1], "superadmin", "user_deactivated", "user", &userIDs[1],
 			fmt.Sprintf("Deactivated user #%d", userIDs[1]), t)
 		addRow(userIDs[1], "superadmin", "user_activated", "user", &userIDs[1],
@@ -3147,39 +3173,39 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 		addRow(userIDs[1], "superadmin", "user_role_changed", "user", &userIDs[1],
 			fmt.Sprintf("Changed role of user #%d", userIDs[1]), t.Add(2*time.Hour))
 		// Self-recall of a parked sale is now audited regardless of role (P2-6 D4).
-		saleID := rand.Intn(100000) + 1
+		saleID := randIntn(100000) + 1
 		addRow(userIDs[1], "cashier", "recall_sale", "sale", &saleID,
 			"Recalled parked sale (self-recall)", t.Add(3*time.Hour))
 	}
 	// Audit log export is itself audit_logs (P2-6 #5).
 	addRow(userID, "superadmin", "audit_exported", "audit", nil,
-		"Exported 1,000 audit log(s) as csv", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+		"Exported 1,000 audit log(s) as csv", ref.Add(-time.Duration(randIntn(24))*time.Hour))
 
 	// Category creation
 	for _, catID := range categoryIDs {
 		addRow(userID, "superadmin", "create", "category", &catID,
 			fmt.Sprintf("Created category #%d", catID),
-			ref.Add(-time.Duration(rand.Intn(72))*time.Hour))
+			ref.Add(-time.Duration(randIntn(72))*time.Hour))
 	}
 
 	// Brand creation
 	brandID := 1
-	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Indofood", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Indofood", ref.Add(-time.Duration(randIntn(24))*time.Hour))
 	brandID = 2
-	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Sosro", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Sosro", ref.Add(-time.Duration(randIntn(24))*time.Hour))
 	brandID = 3
-	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Wings", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Wings", ref.Add(-time.Duration(randIntn(24))*time.Hour))
 	brandID = 4
-	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Unilever", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Unilever", ref.Add(-time.Duration(randIntn(24))*time.Hour))
 	brandID = 5
-	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Lokal", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Lokal", ref.Add(-time.Duration(randIntn(24))*time.Hour))
 
 	// Tax class creation
 	for id, name := range map[int]string{1: "PPN 11%", 2: "PPN 0%", 3: "Non PPN"} {
 		v := id
 		addRow(userID, "superadmin", "create", "tax_class", &v,
 			fmt.Sprintf("Created tax class: %s", name),
-			ref.Add(-time.Duration(rand.Intn(48))*time.Hour))
+			ref.Add(-time.Duration(randIntn(48))*time.Hour))
 	}
 
 	// UOM creation
@@ -3187,7 +3213,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 		v := id
 		addRow(userID, "superadmin", "create", "uom", &v,
 			fmt.Sprintf("Created unit of measure: %s", name),
-			ref.Add(-time.Duration(rand.Intn(48))*time.Hour))
+			ref.Add(-time.Duration(randIntn(48))*time.Hour))
 	}
 
 	// Product creation entries (sample: one per 100 products, plus last)
@@ -3206,13 +3232,13 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 		pid := productIDs[i]
 		addRow(userID, "superadmin", "create", "product", &pid,
 			fmt.Sprintf("Created product #%d (batch %d)", pid, i/100+1),
-			ref.Add(-time.Duration(48+rand.Intn(48))*time.Hour))
+			ref.Add(-time.Duration(48+randIntn(48))*time.Hour))
 	}
 	if len(productIDs) > 0 {
 		lastPID := productIDs[len(productIDs)-1]
 		addRow(userID, "superadmin", "create", "product", &lastPID,
 			fmt.Sprintf("Created product #%d", lastPID),
-			ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+			ref.Add(-time.Duration(randIntn(24))*time.Hour))
 	}
 
 	// Customer creation entries (sample: one per 10 customers)
@@ -3231,7 +3257,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 		cid := customerIDs[i]
 		addRow(userID, "superadmin", "create", "customer", &cid,
 			fmt.Sprintf("Created customer #%d", cid),
-			ref.Add(-time.Duration(72+rand.Intn(48))*time.Hour))
+			ref.Add(-time.Duration(72+randIntn(48))*time.Hour))
 	}
 
 	// Sale creation audit logs — generated from sales table
@@ -3250,11 +3276,17 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 			}
 			nv := fmt.Sprintf(`{"invoice_number":"%s","cashier_id":%d,"customer_id":%d,"total_amount":%d,"payment_method":"%s","status":"completed"}`,
 				inv, cid, custID, total, pm)
-			ip := randomPrivateIP()
-			rows = append(rows, fmt.Sprintf(
-				"(%d, 'cashier', 'create', 'sale', %d, NULL, '%s'::jsonb, '%s', NULL, 'Created sale #%d', '%s')",
-				cid, sid, escapeSQL(nv), ip, sid, ct.Format("2006-01-02 15:04:05-07"),
-			))
+			rows = append(rows, auditLogRow{
+				userID:      cid,
+				role:        "cashier",
+				action:      "create",
+				entityType:  "sale",
+				entityID:    &sid,
+				newValues:   &nv,
+				ipAddress:   randomPrivateIP(),
+				description: fmt.Sprintf("Created sale #%d", sid),
+				createdAt:   ct,
+			})
 		}
 	}
 
@@ -3263,6 +3295,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 	}
 
 	// Batch insert audit logs
+	const auditCols = 11
 	batchSize := 100
 	for i := 0; i < len(rows); i += batchSize {
 		end := i + batchSize
@@ -3270,9 +3303,21 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 			end = len(rows)
 		}
 		batch := rows[i:end]
-		query := `INSERT INTO audit_logs (user_id, role, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent, description, created_at) VALUES `
-		query += strings.Join(batch, ", ")
-		if _, err := db.ExecContext(ctx, query); err != nil {
+		var query strings.Builder
+		query.WriteString(`INSERT INTO audit_logs (user_id, role, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent, description, created_at) VALUES `)
+		args := make([]any, 0, len(batch)*auditCols)
+		for j, r := range batch {
+			if j > 0 {
+				query.WriteString(", ")
+			}
+			base := j * auditCols
+			fmt.Fprintf(&query, "($%d,$%d,$%d,$%d,$%d,$%d,$%d::jsonb,$%d,$%d,$%d,$%d)",
+				base+1, base+2, base+3, base+4, base+5, base+6,
+				base+7, base+8, base+9, base+10, base+11)
+			args = append(args, r.userID, r.role, r.action, r.entityType, r.entityID,
+				r.oldValues, r.newValues, r.ipAddress, r.userAgent, r.description, r.createdAt)
+		}
+		if _, err := db.ExecContext(ctx, query.String(), args...); err != nil {
 			return fmt.Errorf("failed to insert audit logs batch %d: %w", i/batchSize, err)
 		}
 	}
@@ -3280,19 +3325,14 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 	return nil
 }
 
-func escapeSQL(s string) string {
-	s = strings.ReplaceAll(s, "'", "''")
-	return s
-}
-
 func randomPrivateIP() string {
-	switch rand.Intn(3) {
+	switch randIntn(3) {
 	case 0:
-		return fmt.Sprintf("10.%d.%d.%d", rand.Intn(256), rand.Intn(256), rand.Intn(256))
+		return fmt.Sprintf("10.%d.%d.%d", randIntn(256), randIntn(256), randIntn(256))
 	case 1:
-		return fmt.Sprintf("172.%d.%d.%d", 16+rand.Intn(16), rand.Intn(256), rand.Intn(256))
+		return fmt.Sprintf("172.%d.%d.%d", 16+randIntn(16), randIntn(256), randIntn(256))
 	default:
-		return fmt.Sprintf("192.168.%d.%d", rand.Intn(256), rand.Intn(256))
+		return fmt.Sprintf("192.168.%d.%d", randIntn(256), randIntn(256))
 	}
 }
 
@@ -3406,24 +3446,24 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 			for job := range jobs {
 				poRes, err := func() (poResult, error) {
 					// Pick random values for this PO
-					supID := supplierIDs[rand.Intn(len(supplierIDs))]
-					storeID := storeIDs[rand.Intn(len(storeIDs))]
-					createdBy := userIDs[rand.Intn(len(userIDs))]
-					updatedBy := userIDs[rand.Intn(len(userIDs))]
+					supID := supplierIDs[randIntn(len(supplierIDs))]
+					storeID := storeIDs[randIntn(len(storeIDs))]
+					createdBy := userIDs[randIntn(len(userIDs))]
+					updatedBy := userIDs[randIntn(len(userIDs))]
 
-					dayOffset := rand.Intn(totalDays)
+					dayOffset := randIntn(totalDays)
 					createdAt := startDate.AddDate(0, 0, dayOffset)
 					if createdAt.After(endDate) {
 						createdAt = endDate
 					}
 
 					// 1-5 line items
-					numItems := 1 + rand.Intn(5)
+					numItems := 1 + randIntn(5)
 					shuffled := make([]int, len(products))
 					for i, p := range products {
 						shuffled[i] = p.ID
 					}
-					rand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
+					randShuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
 					if numItems > len(shuffled) {
 						numItems = len(shuffled)
 					}
@@ -3436,7 +3476,7 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 						if uc <= 0 {
 							uc = 1000
 						}
-						qty := 2 + rand.Intn(19) // 2-20
+						qty := 2 + randIntn(19) // 2-20
 						lineSubtotal := uc * qty
 						subtotal += lineSubtotal
 						items = append(items, poItemInput{
@@ -3450,49 +3490,49 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 					var status string
 					var confirmedAt, cancelledAt *time.Time
 					var confirmedBy, cancelledBy *int
-					r := rand.Intn(100)
+					r := randIntn(100)
 					switch {
 					case r < 60:
 						status = "confirmed"
-						ca := createdAt.Add(time.Duration(rand.Intn(72)) * time.Hour)
+						ca := createdAt.Add(time.Duration(randIntn(72)) * time.Hour)
 						confirmedAt = &ca
-						cb := userIDs[rand.Intn(len(userIDs))]
+						cb := userIDs[randIntn(len(userIDs))]
 						confirmedBy = &cb
 					case r < 80:
 						status = "draft"
 					default:
 						status = "cancelled"
-						ca := createdAt.Add(time.Duration(rand.Intn(48)) * time.Hour)
+						ca := createdAt.Add(time.Duration(randIntn(48)) * time.Hour)
 						cancelledAt = &ca
-						cb := userIDs[rand.Intn(len(userIDs))]
+						cb := userIDs[randIntn(len(userIDs))]
 						cancelledBy = &cb
 					}
 
-					expectedDate := createdAt.AddDate(0, 0, 3+rand.Intn(12))
+					expectedDate := createdAt.AddDate(0, 0, 3+randIntn(12))
 
 					// Payment term always filled; other optional fields ~50% chance each
 					terms := []string{"Cash on Delivery", "Net 7", "Net 14", "Net 30", "DP 50%"}
-					paymentTerm := terms[rand.Intn(len(terms))]
+					paymentTerm := terms[randIntn(len(terms))]
 					var deliveryAddress, supplierRef, notes *string
-					if rand.Intn(2) == 0 {
-						v := fmt.Sprintf("Jl. Contoh No.%d, Jakarta", 1+rand.Intn(100))
+					if randIntn(2) == 0 {
+						v := fmt.Sprintf("Jl. Contoh No.%d, Jakarta", 1+randIntn(100))
 						deliveryAddress = &v
 					}
-					if rand.Intn(2) == 0 {
-						v := fmt.Sprintf("REF-%d", 1000+rand.Intn(9000))
+					if randIntn(2) == 0 {
+						v := fmt.Sprintf("REF-%d", 1000+randIntn(9000))
 						supplierRef = &v
 					}
-					if rand.Intn(2) == 0 {
+					if randIntn(2) == 0 {
 						v := fmt.Sprintf("PO notes batch %d", job.seq)
 						notes = &v
 					}
 
 					// ~20% chance of discount_amount and tax_amount
 					var discAmt, taxAmt int
-					if rand.Intn(5) == 0 {
-						discAmt = int(float64(subtotal) * (0.05 + rand.Float64()*0.10))
+					if randIntn(5) == 0 {
+						discAmt = int(float64(subtotal) * (0.05 + randFloat64()*0.10))
 					}
-					if rand.Intn(5) == 0 {
+					if randIntn(5) == 0 {
 						taxAmt = int(float64(subtotal-discAmt) * 0.11)
 					}
 					grandTotal := subtotal - discAmt + taxAmt
@@ -3668,7 +3708,7 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 	// ---------- Goods Receipts ----------
 	// ~80% of confirmed POs get GRs; ~70% full receipt, ~30% partial
 	for _, po := range confirmedPOs {
-		if rand.Intn(100) >= 80 {
+		if randIntn(100) >= 80 {
 			continue
 		}
 
@@ -3682,12 +3722,12 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 			}
 		}()
 
-		storeID := storeIDs[rand.Intn(len(storeIDs))]
-		receivedBy := userIDs[rand.Intn(len(userIDs))]
+		storeID := storeIDs[randIntn(len(storeIDs))]
+		receivedBy := userIDs[randIntn(len(userIDs))]
 		// receivedAt must be after confirmedAt to maintain temporal consistency
-		afterConfirm := po.createdAt.Add(time.Duration(1+rand.Intn(72)) * time.Hour)
+		afterConfirm := po.createdAt.Add(time.Duration(1+randIntn(72)) * time.Hour)
 		if po.confirmedAt != nil && po.confirmedAt.After(afterConfirm) {
-			afterConfirm = po.confirmedAt.Add(time.Duration(1+rand.Intn(24)) * time.Hour)
+			afterConfirm = po.confirmedAt.Add(time.Duration(1+randIntn(24)) * time.Hour)
 		}
 		receivedAt := afterConfirm
 
@@ -3700,11 +3740,11 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 
 		// Optional GR fields — ~50% chance
 		var doNumber, grNotes *string
-		if rand.Intn(2) == 0 {
-			v := fmt.Sprintf("DO-%s-%04d", receivedAt.Format("200601"), rand.Intn(9999))
+		if randIntn(2) == 0 {
+			v := fmt.Sprintf("DO-%s-%04d", receivedAt.Format("200601"), randIntn(9999))
 			doNumber = &v
 		}
-		if rand.Intn(2) == 0 {
+		if randIntn(2) == 0 {
 			v := fmt.Sprintf("GR notes for PO %d", po.poID)
 			grNotes = &v
 		}
@@ -3735,20 +3775,20 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 		defer func() { _ = itemStmt.Close() }()
 
 		for _, item := range po.items {
-			fullReceipt := rand.Intn(100) < 70
+			fullReceipt := randIntn(100) < 70
 			qtyGood := item.qtyOrdered
 			qtyDamaged := 0
 			if !fullReceipt {
 				// Partial receipt: 30-95% of ordered qty
-				factor := 0.30 + rand.Float64()*0.65
+				factor := 0.30 + randFloat64()*0.65
 				qtyGood = int(float64(item.qtyOrdered) * factor)
 				if qtyGood < 1 {
 					qtyGood = 1
 				}
 			}
-			if rand.Intn(100) < 5 && qtyGood >= 2 {
+			if randIntn(100) < 5 && qtyGood >= 2 {
 				// 5% chance of damaged goods (only when qtyGood >= 2 to avoid Intn(0))
-				qtyDamaged = 1 + rand.Intn(qtyGood/2)
+				qtyDamaged = 1 + randIntn(qtyGood/2)
 				if qtyDamaged > qtyGood {
 					qtyDamaged = qtyGood
 				}
@@ -3852,7 +3892,7 @@ var (
 )
 
 func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Time) error {
-	numCustomers := 50 + rand.Intn(51) // 50-100
+	numCustomers := 50 + randIntn(51) // 50-100
 	fmt.Printf("   🎲 Generating %d customers\n", numCustomers)
 
 	// customers.store_id is NOT NULL and carries a FK to stores, so every
@@ -3938,20 +3978,20 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	}
 
 	for i := 0; i < numCustomers; i++ {
-		first := customerFirstNames[rand.Intn(len(customerFirstNames))]
-		last := customerLastNames[rand.Intn(len(customerLastNames))]
+		first := customerFirstNames[randIntn(len(customerFirstNames))]
+		last := customerLastNames[randIntn(len(customerLastNames))]
 		name := fmt.Sprintf("%s %s", first, last)
-		phone := fmt.Sprintf("08%s", fmt.Sprintf("%010d", rand.Intn(10000000000)))
+		phone := fmt.Sprintf("08%s", fmt.Sprintf("%010d", randIntn(10000000000)))
 		email := fmt.Sprintf("%s.%s@email.com", strings.ToLower(first), strings.ToLower(last))
-		address := fmt.Sprintf("%s No. %d, %s", customerStreets[rand.Intn(len(customerStreets))], 1+rand.Intn(200), customerCities[rand.Intn(len(customerCities))])
-		note := customerNotes[rand.Intn(len(customerNotes))]
+		address := fmt.Sprintf("%s No. %d, %s", customerStreets[randIntn(len(customerStreets))], 1+randIntn(200), customerCities[randIntn(len(customerCities))])
+		note := customerNotes[randIntn(len(customerNotes))]
 
-		daysAgo := rand.Intn(int(ref.Sub(startDate).Hours()/24)) + 1
+		daysAgo := randIntn(int(ref.Sub(startDate).Hours()/24)) + 1
 		createdAt := ref.AddDate(0, 0, -daysAgo)
 
 		// Assign customer group with realistic distribution
 		groupID := 0
-		switch r := rand.Intn(100); {
+		switch r := randIntn(100); {
 		case r < 35: // 35% Walk-in
 			groupID = groupIDs["walk-in"]
 		case r < 55: // 20% Member

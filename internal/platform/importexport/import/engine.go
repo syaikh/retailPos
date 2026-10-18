@@ -439,7 +439,7 @@ func (e *Engine) StartImport(ctx context.Context, token string, userID, storeID 
 	}
 
 	go func() {
-		e.executeImport(context.Background(), jobID, state, adapter)
+		e.executeImport(context.WithoutCancel(ctx), jobID, state, adapter)
 		e.DeletePreview(token)
 	}()
 

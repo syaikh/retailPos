@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,7 +123,8 @@ func TestSplitSQLStatements(t *testing.T) {
 }
 
 func TestSplitSQLStatements_MigrationFiles(t *testing.T) {
-	files, err := filepath.Glob(filepath.Join("..", "..", "database", "migrations", "*.sql"))
+	migFS := os.DirFS(filepath.Join("..", "..", "database", "migrations"))
+	files, err := fs.Glob(migFS, "*.sql")
 	if err != nil {
 		t.Fatalf("glob migrations: %v", err)
 	}
@@ -131,11 +133,11 @@ func TestSplitSQLStatements_MigrationFiles(t *testing.T) {
 	}
 
 	for _, f := range files {
-		data, err := os.ReadFile(f)
+		data, err := fs.ReadFile(migFS, f)
 		if err != nil {
 			t.Fatalf("read %s: %v", f, err)
 		}
-		name := filepath.Base(f)
+		name := f
 		stmts := splitSQLStatements(string(data))
 		for i, stmt := range stmts {
 			if stmt == "" {

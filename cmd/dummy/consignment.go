@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"math/rand"
 	"time"
 )
 
@@ -143,10 +142,10 @@ func injectConsignment(ctx context.Context, db *sql.DB, startDate, endDate time.
 		for _, pid := range a.productIDs {
 			price := prices[pid]
 			shareType := "percentage"
-			shareValue := float64(15 + rand.Intn(16)) // 15-30%
-			if rand.Intn(100) < 20 {
+			shareValue := float64(15 + randIntn(16)) // 15-30%
+			if randIntn(100) < 20 {
 				shareType = "fixed_amount"
-				shareValue = float64(500 + rand.Intn(9)*500) // 500-4500 IDR/unit
+				shareValue = float64(500 + randIntn(9)*500) // 500-4500 IDR/unit
 			}
 			if _, err := tx.ExecContext(ctx, `
 				INSERT INTO consignment_terms (arrangement_id, product_id, price, store_share_type, store_share_value, created_by)
@@ -163,18 +162,18 @@ func injectConsignment(ctx context.Context, db *sql.DB, startDate, endDate time.
 
 		// 1-2 receipts per arrangement.
 		numReceipts := 1
-		if rand.Intn(100) < 65 && len(a.productIDs) >= 4 {
+		if randIntn(100) < 65 && len(a.productIDs) >= 4 {
 			numReceipts = 2
 		}
 		for r := 0; r < numReceipts; r++ {
-			receivedAt := endDate.AddDate(0, 0, -rand.Intn(26)-15)
+			receivedAt := endDate.AddDate(0, 0, -randIntn(26)-15)
 			if r == 1 {
-				receivedAt = receivedAt.AddDate(0, 0, 5+rand.Intn(10))
+				receivedAt = receivedAt.AddDate(0, 0, 5+randIntn(10))
 			}
 			// Never before the sales history (fresh seeds have no sales earlier
 			// than the run window) and never after yesterday.
 			if receivedAt.Before(salesStart) {
-				receivedAt = salesStart.AddDate(0, 0, rand.Intn(5))
+				receivedAt = salesStart.AddDate(0, 0, randIntn(5))
 			}
 			if receivedAt.After(endDate.AddDate(0, 0, -1)) {
 				receivedAt = endDate.AddDate(0, 0, -1)
@@ -196,7 +195,7 @@ func injectConsignment(ctx context.Context, db *sql.DB, startDate, endDate time.
 
 			for _, pid := range a.productIDs {
 				term := productTerm[pid]
-				accepted := 4 + rand.Intn(21) // 4-24 units
+				accepted := 4 + randIntn(21) // 4-24 units
 				if _, err := tx.ExecContext(ctx, `
 					INSERT INTO consignment_receipt_items (consignment_receipt_id, product_id, accepted_qty, price, store_share_type, store_share_value, notes)
 					VALUES ($1, $2, $3, $4, $5, $6, NULL)`,
@@ -244,7 +243,7 @@ func injectConsignment(ctx context.Context, db *sql.DB, startDate, endDate time.
 		// Visit stays fresh so the arrangement is not lazily Ended.
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE consignment_arrangements SET last_visit_at = $2, updated_at = now() WHERE id = $1`,
-			arrangementID, endDate.AddDate(0, 0, -rand.Intn(3))); err != nil {
+			arrangementID, endDate.AddDate(0, 0, -randIntn(3))); err != nil {
 			return err
 		}
 	}
@@ -269,15 +268,15 @@ func injectConsignment(ctx context.Context, db *sql.DB, startDate, endDate time.
 				continue
 			}
 			// ~40% of SKUs get an open pending return.
-			if rand.Intn(100) >= 40 {
+			if randIntn(100) >= 40 {
 				continue
 			}
-			qty := 1 + rand.Intn(3)
+			qty := 1 + randIntn(3)
 			if qty > avail {
 				qty = avail
 			}
-			reason := []string{"damaged", "expired", "customer_return"}[rand.Intn(3)]
-			createdAt := endDate.AddDate(0, 0, -rand.Intn(5)-1)
+			reason := []string{"damaged", "expired", "customer_return"}[randIntn(3)]
+			createdAt := endDate.AddDate(0, 0, -randIntn(5)-1)
 			var prID int
 			if err := tx.QueryRowContext(ctx, `
 				INSERT INTO consignment_pending_returns (supplier_id, product_id, arrangement_id, store_id, qty, reason, notes, status, created_by, created_at)
@@ -299,7 +298,7 @@ func injectConsignment(ctx context.Context, db *sql.DB, startDate, endDate time.
 		}
 
 		// Formal return resolving that supplier's open pending returns (~60%).
-		if rand.Intn(100) >= 60 {
+		if randIntn(100) >= 60 {
 			continue
 		}
 		rows, err := tx.QueryContext(ctx, `
@@ -328,7 +327,7 @@ func injectConsignment(ctx context.Context, db *sql.DB, startDate, endDate time.
 		if err != nil {
 			return err
 		}
-		returnedAt := endDate.AddDate(0, 0, -rand.Intn(2))
+		returnedAt := endDate.AddDate(0, 0, -randIntn(2))
 		var retID int
 		if err := tx.QueryRowContext(ctx, `
 			INSERT INTO consignment_returns (return_number, supplier_id, store_id, arrangement_id, returned_by, returned_at, notes)
@@ -512,8 +511,8 @@ func loadProductPrices(ctx context.Context, db *sql.DB, ids []int) (map[int]int,
 }
 
 func insertConsignmentArrangement(ctx context.Context, tx *sql.Tx, supplierID, storeID, createdBy int, endDate time.Time) (int, error) {
-	createdAt := endDate.AddDate(0, 0, -rand.Intn(30)-5)
-	lastVisit := endDate.AddDate(0, 0, -rand.Intn(3))
+	createdAt := endDate.AddDate(0, 0, -randIntn(30)-5)
+	lastVisit := endDate.AddDate(0, 0, -randIntn(3))
 	var id int
 	err := tx.QueryRowContext(ctx, `
 		INSERT INTO consignment_arrangements (supplier_id, store_id, status, last_visit_at, created_by, created_at, updated_at)
@@ -709,7 +708,7 @@ func seedConsignmentSettlements(
 		}
 
 		lastSaleAt := items[len(items)-1].createdAt
-		createdAt := lastSaleAt.Add(time.Duration(1+rand.Intn(48)) * time.Hour)
+		createdAt := lastSaleAt.Add(time.Duration(1+randIntn(48)) * time.Hour)
 		if createdAt.After(endDate) {
 			createdAt = endDate.AddDate(0, 0, -1)
 		}
@@ -726,12 +725,12 @@ func seedConsignmentSettlements(
 			return 0, err
 		}
 
-		paid := rand.Intn(100) < 60
+		paid := randIntn(100) < 60
 		status := "pending_payment"
 		var paidAt sql.NullTime
 		if paid {
 			status = "paid"
-			paidAt.Time = createdAt.Add(time.Duration(1+rand.Intn(72)) * time.Hour)
+			paidAt.Time = createdAt.Add(time.Duration(1+randIntn(72)) * time.Hour)
 			if paidAt.Time.After(endDate) {
 				paidAt.Time = endDate.AddDate(0, 0, -1)
 			}
@@ -771,9 +770,9 @@ func seedConsignmentSettlements(
 			if _, err := tx.ExecContext(ctx, `
 				INSERT INTO consignment_payouts (payout_number, settlement_id, payment_method_id, amount, reference_number, paid_by, paid_at, notes)
 				VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)`,
-				payoutNumber, settlementID, paymentMethodIDs[rand.Intn(len(paymentMethodIDs))],
+				payoutNumber, settlementID, paymentMethodIDs[randIntn(len(paymentMethodIDs))],
 				totalSale-totalShare,
-				fmt.Sprintf("TRF-%d", 100000+rand.Intn(900000)), createdBy, paidAt.Time); err != nil {
+				fmt.Sprintf("TRF-%d", 100000+randIntn(900000)), createdBy, paidAt.Time); err != nil {
 				return 0, fmt.Errorf("insert payout %s: %w", payoutNumber, err)
 			}
 		}

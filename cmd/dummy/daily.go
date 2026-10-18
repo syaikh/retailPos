@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -121,7 +120,7 @@ func RunDaily(db *sql.DB) error {
 		dailyMin, dailyMax = dailyMax, dailyMin
 	}
 
-	salesCount := dailyMin + rand.Intn(dailyMax-dailyMin+1)
+	salesCount := dailyMin + randIntn(dailyMax-dailyMin+1)
 
 	fmt.Printf("📅 Daily seeder — %s — target: %d – %d transactions\n",
 		dateConsidered.Format("2006-01-02"), dailyMin, dailyMax)
@@ -252,7 +251,7 @@ func storeIDForSale(storeIDs []int, forcedID int) sql.NullInt64 {
 	if len(storeIDs) == 0 {
 		return sql.NullInt64{Valid: false}
 	}
-	return sql.NullInt64{Int64: int64(storeIDs[rand.Intn(len(storeIDs))]), Valid: true}
+	return sql.NullInt64{Int64: int64(storeIDs[randIntn(len(storeIDs))]), Valid: true}
 }
 
 // loadStoreIDs queries the stores table (mirrors the store lookup in main.go's processIndividualSale path)
@@ -309,9 +308,9 @@ func buildRecords(
 	for i := 0; i < salesCount; i++ {
 		createdAt := randomTimeInDate(targetDate, now)
 
-		numItems := 1 + rand.Intn(4) // 1-4 items (most common)
-		if rand.Intn(100) < 20 {
-			numItems += rand.Intn(4) // 20% chance of 5-8 items
+		numItems := 1 + randIntn(4) // 1-4 items (most common)
+		if randIntn(100) < 20 {
+			numItems += randIntn(4) // 20% chance of 5-8 items
 		}
 
 		items := selectItems(products, numItems)
@@ -325,9 +324,9 @@ func buildRecords(
 		}
 
 		seq := startSeq + i + 1 // +1 because startSeq=0 means first invoice is 1
-		cashierID := cashierIDs[rand.Intn(len(cashierIDs))]
-		customerID := customerIDs[rand.Intn(len(customerIDs))]
-		if rand.Intn(100) < 40 {
+		cashierID := cashierIDs[randIntn(len(cashierIDs))]
+		customerID := customerIDs[randIntn(len(customerIDs))]
+		if randIntn(100) < 40 {
 			customerID = walkInCustomerID
 		}
 		storeID := storeIDForSale(storeIDs, dailyStoreID)
@@ -376,11 +375,11 @@ func randomTimeInDate(d time.Time, now time.Time) time.Time {
 		if hour == currentHour {
 			maxMinute = currentMinute
 		}
-		minute = rand.Intn(maxMinute + 1)
+		minute = randIntn(maxMinute + 1)
 	} else {
-		minute = rand.Intn(60)
+		minute = randIntn(60)
 	}
-	second := rand.Intn(60)
+	second := randIntn(60)
 
 	return time.Date(d.Year(), d.Month(), d.Day(), hour, minute, second, 0, jakartaTZ)
 }
@@ -390,7 +389,7 @@ func weightedPickInt(weights []int) int {
 	for _, w := range weights {
 		total += w
 	}
-	r := rand.Intn(total)
+	r := randIntn(total)
 	cum := 0
 	for i, w := range weights {
 		cum += w
@@ -407,7 +406,7 @@ func selectItems(products []dailySaleProduct, count int) []dailySaleItem {
 	}
 	items := make([]dailySaleItem, 0, count)
 	for i := 0; i < count; i++ {
-		p := products[rand.Intn(len(products))]
+		p := products[randIntn(len(products))]
 		qty := pickQty(p.Category)
 		items = append(items, dailySaleItem{
 			ProductID: p.ID,
@@ -428,10 +427,10 @@ func pickQty(cat string) int {
 		strings.Contains(catLower, "food"),
 		strings.Contains(catLower, "dairy"),
 		strings.Contains(catLower, "frozen"):
-		if rand.Intn(100) < 65 {
-			return rand.Intn(3) + 1 // 1-3
+		if randIntn(100) < 65 {
+			return randIntn(3) + 1 // 1-3
 		}
-		return rand.Intn(5) + 4 // 4-8 bulk
+		return randIntn(5) + 4 // 4-8 bulk
 	case strings.Contains(catLower, "smartphone"),
 		strings.Contains(catLower, "laptop"),
 		strings.Contains(catLower, "furniture"),
@@ -440,7 +439,7 @@ func pickQty(cat string) int {
 		strings.Contains(catLower, "tv"):
 		return 1
 	default:
-		if rand.Intn(100) < 80 {
+		if randIntn(100) < 80 {
 			return 1
 		}
 		return 2
@@ -452,7 +451,7 @@ func weightedPick(items []string, weights []int) string {
 	for _, w := range weights {
 		total += w
 	}
-	r := rand.Intn(total)
+	r := randIntn(total)
 	cum := 0
 	for i, item := range items {
 		cum += weights[i]

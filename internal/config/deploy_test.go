@@ -119,10 +119,10 @@ var deliberatelyUnset = map[string]string{
 	"COOKIE_DOMAIN": "a parent-domain value would share the refresh token across all subdomains",
 }
 
-// secretFileTemplate documents the contents of the secret file. It is the
+// envExampleFile documents the contents of the secret file. It is the
 // contract for what the operator puts in /etc/retail-pos/backend.env, and it is
 // what a manifest's secret-file mechanism actually delivers.
-const secretFileTemplate = "deploy/.env.example"
+const envExampleFile = "deploy/.env.example"
 
 // secretFileMarkers are the mechanisms a manifest may use to receive secrets
 // without embedding them.
@@ -191,7 +191,7 @@ type manifestEnv struct {
 
 func repoFile(t *testing.T, rel string) string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", rel))
+	data, err := fs.ReadFile(os.DirFS(filepath.Join("..", "..")), rel)
 	require.NoErrorf(t, err, "cannot read %s", rel)
 	return string(data)
 }
@@ -526,15 +526,21 @@ func TestServerEnvVarsAreClassified(t *testing.T) {
 	// part of the deployed service, so it is excluded.
 	var found []string
 	seen := map[string]bool{}
+	repoRoot := filepath.Join("..", "..")
+	repoFS := os.DirFS(repoRoot)
 	for _, dir := range []string{"internal", "cmd/server"} {
-		require.NoError(t, filepath.Walk(filepath.Join("..", "..", dir), func(path string, info os.FileInfo, err error) error {
+		require.NoError(t, filepath.Walk(filepath.Join(repoRoot, dir), func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
 			if info.IsDir() || strings.HasSuffix(path, "_test.go") || !strings.HasSuffix(path, ".go") {
 				return nil
 			}
-			data, err := os.ReadFile(path)
+			rel, err := filepath.Rel(repoRoot, path)
+			if err != nil {
+				return err
+			}
+			data, err := fs.ReadFile(repoFS, filepath.ToSlash(rel))
 			if err != nil {
 				return err
 			}
@@ -578,12 +584,12 @@ func TestServerEnvVarsAreClassified(t *testing.T) {
 // not repeated in the manifest body.
 func templateKeys(t *testing.T) map[string]bool {
 	t.Helper()
-	body := stripComments(repoFile(t, secretFileTemplate), "#")
+	body := stripComments(repoFile(t, envExampleFile), "#")
 	keys := map[string]bool{}
 	for _, m := range envKeyLine.FindAllStringSubmatch(body, -1) {
 		keys[m[1]] = true
 	}
-	require.NotEmpty(t, keys, "no keys parsed from %s; the template format changed", secretFileTemplate)
+	require.NotEmpty(t, keys, "no keys parsed from %s; the template format changed", envExampleFile)
 	return keys
 }
 
@@ -616,7 +622,7 @@ func TestComposeDoesNotHostResolveSecretFileVars(t *testing.T) {
 				"secret file. If it is written as ${%s:-...} the value is resolved against the "+
 				"host, not env_file, so the secret file's setting is silently discarded. "+
 				"Omit the name and let it come from %s; internal/config already defaults it.",
-				key, key, secretFileTemplate)
+				key, key, envExampleFile)
 		}
 	}
 }
@@ -627,7 +633,7 @@ func TestTemplateDocumentsDBPortForPodmanOnly(t *testing.T) {
 	// meaningful and this note goes stale.
 	assert.True(t, templateKeys(t)["DB_PORT"],
 		"%s no longer documents DB_PORT; re-check why compose overrides it in `environment:`",
-		secretFileTemplate)
+		envExampleFile)
 }
 
 func TestManifestsDeclareRequiredVars(t *testing.T) {
@@ -823,7 +829,7 @@ func keys(m map[string]bool) []string {
 }
 
 func TestManifestsDeliverSecretsViaSecretFile(t *testing.T) {
-	template := repoFile(t, secretFileTemplate)
+	template := repoFile(t, envExampleFile)
 	templateLines := stripComments(template, "#")
 
 	for _, name := range manifestNames {
@@ -847,7 +853,7 @@ func TestManifestsDeliverSecretsViaSecretFile(t *testing.T) {
 	assert.Emptyf(t, undocumented,
 		"%s does not document %v. A manifest's secret-file mechanism only supplies what the "+
 			"template tells the operator to write, so an undocumented secret is a missing secret.",
-		secretFileTemplate, undocumented)
+		envExampleFile, undocumented)
 }
 
 func TestManifestsDoNotHardcodeSecrets(t *testing.T) {

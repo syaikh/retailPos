@@ -166,7 +166,7 @@ func TestLoad_ProductionCORSExit(t *testing.T) {
 		return
 	}
 
-	cmd := exec.Command(os.Args[0], "-test.run=TestLoad_ProductionCORSExit")
+	cmd := exec.Command(os.Args[0], "-test.run=TestLoad_ProductionCORSExit") //nolint:gosec // G204: re-execs this test binary itself; os.Args[0] is not untrusted input
 	cmd.Env = append(os.Environ(), "TEST_CORS_PRODUCTION=1")
 	err := cmd.Run()
 	if e, ok := err.(*exec.ExitError); ok && !e.Success() {

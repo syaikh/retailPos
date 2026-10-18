@@ -59,7 +59,7 @@ type ServiceIface interface {
 // does not already exist.
 func NewHandler(svc ServiceIface, auditSvc audit.TxCreator, store StoreProvider) *Handler {
 	logoDir := filepath.Join("uploads", "logos")
-	if err := os.MkdirAll(logoDir, 0755); err != nil {
+	if err := os.MkdirAll(logoDir, 0750); err != nil {
 		slog.Warn("appsettings: could not create logo directory", "path", logoDir, "error", err)
 	}
 
@@ -344,7 +344,7 @@ func (h *Handler) UploadLogo(c *gin.Context) {
 		}
 	}
 
-	out, err := os.Create(absDest)
+	out, err := os.Create(filepath.Clean(absDest))
 	if err != nil {
 		shared.InternalError(c, err)
 		return
