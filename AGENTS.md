@@ -12,37 +12,30 @@ This project uses a semantic codebase index at `.opencode/index`, use semantic t
 | `codebase_peek` | Conceptual area is known, but exact files/symbols are not |
 | `implementation_lookup` | Symbol name is known, locate its authoritative definition |
 | `codebase_search` | Need actual source content for known files/symbols/concepts |
-| `semble_search` | Second opinion from the independent Semble index when `codebase_search` misses or returns doc-heavy noise; strongest on frontend/Svelte, where the Go-weighted index underperforms. Discards paths under `docs/`, `*.md`, and `database/migrations/` when judging whether a hit is real code |
+| `semble.search` | Second opinion from the independent Semble index when `codebase_search` misses or returns doc-heavy noise; strongest on frontend/Svelte, where the Go-weighted index underperforms. Discards paths under `docs/`, `*.md`, and `database/migrations/` when judging whether a hit is real code. Reached inside `execute` as `tools.semble["search"]` |
 | `call_graph` | Understand callers or callees of a known symbol |
 | `call_graph_path` | Investigate end-to-end execution path between two points |
 | `find_similar` | Before creating new implementation, check for existing patterns; matches against a pasted snippet |
-| `semble_find_related` | Similarity from the Semble index, keyed off a `file:line` you already have — use when there is no snippet to match against, e.g. locating near-duplicates of a known implementation for the duplication review track |
+| `semble.find_related` | Similarity from the Semble index, keyed off a `file:line` you already have — use when there is no snippet to match against, e.g. locating near-duplicates of a known implementation for the duplication review track. Inside `execute`: `tools.semble["find_related"]` |
 | `code_communities` | Module boundaries, architecture, coupling, hub symbols |
 | `codebase_edit_context` | Before modifying a known implementation, get bounded context |
+| `architecture_context` | Repository-scale orientation first: module responsibilities, boundaries, and recent Git activity before focused retrieval or planning |
+| `index_status` / `index_health_check` | Index readiness, provider/model compatibility, pending migrations, and stale-entry cleanup — check before diagnosing a miss as a stale index |
 | `pr_impact` | Assess blast radius of a branch or planned change |
 
-**Quick rules:** For known symbols, start with `implementation_lookup`. For exact text, use `grep`. For new features, add `find_similar` → `code_communities` before implementing. When a semantic search comes back thin, cross-check with `semble_search` before falling back to `grep`. When you have a location but no snippet, use `semble_find_related` instead of `find_similar`.
+**Quick rules:** For known symbols, start with `implementation_lookup`. For exact text, use `grep`. For new features, add `find_similar` → `code_communities` before implementing. When a semantic search comes back thin, cross-check with `semble.search` before falling back to `grep`. When you have a location but no snippet, use `semble.find_related` instead of `find_similar`.
 
 ### Incremental indexing
 
 - Prefer incremental indexing for small changes. Full re-index only when index is missing/corrupt, large portion changed, or major refactoring.
 - Do not repeatedly re-index because a query returned no result — first consider whether the query is vague, wrong tool selected, or target outside index.
-- **Never run `index_codebase` with `force=true`, or `/index force`, on your own initiative.** A full re-index is expensive and the user runs it themselves. If the index is stale or a symbol you just wrote is not found, say so and let the user re-index; fall back to `grep`/`Read` in the meantime rather than triggering a rebuild.
+- **Never run `index_codebase` with `force=true`, or `/index force` (equivalent shorthand: `/reindex`), on your own initiative.** A full re-index is expensive and the user runs it themselves. If the index is stale or a symbol you just wrote is not found, say so and let the user re-index; fall back to `grep`/`Read` in the meantime rather than triggering a rebuild.
+- Other plugin slash commands: `/status` (readiness/provider metadata), `/search`, `/peek`, `/find`, `/definition`, `/call-graph`, `/pr-impact`, `/visualize`.
 
 ### Known index limitations
 
-- **A Go method is indexed under its return type, not its name.** The name
-  attributed to `func (s *service) Foo(...) error` is `"error"`; a method
-  returning `bool`/`int`/`string` is stored as `"bool"`/`"int"`/`"string"`, and
-  one with multiple or unnamed results is `method_declaration (anonymous)`.
-  Free functions (`function_declaration`) keep their real names. Consequence:
-  `call_graph`, `call_graph_path`, and the `symbol`/`from`/`to` arguments of
-  `codebase_context`/`codebase_edit_context` cannot resolve a Go **method** by
-  name — `validatePayments` and `CreateSale` both miss. Retrieve the declaration
-  with `codebase_peek`/`codebase_search`, then enumerate callers with
-  `grep -rn '<method>' internal`.
-- **`pr_impact` diffs the branch against its base**, so it reports zero changed
-  files for uncommitted work. Commit or stash first, or run it on a branch.
+- **A duplicated symbol name must be disambiguated by file.** `call_graph`, `call_graph_path`, and the `symbol`/`from`/`to` arguments of `codebase_context`/`codebase_edit_context` resolve Go **methods** by name (overloads included — `CreateSale` returns its `method_declaration` candidates), but a name found in several files comes back as `Ambiguous symbol`. Pass `filePath` / `fromFilePath` / `toFilePath`, or retrieve one overload with `implementation_lookup`/`codebase_peek` and enumerate callers with `grep -rn '<method>' internal`.
+- **`pr_impact` diffs the branch against its base**, so it reports zero changed files for uncommitted work. Commit or stash first, or run it on a branch.
 
 ## Environment Configuration
 
