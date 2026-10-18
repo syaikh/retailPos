@@ -510,3 +510,15 @@ jobs:
       - uses: github/codeql-action/analyze@v4
         with:
           category: "/language:javascript-typescript"
+
+  secrets-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

@@ -1,0 +1,27 @@
+name: Fuzz (Scheduled)
+
+on:
+  schedule:
+    - cron: '0 2 * * 1' # Mondays 02:00 UTC
+  workflow_dispatch:
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg:
+          - ./internal/pricing/...
+          - ./internal/shared/...
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Run fuzz tests (limited time)
+        run: |
+          for p in "${{ join(matrix.pkg, ' ') }}"; do
+            echo "Fuzzing $p"
+            go test -fuzz=Fuzz -fuzztime 5m $p || exit 1
+          done
