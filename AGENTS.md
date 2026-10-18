@@ -164,7 +164,7 @@ Beyond govulncheck and CodeQL, CI enforces first-party SAST and secret detection
 
 - **gosec** runs inside golangci-lint (enabled in `.golangci.yaml`). New/edited Go code must be gosec-clean; `//nolint:gosec` requires an inline justification. Never "fix" a finding by excluding a path or downgrading the rule.
 - **gitleaks** runs as the `Secrets: Gitleaks` CI job (full history, `fetch-depth: 0`) and as an optional pre-commit hook (`.pre-commit-config.yaml`; install with `pre-commit install`).
-- **Fuzzing** runs in `.github/workflows/fuzz.yml` (`Fuzz (Scheduled)`) — weekly + `workflow_dispatch`, non-blocking, `-fuzztime 5m` per package. Adding `Fuzz*` tests to parser/validator/calculation packages is encouraged; the workflow picks them up automatically.
+- **Fuzzing** runs in `.github/workflows/fuzz.yml` (`Fuzz (Scheduled)`) — weekly + `workflow_dispatch`, non-blocking, `-fuzztime 5m` per package. Adding `Fuzz*` tests to parser/validator/calculation packages is encouraged; the workflow picks them up automatically. A fuzz worker re-runs `TestMain`, so packages with a database-backed `TestMain` must skip DB setup in fuzz mode (pattern: `fuzzTestMode()` in `internal/pricing/repository_test.go`) or workers contend and die with "fuzzing process terminated ... EOF".
 
 ### E2E Testing Conventions (Playwright, `tests/e2e/`)
 
