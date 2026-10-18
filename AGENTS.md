@@ -144,8 +144,9 @@ For rapid iteration during development, only run the specific package or file yo
 | Go: Vet | `go vet ./...` |
 | Go: Build | `go build ./...` |
 | Go: Tests | `go test -p 1 -count=1 ./...` + race detector (with PostgreSQL) |
-| Go: Lint | `golangci-lint` (govet, staticcheck, errcheck, ineffassign, unused, revive, depguard) |
+| Go: Lint | `golangci-lint` (govet, staticcheck, errcheck, ineffassign, unused, revive, depguard, gosec) |
 | Go: Vulnerability Check | `govulncheck ./...` |
+| Secrets: Gitleaks | `gitleaks` full-history scan (`secrets-check` job) |
 | Frontend: Install | `npm ci` (dependency gate) |
 | Frontend: Format | `prettier --check` |
 | Frontend: Lint | `eslint .` (TypeScript + Svelte) |
@@ -156,6 +157,14 @@ For rapid iteration during development, only run the specific package or file yo
 | Security: CodeQL | GitHub CodeQL analysis (main branch only) |
 
 E2E tests run in a separate workflow (`.github/workflows/e2e.yml`) with sharded Playwright tests against a full stack (PostgreSQL, backend, frontend, print-agent).
+
+### Security Toolchain
+
+Beyond govulncheck and CodeQL, CI enforces first-party SAST and secret detection (design: `docs/adr/ADR_Security_Toolchain.md`):
+
+- **gosec** runs inside golangci-lint (enabled in `.golangci.yaml`). New/edited Go code must be gosec-clean; `//nolint:gosec` requires an inline justification. Never "fix" a finding by excluding a path or downgrading the rule.
+- **gitleaks** runs as the `Secrets: Gitleaks` CI job (full history, `fetch-depth: 0`) and as an optional pre-commit hook (`.pre-commit-config.yaml`; install with `pre-commit install`).
+- **Fuzzing** runs in `.github/workflows/fuzz.yml` (`Fuzz (Scheduled)`) — weekly + `workflow_dispatch`, non-blocking, `-fuzztime 5m` per package. Adding `Fuzz*` tests to parser/validator/calculation packages is encouraged; the workflow picks them up automatically.
 
 ### E2E Testing Conventions (Playwright, `tests/e2e/`)
 
