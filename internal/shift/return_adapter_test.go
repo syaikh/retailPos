@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,24 +30,28 @@ func TestActiveShiftFinder_ActiveShiftID(t *testing.T) {
 		assert.Equal(t, shift.ID, id)
 	})
 
-	t.Run("returns the most recently opened shift when several rows are open", func(t *testing.T) {
-		// OpenShift enforces one open shift per user, so a duplicate can only
-		// arrive via a race or a direct write; the ORDER BY opened_at DESC is
-		// what makes that case deterministic. Seed it with raw SQL on purpose.
+	t.Run("the schema forbids a second open shift, so the pick is never ambiguous", func(t *testing.T) {
+		// ActiveShiftID carries ORDER BY opened_at DESC as a defensive
+		// tiebreaker, but the partial unique index uq_open_shift_per_user
+		// (user_id WHERE status = 'open') rejects a duplicate before this
+		// query ever sees one — even via a direct raw-SQL write, which is
+		// how the previous version of this subtest tried to seed it. Pin
+		// that invariant instead of an unreachable state.
 		userID := insertTestUser(ctx, t, 1)
-		var olderID, newerID int
-		require.NoError(t, dbPool.QueryRow(ctx, `
+		older := createOpenShift(ctx, t, newTestRepo(t), userID)
+
+		_, err := dbPool.Exec(ctx, `
 			INSERT INTO shifts (user_id, status, opening_balance, opened_at)
-			VALUES ($1, 'open', 0, NOW() - INTERVAL '1 hour') RETURNING id
-		`, userID).Scan(&olderID))
-		require.NoError(t, dbPool.QueryRow(ctx, `
-			INSERT INTO shifts (user_id, status, opening_balance, opened_at)
-			VALUES ($1, 'open', 0, NOW()) RETURNING id
-		`, userID).Scan(&newerID))
+			VALUES ($1, 'open', 0, NOW())
+		`, userID)
+		var pgErr *pgconn.PgError
+		require.ErrorAs(t, err, &pgErr, "a second open shift must be rejected by the partial unique index")
+		require.Equal(t, "23505", pgErr.Code, "expected SQLSTATE 23505 (unique_violation)")
+		assert.Equal(t, "uq_open_shift_per_user", pgErr.ConstraintName)
 
 		id, err := finder.ActiveShiftID(ctx, userID)
 		require.NoError(t, err)
-		assert.Equal(t, newerID, id)
+		assert.Equal(t, older.ID, id, "the single surviving open shift is unambiguous")
 	})
 
 	t.Run("returns zero when the user has no shift at all", func(t *testing.T) {

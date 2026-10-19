@@ -21,7 +21,8 @@ func TestSaleConsignmentGuard_ConsignmentProductIDs(t *testing.T) {
 		saleID := insertTestSale(ctx, t, storeID, "CG-EMPTY-1")
 		ids, err := guard.ConsignmentProductIDs(ctx, txForTest(ctx, svc, t), saleID)
 		require.NoError(t, err)
-		require.NotNil(t, ids)
+		// ids is built via append, so no rows means nil; the contract is
+		// "empty means the sale has none", which Len 0 expresses.
 		require.Len(t, ids, 0)
 	})
 
@@ -32,7 +33,6 @@ func TestSaleConsignmentGuard_ConsignmentProductIDs(t *testing.T) {
 		t.Cleanup(func() { _ = tx.Rollback(ctx) })
 		ids, err := guard.ConsignmentProductIDs(ctx, tx, 999999)
 		require.NoError(t, err)
-		require.NotNil(t, ids)
 		require.Len(t, ids, 0)
 	})
 
@@ -57,8 +57,6 @@ func TestSaleConsignmentGuard_ConsignmentProductIDs(t *testing.T) {
 				UnitPrice:           10000,
 				StoreShareType:      ShareTypePercentage,
 				StoreShareValue:     20,
-				ReceiptID:           0,
-				Notes:               "",
 			}
 			insertConsignmentSaleItem(ctx, t, svc, rec)
 		}
@@ -86,7 +84,7 @@ func txForTest(ctx context.Context, svc *Service, t *testing.T) pgx.Tx {
 func getSupplierFromArr(ctx context.Context, t *testing.T, svc *Service, arrID int) int {
 	t.Helper()
 	var sup int
-	err := svc.repo.(*Repository).dbPool.QueryRow(ctx, `SELECT supplier_id FROM consignment_arrangements WHERE id = $1`, arrID).Scan(&sup)
+	err := svc.repo.db.QueryRow(ctx, `SELECT supplier_id FROM consignment_arrangements WHERE id = $1`, arrID).Scan(&sup)
 	require.NoError(t, err)
 	return sup
 }

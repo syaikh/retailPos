@@ -105,7 +105,13 @@ func TestShiftReturnNetting_CloseShift(t *testing.T) {
 		userID := insertTestUser(ctx, t, 1)
 		shift := createOpenShift(ctx, t, repo, userID)
 		insertShiftSale(ctx, t, userID, shift.ID, "INV-NET-ERR", "Cash", 55000)
-		repo.SetReturnTotalsProvider(&stubReturnTotals{err: errors.New("returns unavailable")})
+		// CloseShift reads the totals inside its own transaction, so the
+		// failure must be carried by ReturnTotalsInTx (txErr); err is set
+		// too so the subtest pins the abort on either entry point.
+		repo.SetReturnTotalsProvider(&stubReturnTotals{
+			err:   errors.New("returns unavailable"),
+			txErr: errors.New("returns unavailable"),
+		})
 
 		_, err := repo.CloseShift(ctx, shift.ID, userID, 150000, nil)
 		require.Error(t, err)
