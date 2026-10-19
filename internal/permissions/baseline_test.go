@@ -165,4 +165,16 @@ func TestBaselineRoleGrantsMatchPolicy(t *testing.T) {
 	for _, role := range []string{"cashier", "finance", "inventory_staff"} {
 		notGranted(t, grants, role, SupplierView, SupplierCreate, SupplierUpdate, SupplierDelete, PricingApprove)
 	}
+
+	// Sales Return (PRD-Sales-Return, 067_sales_return.sql): a cashier may
+	// process a return at the till but never approve one whose refund exceeds
+	// the threshold — processing and approving are separate codes so the
+	// approval queue is a manager/superadmin duty. supervisor, finance and
+	// inventory_staff sit outside the return flow entirely.
+	granted(t, grants, "cashier", SaleReturn)
+	notGranted(t, grants, "cashier", SaleReturnApprove)
+	granted(t, grants, "manager", SaleReturn, SaleReturnApprove)
+	for _, role := range []string{"supervisor", "finance", "inventory_staff"} {
+		notGranted(t, grants, role, SaleReturn, SaleReturnApprove)
+	}
 }

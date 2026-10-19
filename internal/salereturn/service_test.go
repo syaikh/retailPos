@@ -58,10 +58,11 @@ func (m *stubDeduct) DeductStock(_ context.Context, _ pgx.Tx, items []shared.Sto
 
 type stubConsignment struct {
 	ids []int
+	err error
 }
 
 func (m stubConsignment) ConsignmentProductIDs(_ context.Context, _ pgx.Tx, _ int) ([]int, error) {
-	return m.ids, nil
+	return m.ids, m.err
 }
 
 type stubAdjuster struct {

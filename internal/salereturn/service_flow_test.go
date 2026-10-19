@@ -2,6 +2,8 @@ package salereturn
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -19,16 +21,22 @@ import (
 // cross-module ports are stubbed. This is what makes the write-path wiring
 // (response items, event ItemCount, threshold-after-demotion) observable.
 
-type stubSaleReader struct{ sale *shared.ReturnSale }
-
-func (m stubSaleReader) SaleForReturn(_ context.Context, _ pgx.Tx, _ int) (*shared.ReturnSale, error) {
-	return m.sale, nil
+type stubSaleReader struct {
+	sale *shared.ReturnSale
+	err  error
 }
 
-type stubShiftFinder struct{ shiftID int }
+func (m stubSaleReader) SaleForReturn(_ context.Context, _ pgx.Tx, _ int) (*shared.ReturnSale, error) {
+	return m.sale, m.err
+}
+
+type stubShiftFinder struct {
+	shiftID int
+	err     error
+}
 
 func (m stubShiftFinder) ActiveShiftID(_ context.Context, _ int) (int, error) {
-	return m.shiftID, nil
+	return m.shiftID, m.err
 }
 
 // returnSaleFromSeed mirrors the sale rows seedSaleFixture inserted.
@@ -235,4 +243,235 @@ func TestApproveReturn_ElapsedWindow_FlipsAndFails(t *testing.T) {
 	returned, err := repo.ReturnedQtyBySale(ctx, dbPool, f.saleID, 0)
 	require.NoError(t, err)
 	assert.Zero(t, returned[f.itemID], "an expired return must not consume the returnable quantity")
+}
+
+// ==================== WIRING & GUARD FAILURES ====================
+// These cover the fail-fast loop, the port error paths and the reject guards.
+// They hand-build the fixture (no rows) because every assertion fails before
+// — or without — writing a return.
+
+func TestProcessReturn_UnwiredPortFailsFast(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	f := &seeded{userID: 1, shiftID: 1, productID: 1, saleID: 1, itemID: 1, cashPM: 1}
+	req := ProcessRequest{
+		Reason: "barang rusak", Condition: ConditionDamaged,
+		Items: []ItemRequest{{SaleItemID: f.itemID, Quantity: 1}},
+	}
+
+	cases := []struct {
+		port  string
+		unset func(s *Service)
+	}{
+		{"SaleReader", func(s *Service) { s.SetSaleReader(nil) }},
+		{"ActiveShiftFinder", func(s *Service) { s.SetActiveShiftFinder(nil) }},
+		{"ShiftTotalAdjuster", func(s *Service) { s.SetShiftTotalAdjuster(nil) }},
+		{"StockChecker", func(s *Service) { s.SetStockChecker(nil) }},
+		{"StockDeducer", func(s *Service) { s.SetStockDeducer(nil) }},
+		{"ConsignmentGuard", func(s *Service) { s.SetConsignmentGuard(nil) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.port, func(t *testing.T) {
+			s, _, _ := newFlowService(f, map[int]int{}, &stubDeduct{}, "500000")
+			tc.unset(s)
+			_, err := s.ProcessReturn(ctx, flowActor(f), nil, f.saleID, req)
+			require.Error(t, err)
+			assert.Equal(t, fmt.Sprintf("salereturn: %s port is not wired", tc.port), err.Error())
+		})
+	}
+	assert.Zero(t, countSaleReturns(t), "fail-fast must not open a transaction")
+}
+
+func TestApproveReturn_UnwiredPortFailsFast(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	f := &seeded{userID: 1, shiftID: 1, productID: 1, saleID: 1, itemID: 1, cashPM: 1}
+
+	cases := []struct {
+		port  string
+		unset func(s *Service)
+	}{
+		{"SaleReader", func(s *Service) { s.SetSaleReader(nil) }},
+		{"ShiftTotalAdjuster", func(s *Service) { s.SetShiftTotalAdjuster(nil) }},
+		{"StockChecker", func(s *Service) { s.SetStockChecker(nil) }},
+		{"StockDeducer", func(s *Service) { s.SetStockDeducer(nil) }},
+		{"ConsignmentGuard", func(s *Service) { s.SetConsignmentGuard(nil) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.port, func(t *testing.T) {
+			s, _, _ := newFlowService(f, map[int]int{}, &stubDeduct{}, "500000")
+			tc.unset(s)
+			_, err := s.ApproveReturn(ctx, flowActor(f), nil, 1, nil)
+			require.Error(t, err)
+			assert.Equal(t, fmt.Sprintf("salereturn: %s port is not wired", tc.port), err.Error())
+		})
+	}
+
+	// Asymmetry guard: approval does not need the APPROVER's shift (only the
+	// processing cashier's shift is adjusted), so an unset ActiveShiftFinder
+	// must let the flow reach the repository instead of tripping the guard.
+	t.Run("ActiveShiftFinder is not required by approval", func(t *testing.T) {
+		s, _, _ := newFlowService(f, map[int]int{}, &stubDeduct{}, "500000")
+		s.SetActiveShiftFinder(nil)
+		_, err := s.ApproveReturn(ctx, flowActor(f), nil, 1, nil)
+		assert.ErrorIs(t, err, ErrReturnNotFound, "the flow must reach GetReturnForUpdate")
+	})
+
+	assert.Zero(t, countSaleReturns(t), "fail-fast must not open a transaction")
+}
+
+func TestProcessReturn_NoOpenShiftRejectsReturn(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	f := &seeded{userID: 1, shiftID: 1, productID: 1, saleID: 1, itemID: 1, cashPM: 1}
+
+	s, bus, adjuster := newFlowService(f, map[int]int{f.productID: 0}, &stubDeduct{}, "500000")
+	s.SetActiveShiftFinder(stubShiftFinder{shiftID: 0})
+
+	_, err := s.ProcessReturn(ctx, flowActor(f), nil, f.saleID, ProcessRequest{
+		Reason: "barang rusak", Condition: ConditionDamaged,
+		Items: []ItemRequest{{SaleItemID: f.itemID, Quantity: 1}},
+	})
+	// A refund pays out of a drawer: with no open shift there is nowhere to
+	// take the money from, so the whole return is rejected (PRD §12.1 #1).
+	assert.ErrorIs(t, err, ErrShiftNotOpen)
+	assert.Zero(t, adjuster.calls, "no shift adjustment without a shift")
+	assert.Empty(t, bus.topics, "nothing published for a rejected return")
+	assert.Zero(t, countSaleReturns(t))
+}
+
+func TestProcessReturn_ShiftFinderErrorPropagates(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	f := &seeded{userID: 1, shiftID: 1, productID: 1, saleID: 1, itemID: 1, cashPM: 1}
+
+	s, _, _ := newFlowService(f, map[int]int{f.productID: 0}, &stubDeduct{}, "500000")
+	s.SetActiveShiftFinder(stubShiftFinder{err: errors.New("db down")})
+
+	_, err := s.ProcessReturn(ctx, flowActor(f), nil, f.saleID, ProcessRequest{
+		Reason: "barang rusak", Condition: ConditionDamaged,
+		Items: []ItemRequest{{SaleItemID: f.itemID, Quantity: 1}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to find active shift: db down",
+		"an outage must not be mistaken for a closed shift")
+	assert.Zero(t, countSaleReturns(t))
+}
+
+func TestProcessReturn_SaleReaderPaths(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	f := &seeded{userID: 1, shiftID: 1, productID: 1, saleID: 1, itemID: 1, cashPM: 1}
+	req := ProcessRequest{
+		Reason: "barang rusak", Condition: ConditionDamaged,
+		Items: []ItemRequest{{SaleItemID: f.itemID, Quantity: 1}},
+	}
+
+	t.Run("nil sale is sale not found", func(t *testing.T) {
+		s, _, _ := newFlowService(f, map[int]int{}, &stubDeduct{}, "500000")
+		s.SetSaleReader(stubSaleReader{sale: nil})
+		_, err := s.ProcessReturn(ctx, flowActor(f), nil, f.saleID, req)
+		assert.ErrorIs(t, err, ErrSaleNotFound)
+		assert.Zero(t, countSaleReturns(t))
+	})
+
+	t.Run("reader error propagates unwrapped", func(t *testing.T) {
+		boom := errors.New("sale read failed")
+		s, _, _ := newFlowService(f, map[int]int{}, &stubDeduct{}, "500000")
+		s.SetSaleReader(stubSaleReader{err: boom})
+		_, err := s.ProcessReturn(ctx, flowActor(f), nil, f.saleID, req)
+		assert.ErrorIs(t, err, boom, "the provider's error must reach the caller as-is")
+		assert.Zero(t, countSaleReturns(t))
+	})
+}
+
+func TestProcessReturn_ConsignmentGuardErrorPropagates(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	f := &seeded{userID: 1, shiftID: 1, productID: 1, saleID: 1, itemID: 1, cashPM: 1}
+
+	s, _, _ := newFlowService(f, map[int]int{f.productID: 0}, &stubDeduct{}, "500000")
+	s.SetConsignmentGuard(stubConsignment{err: errors.New("consignment down")})
+
+	_, err := s.ProcessReturn(ctx, flowActor(f), nil, f.saleID, ProcessRequest{
+		Reason: "barang rusak", Condition: ConditionDamaged,
+		Items: []ItemRequest{{SaleItemID: f.itemID, Quantity: 1}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to check consignment items: consignment down",
+		"an outage must not be read as 'no consignment lines'")
+	assert.Zero(t, countSaleReturns(t), "the whole transaction must roll back")
+}
+
+func TestRejectReturn_CancelsPendingAndFreesQuantity(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	f := seedSaleFixture(t)
+	pending := seedPendingReturn(t, f, time.Now().Add(5*time.Minute))
+	repo := NewRepository(dbPool)
+
+	returned, err := repo.ReturnedQtyBySale(ctx, dbPool, f.saleID, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 1, returned[f.itemID], "the pending proposal consumes the sale's returnable quantity")
+
+	s, bus, adjuster := newFlowService(f, map[int]int{}, &stubDeduct{}, "500000")
+	out, err := s.RejectReturn(ctx, flowActor(f), nil, pending.ID, "di luar kebijakan")
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	assert.Equal(t, ReturnStatusCancelled, out.Status)
+
+	// The cancelled rows must stop consuming the sale's returnable quantity,
+	// so the customer can be served a fresh return afterwards.
+	returned, err = repo.ReturnedQtyBySale(ctx, dbPool, f.saleID, 0)
+	require.NoError(t, err)
+	assert.Zero(t, returned[f.itemID])
+
+	loaded, err := repo.GetReturn(ctx, nil, pending.ID)
+	require.NoError(t, err)
+	require.NotNil(t, loaded.Approval)
+	assert.Equal(t, "rejected", loaded.Approval.Status)
+	require.NotNil(t, loaded.Approval.RejectedReason)
+	assert.Equal(t, "di luar kebijakan", *loaded.Approval.RejectedReason)
+
+	assert.Zero(t, adjuster.calls, "a rejection moves no money")
+	assert.Empty(t, bus.topics, "and publishes no event")
+}
+
+func TestRejectReturn_Guards(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	f := seedSaleFixture(t)
+	repo := NewRepository(dbPool)
+	s, _, _ := newFlowService(f, map[int]int{}, &stubDeduct{}, "500000")
+
+	t.Run("empty reason is rejected before any write", func(t *testing.T) {
+		_, err := s.RejectReturn(ctx, flowActor(f), nil, 1, "")
+		assert.ErrorIs(t, err, ErrInvalidReturn)
+		assert.Contains(t, err.Error(), "rejection reason is required")
+	})
+
+	t.Run("unknown return is not found", func(t *testing.T) {
+		_, err := s.RejectReturn(ctx, flowActor(f), nil, 99999999, "x")
+		assert.ErrorIs(t, err, ErrReturnNotFound)
+	})
+
+	t.Run("another store's return is not found", func(t *testing.T) {
+		pending := seedPendingReturn(t, f, time.Now().Add(5*time.Minute))
+		_, err := s.RejectReturn(ctx, flowActor(f), ptrInt(2), pending.ID, "x")
+		assert.ErrorIs(t, err, ErrReturnNotFound, "the store check runs before any decision")
+
+		loaded, lerr := repo.GetReturn(ctx, nil, pending.ID)
+		require.NoError(t, lerr)
+		assert.Equal(t, ReturnStatusPendingApproval, loaded.Status, "the row must stay untouched")
+	})
+
+	t.Run("a completed return is not pending", func(t *testing.T) {
+		done := insertReturnWithItem(ctx, t, repo, f, ReturnStatusCompleted, nil)
+		_, err := s.RejectReturn(ctx, flowActor(f), nil, done.ID, "x")
+		assert.ErrorIs(t, err, ErrReturnNotPending)
+
+		loaded, lerr := repo.GetReturn(ctx, nil, done.ID)
+		require.NoError(t, lerr)
+		assert.Equal(t, ReturnStatusCompleted, loaded.Status, "the completed row must stay untouched")
+	})
 }
