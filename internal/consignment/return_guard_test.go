@@ -47,16 +47,16 @@ func TestSaleConsignmentGuard_ConsignmentProductIDs(t *testing.T) {
 
 		ins := func(pid int) {
 			rec := shared.ConsignmentSaleRecord{
-				SaleID:              saleID,
-				InvoiceNumber:       "CG-RET-1",
-				ProductID:           pid,
-				SupplierID:          supplierID,
-				ArrangementID:       arrID,
-				StoreID:             storeID,
-				Quantity:            1,
-				UnitPrice:           10000,
-				StoreShareType:      ShareTypePercentage,
-				StoreShareValue:     20,
+				SaleID:          saleID,
+				InvoiceNumber:   "CG-RET-1",
+				ProductID:       pid,
+				SupplierID:      supplierID,
+				ArrangementID:   arrID,
+				StoreID:         storeID,
+				Quantity:        1,
+				UnitPrice:       10000,
+				StoreShareType:  ShareTypePercentage,
+				StoreShareValue: 20,
 			}
 			insertConsignmentSaleItem(ctx, t, svc, rec)
 		}

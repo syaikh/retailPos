@@ -58,17 +58,17 @@ const (
 	CategoryExport Code = "category.export"
 	CategoryImport Code = "category.import"
 
-	SaleView     Code = "sale.view"
-	SaleCreate   Code = "sale.create"
-	SalePark     Code = "sale.park"
-	SaleLookup   Code = "sale.lookup"
-	SaleDetail   Code = "sale.detail"
+	SaleView   Code = "sale.view"
+	SaleCreate Code = "sale.create"
+	SalePark   Code = "sale.park"
+	SaleLookup Code = "sale.lookup"
+	SaleDetail Code = "sale.detail"
 	// Sales return (PRD-Sales-Return): SaleReturn processes a customer return,
 	// SaleReturnApprove approves one whose refund exceeds the
 	// return.approval_threshold app setting.
 	SaleReturn        Code = "sale.return"
 	SaleReturnApprove Code = "sale.return.approve"
-	ReceiptPrint Code = "receipt.print"
+	ReceiptPrint      Code = "receipt.print"
 
 	ShiftView         Code = "shift.view"
 	ShiftCreate       Code = "shift.create"

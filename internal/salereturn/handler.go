@@ -90,7 +90,7 @@ func (h *Handler) ProcessReturn(c *gin.Context) {
 	}
 	req := ProcessRequest{Reason: body.Reason, Condition: body.Condition, Notes: body.Notes}
 	for _, it := range body.Items {
-		req.Items = append(req.Items, ItemRequest{SaleItemID: it.SaleItemID, Quantity: it.Quantity, Notes: it.Notes})
+		req.Items = append(req.Items, ItemRequest(it))
 	}
 
 	ret, err := h.svc.ProcessReturn(c.Request.Context(), actorFrom(c), shared.GetStoreID(c), saleID, req)
