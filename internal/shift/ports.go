@@ -63,3 +63,23 @@ type CartSessionChecker interface {
 	// shift, within the caller's transaction.
 	OpenCartCount(ctx context.Context, tx pgx.Tx, shiftID int) (int, error)
 }
+
+// ReturnTotalsProvider is the consumer-side port for a shift's aggregate
+// completed Sales Return refunds. Returns are NOT sales rows, so the shift
+// module cannot read them from its own tables: internal/salereturn owns
+// sale_returns/sale_return_payments and provides the production
+// implementation (structural typing — wiring passes
+// salereturn.ShiftReturnTotalsProvider here).
+//
+// Shift uses it to NET refunds out of shift totals: out of the persisted
+// running totals (already reduced live by ApplyReturnAdjustment) it must not
+// subtract twice, but the close-time summary recomputed from gross sales
+// rows, and the live fallbacks, both have to. Like SalesSummaryProvider it
+// has a standalone and an in-transaction entry point; both MUST be wired via
+// SetReturnTotalsProvider before a path that needs them runs — when the
+// provider is nil those reads are skipped (test repositories), never
+// double-counted.
+type ReturnTotalsProvider interface {
+	ReturnTotals(ctx context.Context, db shared.DBPool, shiftID int) (shared.ShiftReturnTotals, error)
+	ReturnTotalsInTx(ctx context.Context, tx pgx.Tx, shiftID int) (shared.ShiftReturnTotals, error)
+}

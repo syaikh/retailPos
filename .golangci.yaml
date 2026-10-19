@@ -55,6 +55,7 @@ linters:
             - "**/internal/product/**"
             - "**/internal/report/**"
             - "**/internal/sale/**"
+            - "**/internal/salereturn/**"
             - "**/internal/shift/**"
             - "**/internal/stockopname/**"
             - "**/internal/storagelocation/**"

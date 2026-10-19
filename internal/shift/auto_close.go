@@ -47,13 +47,24 @@ func (a *AutoCloser) Run(ctx context.Context) error {
 			continue
 		}
 
+		// The summary is gross cash intake; completed cash refunds already
+		// left the drawer, so net them out — otherwise the expected closing
+		// balance would overstate the drawer by the refunded amount and
+		// CloseShiftTx would flag a false positive discrepancy of exactly
+		// +CashRefund.
+		returns, err := a.repo.returnTotalsOf(ctx, a.repo.db, s.ID)
+		if err != nil {
+			slog.Error("auto-close: failed to get return totals", "shift_id", s.ID, "error", err)
+			continue
+		}
+
 		netMovements, err := a.repo.CashMovementNet(ctx, s.ID)
 		if err != nil {
 			slog.Error("auto-close: failed to get cash movement net", "shift_id", s.ID, "error", err)
 			continue
 		}
 
-		expectedCash := s.OpeningBalance + summary.TotalCashSales + netMovements
+		expectedCash := s.OpeningBalance + summary.TotalCashSales - returns.CashRefund + netMovements
 
 		notes := fmt.Sprintf("Auto-closed after %d hours of inactivity", hours)
 		_, err = a.repo.CloseShift(ctx, s.ID, s.UserID, expectedCash, &notes)

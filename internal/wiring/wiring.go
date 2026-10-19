@@ -28,6 +28,7 @@ import (
 	"retail-pos-system/internal/purchase"
 	"retail-pos-system/internal/report"
 	"retail-pos-system/internal/sale"
+	"retail-pos-system/internal/salereturn"
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/shift"
 	"retail-pos-system/internal/stockopname"
@@ -354,6 +355,7 @@ type Dependencies struct {
 	StorageLocationRepo *storagelocation.Repository
 	ConsignmentRepo     *consignment.Repository
 	AppSettingsRepo     *appsettings.Repository
+	SaleReturnRepo      *salereturn.Repository
 
 	UserSvc            user.Service
 	AuthSvc            *user.AuthService
@@ -376,6 +378,7 @@ type Dependencies struct {
 	StorageLocationSvc *storagelocation.Service
 	ConsignmentSvc     *consignment.Service
 	AppSettingsSvc     *appsettings.Service
+	SaleReturnSvc      *salereturn.Service
 
 	UserH            *user.Handler
 	AuthH            *user.AuthHandler
@@ -398,6 +401,7 @@ type Dependencies struct {
 	StorageLocationH *storagelocation.Handler
 	ConsignmentH     *consignment.Handler
 	AppSettingsH     *appsettings.Handler
+	SaleReturnH      *salereturn.Handler
 
 	IEH *ieh.Handler
 
@@ -552,6 +556,24 @@ func Initialize(p Providers) *Dependencies {
 	d.ShiftSvc.SetSettingsProvider(d.AppSettingsSvc)
 	d.ShiftRepo.SetSettingsProvider(d.AppSettingsSvc)
 
+	// Sales Return (PRD-Sales-Return): every consumer-side port is set here,
+	// fail-fast before any request touches the service. Placement is
+	// deliberate — SaleReturnSvc needs AppSettingsSvc (return policy) and
+	// AuditSvc (§13), while the shift repository needs SaleReturnRepo to net
+	// refunds out of close/live totals; the two modules import each other
+	// NEVER, the composition root glues them structurally.
+	d.SaleReturnRepo = salereturn.NewRepository(p.DB)
+	d.SaleReturnSvc = salereturn.NewService(d.SaleReturnRepo, d.Bus)
+	d.SaleReturnSvc.SetSaleReader(sale.ReturnSaleReader{})
+	d.SaleReturnSvc.SetActiveShiftFinder(shift.ActiveShiftFinder{DB: p.DB})
+	d.SaleReturnSvc.SetShiftTotalAdjuster(shift.TotalUpdater{})
+	d.SaleReturnSvc.SetStockChecker(inventory.StockChecker{})
+	d.SaleReturnSvc.SetStockDeducer(inventory.StockDeducer{})
+	d.SaleReturnSvc.SetConsignmentGuard(consignment.SaleConsignmentGuard{})
+	d.SaleReturnSvc.SetSettingsProvider(d.AppSettingsSvc)
+	d.SaleReturnSvc.SetAuditService(d.AuditSvc)
+	d.ShiftRepo.SetReturnTotalsProvider(salereturn.ShiftReturnTotalsProvider{Repo: d.SaleReturnRepo})
+
 	d.UserH = user.NewHandler(d.UserSvc, d.AuditSvc)
 	d.AuthH = user.NewAuthHandler(d.AuthSvc, d.AuditSvc)
 	d.ProductH = product.NewHandler(d.ProductSvc, d.AuditSvc)
@@ -570,6 +592,7 @@ func Initialize(p Providers) *Dependencies {
 	d.CustomerGroupH = customergroup.NewHandler(d.CustomerGroupSvc, d.AuditSvc)
 	d.StoreH = store.NewHandler(d.StoreSvc, d.AuditSvc)
 	d.ShiftH = shift.NewHandler(d.ShiftSvc, d.AuditSvc)
+	d.SaleReturnH = salereturn.NewHandler(d.SaleReturnSvc)
 	d.StockOpnameH = stockopname.NewHandler(d.StockOpnameSvc, d.AuditSvc)
 	d.StorageLocationH = storagelocation.NewHandler(d.StorageLocationSvc, d.AuditSvc)
 	d.ConsignmentH = consignment.NewHandler(d.ConsignmentSvc, d.AuditSvc)

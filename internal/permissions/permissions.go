@@ -63,6 +63,11 @@ const (
 	SalePark     Code = "sale.park"
 	SaleLookup   Code = "sale.lookup"
 	SaleDetail   Code = "sale.detail"
+	// Sales return (PRD-Sales-Return): SaleReturn processes a customer return,
+	// SaleReturnApprove approves one whose refund exceeds the
+	// return.approval_threshold app setting.
+	SaleReturn        Code = "sale.return"
+	SaleReturnApprove Code = "sale.return.approve"
 	ReceiptPrint Code = "receipt.print"
 
 	ShiftView         Code = "shift.view"
@@ -177,7 +182,7 @@ func All() []Code {
 		ReportView,
 		ProductView, ProductCreate, ProductUpdate, ProductDelete, ProductExport, ProductImport, ProductHistoryView, ProductCostView,
 		CategoryView, CategoryCreate, CategoryUpdate, CategoryDelete, CategoryExport, CategoryImport,
-		SaleView, SaleCreate, SalePark, SaleLookup, SaleDetail, ReceiptPrint,
+		SaleView, SaleCreate, SalePark, SaleLookup, SaleDetail, SaleReturn, SaleReturnApprove, ReceiptPrint,
 		ShiftView, ShiftCreate, ShiftReview, ShiftAudit, ShiftCashMovement,
 		CustomerView, CustomerCreate, CustomerUpdate, CustomerDelete, CustomerExport, CustomerImport,
 		PricingView, PricingCreate, PricingUpdate, PricingDelete, PricingApprove,

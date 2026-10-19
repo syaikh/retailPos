@@ -1,19 +1,164 @@
 # Implementation Plan: Sales Return (Retur Penjualan)
 
-> **STATUS: NOT YET IMPLEMENTED — forward-looking plan only**
-> The Sales Return feature has **not been built**. The planned migration file
-> `database/migrations/040_sales_return.sql` does not exist, the `sale.return` /
-> `sale.return.approve` permission codes are not registered, and no return API
-> endpoints exist. The migration number "040" is now used by
-> `040_shift_cash_movements.sql`. Do not treat the file lists, function names, or
-> endpoints below as current reality.
+> **STATUS: PHASE 1 (BACKEND) IMPLEMENTED — awaiting review; frontend phases not started**
+> Migration `database/migrations/067_sales_return.sql` exists and is applied, the
+> `sale.return` / `sale.return.approve` permission codes are registered in
+> `internal/permissions`, and the Phase 1 endpoints live under `/api/sales/...`
+> (`internal/salereturn`, wired in `internal/wiring`). The body of this plan is
+> the ORIGINAL pre-review design: where it disagrees with the **Review
+> amendments** section below, the amendments win. Every "040" reference below is
+> stale — the migration number in use is **067**.
 
 | Field | Value |
 |-------|-------|
-| Status | **Planned** |
+| Status | Phase 1 (backend) implemented — pending review |
 | Date | 2026-09-04 |
+| Amendments | 2026-10-19 (plan review, see "Review amendments") |
 | PRD | `docs/prd/PRD-Sales-Return.md` |
 | Estimated Effort | 10-12 days |
+
+---
+
+## Review amendments (2026-10-19)
+
+The plan was reviewed before implementation. The blockers and decisions below
+were resolved and are what the Phase 1 code actually does; the original phase
+descriptions further down are kept for the frontend phases and are stale where
+they conflict.
+
+### Schema & migration
+
+- Migration number changed from the planned `040` to **`067_sales_return.sql`**
+  (040 had long been taken by `040_shift_cash_movements.sql`).
+- **Returns never restock in Phase 1.** A returned unit is damaged, so the item
+  outcome is always `written_off`; the `sale_return_items.outcome` check keeps
+  `restocked` for a future phase. No `inventory_movements` rows are written —
+  a refund is a net-zero stock movement, and a replacement is a plain
+  `DeductStock` decrement (`internal/inventory`'s port).
+- `sale_returns.change_due` snapshots the original sale's change at processing
+  time: the cash refund is `Σ(cash payments) − change_due` because
+  `sale_payments` has no change column (`sales` does).
+- Post-squash convention: `000_baseline.sql` mirrors only the permission rows,
+  the role grants and the `app_settings` keys — not the tables or sequences.
+- `supervisor` deliberately does **not** receive `sale.return` /
+  `sale.return.approve` (flagged deviation from the PRD's role table, which was
+  written for a non-existent "admin" role — see Roles below).
+
+### Money & tax
+
+- **Tax is INCLUSIVE.** `lineRefund` mirrors `sale.computeLineTotals`:
+  `subtotal = qty × unit_price`, DPP = `round(subtotal × 100 / (100 + rate))`,
+  tax = the remainder. Refunding therefore returns the line's tax-inclusive
+  value, never `subtotal + tax` (which would double-count tax). Rate ≤ 0 →
+  DPP = subtotal, tax = 0. The rate comes from the `sale_items` snapshot.
+- Header `subtotal` / `tax_reversal` count refund lines only;
+  `discount` = `restocking_fee` = 0 (item discounts are baked into the unit
+  price).
+- **The client supplies no amounts.** The request is
+  `{reason, condition, notes, items[{sale_item_id, quantity, notes}]}`; every
+  figure is computed server-side from the locked sale rows.
+- Refund split: cash net = `Σcash − sale.change_due` (change is assigned to the
+  first cash rows); every method is refunded strictly proportionally to its net
+  contribution with largest-remainder rounding, zero-share rows dropped.
+  A degenerate sale whose payments are fully consumed by change falls back to
+  the first method so no refund is ever lost.
+
+### Outcomes & stock
+
+- The replacement/refund decision is made **per line, inside the posting
+  transaction**: stock > 0 → replacement candidate (`DeductStock` is atomic; on
+  `shared.ErrInsufficientStock` the line demotes to a full refund and the
+  return still posts); stock == 0 → refund. A line is fully replaced or fully
+  refunded, never split.
+- **Threshold re-check after the deduction** (code-review fix): a demotion can
+  grow the refund past `return.approval_threshold` after the pre-deduction
+  check already routed the return to the immediate path. Completing anyway
+  would bypass approval; parking pending would double-deduct at approval (the
+  deduction cannot be undone in place), so the transaction rolls back and
+  returns `ErrStockChanged` (409, "stok berubah saat memproses retur, silakan
+  coba lagi"). The retry re-plans the demoted line as a refund and correctly
+  goes to pending approval.
+- Header `return_type` is derived: `refund` if any line was refunded, else
+  `replacement`.
+- `condition` is locked to `damaged` in Phase 1 (`ErrConditionUnsupported`
+  otherwise), which is what makes the write-off rule coherent.
+
+### Shifts
+
+- **No open shift → the return is rejected** (`ErrShiftNotOpen`, PRD message
+  "shift sudah ditutup, retur tidak dapat diproses"), enforced both at creation
+  (the creator's active shift becomes `sale_returns.shift_id`) and at approval
+  (`ApplyReturnAdjustment` guards `status = 'open'`). Limitation accepted and
+  flagged: a pending return whose creator's shift closes before approval is
+  stranded — approval then fails with `ErrShiftNotOpen` and the attempt expires
+  on its own.
+- Completed returns adjust the shift's running totals through
+  `shift.TotalUpdater.ApplyReturnAdjustment` (subtracts CashRefund /
+  NonCashRefund / TotalRefund; no `user_id` guard — the approver may differ
+  from the creator; `transaction_count` untouched). `RowsAffected == 0` →
+  `shared.ErrShiftNotOpen`, which salereturn maps to its own sentinel.
+- The salereturn module owns its tables but exposes the aggregate through the
+  `shift.ReturnTotalsProvider` port (`salereturn.ShiftReturnTotalsProvider`),
+  glued in `internal/wiring` — shift never imports salereturn.
+- Close-time netting: `CloseShiftTx` nets gross summaries against completed
+  returns before the discrepancy math; the live fallbacks
+  (`GetActiveShiftByUserID`, `GetShiftWithLiveSales`, auto-close expected cash)
+  are netted the same way. A nil provider skips netting (test repos).
+- **Deferred:** per-method payment-breakdown display of refunds (non-cash is
+  shown as one aggregate) and `GetShiftReportData` netting.
+
+### Approvals & expiry
+
+- Creation writes `status = 'pending_approval'` + proposal items + a
+  `return_approvals` row only when `totalRefund > return.approval_threshold`;
+  smaller (or pure-replacement) returns complete immediately.
+- Approval **re-validates** everything inside its own transaction: advisory lock
+  `pg_advisory_xact_lock(hashtext('sale_return'), saleID)`, `ReturnedQtyBySale`
+  excluding the return's own rows, consignment re-check, fresh
+  stock/outcome decision, delete + reinsert of items, payment split,
+  shift adjustment, `MarkCompleted`, approval marked approved.
+- An attempt after `expires_at` flips the rows to `expired` **inside the same
+  committed transaction** and returns `ErrApprovalExpired` after commit, so the
+  flip survives. Rejection marks the approval `rejected` and the header
+  `cancelled`. Both `cancelled` and `expired` rows stop consuming the sale's
+  returnable quantity (`ReturnedQtyBySale` excludes them, code-review fix —
+  the customer may re-return after an expiry).
+- Expiry is **lazy** — no sweeper: the pending list filters
+  `expires_at > now()` and the detail presenter computes the effective status.
+- No self-approval restriction (PRD has none; a manager may process and approve
+  under the stated two-person expectation being a process rule, not a system
+  one — flagged).
+
+### Validation & guards
+
+- **TOCTOU:** the sale is read on the caller's transaction (`SaleForReturn`)
+  after the per-sale advisory lock, so two clerks cannot race the same line.
+- **Consignment lines are rejected outright in Phase 1**
+  ("retur untuk barang konsinyasi belum didukung") via a guard checked at
+  creation *and* re-checked at approval.
+- **Dropped:** customer `total_spent` / `loyalty_points` adjustment — sales
+  never increment them, so a refund must not decrement them.
+
+### API, roles, settings, events
+
+- Routes (all under `/api/sales`, gin 1.12 allows the static/wildcard siblings,
+  precedent `/sales/lookup` + `/sales/:id`):
+  `POST /sales/:id/return` (`sale.return`),
+  `GET /sales/:id/returns` + `GET /sales/returns/:returnId` (`sale.view`),
+  `GET /sales/returns/pending`, `POST /sales/returns/:returnId/approve|reject`
+  (`sale.return.approve`).
+- Roles: the PRD's "admin" role does not exist — approval maps to **manager**
+  (and superadmin). Cashier, manager and superadmin receive `sale.return`;
+  manager and superadmin receive `sale.return.approve`.
+- Return numbers are `RET-<year>-%06d` from `return_seq`, year in
+  `Asia/Jakarta`.
+- Settings: `return.window_days` (1), `return.approval_threshold` (500000),
+  `return.approval_timeout_minutes` (5) — defaults applied in code on missing
+  or unparsable keys; a settings outage falls back to defaults with a logged
+  error instead of failing the request.
+- Audit actions `return` / `return_approve` / `return_reject` on entity type
+  `sale_return`; the `sale.returned.v1` event is published after commit and
+  only for completed returns.
 
 ---
 

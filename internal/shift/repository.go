@@ -28,6 +28,7 @@ type Repository struct {
 	paymentBreakdownProvider PaymentBreakdownProvider
 	cartSessionChecker       CartSessionChecker
 	settings                 SettingsProvider
+	returnTotals             ReturnTotalsProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -73,6 +74,31 @@ func (r *Repository) SetCartSessionChecker(p CartSessionChecker) {
 // shift_discrepancy_threshold instead of a drifted copy (backend review X1).
 func (r *Repository) SetSettingsProvider(p SettingsProvider) {
 	r.settings = p
+}
+
+// SetReturnTotalsProvider wires the salereturn-owned implementation of the
+// ReturnTotalsProvider port. nil is tolerated only by paths that then SKIP
+// the return netting (test repositories); production wiring in
+// internal/wiring always sets it, because a shift's live/close totals would
+// otherwise overstate sales by the refunded amount.
+func (r *Repository) SetReturnTotalsProvider(p ReturnTotalsProvider) {
+	r.returnTotals = p
+}
+
+// returnTotalsOf aggregates a shift's completed refunds via the port; a nil
+// provider yields zero totals (netting skipped).
+func (r *Repository) returnTotalsOf(ctx context.Context, db shared.DBPool, shiftID int) (shared.ShiftReturnTotals, error) {
+	if r.returnTotals == nil {
+		return shared.ShiftReturnTotals{}, nil
+	}
+	return r.returnTotals.ReturnTotals(ctx, db, shiftID)
+}
+
+func (r *Repository) returnTotalsInTx(ctx context.Context, tx pgx.Tx, shiftID int) (shared.ShiftReturnTotals, error) {
+	if r.returnTotals == nil {
+		return shared.ShiftReturnTotals{}, nil
+	}
+	return r.returnTotals.ReturnTotalsInTx(ctx, tx, shiftID)
 }
 
 func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
@@ -234,6 +260,19 @@ func (r *Repository) CloseShiftTx(ctx context.Context, tx pgx.Tx, shiftID, userI
 		return nil, fmt.Errorf("failed to calculate shift summary: %w", err)
 	}
 
+	// The summary above is GROSS (it counts only sales/sale_payments rows);
+	// net the shift's completed refunds out before it overwrites the persisted
+	// running totals, which ApplyReturnAdjustment already reduced live. Gross
+	// − returns equals the live net, so the persisted columns keep their value
+	// instead of being resurrected as gross.
+	returns, err := r.returnTotalsInTx(ctx, tx, shiftID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate return totals: %w", err)
+	}
+	summary.TotalCashSales -= returns.CashRefund
+	summary.TotalNonCashSales -= returns.NonCashRefund
+	summary.TotalSales -= returns.TotalRefund
+
 	// Cash movements change the drawer without touching sales: reconcile the
 	// observed closing balance against opening + cash sales + net movements so
 	// a legit paid_in / cash_drop / paid_out is not flagged as a discrepancy.
@@ -317,10 +356,21 @@ func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*S
 		if err != nil {
 			slog.Error("failed to scan live sales for active shift", "shift_id", shift.ID, "error", err)
 		} else {
-			shift.CashSales = summary.TotalCashSales
-			shift.NonCashSales = summary.TotalNonCashSales
-			shift.TotalSales = summary.TotalSales
-			shift.TransactionCount = summary.TotalTransactions
+			// The live summary is gross; net this shift's completed refunds
+			// from it, exactly as CloseShiftTx does. In this branch no sale
+			// was ever stored for the shift (transaction_count == 0), but a
+			// refund from another shift's sale can already have driven the
+			// stored totals negative — overwriting with gross − returns
+			// reproduces that same net figure instead of dropping it.
+			returns, err := r.returnTotalsOf(ctx, r.db, shift.ID)
+			if err != nil {
+				slog.Error("failed to scan live return totals for active shift", "shift_id", shift.ID, "error", err)
+			} else {
+				shift.CashSales = summary.TotalCashSales - returns.CashRefund
+				shift.NonCashSales = summary.TotalNonCashSales - returns.NonCashRefund
+				shift.TotalSales = summary.TotalSales - returns.TotalRefund
+				shift.TransactionCount = summary.TotalTransactions
+			}
 		}
 	}
 
@@ -647,7 +697,16 @@ func (r *Repository) GetShiftWithLiveSales(ctx context.Context, scope ownership.
 		return nil, 0, fmt.Errorf("failed to query live cash sales: %w", err)
 	}
 
-	return shift, summary.TotalCashSales, nil
+	// Live cash is the GROSS drawer intake; a completed cash refund already
+	// left the drawer, so net it out to report what is actually in there.
+	// Persisted shift.cash_sales is already net (ApplyReturnAdjustment) —
+	// only this re-derived figure needs the subtraction.
+	returns, err := r.returnTotalsOf(ctx, r.db, shiftID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query return totals: %w", err)
+	}
+
+	return shift, summary.TotalCashSales - returns.CashRefund, nil
 }
 
 func (r *Repository) GetShiftReportData(ctx context.Context, scope ownership.Scope, shiftID int) (*ReportData, error) {

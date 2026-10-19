@@ -19,7 +19,7 @@ const modulePrefix = "retail-pos-system/internal/"
 // permissions, shared) is intentionally importable from anywhere.
 var domainModules = []string{
 	"appsettings", "brand", "category", "consignment", "customer", "customergroup", "inventory",
-	"platform", "pricing", "product", "purchase", "report", "sale",
+	"platform", "pricing", "product", "purchase", "report", "sale", "salereturn",
 	"shift", "stockopname", "storagelocation", "store", "supplier", "uom", "user",
 }
 
@@ -29,7 +29,7 @@ var domainModules = []string{
 var isolatedModules = []string{
 	"appsettings", "brand", "category", "consignment", "customer", "customergroup",
 	"inventory", "platform", "pricing", "product", "purchase", "report",
-	"sale", "shift", "stockopname", "storagelocation", "store", "supplier",
+	"sale", "salereturn", "shift", "stockopname", "storagelocation", "store", "supplier",
 	"uom", "user",
 }
 
@@ -54,6 +54,12 @@ var tableContext = map[string]string{
 	"cart_sessions":       "transaksional",
 	"cart_items":          "transaksional",
 	"cash_movements":      "transaksional",
+	// Sales return
+	"sale_returns":             "transaksional",
+	"sale_return_items":        "transaksional",
+	"sale_return_replacements": "transaksional",
+	"sale_return_payments":     "transaksional",
+	"return_approvals":         "transaksional",
 	// Consignment
 	"consignment_arrangements":         "transaksional",
 	"consignment_terms":                "transaksional",
@@ -130,6 +136,7 @@ var moduleContext = map[string]string{
 	"uom":             "katalog",
 	"pricing":         "katalog",
 	"sale":            "transaksional",
+	"salereturn":      "transaksional",
 	"inventory":       "transaksional",
 	"shift":           "transaksional",
 	"purchase":        "prokuremen",
@@ -169,6 +176,13 @@ var strictModuleTables = map[string]map[string]bool{
 		"payment_methods": true,
 		"cart_sessions":   true,
 		"cart_items":      true,
+	},
+	"salereturn": {
+		"sale_returns":             true,
+		"sale_return_items":        true,
+		"sale_return_replacements": true,
+		"sale_return_payments":     true,
+		"return_approvals":         true,
 	},
 	"supplier": {
 		"suppliers": true,

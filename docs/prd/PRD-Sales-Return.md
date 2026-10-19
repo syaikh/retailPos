@@ -1,18 +1,21 @@
 # PRD: Sales Return (Retur Penjualan)
 
-> **STATUS: NOT YET IMPLEMENTED — design draft only**
-> The Sales Return feature described in this document has **not been built**.
-> There is no `040_sales_return.sql` migration, no `sale.return` /
-> `sale.return.approve` permission codes, and no return API endpoints in the
-> codebase. The migration number "040" referenced later in this PRD is now taken
-> by `040_shift_cash_movements.sql` (shifts feature). Treat everything below as a
-> forward-looking plan; implementation requires new migrations, permission codes
-> (registration in `internal/permissions`), and API/UI work.
+> **STATUS: PHASE 1 (BACKEND) IMPLEMENTED — UI not built**
+> The Phase 1 backend of this PRD exists: `database/migrations/067_sales_return.sql`
+> (applied), the `sale.return` / `sale.return.approve` codes in
+> `internal/permissions`, and the `internal/salereturn` module with endpoints
+> under `/api/sales/...`. The migration number "040" referenced later in this
+> PRD is stale (taken by `040_shift_cash_movements.sql`). Sections 13-14
+> (frontend) remain forward-looking. Where this document disagrees with the
+> **"Review amendments"** section of `docs/design/sales-return-plan.md`, the
+> amendments win; the material corrections (tax-inclusive refunds, no restock,
+> roles, shift behavior) are folded into the sections below.
 
 | Field | Nilai |
 |-------|-------|
-| Status | **Draft** |
+| Status | Phase 1 (backend) implemented — pending review |
 | Date | 2026-09-04 |
+| Amendments | 2026-10-19 (plan review) |
 | Author | Engineering Team |
 | Scope | Customer return of purchased items at POS |
 
@@ -45,8 +48,8 @@ Allow customers to return **damaged** items they have purchased and receive a **
 | **Refund (fallback)** | Full refund to original payment method only when no stock available |
 | Original payment method | Refund always goes back to original payment method (cash→cash, card→card) |
 | Partial return | Customer can return some items from a sale without returning everything |
-| Tax reversal | Reverse `tax_amount` from original sale items |
-| Inventory restoration | Restock returned items into `product_stock` (if resellable condition) |
+| Tax reversal | Refund equals the **tax-inclusive** line value (DPP and tax computed per line for the reversal) |
+| Inventory restoration | **No restock in Phase 1** — the damaged unit is written off; a replacement deducts a fresh unit from stock |
 | Shift total adjustment | Reverse shift running totals atomically |
 | Audit logging | Full audit trail for every return action |
 | Manager approval | High-value returns require remote manager approval from another device |
@@ -80,7 +83,7 @@ Allow customers to return **damaged** items they have purchased and receive a **
 | **Replacement price** | Same price (no price difference) | No |
 | **Partial return** | Allowed (select specific items) | No |
 | **Over-return** | Blocked (cannot exceed original qty) | No |
-| **Tax reversal** | Yes (reverse `tax_amount`) | No |
+| **Tax reversal** | Yes — refund is the tax-inclusive line value; DPP/tax split recorded per line | No |
 
 ### 4.2 Return Reason Codes
 
@@ -91,15 +94,15 @@ Allow customers to return **damaged** items they have purchased and receive a **
 | `wrong_item` | Barang Salah |
 | `other` | Lainnya |
 
-> Note: Only `damaged` and `defective` are eligible for return in Phase 1. Other reasons exist for future use.
+> Note: Only `damaged` is eligible in Phase 1 (`condition` is validated server-side; the other codes exist for future phases).
 
 ### 4.3 Item Condition Codes
 
 | Code | Restock? | Outcome |
 |------|----------|---------|
-| `resellable` | Yes — add back to sellable stock | Replacement (preferred) |
+| `resellable` | Yes — add back to sellable stock | Future phase |
 | `damaged` | No — write off | Replacement if stock available; refund if last stock |
-| `defective` | No — quarantine/dispose | Replacement if stock available; refund if last stock |
+| `defective` | No — quarantine/dispose | Future phase |
 
 > Phase 1: Only `damaged` condition items are accepted for return.
 
@@ -140,23 +143,27 @@ Customer returns damaged item
 
 #### Example Scenario — Replacement (Stock Available)
 
+Prices at this POS are **tax-inclusive**: the line's `unit_price` already
+contains tax (see §4.1 "Tax reversal"). At a 11% rate the DPP is
+`round(subtotal × 100 / 111)` and the tax is the remainder.
+
 ```
 Sale #123:
-  Item A: Indomie    ×5 @Rp3,500 = Rp17,500 (tax: Rp1,750)
-  Item B: Kopi ABC   ×2 @Rp8,500 = Rp17,000 (tax: Rp1,700)
-  Item C: Teh Pucuk  ×3 @Rp4,000 = Rp12,000 (tax: Rp1,200)
+  Item A: Indomie    ×5 @Rp3,500 = Rp17,500 (DPP Rp15,766 + tax Rp1,734)
+  Item B: Kopi ABC   ×2 @Rp8,500 = Rp17,000 (DPP Rp15,315 + tax Rp1,685)
+  Item C: Teh Pucuk  ×3 @Rp4,000 = Rp12,000 (DPP Rp10,811 + tax Rp1,189)
   ─────────────────────────────────────────
-  Total: Rp46,500 + Rp4,650 tax = Rp51,150
-  Payment: Cash Rp30,000 + QRIS Rp21,150
+  Total: Rp46,500 (DPP Rp41,892 + tax Rp4,608)
+  Payment: Cash Rp30,000 + QRIS Rp16,500
 
 Customer returns: Item A × 1 (damaged)
 Stock check: Indomie has 12 in stock → REPLACEMENT
 ```
 
 **Result:**
-- Return damaged Indomie ×1 (stock +1 → 13)
-- Give replacement Indomie ×1 (stock -1 → 12)
-- Net stock change: 0
+- The returned damaged Indomie ×1 is **written off** (no restock in Phase 1)
+- Give replacement Indomie ×1 (stock 12 → 11)
+- Net stock change: **−1** (one fresh unit leaves, the damaged one is not resold)
 - No money changes hands
 - Return record: `return_type = 'replacement'`
 
@@ -164,19 +171,20 @@ Stock check: Indomie has 12 in stock → REPLACEMENT
 
 ```
 Sale #124:
-  Item D: Teh Pucuk  ×1 @Rp4,000 = Rp4,000 (tax: Rp400)
+  Item D: Teh Pucuk  ×1 @Rp4,000 = Rp4,000 (DPP Rp3,604 + tax Rp396)
   ─────────────────────────────────────────
-  Total: Rp4,000 + Rp400 tax = Rp4,400
-  Payment: Cash Rp4,400
+  Total: Rp4,000
+  Payment: Cash Rp4,400 → change Rp400 (drawer holds Rp4,000)
 
 Customer returns: Teh Pucuk ×1 (damaged)
 Stock check: Teh Pucuk has 0 in stock → REFUND
 ```
 
 **Result:**
-- Return damaged Teh Pucuk ×1 (stock +1 → 1)
-- No replacement available
-- Refund Rp4,400 to Cash (original payment method)
+- The returned damaged Teh Pucuk ×1 is **written off** (no restock, no replacement)
+- Refund **Rp4,000** — the full tax-inclusive line value — to Cash
+  (the original payment method)
+- No stock movement at all
 - Return record: `return_type = 'refund'`
 
 #### How Partial Return Works
@@ -184,8 +192,8 @@ Stock check: Teh Pucuk has 0 in stock → REFUND
 1. **Cashier selects specific items** to return from the original sale (checkbox + quantity input)
 2. **Each return line links to the original sale item** via `sale_return_items.sale_item_id`
 3. **System checks stock** for each returned item to determine replacement vs refund
-4. **Replacement**: stock restored + new item deducted (net 0 change)
-5. **Refund**: stock restored + money returned to original payment method
+4. **Replacement**: a fresh unit is deducted for the customer; the damaged returned unit is written off (net −1 change)
+5. **Refund**: no stock movement (damaged unit written off) + money returned to original payment method
 
 #### Over-Return Prevention
 
@@ -255,10 +263,10 @@ Return Modal:
 | Return all items in sale | Sale fully returned, "Return Items" button disabled |
 | Same product sold twice (2 lines) | Each line tracked separately by `sale_item_id` |
 | Item with pricing rule discount | Refund uses snapshot price (not current price) |
-| Tax reversal | Proportional to returned quantity |
-| Consignment-owned item | Restore both `product_stock` and `consignment_stock.available` |
-| Stock available → replacement | Return damaged item, give new item, net 0 change |
-| Stock unavailable → refund | Return damaged item, refund to original payment method |
+| Tax reversal | Proportional to returned quantity (refund is the tax-inclusive line value) |
+| Consignment-owned item | **Rejected in Phase 1** — "retur untuk barang konsinyasi belum didukung" (checked at creation and approval) |
+| Stock available → replacement | Return damaged item (written off), give new item — net −1 stock |
+| Stock unavailable → refund | Return damaged item (written off), refund to original payment method — no stock movement |
 
 ---
 
@@ -268,18 +276,20 @@ Return Modal:
 
 | Role | Process Return? | Approve Return? | View Returns? |
 |------|-----------------|-----------------|---------------|
-| **Cashier** | ✅ Yes | ❌ No | ✅ Own returns |
-| **Manager** | ✅ Yes | ✅ Yes | ✅ All returns (own store) |
-| **Admin** | ✅ Yes | ✅ Yes | ✅ All returns |
+| **Cashier** | ✅ Yes (`sale.return`) | ❌ No | ✅ Own returns |
+| **Manager** | ✅ Yes (`sale.return`) | ✅ Yes (`sale.return.approve`) | ✅ All returns (own store) |
 | **Superadmin** | ✅ Yes | ✅ Yes | ✅ All returns |
-| **Staff** | ❌ No | ❌ No | ❌ No |
+| **Supervisor** | ❌ No | ❌ No | ✅ via `sale.view` (flagged: the original role matrix assumed an "admin" role that does not exist; supervisor was deliberately not granted) |
+| **Finance / inventory_staff** | ❌ No | ❌ No | ❌ No |
+
+> Note: there is **no self-approval restriction** — a manager may both process and approve a return; the two-person expectation is a process rule, not a system-enforced one (flagged).
 
 ### 5.2 New Permission Codes
 
 | Code | Name | Description | Granted To |
 |------|------|-------------|------------|
-| `sale.return` | Retur Penjualan | Process customer return of sold items | cashier, manager, admin, superadmin |
-| `sale.return.approve` | Setujui Retur | Approve high-value returns | manager, admin, superadmin |
+| `sale.return` | Retur Penjualan | Process customer return of sold items | cashier, manager, superadmin |
+| `sale.return.approve` | Setujui Retur | Approve high-value returns | manager, superadmin |
 
 ---
 
@@ -296,6 +306,12 @@ Cashier initiates return
     → Audit logged with cashier as processor
 ```
 
+> **As built:** the creator must have an open shift at creation *and* the
+> approver's shift must still be open at approval — otherwise the request is
+> rejected with "shift sudah ditutup, retur tidak dapat diproses"
+> (`ErrShiftNotOpen`). Limitation: a pending return whose creator's shift
+> closes before approval is stranded and will expire.
+
 ### 6.2 Manager Approval Path
 
 When `return_amount > return.approval_threshold`:
@@ -304,7 +320,7 @@ When `return_amount > return.approval_threshold`:
 Cashier initiates return
     → System validates (return window, quantities, item eligibility)
     → System creates pending approval record (expires in 5 minutes)
-    → WebSocket notification sent to all managers/admins in same store
+    → WebSocket notification sent to all managers and superadmins in same store
     → Manager opens approval modal on their device
     → Manager reviews: original sale details, items, reason, condition, total
     → Manager clicks Approve or Reject
@@ -487,17 +503,18 @@ INSERT INTO permissions (code, name, description) VALUES
   ('sale.return.approve', 'Setujui Retur', 'Menyetujui retur bernilai tinggi')
 ON CONFLICT (code) DO NOTHING;
 
--- Grant sale.return to cashier, manager, admin, superadmin
+-- Grant sale.return to cashier, manager, superadmin (there is no "admin"
+-- role in this system — the original PRD's "admin" maps to manager)
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name IN ('cashier', 'manager', 'admin', 'superadmin')
+WHERE r.name IN ('cashier', 'manager', 'superadmin')
   AND p.code = 'sale.return'
 ON CONFLICT DO NOTHING;
 
--- Grant sale.return.approve to manager, admin, superadmin only
+-- Grant sale.return.approve to manager and superadmin only
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name IN ('manager', 'admin', 'superadmin')
+WHERE r.name IN ('manager', 'superadmin')
   AND p.code = 'sale.return.approve'
 ON CONFLICT DO NOTHING;
 ```
@@ -612,77 +629,114 @@ internal/salereturn/
 ├── repository.go    -- DB operations (CRUD return, items, replacements, payments, approvals)
 ├── service.go       -- Business logic (validate, process return/replacement, coordinate stock + shift)
 ├── handler.go       -- HTTP handlers (gin)
-├── ports.go         -- StockRestorer, StockDeducer, SaleLookup interfaces
+├── ports.go         -- SaleReader, StockChecker, StockDeducer, ConsignmentGuard, ReturnTotalsProvider, ShiftTotalUpdater, EventPublisher interfaces
 ├── presenter.go     -- JSON response formatting
 └── *_test.go        -- Unit + integration tests
 ```
 
 ### 11.2 Port Interfaces
 
+As built (`internal/salereturn/ports.go` — consumer-side ports; every provider is
+wired by `internal/wiring`, and shared DTOs live in `internal/shared`):
+
 ```go
-// StockRestorer restores stock for returned items.
-// Mirrors StockDeducer — runs inside the return Unit of Work.
-type StockRestorer interface {
-    RestoreStock(ctx context.Context, tx pgx.Tx, items []shared.StockRestoreItem) error
+// SaleReader loads the original sale — header, lines and payments — ON THE
+// CALLER'S TRANSACTION so the sale cannot change between validation and
+// posting. Implemented by internal/sale (SaleForReturn; store-scoped callers
+// get ErrStoreMismatch for NULL-store sales).
+type SaleReader interface {
+    SaleForReturn(ctx context.Context, tx pgx.Tx, saleID int) (*shared.ReturnSale, error)
 }
 
-// StockDeducer deducts stock for replacement items.
-// Reuses existing inventory module implementation.
+// ActiveShiftFinder returns the caller's open shift id (0 when none).
+// Implemented by internal/shift.
+type ActiveShiftFinder interface {
+    ActiveShiftID(ctx context.Context, userID int) (int, error)
+}
+
+// ShiftTotalAdjuster applies one completed return's effect to a shift's
+// running totals, guarded by status='open'. RowsAffected==0 surfaces
+// shared.ErrShiftNotOpen. Implemented by internal/shift (shift.TotalUpdater).
+type ShiftTotalAdjuster interface {
+    ApplyReturnAdjustment(ctx context.Context, tx pgx.Tx, adj shared.ShiftReturnAdjustment) error
+}
+
+// StockChecker reads a product's sellable stock for the per-line
+// replacement-vs-refund decision. Implemented by internal/inventory.
+type StockChecker interface {
+    AvailableStock(ctx context.Context, db shared.DBPool, productID int) (int, error)
+}
+
+// StockDeducer deducts replacement stock on the caller's transaction
+// (atomic; shared.ErrInsufficientStock demotes the line to a refund).
+// Implemented by internal/inventory.
 type StockDeducer interface {
     DeductStock(ctx context.Context, tx pgx.Tx, items []shared.StockDeductItem) error
 }
 
-// SaleLookup fetches original sale data for return validation.
-type SaleLookup interface {
-    GetSaleByID(ctx context.Context, id int) (*sale.Sale, error)
+// ConsignmentGuard reports consignment-owned products on the sale; Phase 1
+// rejects the return if any are present. Implemented by internal/consignment.
+type ConsignmentGuard interface {
+    ConsignmentProductIDs(ctx context.Context, tx pgx.Tx, saleID int) ([]int, error)
 }
 
-// StockChecker checks available stock for replacement decisions.
-type StockChecker interface {
-    GetAvailableStock(ctx context.Context, productID int) (int, error)
+// SettingsProvider reads return.window_days / return.approval_threshold /
+// return.approval_timeout_minutes. Implemented by internal/appsettings;
+// missing or unparsable keys fall back to in-code defaults.
+type SettingsProvider interface {
+    GetMultiple(ctx context.Context, keys []string) (map[string]string, error)
 }
 ```
+
+The reverse direction (shift reading return totals at close time) goes through
+the `shift.ReturnTotalsProvider` port, implemented by
+`salereturn.ShiftReturnTotalsProvider` — shift never imports salereturn.
+
+There is **no `RestoreStock` port**: a damaged returned unit is never restocked
+in Phase 1, so no restore path exists.
 
 ### 11.3 Cross-Module Impact
 
 | Module | Change | Type |
 |--------|--------|------|
-| `internal/sale` | Add `returnable` status check; export `SaleItem` for validation | Read-only |
-| `internal/inventory` | New `RestoreStock` method + `sale_return` movement type | **New port** |
-| `internal/inventory` | Reuse existing `DeductStock` for replacement items | Existing port |
-| `internal/shift` | Reverse shift totals (`UpdateShiftTotals` with negative values) | Existing port |
-| `internal/consignment` | Restore `consignment_stock` for consignment-owned items | **New port** |
-| `internal/audit` | Log return actions | No change |
-| `cmd/server/main.go` | Wire new routes, permissions, ports | Composition root |
+| `internal/sale` | New `ReturnSaleReader` provider (`SaleForReturn` on the caller's tx, `COALESCE` for nullable `store_id` / `product_name`) | **New provider** |
+| `internal/inventory` | New `StockChecker` provider (`AvailableStock`); reuse existing `DeductStock` for replacement items | **New provider** + existing port |
+| `internal/shift` | New `ApplyReturnAdjustment` on `TotalUpdater` (status='open' guard); new `ReturnTotalsProvider` port implemented by salereturn; close-time and live-fallback netting | **New port** + netting |
+| `internal/consignment` | New `ConsignmentProductIDs` guard provider (Phase 1 rejects consignment returns) | **New provider** |
+| `internal/shared` | New `salereturn.go` DTOs (`ReturnSale`, `ShiftReturnAdjustment`, …) | Shared types |
+| `internal/events` | New `sale.returned.v1` event type | Constants |
+| `internal/audit` | Log return actions (`return` / `return_approve` / `return_reject`) | No change |
+| `cmd/server/main.go` | Wire new routes and ports | Composition root |
 | `internal/permissions` | Add `SaleReturn`, `SaleReturnApprove` codes | Constants |
 
-### 11.4 Unit of Work — Replacement Processing
+### 11.4 Unit of Work — Replacement Processing (as built)
 
 ```
 BEGIN TX
-  ├── Validate (return window, qty, eligibility)
-  ├── Lock original sale (SELECT FOR UPDATE)
-  ├── Check stock for replacement decision
-  ├── IF replacement:
-  │   ├── RestoreStock (returned item) — inventory module port
-  │   │   └── UPDATE product_stock + INSERT inventory_movements (type='sale_return')
-  │   ├── DeductStock (replacement item) — existing inventory module
-  │   │   └── UPDATE product_stock + INSERT inventory_movements (type='sale')
-  │   ├── RestoreConsignmentStock (if applicable)
-  │   ├── INSERT sale_returns (type='replacement', total_refund_amount=0)
-  │   ├── INSERT sale_return_items (outcome='replacement')
-  │   └── INSERT sale_return_replacements
-  ├── IF refund:
-  │   ├── RestoreStock (returned item) — inventory module port
-  │   ├── RestoreConsignmentStock (if applicable)
-  │   ├── INSERT sale_returns (type='refund', total_refund_amount=X)
-  │   ├── INSERT sale_return_items (outcome='refund')
-  │   ├── INSERT sale_return_payments (proportional split)
-  │   └── UpdateShiftTotals (negative contribution)
+  ├── pg_advisory_xact_lock(hashtext('sale_return'), saleID)   -- TOCTOU guard
+  ├── Load sale ON THIS TX (SaleReader) + validate window, quantities,
+  │     consignment guard (reject if any consignment-owned line)
+  ├── Require an open shift for the creator (else ErrShiftNotOpen)
+  ├── Per line: read stock → IF stock > 0 replacement candidate ELSE refund
+  │     ├── Replacement: DeductStock (atomic; on ErrInsufficientStock the
+  │     │     line demotes to a full refund and the return still posts)
+  │     └── The returned damaged unit is written off — NO stock movement
+  ├── INSERT sale_returns + sale_return_items (outcome='written_off')
+  ├── IF any refund line:
+  │     ├── INSERT sale_return_payments (proportional split per method,
+  │     │     cash net of the original sale's change_due)
+  │     └── ApplyReturnAdjustment on the open shift (Cash/NonCash/Total)
+  ├── IF totalRefund > return.approval_threshold:
+  │     └── status='pending_approval' + INSERT return_approvals; commit proposal
   ├── INSERT audit_logs (action='return')
-  ├── Publish SaleReturned event (outbox)
-  └── COMMIT TX
+  └── COMMIT TX → publish sale.returned.v1 (completed returns only)
 ```
+
+The approval path re-runs the same validation inside its own transaction
+(advisory lock, `ReturnedQtyBySale` excluding the return's own rows,
+consignment re-check, fresh outcome decision, delete + reinsert of items);
+an attempt after `expires_at` flips the approval rows to `expired` in a
+committed transaction and returns `ErrApprovalExpired` to the caller.
 
 ---
 
@@ -693,7 +747,7 @@ BEGIN TX
 | # | Case | Behavior |
 |---|------|----------|
 | 1 | **Return after shift closed** | Skip shift total adjustment; log adjustment in audit trail. Cash drawer drift is accepted for post-close returns. |
-| 2 | **Concurrent return + sale** | StockRestorer uses `SELECT FOR UPDATE` before incrementing stock row (same pattern as StockDeducer). |
+| 2 | **Concurrent return + sale** | Per-sale advisory lock `pg_advisory_xact_lock(hashtext('sale_return'), saleID)` serializes returns on the same sale; the sale is read on the posting transaction so quantities cannot change mid-flight. |
 | 3 | **Consignment-owned item return** | Restore both `product_stock` AND `consignment_stock.available`. Look up `consignment_sale_items` to credit correct supplier. Reject if settlement already paid. |
 | 4 | **Discontinued/archived product** | Allow return; skip stock restoration if product is archived/discontinued. Use snapshotted product data from `sale_items`. |
 | 5 | **Split payment refund** | Refund proportional to original allocation per payment method. Track each refund line separately. |
@@ -703,7 +757,7 @@ BEGIN TX
 | # | Case | Behavior |
 |---|------|----------|
 | 6 | **Cross-store return** | Restrict to same-store only. Customer must return at original purchase store. |
-| 7 | **Registered customer total_spent** | Decrement `customers.total_spent` and `loyalty_points` by return amount. |
+| 7 | **Registered customer total_spent** | **Dropped by review** — sales never increment `customers.total_spent` / `loyalty_points`, so a refund must not decrement them. No customer fields are touched. |
 | 8 | **Pricing rule discount** | Use snapshotted `unit_price` from `sale_items` (immutable), never re-resolve from pricing engine. |
 | 9 | **Tax class deleted** | Use snapshotted `tax_rate` from `sale_items`, not current `tax_classes` row. |
 | 10 | **Replacement stock race condition** | Use `SELECT FOR UPDATE` on stock row before deciding replacement vs refund. |
@@ -724,7 +778,7 @@ BEGIN TX
 
 | # | Case | Behavior |
 |---|------|----------|
-| 18 | Stock available → replacement | Return damaged item, give new item, net 0 stock change |
+| 18 | Stock available → replacement | Return damaged item (written off), give new item — net −1 stock change |
 | 19 | Stock unavailable → refund | Return damaged item, refund to original payment method |
 | 20 | Replacement same product only | Phase 1: only same SKU replacement allowed |
 | 21 | Replacement same price only | No price difference handling in Phase 1 |

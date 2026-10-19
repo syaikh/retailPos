@@ -198,6 +198,7 @@ func main() {
 		deps.PurchaseH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.SaleH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.SaleH.RegisterCartRoutes(protected, noopAuth, permMiddleware)
+		deps.SaleReturnH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.InventoryH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.CustomerH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.CategoryH.RegisterRoutes(protected, noopAuth, permMiddleware)

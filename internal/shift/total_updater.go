@@ -41,3 +41,31 @@ func (TotalUpdater) UpdateShiftTotals(ctx context.Context, tx pgx.Tx, c shared.S
 	}
 	return nil
 }
+
+// ApplyReturnAdjustment is salereturn's consumer-side port implementation:
+// one completed return nets its refund out of the shift's running totals
+// (cash out of the drawer, non-cash back to the method, total down). Unlike
+// UpdateShiftTotals there is deliberately NO user_id guard — the approver may
+// post onto the creator's shift — and NO transaction_count change: a return
+// is not a sale transaction (review decision; the PRD asked to keep
+// transaction_count semantics stable). The status='open' guard means a shift
+// that closed concurrently rejects the return instead of silently corrupting
+// closed totals (RowsAffected 0 → shared.ErrShiftNotOpen, which salereturn
+// surfaces as its own ErrShiftNotOpen).
+func (TotalUpdater) ApplyReturnAdjustment(ctx context.Context, tx pgx.Tx, adj shared.ShiftReturnAdjustment) error {
+	tag, err := tx.Exec(ctx, `
+		UPDATE shifts
+		SET cash_sales = cash_sales - $2,
+		    non_cash_sales = non_cash_sales - $3,
+		    total_sales = total_sales - $4,
+		    updated_at = NOW()
+		WHERE id = $1 AND status = 'open'
+	`, adj.ShiftID, adj.CashRefund, adj.NonCashRefund, adj.TotalRefund)
+	if err != nil {
+		return fmt.Errorf("return adjustment rejected: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("return adjustment rejected: %w", shared.ErrShiftNotOpen)
+	}
+	return nil
+}
