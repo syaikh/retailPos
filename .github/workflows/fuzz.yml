@@ -11,7 +11,7 @@ jobs:
     outputs:
       targets: ${{ steps.list.outputs.targets }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Enumerate fuzz targets
         id: list
         run: |
@@ -32,7 +32,7 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.discover.outputs.targets) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
           go-version-file: ${{ matrix.module == '.' && 'go.mod' || format('{0}/go.mod', matrix.module) }}
