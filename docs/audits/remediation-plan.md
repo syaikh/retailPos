@@ -1315,8 +1315,8 @@ jobs:
           - 5433:5432
     
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.26'
       
@@ -1324,7 +1324,7 @@ jobs:
         run: go mod download
       
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
       
@@ -1349,8 +1349,8 @@ jobs:
         working-directory: web
     
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
