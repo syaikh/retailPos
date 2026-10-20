@@ -18,6 +18,7 @@
   import { RefreshCw } from "lucide-svelte";
   import { useWebSocket } from "$shared/api/websocket";
   import { Button } from "$shared/ui";
+  import { PendingReturnsModal } from "$modules/salereturn";
   import TransactionFilters from "./TransactionFilters.svelte";
   import TransactionTable from "./TransactionTable.svelte";
   import TransactionDrawer from "./TransactionDrawer.svelte";
@@ -49,6 +50,10 @@
   // report.view holders already see every cashier's sales in "My Transactions",
   // so the tab bar (My Transactions + Find Transaction) is redundant for them.
   const canAccessAll = $derived(rbac.can(Permissions.report.view));
+  // Manager approval queue entry point (sale.return.approve). Phase 2 uses a
+  // manual modal; the websocket ApprovalNotification lands in Phase 3.
+  const canApprove = $derived(rbac.can(Permissions.sale.returnApprove));
+  let showReturnApprovals = $state(false);
 
   let showDatePicker = $state(false);
   let showTransactionDrawer = $state(false);
@@ -302,6 +307,18 @@
     </div>
   {/if}
 
+  {#if canApprove}
+    <div class="flex justify-end px-1 py-1">
+      <Button
+        variant="secondary"
+        size="sm"
+        onclick={() => (showReturnApprovals = true)}
+      >
+        {labels.returnApprovals}
+      </Button>
+    </div>
+  {/if}
+
   {#if activeTab === "mine"}
     <TransactionFilters
       bind:searchQuery={store.searchQuery}
@@ -370,9 +387,12 @@
   <TransactionDrawer
     {selectedTransaction}
     mode={drawerMode}
+    canReturn={rbac.can(Permissions.sale.return)}
     bind:showTransactionDrawer
     onclose={closeTransactionDrawer}
   />
+
+  <PendingReturnsModal bind:show={showReturnApprovals} />
 </div>
 
 <style>

@@ -15,6 +15,7 @@ import (
 // Handler exposes the Sales Return endpoints (PRD §9). Route shape and
 // permissions:
 //
+//	GET  /sales/:id/returnable          sale.return        pre-flight snapshot for the return modal
 //	POST /sales/:id/return              sale.return        create/process a return
 //	GET  /sales/:id/returns             sale.view          returns of one sale
 //	GET  /sales/returns/pending         sale.return.approve pending approval queue
@@ -34,6 +35,7 @@ func NewHandler(svc *Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.GET("/sales/:id/returnable", auth, perm(permissions.SaleReturn), h.GetReturnable)
 	r.POST("/sales/:id/return", auth, perm(permissions.SaleReturn), h.ProcessReturn)
 	r.GET("/sales/:id/returns", auth, perm(permissions.SaleView), h.ListSaleReturns)
 	r.GET("/sales/returns/pending", auth, perm(permissions.SaleReturnApprove), h.ListPendingReturns)
@@ -74,6 +76,23 @@ type approveBody struct {
 
 type rejectBody struct {
 	Reason string `json:"reason"`
+}
+
+// GetReturnable returns the pre-flight snapshot for the return modal
+// (GET /sales/:id/returnable): sale identity, server-authoritative
+// eligibility, policy values, and per-line returnable quantity/stock.
+func (h *Handler) GetReturnable(c *gin.Context) {
+	saleID, ok := pathID(c, "id")
+	if !ok {
+		respondError(c, ErrInvalidReturn)
+		return
+	}
+	out, err := h.svc.GetReturnable(c.Request.Context(), actorFrom(c), shared.GetStoreID(c), saleID)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": out})
 }
 
 // ProcessReturn creates a return for a sale (POST /sales/:id/return).

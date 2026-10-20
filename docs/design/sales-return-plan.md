@@ -144,6 +144,8 @@ they conflict.
 - Routes (all under `/api/sales`, gin 1.12 allows the static/wildcard siblings,
   precedent `/sales/lookup` + `/sales/:id`):
   `POST /sales/:id/return` (`sale.return`),
+  `GET /sales/:id/returnable` (`sale.return`, the modal's pre-flight snapshot:
+  eligibility, reason code, per-line returnable qty and stock),
   `GET /sales/:id/returns` + `GET /sales/returns/:returnId` (`sale.view`),
   `GET /sales/returns/pending`, `POST /sales/returns/:returnId/approve|reject`
   (`sale.return.approve`).
@@ -460,6 +462,7 @@ Additional methods:
 | Route | Method | Permission | Handler |
 |-------|--------|------------|---------|
 | `/api/sales/:id/return` | POST | `sale.return` | `ProcessReturn` |
+| `/api/sales/:id/returnable` | GET | `sale.return` | `GetReturnable` |
 | `/api/sales/:id/returns` | GET | `sale.view` | `ListReturns` |
 | `/api/sales/returns/:returnId` | GET | `sale.view` | `GetReturn` |
 | `/api/sales/returns/:returnId/approve` | POST | `sale.return.approve` | `ApproveReturn` |

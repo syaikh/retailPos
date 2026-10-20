@@ -52,6 +52,8 @@ export const Permissions = {
     park: "sale.park",
     lookup: "sale.lookup",
     detail: "sale.detail",
+    return: "sale.return",
+    returnApprove: "sale.return.approve",
     receiptPrint: "receipt.print",
   },
   shift: {

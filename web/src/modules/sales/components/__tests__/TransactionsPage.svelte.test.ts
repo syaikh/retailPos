@@ -235,4 +235,25 @@ describe("TransactionsPage.svelte source-structure guards", () => {
     expect(src).toContain("mode={drawerMode}");
     expect(src).toContain("<!-- Deep-link drawer");
   });
+
+  it("offers the return button in the drawer to sale.return holders", () => {
+    expect(src).toContain("canReturn={rbac.can(Permissions.sale.return)}");
+  });
+
+  it("shows the approval queue entry point to sale.return.approve holders", () => {
+    expect(src).toContain(
+      "const canApprove = $derived(rbac.can(Permissions.sale.returnApprove))",
+    );
+    expect(src).toContain("{#if canApprove}");
+    expect(src).toContain("labels.returnApprovals");
+  });
+
+  it("mounts the pending-returns queue modal with a bound show prop", () => {
+    expect(src).toContain(
+      'import { PendingReturnsModal } from "$modules/salereturn"',
+    );
+    expect(src).toContain(
+      "<PendingReturnsModal bind:show={showReturnApprovals} />",
+    );
+  });
 });

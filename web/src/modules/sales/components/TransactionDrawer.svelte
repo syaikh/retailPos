@@ -7,6 +7,12 @@
   import { toast } from "$shared/stores/toast.svelte";
   import apiClient from "$shared/api/http-client";
   import { labels } from "$shared/i18n";
+  import {
+    ReturnModal,
+    getReturnableSale,
+    ineligibleText,
+  } from "$modules/salereturn";
+  import type { ReturnableSale } from "$modules/salereturn";
   import type { Sale, SaleItem, PaymentInfo } from "../types";
 
   let {
@@ -14,13 +20,18 @@
     showTransactionDrawer = $bindable(false),
     mode = "history",
     canReprint = true,
+    canReturn = false,
     onclose = () => {},
     onprint = () => {},
     ondownload = () => {},
+    onreturned = () => {},
   } = $props();
 
   let detailLoading = $state(false);
   let transactionDetail = $state<Sale | null>(null);
+  let returnable = $state<ReturnableSale | null>(null);
+  let returnLoading = $state(false);
+  let showReturnModal = $state(false);
 
   const displayTransaction = $derived(transactionDetail || selectedTransaction);
 
@@ -58,6 +69,28 @@
         });
     }
   });
+
+  // The data behind the disabled state of the "Return Items" button
+  // (sale.return holders only). Fetched fresh on every open: the window, the
+  // open shift and the already-returned quantities all move with time and
+  // with other transactions.
+  $effect(() => {
+    if (showTransactionDrawer && canReturn && selectedTransaction?.id) {
+      loadReturnable(selectedTransaction.id);
+    }
+  });
+
+  async function loadReturnable(id: number) {
+    returnLoading = true;
+    returnable = null;
+    try {
+      returnable = await getReturnableSale(id);
+    } catch {
+      returnable = null;
+    } finally {
+      returnLoading = false;
+    }
+  }
 
   function statusVariant(s: string) {
     return s === "completed"
@@ -412,6 +445,33 @@
           </div>
         </div>
       </div>
+
+      {#if canReturn}
+        <div class="mt-5">
+          <Button
+            variant="secondary"
+            class="w-full rounded-xl h-11 text-sm font-semibold"
+            disabled={returnLoading || !returnable?.eligible}
+            title={returnable && !returnable.eligible
+              ? ineligibleText(
+                  returnable.ineligible_reason,
+                  returnable.window_days,
+                )
+              : ""}
+            onclick={() => (showReturnModal = true)}
+          >
+            {labels.returnItems}
+          </Button>
+          {#if !returnLoading && returnable && !returnable.eligible}
+            <p class="mt-1.5 text-xs text-text-muted">
+              {ineligibleText(
+                returnable.ineligible_reason,
+                returnable.window_days,
+              )}
+            </p>
+          {/if}
+        </div>
+      {/if}
     {/if}
   {/if}
 
@@ -465,3 +525,12 @@
     {/if}
   {/snippet}
 </Drawer>
+
+<!-- Rendered as a SIBLING of the drawer, not inside it: both components bind
+     Escape at different levels (the modal on window, the drawer on its
+     panel), and nesting the modal in the panel would close the drawer too. -->
+<ReturnModal
+  saleId={selectedTransaction?.id ?? null}
+  bind:show={showReturnModal}
+  onreturned={() => onreturned()}
+/>

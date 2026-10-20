@@ -536,6 +536,7 @@ ON CONFLICT (key) DO NOTHING;
 | Method | Path | Permission | Description |
 |--------|------|------------|-------------|
 | `POST` | `/api/sales/:id/return` | `sale.return` | Initiate return for a sale |
+| `GET` | `/api/sales/:id/returnable` | `sale.return` | Pre-flight returnability snapshot (eligibility, lines, stock) |
 | `GET` | `/api/sales/:id/returns` | `sale.view` | List returns for a specific sale |
 | `GET` | `/api/sales/returns/:returnId` | `sale.view` | Get return detail |
 | `POST` | `/api/sales/returns/:returnId/approve` | `sale.return.approve` | Manager approves pending return |
@@ -855,6 +856,7 @@ Implementation via `SaleReturned` domain event consumed by reporting module (eve
 |------|-------|
 | POST /api/sales/:id/return — full flow (replacement) | Handler |
 | POST /api/sales/:id/return — full flow (refund) | Handler |
+| GET /api/sales/:id/returnable — eligibility + per-line snapshot | Handler |
 | GET /api/sales/:id/returns — list returns | Handler |
 | POST approve/reject endpoints | Handler |
 | Permission gating (cashier cannot approve) | Handler + middleware |

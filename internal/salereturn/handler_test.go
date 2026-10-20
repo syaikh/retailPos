@@ -56,6 +56,38 @@ type returnDataResponse struct {
 	Data returnDTO `json:"data"`
 }
 
+// returnable* mirrors the GET /sales/:id/returnable payload (returnable.go).
+type returnableItemDTO struct {
+	SaleItemID         int     `json:"sale_item_id"`
+	ProductID          int     `json:"product_id"`
+	ProductName        string  `json:"product_name"`
+	Quantity           int     `json:"quantity"`
+	ReturnedQuantity   int     `json:"returned_quantity"`
+	ReturnableQuantity int     `json:"returnable_quantity"`
+	UnitPrice          int     `json:"unit_price"`
+	Subtotal           int     `json:"subtotal"`
+	TaxRate            float64 `json:"tax_rate"`
+	StockAvailable     int     `json:"stock_available"`
+	Consignment        bool    `json:"consignment"`
+}
+
+type returnableDTO struct {
+	SaleID            int                 `json:"sale_id"`
+	InvoiceNumber     string              `json:"invoice_number"`
+	Status            string              `json:"status"`
+	CreatedAt         string              `json:"created_at"`
+	TotalAmount       int                 `json:"total_amount"`
+	Eligible          bool                `json:"eligible"`
+	IneligibleReason  string              `json:"ineligible_reason"`
+	WindowDays        int                 `json:"window_days"`
+	ApprovalThreshold int                 `json:"approval_threshold"`
+	Items             []returnableItemDTO `json:"items"`
+}
+
+type returnableDataResponse struct {
+	Data returnableDTO `json:"data"`
+}
+
 type returnListResponse struct {
 	Data       []returnDTO `json:"data"`
 	Total      int         `json:"total"`
@@ -135,6 +167,13 @@ func decodeJSONBody(t *testing.T, w *httptest.ResponseRecorder, dst interface{})
 func decodeReturnData(t *testing.T, w *httptest.ResponseRecorder) returnDTO {
 	t.Helper()
 	var resp returnDataResponse
+	decodeJSONBody(t, w, &resp)
+	return resp.Data
+}
+
+func decodeReturnableData(t *testing.T, w *httptest.ResponseRecorder) returnableDTO {
+	t.Helper()
+	var resp returnableDataResponse
 	decodeJSONBody(t, w, &resp)
 	return resp.Data
 }
@@ -277,6 +316,7 @@ func TestRegisterRoutes_AllEndpoints(t *testing.T) {
 	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, returnPermPassthrough)
 
 	want := []string{
+		"GET /sales/:id/returnable",
 		"POST /sales/:id/return",
 		"GET /sales/:id/returns",
 		"GET /sales/returns/pending",
@@ -288,7 +328,7 @@ func TestRegisterRoutes_AllEndpoints(t *testing.T) {
 	for _, route := range r.Routes() {
 		got[route.Method+" "+route.Path] = true
 	}
-	assert.Len(t, got, len(want), "exactly six endpoints must be registered, got %v", got)
+	assert.Len(t, got, len(want), "exactly seven endpoints must be registered, got %v", got)
 	for _, route := range want {
 		assert.True(t, got[route], "missing route %s", route)
 	}
@@ -305,6 +345,7 @@ func TestRegisterRoutes_AuthPermGuards(t *testing.T) {
 		path   string
 		code   permissions.Code
 	}{
+		{http.MethodGet, "/sales/1/returnable", permissions.SaleReturn},
 		{http.MethodPost, "/sales/1/return", permissions.SaleReturn},
 		{http.MethodGet, "/sales/1/returns", permissions.SaleView},
 		{http.MethodGet, "/sales/returns/pending", permissions.SaleReturnApprove},
@@ -340,6 +381,163 @@ func TestRegisterRoutes_AuthPermGuards(t *testing.T) {
 			require.Len(t, recorded, 1, "%s %s", tc.method, tc.path)
 			assert.Equal(t, tc.code, recorded[0], "%s %s", tc.method, tc.path)
 		}
+	})
+}
+
+// ==================== GET /sales/:id/returnable ====================
+
+func TestGetReturnableHandler_Snapshot(t *testing.T) {
+	f := seedReturnScenario(t)
+	r, _, _, _ := setupReturnRoutes(t, f, map[int]int{f.productID: 7}, "500000", nil)
+
+	w := doRequest(r, http.MethodGet, fmt.Sprintf("/sales/%d/returnable", f.saleID), "")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	data := decodeReturnableData(t, w)
+	assert.Equal(t, f.saleID, data.SaleID)
+	assert.Equal(t, "completed", data.Status)
+	assert.NotEmpty(t, data.CreatedAt, "created_at must serialize as a parseable timestamp")
+	assert.True(t, data.Eligible)
+	assert.Empty(t, data.IneligibleReason)
+	assert.Equal(t, 1, data.WindowDays, "the window policy must reach the UI")
+	assert.Equal(t, 500000, data.ApprovalThreshold, "the approval threshold must reach the UI")
+	require.Len(t, data.Items, 1)
+
+	item := data.Items[0]
+	assert.Equal(t, f.itemID, item.SaleItemID)
+	assert.Equal(t, f.productID, item.ProductID)
+	assert.Equal(t, 3, item.Quantity, "the seeded line sold 3 units")
+	assert.Zero(t, item.ReturnedQuantity)
+	assert.Equal(t, 3, item.ReturnableQuantity)
+	assert.Equal(t, 5000, item.UnitPrice)
+	assert.Equal(t, 15000, item.Subtotal)
+	assert.InDelta(t, 11.0, item.TaxRate, 1e-9)
+	assert.Equal(t, 7, item.StockAvailable, "stock feeds the replacement indicator")
+	assert.False(t, item.Consignment)
+
+	assert.Zero(t, countSaleReturns(t), "the snapshot must be read-only")
+}
+
+func TestGetReturnableHandler_PartiallyReturnedSale(t *testing.T) {
+	f := seedReturnScenario(t)
+	// One completed return consumed 1 of the 3 sold units.
+	_ = insertReturnWithItem(context.Background(), t, NewRepository(dbPool), f, ReturnStatusCompleted, nil)
+	r, _, _, _ := setupReturnRoutes(t, f, map[int]int{f.productID: 7}, "500000", nil)
+
+	w := doRequest(r, http.MethodGet, fmt.Sprintf("/sales/%d/returnable", f.saleID), "")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	data := decodeReturnableData(t, w)
+	assert.True(t, data.Eligible, "2 of 3 units remain returnable")
+	require.Len(t, data.Items, 1)
+	assert.Equal(t, 1, data.Items[0].ReturnedQuantity)
+	assert.Equal(t, 2, data.Items[0].ReturnableQuantity)
+	assert.Equal(t, 1, countSaleReturns(t), "the snapshot must not touch existing returns")
+}
+
+func TestGetReturnableHandler_IneligibilityReasons(t *testing.T) {
+	// Each subtest seeds its own scenario and router: they override ports on
+	// the service, which must not leak into a sibling subtest.
+	t.Run("unfinished sale is not completed", func(t *testing.T) {
+		f := seedReturnScenario(t)
+		r, svc, _, _ := setupReturnRoutes(t, f, nil, "500000", nil)
+		held := returnSaleFromSeed(f)
+		held.Status = "held"
+		svc.SetSaleReader(stubSaleReader{sale: held})
+
+		w := doRequest(r, http.MethodGet, fmt.Sprintf("/sales/%d/returnable", f.saleID), "")
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		data := decodeReturnableData(t, w)
+		assert.False(t, data.Eligible)
+		assert.Equal(t, IneligibleNotCompleted, data.IneligibleReason)
+	})
+
+	t.Run("sale outside the return window", func(t *testing.T) {
+		f := seedReturnScenario(t)
+		r, svc, _, _ := setupReturnRoutes(t, f, nil, "500000", nil)
+		stale := returnSaleFromSeed(f)
+		stale.CreatedAt = time.Now().Add(-48 * time.Hour) // window: 1 day
+		svc.SetSaleReader(stubSaleReader{sale: stale})
+
+		w := doRequest(r, http.MethodGet, fmt.Sprintf("/sales/%d/returnable", f.saleID), "")
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		data := decodeReturnableData(t, w)
+		assert.False(t, data.Eligible)
+		assert.Equal(t, IneligibleWindowExpired, data.IneligibleReason)
+	})
+
+	t.Run("no open shift", func(t *testing.T) {
+		f := seedReturnScenario(t)
+		r, svc, _, _ := setupReturnRoutes(t, f, nil, "500000", nil)
+		svc.SetActiveShiftFinder(stubShiftFinder{shiftID: 0})
+
+		w := doRequest(r, http.MethodGet, fmt.Sprintf("/sales/%d/returnable", f.saleID), "")
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		data := decodeReturnableData(t, w)
+		assert.False(t, data.Eligible)
+		assert.Equal(t, IneligibleShiftNotOpen, data.IneligibleReason)
+	})
+
+	t.Run("fully returned sale", func(t *testing.T) {
+		f := seedReturnScenario(t)
+		repo := NewRepository(dbPool)
+		// The line sold 3 units and three completed returns consumed them all.
+		for range 3 {
+			_ = insertReturnWithItem(context.Background(), t, repo, f, ReturnStatusCompleted, nil)
+		}
+		r, _, _, _ := setupReturnRoutes(t, f, nil, "500000", nil)
+
+		w := doRequest(r, http.MethodGet, fmt.Sprintf("/sales/%d/returnable", f.saleID), "")
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		data := decodeReturnableData(t, w)
+		assert.False(t, data.Eligible)
+		assert.Equal(t, IneligibleFullyReturned, data.IneligibleReason)
+		require.Len(t, data.Items, 1)
+		assert.Zero(t, data.Items[0].ReturnableQuantity)
+		assert.Equal(t, 3, countSaleReturns(t), "the snapshot must not touch existing returns")
+	})
+
+	t.Run("consignment lines are flagged, not rejected", func(t *testing.T) {
+		f := seedReturnScenario(t)
+		r, svc, _, _ := setupReturnRoutes(t, f, nil, "500000", nil)
+		svc.SetConsignmentGuard(stubConsignment{ids: []int{f.productID}})
+
+		w := doRequest(r, http.MethodGet, fmt.Sprintf("/sales/%d/returnable", f.saleID), "")
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		data := decodeReturnableData(t, w)
+		assert.True(t, data.Eligible, "the flag is per-line; ProcessReturn still owns the rejection")
+		require.Len(t, data.Items, 1)
+		assert.True(t, data.Items[0].Consignment)
+	})
+
+	t.Run("another store's sale is not found", func(t *testing.T) {
+		f := seedReturnScenario(t)
+		// The seeded sale belongs to store 1; the caller scopes to store 2.
+		r, _, _, _ := setupReturnRoutes(t, f, nil, "500000",
+			&returnAuth{userID: f.userID, storeID: ptrInt(2)})
+
+		w := doRequest(r, http.MethodGet, fmt.Sprintf("/sales/%d/returnable", f.saleID), "")
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Equal(t, ErrStoreMismatch.Error(), errorBody(t, w))
+	})
+
+	t.Run("missing sale is not found", func(t *testing.T) {
+		f := seedReturnScenario(t)
+		r, svc, _, _ := setupReturnRoutes(t, f, nil, "500000", nil)
+		svc.SetSaleReader(stubSaleReader{sale: nil})
+
+		w := doRequest(r, http.MethodGet, fmt.Sprintf("/sales/%d/returnable", f.saleID), "")
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Equal(t, ErrSaleNotFound.Error(), errorBody(t, w))
+	})
+
+	t.Run("non-numeric sale id is rejected", func(t *testing.T) {
+		f := seedReturnScenario(t)
+		r, _, _, _ := setupReturnRoutes(t, f, nil, "500000", nil)
+
+		w := doRequest(r, http.MethodGet, "/sales/abc/returnable", "")
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, ErrInvalidReturn.Error(), errorBody(t, w))
 	})
 }
 

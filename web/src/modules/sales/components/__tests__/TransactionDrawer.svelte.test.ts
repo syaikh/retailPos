@@ -149,4 +149,39 @@ describe("TransactionDrawer.svelte source-structure guards", () => {
     expect(src).toContain("printReceiptWithToast(");
     expect(src).not.toContain("toast.error(labels.printAgentUnavailable)");
   });
+
+  it("gates the Return Items button on the canReturn prop (sale.return)", () => {
+    expect(src).toContain("canReturn = false");
+    expect(src).toContain("{#if canReturn}");
+    expect(src).toContain("{labels.returnItems}");
+  });
+
+  it("fetches the returnable snapshot only when canReturn is set", () => {
+    expect(src).toContain("getReturnableSale");
+    expect(src).toContain(
+      "if (showTransactionDrawer && canReturn && selectedTransaction?.id)",
+    );
+    expect(src).toContain("loadReturnable(selectedTransaction.id)");
+  });
+
+  it("disables Return while loading or ineligible and explains the reason", () => {
+    expect(src).toContain("disabled={returnLoading || !returnable?.eligible}");
+    expect(src).toContain("ineligibleText(");
+    expect(src).toContain("returnable.ineligible_reason");
+  });
+
+  it("renders ReturnModal as a sibling of Drawer (Escape must not close both)", () => {
+    // The drawer binds Escape on its panel; nesting the modal inside would let
+    // one Escape close the drawer too. The sibling placement is deliberate.
+    expect(src).toContain("<ReturnModal");
+    expect(src).toContain("bind:show={showReturnModal}");
+    const drawerClose = src.indexOf("</Drawer>");
+    const modalOpen = src.indexOf("<ReturnModal");
+    expect(modalOpen).toBeGreaterThan(drawerClose);
+  });
+
+  it("forwards the return outcome through the onreturned callback", () => {
+    expect(src).toContain("onreturned = () => {}");
+    expect(src).toContain("onreturned={() => onreturned()}");
+  });
 });

@@ -309,6 +309,7 @@
     bind:showTransactionDrawer={showLookupDrawer}
     mode="lookup"
     canReprint={rbac.can(Permissions.sale.receiptPrint)}
+    canReturn={rbac.can(Permissions.sale.return)}
     onclose={handleLookupClose}
   />
 </div>
