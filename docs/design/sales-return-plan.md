@@ -735,10 +735,11 @@ func (s *service) ExpireStaleApprovals(ctx context.Context) {
 ### Step 4.3: Reporting Adjustments (Day 12)
 
 **Implemented** (see `database/migrations/068_report_return_netting.sql`,
-`internal/sale/report_adapter.go`). Refunds are netted out of the reporting
-read model directly rather than via a `sale.returned.v1` consumer: the event is
-published (service.go) but nothing subscribes, which is fine because both
-reporting paths aggregate `sale_returns` at read time.
+`internal/report/repository.go`, `internal/salereturn/repository.go`). Refunds
+are netted out of the reporting read model directly rather than via a
+`sale.returned.v1` consumer: the event is published (service.go) but nothing
+subscribes, which is fine because both reporting paths aggregate `sale_returns`
+at read time.
 
 - **Materialized views** (`mv_daily_sales`, `mv_hourly_sales`,
   `mv_dashboard_totals`) subtract `total_refund_amount` of `status = 'completed'`
@@ -749,9 +750,18 @@ reporting paths aggregate `sale_returns` at read time.
   own row (negative net revenue, zero sale count) instead of being dropped —
   otherwise the daily/hourly charts would overstate revenue and disagree with
   the all-time dashboard.
-- **Live dashboard adapter** (`ReportAdapter.GetCompletedSalesStats`, the
-  in-progress-window path that deliberately bypasses the MVs) applies the same
-  subtraction and is pinned to the views by a parity test.
+- **Live dashboard path** (the in-progress window that deliberately bypasses the
+  MVs) nets the two owner modules behind consumer-side ports:
+  `report.nettedCompletedSalesStats` subtracts
+  `report.RefundStatsProvider.GetCompletedRefundTotal` (implemented by
+  `salereturn.ReportRefundStatsProvider` over
+  `salereturn.Repository.RefundTotalForWindow`) from the **gross**
+  `sale.ReportAdapter.GetCompletedSalesStats`. The `sale` adapter must not read
+  `sale_returns` — `sale` is a strict module and only owns `sales` — so the
+  netting lives in `report`, which is allowed to read anything. Wired in
+  `internal/wiring/wiring.go`; `report` never imports `salereturn` in production
+  code (structural typing). Mirrors the existing `shift.ReturnTotalsProvider`
+  pattern (see `ADR_Modular_Monolith_Module_Boundaries` §5.1/§5.3).
 - Only money actually paid out is deducted: a pure replacement return has
   `total_refund_amount = 0`, so replacements have no financial impact.
   `pending_approval`/`cancelled`/`expired` returns are excluded — the money has
@@ -827,8 +837,10 @@ netting contract is met without it).
 |------|--------|
 | `internal/permissions/permissions.go` | Add `SaleReturn`, `SaleReturnApprove` codes |
 | `internal/shared/stock.go` | Add `StockRestoreItem` struct |
-| `internal/sale/report_adapter.go` | Net completed refunds out of live dashboard revenue (Phase 4.3) |
-| `cmd/server/main.go` | Wire salereturn routes + ports |
+| `internal/sale/report_adapter.go` | Refund netting lives in `report`; the `sale` adapter stays gross-only (Phase 4.3) |
+| `internal/report/repository.go`, `internal/report/ports.go` | Net refunds out of live dashboard revenue via `RefundStatsProvider` (Phase 4.3) |
+| `internal/salereturn/repository.go`, `internal/salereturn/service.go` | `RefundTotalForWindow` + `ReportRefundStatsProvider` implement the report port (Phase 4.3) |
+| `internal/wiring/wiring.go` | Wire `report.RefundStatsProvider` + salereturn routes/ports |
 | `docs/roadmap/upcoming-features.md` | Update return policy status |
 | `web/src/shared/i18n/en.ts` | Add return-related strings |
 | `web/src/shared/i18n/id.ts` | Add return-related strings |

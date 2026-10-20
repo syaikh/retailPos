@@ -824,6 +824,19 @@ Every return action is logged with:
 
 Implementation via `SaleReturned` domain event consumed by reporting module (eventual consistency per ADR_Cross_Module_Transaction_Strategy).
 
+> **Implementation note (2026-10-20, Phase 4.3).** Net sales landed as **read-time
+> netting**, not an event consumer: `SaleReturned` is published but nothing
+> subscribes, because both reporting paths already aggregate `sale_returns` at
+> read time. The materialized views (`068_report_return_netting.sql`) subtract
+> completed refunds per Jakarta bucket/store, and the live dashboard path nets
+> `report.RefundStatsProvider` (implemented by `salereturn`) against the gross
+> `sale` adapter inside `report.nettedCompletedSalesStats`. The `sale` module is
+> strict and owns only `sales`, so it must not read `sale_returns`; the netting
+> therefore lives in `report` (read model) behind a consumer-side port. See
+> `docs/design/sales-return-plan.md` Step 4.3. The deferred part is the
+> dashboard **counts** tile (return/replacement/refund counts); the money
+> netting requirement is met. `transaction_count` stays gross by design.
+
 ---
 
 ## 15. Test Plan

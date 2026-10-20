@@ -169,6 +169,7 @@ Baca/tulis lintas modul dienkapsulasi lewat interface kecil yang dideklarasikan 
 | `purchase` | `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items` | strict |
 | `shift` | `shifts`, `cash_movements` | strict |
 | `sale` | `sales`, `sale_items`, `sale_payments`, `payment_methods`, `cart_sessions`, `cart_items` | strict |
+| `salereturn` | `sale_returns`, `sale_return_items`, `sale_return_replacements`, `sale_return_payments`, `return_approvals` | strict |
 | `supplier` | `suppliers` | strict |
 | `inventory` | `product_stock`, `inventory_movements` | strict |
 | `product` | `products`, `product_suppliers`, `tax_classes`, `v_products_full`, `categories` | strict |
@@ -214,6 +215,14 @@ Saat ini peta `crossContextDebt` **kosong** — semua debt yang pernah diakui su
 | `consignment→product_stock` (pengecualian stok di picker; tidak pernah terdaftar di manifest) | `StockReader.StoreOwnedQuantities` | `consignment/ports.go`, `inventory/consignment_adjuster.go` |
 
 `consignment` sekaligus dipromosikan ke strict ownership (13 tabel `consignment_*`), dan `appsettings` terdaftar di `domainModules`, sehingga tidak ada lagi celah modul yang tidak diperiksa.
+
+Debt berikutnya muncul dan langsung diselesaikan dalam rentang yang sama (2026-10-20, Sales Return Phase 4.3 — netting refund):
+
+| Debt | Port yang menggantikan | File port |
+|---|---|---|
+| `sale→sale_returns` (`LEFT JOIN` di `ReportAdapter.GetCompletedSalesStats`) | `report.RefundStatsProvider`, diimplementasikan `salereturn.ReportRefundStatsProvider` | `report/ports.go`, `salereturn/service.go` |
+
+Kasus ini sempat lolos ke `master` (`84dc9a8a`) karena `sale_returns` **sudah** terdaftar di `tableContext`, jadi checker *melihat* tabelnya dan langsung menandai pelanggaran pada job `Go: Tests` — berbeda dari §2.3 audit (view `mv_*` yang tak dikenal checker). Perbaikannya memindahkan netting refund ke modul `report` (pemilik read model), mengembalikan adapter `sale` ke angka penjualan **bruto** saja, dan menambahkan setter `report.Repository.SetRefundStatsProvider` + `report.Repository.nettedCompletedSalesStats`. Pola ini meniru `shift.ReturnTotalsProvider` (lihat §5.1): port dideklarasikan di modul pemakai (`report`), diimplementasikan di modul pemilik tabel (`salereturn`), disambung di composition root, sehingga `report` tidak pernah mengimpor `salereturn` di kode produksi (structural typing).
 
 ### 5.4 Batasan yang tersisa
 
