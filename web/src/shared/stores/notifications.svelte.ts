@@ -2,6 +2,7 @@ import { writable, derived } from "svelte/store";
 import { SvelteDate } from "svelte/reactivity";
 import { JAKARTA_OFFSET_MS } from "$shared/utils/jakartaTime";
 import { labels, t, formatLocaleDate } from "$shared/i18n";
+import { Permissions } from "$shared/constants/permissions";
 
 export type NotificationType =
   | "low_stock"
@@ -15,7 +16,9 @@ export type NotificationType =
   | "so_rejected"
   | "so_needs_recount"
   | "so_cancelled"
-  | "supplier_changed";
+  | "supplier_changed"
+  | "return_approval_requested"
+  | "return_approval_resolved";
 
 export interface Notification {
   id: string;
@@ -113,6 +116,10 @@ export function getNotificationIcon(type: NotificationType): string {
       return "🚫";
     case "supplier_changed":
       return "🏭";
+    case "return_approval_requested":
+      return "↩️";
+    case "return_approval_resolved":
+      return "✅";
   }
 }
 
@@ -130,4 +137,12 @@ export function canReceiveSupplierNotifications(
   permissions: string[] | undefined | null,
 ): boolean {
   return !!permissions?.includes(SUPPLIER_VIEW_PERMISSION);
+}
+
+export const SALE_RETURN_APPROVE_PERMISSION = Permissions.sale.returnApprove;
+
+export function canReceiveReturnApprovalNotifications(
+  permissions: string[] | undefined | null,
+): boolean {
+  return !!permissions?.includes(SALE_RETURN_APPROVE_PERMISSION);
 }

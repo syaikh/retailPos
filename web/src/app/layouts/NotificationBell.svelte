@@ -12,6 +12,7 @@
     getNotificationIcon,
     canReceiveStockOpnameNotifications,
     canReceiveSupplierNotifications,
+    canReceiveReturnApprovalNotifications,
     type Notification,
   } from "$shared/stores/notifications.svelte";
   import { useAuthStore } from "$modules/auth";
@@ -29,6 +30,10 @@
 
   const canSeeSuppliers = $derived(
     canReceiveSupplierNotifications(authStore.user?.permissions),
+  );
+
+  const canSeeReturnApprovals = $derived(
+    canReceiveReturnApprovalNotifications(authStore.user?.permissions),
   );
 
   let open = $state(false);
@@ -299,6 +304,66 @@
             }),
             navigateTo: "/suppliers",
           });
+        },
+      ),
+      ws.on(
+        "return_approval_requested",
+        (data: {
+          return_id: number;
+          return_number: string;
+          invoice_number: string;
+          cashier_name: string;
+          total_refund_amount: number;
+        }) => {
+          // Only managers can act on the queue; a cashier must not be told
+          // about every pending return in the store.
+          if (!canSeeReturnApprovals) return;
+          const amount = (data.total_refund_amount || 0).toLocaleString(
+            "id-ID",
+          );
+          notifications.push({
+            type: "return_approval_requested",
+            title: labels.returnApprovalRequestedTitle,
+            description: t("returnApprovalRequestedDesc", {
+              number: data.return_number,
+              amount,
+            }),
+            navigateTo: "/transactions?return_approvals=true",
+          });
+          toast.info(
+            t("returnApprovalToast", { number: data.return_number, amount }),
+          );
+        },
+      ),
+      ws.on(
+        "return_approval_resolved",
+        (data: { return_id: number; return_number: string; status: string }) => {
+          // The resolution is for the cashier who raised the return; managers
+          // already saw the request and do not need a second ping.
+          if (canSeeReturnApprovals) return;
+          const number = data.return_number;
+          if (data.status === "completed") {
+            notifications.push({
+              type: "return_approval_resolved",
+              title: labels.returnApprovalApprovedTitle,
+              description: t("returnApprovalApprovedDesc", { number }),
+              navigateTo: "/transactions",
+            });
+          } else if (data.status === "cancelled") {
+            notifications.push({
+              type: "return_approval_resolved",
+              title: labels.returnApprovalRejectedTitle,
+              description: t("returnApprovalRejectedDesc", { number }),
+              navigateTo: "/transactions",
+            });
+          } else if (data.status === "expired") {
+            notifications.push({
+              type: "return_approval_resolved",
+              title: labels.returnApprovalExpiredTitle,
+              description: t("returnApprovalExpiredDesc", { number }),
+              navigateTo: "/transactions",
+            });
+          }
         },
       ),
     ];

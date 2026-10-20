@@ -162,6 +162,53 @@ func NewSupplierChangedListener(hub *Hub) eventbus.Listener {
 	)
 }
 
+// returnApprovalEventTypes maps a return-approval eventbus topic to its
+// websocket event type. Approval traffic is the only salereturn topic
+// broadcast: sale.returned.v1 already drives report cache invalidation and a
+// completed return need not be announced to every terminal.
+var returnApprovalEventTypes = map[eventbus.EventType]EventType{
+	eventbus.EventType(events.TopicReturnApprovalRequested): EventReturnApprovalRequested,
+	eventbus.EventType(events.TopicReturnApprovalResolved):  EventReturnApprovalResolved,
+}
+
+func NewReturnApprovalListener(hub *Hub) eventbus.Listener {
+	eventTypes := make([]eventbus.EventType, 0, len(returnApprovalEventTypes))
+	for et := range returnApprovalEventTypes {
+		eventTypes = append(eventTypes, et)
+	}
+	return eventbus.NewListenerFunc(
+		eventTypes,
+		func(ctx context.Context, event eventbus.Event) error {
+			switch payload := event.Payload.(type) {
+			case *events.ReturnApprovalRequested:
+				BroadcastReturnApprovalRequested(hub, ReturnApprovalRequestedEvent{
+					ReturnID:          payload.ReturnID,
+					ReturnNumber:      payload.ReturnNumber,
+					OriginalSaleID:    payload.OriginalSaleID,
+					InvoiceNumber:     payload.InvoiceNumber,
+					CashierID:         payload.CashierID,
+					CashierName:       payload.CashierName,
+					TotalRefundAmount: payload.TotalRefundAmount,
+					ItemCount:         payload.ItemCount,
+					ExpiresAt:         payload.ExpiresAt,
+					StoreID:           storeIDPtr(payload.StoreID),
+				})
+			case *events.ReturnApprovalResolved:
+				BroadcastReturnApprovalResolved(hub, ReturnApprovalResolvedEvent{
+					ReturnID:     payload.ReturnID,
+					ReturnNumber: payload.ReturnNumber,
+					Status:       payload.Status,
+					StoreID:      storeIDPtr(payload.StoreID),
+				})
+			default:
+				slog.Warn("[ws] unexpected payload type for return approval event",
+					"type", fmt.Sprintf("%T", event.Payload), "event", event.Type)
+			}
+			return nil
+		},
+	)
+}
+
 func NewStockAdjustedListener(hub *Hub, products ProductLookup) eventbus.Listener {
 	return eventbus.NewListenerFunc(
 		[]eventbus.EventType{events.TopicStockAdjusted},

@@ -72,25 +72,27 @@ func newUpgrader() *websocket.Upgrader {
 type EventType string
 
 const (
-	EventStockUpdate     EventType = "stock_update"
-	EventSaleCreated     EventType = "sale_created"
-	EventLowStockAlert   EventType = "low_stock_alert"
-	EventProductUpdate   EventType = "product_updated"
-	EventUserOnline      EventType = "user_online_count"
-	EventPOReceived      EventType = "po_received"
-	EventPOCreated       EventType = "po_created"
-	EventPOConfirmed     EventType = "po_confirmed"
-	EventPOCancelled     EventType = "po_cancelled"
-	EventSOCreated       EventType = "so_created"
-	EventSOOpened        EventType = "so_opened"
-	EventSOSubmitted     EventType = "so_submitted"
-	EventSOApproved      EventType = "so_approved"
-	EventSOPosted        EventType = "so_posted"
-	EventSOClosed        EventType = "so_closed"
-	EventSORejected      EventType = "so_rejected"
-	EventSORecount       EventType = "so_needs_recount"
-	EventSOCancelled     EventType = "so_cancelled"
-	EventSupplierChanged EventType = "supplier_changed"
+	EventStockUpdate             EventType = "stock_update"
+	EventSaleCreated             EventType = "sale_created"
+	EventLowStockAlert           EventType = "low_stock_alert"
+	EventProductUpdate           EventType = "product_updated"
+	EventUserOnline              EventType = "user_online_count"
+	EventPOReceived              EventType = "po_received"
+	EventPOCreated               EventType = "po_created"
+	EventPOConfirmed             EventType = "po_confirmed"
+	EventPOCancelled             EventType = "po_cancelled"
+	EventSOCreated               EventType = "so_created"
+	EventSOOpened                EventType = "so_opened"
+	EventSOSubmitted             EventType = "so_submitted"
+	EventSOApproved              EventType = "so_approved"
+	EventSOPosted                EventType = "so_posted"
+	EventSOClosed                EventType = "so_closed"
+	EventSORejected              EventType = "so_rejected"
+	EventSORecount               EventType = "so_needs_recount"
+	EventSOCancelled             EventType = "so_cancelled"
+	EventSupplierChanged         EventType = "supplier_changed"
+	EventReturnApprovalRequested EventType = "return_approval_requested"
+	EventReturnApprovalResolved  EventType = "return_approval_resolved"
 )
 
 type Event struct {
@@ -727,6 +729,57 @@ func BroadcastSupplierChanged(hub *Hub, event SupplierChangedEvent) {
 	hub.Broadcast(Event{
 		Type:    EventSupplierChanged,
 		Payload: payload,
+	})
+}
+
+// ReturnApprovalRequestedEvent announces a return parked pending manager
+// approval (PRD §7). StoreID is the return's store, so the request reaches
+// that store's clients (and admins); the frontend gates display on the
+// sale.return.approve permission.
+type ReturnApprovalRequestedEvent struct {
+	ReturnID          int    `json:"return_id"`
+	ReturnNumber      string `json:"return_number"`
+	OriginalSaleID    int    `json:"original_sale_id"`
+	InvoiceNumber     string `json:"invoice_number"`
+	CashierID         int    `json:"cashier_id"`
+	CashierName       string `json:"cashier_name"`
+	TotalRefundAmount int    `json:"total_refund_amount"`
+	ItemCount         int    `json:"item_count"`
+	ExpiresAt         string `json:"expires_at"`
+	StoreID           *int   `json:"-"`
+}
+
+func BroadcastReturnApprovalRequested(hub *Hub, event ReturnApprovalRequestedEvent) {
+	if hub == nil {
+		return
+	}
+	payload, _ := json.Marshal(event)
+	hub.Broadcast(Event{
+		Type:    EventReturnApprovalRequested,
+		Payload: payload,
+		StoreID: event.StoreID,
+	})
+}
+
+// ReturnApprovalResolvedEvent announces a pending return reaching a terminal
+// status (completed, cancelled or expired), so the cashier's live queue drops
+// it. StoreID scopes the resolution to the return's store.
+type ReturnApprovalResolvedEvent struct {
+	ReturnID     int    `json:"return_id"`
+	ReturnNumber string `json:"return_number"`
+	Status       string `json:"status"`
+	StoreID      *int   `json:"-"`
+}
+
+func BroadcastReturnApprovalResolved(hub *Hub, event ReturnApprovalResolvedEvent) {
+	if hub == nil {
+		return
+	}
+	payload, _ := json.Marshal(event)
+	hub.Broadcast(Event{
+		Type:    EventReturnApprovalResolved,
+		Payload: payload,
+		StoreID: event.StoreID,
 	})
 }
 

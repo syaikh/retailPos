@@ -1,10 +1,12 @@
 <script lang="ts">
   import { Modal, Button, Badge } from "$shared/ui";
   import { labels } from "$shared/i18n";
+  import { onMount } from "svelte";
   import { formatCurrency } from "$shared/utils/currency";
   import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime";
   import { toast } from "$shared/stores/toast.svelte";
   import { getApiErrorMessage } from "$shared/utils/error-utils";
+  import { useWebSocket } from "$shared/api/websocket";
   import ApprovalModal from "./ApprovalModal.svelte";
   import { returnStatusLabel, returnStatusVariant } from "../lib/labels";
   import { listPendingApprovals } from "../services/salereturn-service";
@@ -23,10 +25,28 @@
   let activeId = $state<number | null>(null);
   let showReview = $state(false);
 
+  const ws = useWebSocket();
+
   // The queue is fetched on every open; approval/rejection from the review
   // modal refreshes it so the decided return drops off the list.
   $effect(() => {
     if (show) load();
+  });
+
+  // While the queue is open, a live event keeps it current without the manager
+  // reopening it: a new request adds a row, a resolution drops one. Guarded on
+  // `show` so a closed modal does not fire redundant API calls.
+  onMount(() => {
+    const unsubRequested = ws.on("return_approval_requested", () => {
+      if (show) load();
+    });
+    const unsubResolved = ws.on("return_approval_resolved", () => {
+      if (show) load();
+    });
+    return () => {
+      unsubRequested();
+      unsubResolved();
+    };
   });
 
   async function load() {

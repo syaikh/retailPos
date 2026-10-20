@@ -803,6 +803,131 @@ func TestNewPOReceivedListener(t *testing.T) {
 	})
 }
 
+func TestNewReturnApprovalListener(t *testing.T) {
+	hub := newListenerHub()
+	go hub.Run()
+	defer hub.Shutdown()
+
+	client := registerClient(t, hub, 1, nil, true)
+	drainMessages(client.send)
+
+	listener := NewReturnApprovalListener(hub)
+	assert.ElementsMatch(t, []eventbus.EventType{
+		eventbus.EventType(events.TopicReturnApprovalRequested),
+		eventbus.EventType(events.TopicReturnApprovalResolved),
+	}, listener.EventTypes())
+
+	t.Run("broadcasts a self-contained approval request", func(t *testing.T) {
+		drainMessages(client.send)
+		err := listener.HandleEvent(context.Background(), eventbus.Event{
+			Type: eventbus.EventType(events.TopicReturnApprovalRequested),
+			Payload: &events.ReturnApprovalRequested{
+				ReturnID:          12,
+				ReturnNumber:      "RET-2026-000012",
+				OriginalSaleID:    7,
+				InvoiceNumber:     "INV-2026-000042",
+				CashierID:         4,
+				CashierName:       "siti",
+				StoreID:           5,
+				TotalRefundAmount: 750_000,
+				ItemCount:         2,
+				ExpiresAt:         "2026-10-20T09:30:00Z",
+			},
+		})
+		assert.NoError(t, err)
+
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "return_approval_requested")
+		}, 2*time.Second)
+		require.True(t, ok, "timeout waiting for return_approval_requested broadcast")
+
+		var event Event
+		require.NoError(t, json.Unmarshal([]byte(msg), &event))
+		assert.Equal(t, EventReturnApprovalRequested, event.Type)
+		assert.Contains(t, msg, `"return_number":"RET-2026-000012"`)
+		assert.Contains(t, msg, `"invoice_number":"INV-2026-000042"`)
+		assert.Contains(t, msg, `"cashier_name":"siti"`)
+		assert.Contains(t, msg, `"total_refund_amount":750000`)
+	})
+
+	t.Run("broadcasts the resolution", func(t *testing.T) {
+		drainMessages(client.send)
+		err := listener.HandleEvent(context.Background(), eventbus.Event{
+			Type: eventbus.EventType(events.TopicReturnApprovalResolved),
+			Payload: &events.ReturnApprovalResolved{
+				ReturnID:     12,
+				ReturnNumber: "RET-2026-000012",
+				StoreID:      5,
+				Status:       "completed",
+			},
+		})
+		assert.NoError(t, err)
+
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "return_approval_resolved")
+		}, 2*time.Second)
+		require.True(t, ok, "timeout waiting for return_approval_resolved broadcast")
+
+		var event Event
+		require.NoError(t, json.Unmarshal([]byte(msg), &event))
+		assert.Equal(t, EventReturnApprovalResolved, event.Type)
+		assert.Contains(t, msg, `"status":"completed"`)
+	})
+
+	t.Run("wrong payload type returns nil without error", func(t *testing.T) {
+		drainMessages(client.send)
+		err := listener.HandleEvent(context.Background(), eventbus.Event{
+			Type:    eventbus.EventType(events.TopicReturnApprovalRequested),
+			Payload: "not an event",
+		})
+		assert.NoError(t, err)
+
+		_, found := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "return_approval")
+		}, 300*time.Millisecond)
+		assert.False(t, found, "should not broadcast on wrong payload type")
+	})
+
+	t.Run("store-scoped request only reaches that store and admins", func(t *testing.T) {
+		sid := 5
+		storeClient := registerClient(t, hub, 2, &sid, false)
+		drainMessages(storeClient.send)
+
+		otherID := 99
+		otherClient := registerClient(t, hub, 3, &otherID, false)
+		drainMessages(otherClient.send)
+
+		adminID := 7
+		adminClient := registerClient(t, hub, 4, &adminID, true)
+		drainMessages(adminClient.send)
+
+		err := listener.HandleEvent(context.Background(), eventbus.Event{
+			Type: eventbus.EventType(events.TopicReturnApprovalRequested),
+			Payload: &events.ReturnApprovalRequested{
+				ReturnID:     12,
+				ReturnNumber: "RET-2026-000012",
+				StoreID:      5,
+			},
+		})
+		assert.NoError(t, err)
+
+		_, ok := waitForMessage(t, storeClient.send, func(s string) bool {
+			return strings.Contains(s, "return_approval_requested")
+		}, 2*time.Second)
+		assert.True(t, ok, "matching store must receive the request")
+
+		_, ok = waitForMessage(t, adminClient.send, func(s string) bool {
+			return strings.Contains(s, "return_approval_requested")
+		}, 2*time.Second)
+		assert.True(t, ok, "admin must receive the cross-store request")
+
+		_, found := waitForMessage(t, otherClient.send, func(s string) bool {
+			return strings.Contains(s, "return_approval_requested")
+		}, 300*time.Millisecond)
+		assert.False(t, found, "a different store must not receive the request")
+	})
+}
+
 func TestHub_BroadcastUserCount(t *testing.T) {
 	hub := newListenerHub()
 	go hub.Run()

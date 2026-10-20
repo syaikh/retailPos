@@ -427,3 +427,63 @@ func TestPublishReturned(t *testing.T) {
 		assert.Empty(t, bus.topics)
 	})
 }
+
+func TestPublishApprovalRequested(t *testing.T) {
+	ctx := context.Background()
+	expires := time.Date(2026, 10, 20, 9, 30, 0, 0, time.UTC)
+
+	t.Run("pending return announces the request after commit", func(t *testing.T) {
+		bus := &stubBus{}
+		s := NewService(nil, bus)
+		s.publishApprovalRequested(ctx, &Return{
+			ID: 12, ReturnNumber: "RET-2026-000012", OriginalSaleID: 7,
+			StoreID: 3, TotalRefundAmount: 750_000, ExpiresAt: &expires,
+			Status: ReturnStatusPendingApproval,
+		}, Actor{ID: 4, Username: "siti"}, "INV-2026-000042")
+
+		require.Len(t, bus.topics, 1)
+		assert.Equal(t, events.TopicReturnApprovalRequested, bus.topics[0])
+		sent, ok := bus.sents[0].(*events.ReturnApprovalRequested)
+		require.True(t, ok)
+		assert.Equal(t, 12, sent.ReturnID)
+		assert.Equal(t, "INV-2026-000042", sent.InvoiceNumber)
+		assert.Equal(t, "siti", sent.CashierName)
+		assert.Equal(t, 750_000, sent.TotalRefundAmount)
+		assert.Equal(t, expires.Format(time.RFC3339), sent.ExpiresAt)
+	})
+
+	t.Run("completed return announces nothing", func(t *testing.T) {
+		bus := &stubBus{}
+		s := NewService(nil, bus)
+		s.publishApprovalRequested(ctx, &Return{Status: ReturnStatusCompleted}, Actor{}, "")
+		assert.Empty(t, bus.topics)
+	})
+}
+
+func TestPublishApprovalResolved(t *testing.T) {
+	ctx := context.Background()
+
+	for _, status := range []string{
+		ReturnStatusCompleted, ReturnStatusCancelled, ReturnStatusExpired,
+	} {
+		t.Run(status+" announces the resolution", func(t *testing.T) {
+			bus := &stubBus{}
+			s := NewService(nil, bus)
+			s.publishApprovalResolved(ctx, &Return{
+				ID: 12, ReturnNumber: "RET-2026-000012", StoreID: 3, Status: status,
+			})
+			require.Len(t, bus.topics, 1)
+			assert.Equal(t, events.TopicReturnApprovalResolved, bus.topics[0])
+			sent, ok := bus.sents[0].(*events.ReturnApprovalResolved)
+			require.True(t, ok)
+			assert.Equal(t, status, sent.Status)
+		})
+	}
+
+	t.Run("pending return announces nothing", func(t *testing.T) {
+		bus := &stubBus{}
+		s := NewService(nil, bus)
+		s.publishApprovalResolved(ctx, &Return{Status: ReturnStatusPendingApproval})
+		assert.Empty(t, bus.topics)
+	})
+}

@@ -244,6 +244,18 @@
     }
   }
 
+  // Manager approval queue deep-link ("?return_approvals=true", raised by the
+  // return_approval_requested notification). Only reachable with the approve
+  // permission, so a cashier following the link gets no queue.
+  function openReturnApprovalsFromQuery() {
+    const flag = new URLSearchParams(window.location.search).get(
+      "return_approvals",
+    );
+    if (flag === "true" && canApprove) {
+      showReturnApprovals = true;
+    }
+  }
+
   function closeTransactionDrawer() {
     showTransactionDrawer = false;
   }
@@ -267,6 +279,8 @@
 
     // Deep-link from a "new transaction" notification: open its detail drawer.
     await openTxnFromQuery();
+    // Deep-link from a "return awaits approval" notification.
+    openReturnApprovalsFromQuery();
   });
 
   // Re-open the deep-linked transaction whenever the route gains a ?txn=<id>
@@ -274,6 +288,7 @@
   $effect(() => {
     const unsubscribe = subscribeRoute(() => {
       openTxnFromQuery();
+      openReturnApprovalsFromQuery();
     });
     return () => unsubscribe();
   });

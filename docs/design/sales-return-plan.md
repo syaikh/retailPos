@@ -1,20 +1,23 @@
 # Implementation Plan: Sales Return (Retur Penjualan)
 
-> **STATUS: PHASES 1 & 2 IMPLEMENTED, PHASE 4.3 (REPORT NETTING) IMPLEMENTED — Phase 3 (WebSocket) not started**
+> **STATUS: PHASES 1, 2, 3 (WEBSOCKET) & 4.3 (REPORT NETTING) IMPLEMENTED — Phase 3.4 sweeper deliberately not built**
 > Migration `database/migrations/067_sales_return.sql` exists and is applied, the
 > `sale.return` / `sale.return.approve` permission codes are registered in
 > `internal/permissions`, and the endpoints live under `/api/sales/...`
 > (`internal/salereturn`, wired in `internal/wiring`). The cashier UI and manager
 > approval queue live in `web/src/modules/salereturn/`. Refunds are netted out of
 > the reporting read model by `068_report_return_netting.sql` +
-> `internal/sale/report_adapter.go`. The body of this plan is
+> `internal/sale/report_adapter.go`. Approval traffic is broadcast live over the
+> websocket (`internal/events/salereturn.go` DTOs → `NewReturnApprovalListener`)
+> and consumed by `NotificationBell.svelte` + `PendingReturnsModal.svelte`. The
+> body of this plan is
 > the ORIGINAL pre-review design: where it disagrees with the **Review
 > amendments** section below, the amendments win. Every "040" reference below is
 > stale — the migration number in use is **067**.
 
 | Field | Value |
 |-------|-------|
-| Status | Phases 1, 2 and 4.3 implemented; Phase 3 (WebSocket) pending |
+| Status | Phases 1, 2, 3 and 4.3 implemented; Phase 3.4 (expiry sweeper) deliberately not built; Phase 4.4/4.5 pending |
 | Date | 2026-09-04 |
 | Amendments | 2026-10-19 (plan review, see "Review amendments") |
 | PRD | `docs/prd/PRD-Sales-Return.md` |
@@ -656,6 +659,27 @@ Add keys:
 
 ## Phase 3: WebSocket & Real-time (1-2 days)
 
+> **Implemented** (see `internal/events/salereturn.go`,
+> `internal/salereturn/service.go` (`publishApprovalRequested` /
+> `publishApprovalResolved`), `pkg/websocket/hub.go` +
+> `listener.go` (`NewReturnApprovalListener`), `internal/wiring/wiring.go`, and
+> `web/src/app/layouts/NotificationBell.svelte` /
+> `PendingReturnsModal.svelte`). Where the original sketch below disagrees with
+> this note, the note wins.
+>
+> - Events publish from the **service after commit**, not from the handler and
+>   not on a raw string topic: typed DTOs on `sale.return.approval_requested.v1`
+>   and `sale.return.approval_resolved.v1` (the original `"return_approval_*"`
+>   strings and the separate `ApprovalRequestedPayload` structs were not built).
+> - The requested payload is **self-contained** (invoice, cashier name, amount,
+>   `expires_at`) so the notification renders without a follow-up API call.
+> - `return_approval_resolved` fires on approve, reject **and** lazy expiry, and
+>   carries the terminal return status (`completed` / `cancelled` / `expired`).
+> - The frontend listener lives in `NotificationBell.svelte` (the established
+>   notification pattern), not a `salereturn-store.svelte.ts`; managers
+>   (`sale.return.approve`) get the request, non-managers get the resolution.
+>   The open queue also reloads itself on either event.
+
 ### Step 3.1: Approval Event Publishing (Day 10)
 
 **File:** `internal/salereturn/service.go`
@@ -699,7 +723,14 @@ s.eventBus.Publish("return_approval_resolved", ApprovalResolvedPayload{
 
 ---
 
-### Step 3.4: Approval Expiry Timer (Day 11)
+### Step 3.4: Approval Expiry Timer (Day 11) — **not built (deliberate)**
+
+Expiry is **lazy**: `ApproveReturn` flips an elapsed approval to `expired` inside
+the approval transaction and publishes `return_approval_resolved`. A pending row
+therefore self-heals on the next approval attempt, and `ListPending` never shows
+an already-expired request long enough to matter. A background sweeper would only
+tidy rows nobody is looking at, so it was left out (revisit only if the queue
+needs to drop expired rows without a manager acting).
 
 **File:** `internal/salereturn/service.go`
 

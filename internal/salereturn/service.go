@@ -167,6 +167,7 @@ func (s *Service) ProcessReturn(ctx context.Context, actor Actor, storeID *int, 
 	}
 
 	var out *Return
+	invoiceNumber := ""
 	err = s.InTx(ctx, func(tx pgx.Tx) error {
 		out = nil
 
@@ -184,6 +185,7 @@ func (s *Service) ProcessReturn(ctx context.Context, actor Actor, storeID *int, 
 		if sale == nil {
 			return ErrSaleNotFound
 		}
+		invoiceNumber = sale.InvoiceNumber
 		if err := validateSaleForReturn(sale, storeID, pol); err != nil {
 			return err
 		}
@@ -296,6 +298,9 @@ func (s *Service) ProcessReturn(ctx context.Context, actor Actor, storeID *int, 
 	if err != nil {
 		return nil, err
 	}
+	if out != nil && out.Status == ReturnStatusPendingApproval {
+		s.publishApprovalRequested(ctx, out, actor, invoiceNumber)
+	}
 	s.publishReturned(ctx, out)
 	return out, nil
 }
@@ -323,9 +328,10 @@ func (s *Service) ApproveReturn(ctx context.Context, actor Actor, storeID *int, 
 	}
 
 	var out *Return
+	var expiredReturn *Return
 	expired := false
 	err := s.InTx(ctx, func(tx pgx.Tx) error {
-		out, expired = nil, false
+		out, expired, expiredReturn = nil, false, nil
 
 		ret, err := s.repo.GetReturnForUpdate(ctx, tx, returnID)
 		if err != nil {
@@ -355,6 +361,7 @@ func (s *Service) ApproveReturn(ctx context.Context, actor Actor, storeID *int, 
 				return err
 			}
 			expired = true
+			expiredReturn = ret
 			return nil
 		}
 
@@ -436,8 +443,17 @@ func (s *Service) ApproveReturn(ctx context.Context, actor Actor, storeID *int, 
 		return nil, err
 	}
 	if expired {
+		// The return flipped to expired in the committed transaction; the
+		// caller still gets ErrApprovalExpired, but the queue must learn the
+		// request is over. ret was captured before the rollback-free path
+		// returned, so the id/number/store are the committed values.
+		if expiredReturn != nil {
+			expiredReturn.Status = ReturnStatusExpired
+			s.publishApprovalResolved(ctx, expiredReturn)
+		}
 		return nil, ErrApprovalExpired
 	}
+	s.publishApprovalResolved(ctx, out)
 	s.publishReturned(ctx, out)
 	return out, nil
 }
@@ -476,6 +492,7 @@ func (s *Service) RejectReturn(ctx context.Context, actor Actor, storeID *int, r
 	if err != nil {
 		return nil, err
 	}
+	s.publishApprovalResolved(ctx, out)
 	return out, nil
 }
 
@@ -815,6 +832,55 @@ func (s *Service) publishReturned(ctx context.Context, ret *Return) {
 		ReturnType:        ret.ReturnType,
 		TotalRefundAmount: ret.TotalRefundAmount,
 		ItemCount:         len(ret.Items),
+	})
+}
+
+// publishApprovalRequested emits sale.return.approval_requested.v1 after a
+// return is parked pending approval, so a manager's open dashboard sees the
+// request without polling. Published after commit, never inside the Unit of
+// Work; invoice and cashier name come from the caller's snapshot (the invoice
+// number is the sale's, and the cashier is the actor who created the return).
+func (s *Service) publishApprovalRequested(ctx context.Context, ret *Return, actor Actor, invoiceNumber string) {
+	if s.bus == nil || ret == nil || ret.Status != ReturnStatusPendingApproval {
+		return
+	}
+	expiresAt := ""
+	if ret.ExpiresAt != nil {
+		expiresAt = ret.ExpiresAt.UTC().Format(time.RFC3339)
+	}
+	_ = s.bus.Publish(ctx, events.TopicReturnApprovalRequested, &events.ReturnApprovalRequested{
+		ReturnID:          ret.ID,
+		ReturnNumber:      ret.ReturnNumber,
+		OriginalSaleID:    ret.OriginalSaleID,
+		InvoiceNumber:     invoiceNumber,
+		CashierID:         actor.ID,
+		CashierName:       actor.Username,
+		StoreID:           ret.StoreID,
+		TotalRefundAmount: ret.TotalRefundAmount,
+		ItemCount:         len(ret.Items),
+		ExpiresAt:         expiresAt,
+	})
+}
+
+// publishApprovalResolved emits sale.return.approval_resolved.v1 after a
+// pending return reaches a terminal status through the approval queue
+// (approved, rejected or expired). Published after commit, never inside the
+// Unit of Work. Only pending approvals are announced, so a return that
+// completed immediately (ProcessReturn) never emits a spurious resolution.
+func (s *Service) publishApprovalResolved(ctx context.Context, ret *Return) {
+	if s.bus == nil || ret == nil {
+		return
+	}
+	switch ret.Status {
+	case ReturnStatusCompleted, ReturnStatusCancelled, ReturnStatusExpired:
+	default:
+		return
+	}
+	_ = s.bus.Publish(ctx, events.TopicReturnApprovalResolved, &events.ReturnApprovalResolved{
+		ReturnID:     ret.ID,
+		ReturnNumber: ret.ReturnNumber,
+		StoreID:      ret.StoreID,
+		Status:       ret.Status,
 	})
 }
 
