@@ -838,3 +838,18 @@ func (p ShiftReturnTotalsProvider) ReturnTotals(ctx context.Context, db shared.D
 func (p ShiftReturnTotalsProvider) ReturnTotalsInTx(ctx context.Context, tx pgx.Tx, shiftID int) (shared.ShiftReturnTotals, error) {
 	return p.Repo.ReturnTotalsForShift(ctx, tx, shiftID)
 }
+
+// ReportRefundStatsProvider implements the report module's consumer-side port
+// (report.RefundStatsProvider): the report read model needs the completed
+// refunds paid out in a window to net them out of gross completed-sale revenue.
+// salereturn owns the data, so the implementation lives here; internal/wiring
+// passes it to report via report.Repository.SetRefundStatsProvider (structural
+// typing — no import of internal/report).
+type ReportRefundStatsProvider struct {
+	Repo *Repository
+}
+
+// GetCompletedRefundTotal aggregates the completed refunds in the window.
+func (p ReportRefundStatsProvider) GetCompletedRefundTotal(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (int, error) {
+	return p.Repo.RefundTotalForWindow(ctx, db, start, end, storeID)
+}

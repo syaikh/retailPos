@@ -6,25 +6,38 @@ import (
 	"time"
 
 	"retail-pos-system/internal/sale"
+	"retail-pos-system/internal/salereturn"
 	"retail-pos-system/internal/shared"
 )
 
 func wireTestAdapters(repo *Repository) {
 	repo.SetSaleStatsProvider(&testSaleStatsAdapter{})
+	repo.SetRefundStatsProvider(&testRefundStatsAdapter{})
 	repo.SetProductStatsProvider(&testProductStatsAdapter{db: dbPool})
 	repo.SetStockStatsProvider(&testStockStatsAdapter{db: dbPool})
 }
 
 type testSaleStatsAdapter struct {
 	// real delegates GetCompletedSalesStats to the production adapter rather
-	// than re-implementing its SQL here: the refund-netting query is
-	// non-trivial and duplicating it let the test keep passing against stale
-	// semantics. Wired explicitly so the report tests exercise the real code.
+	// than re-implementing its SQL here, so the report tests exercise the real
+	// (gross) completed-sale query. Refund netting is the report module's job
+	// and is provided separately by testRefundStatsAdapter.
 	real sale.ReportAdapter
 }
 
 func (a *testSaleStatsAdapter) GetCompletedSalesStats(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (revenue int, orders int, err error) {
 	return a.real.GetCompletedSalesStats(ctx, db, start, end, storeID)
+}
+
+// testRefundStatsAdapter delegates to the production salereturn query rather
+// than re-implementing it, so the report tests exercise the real refund-netting
+// SQL (068_report_return_netting.sql parity).
+type testRefundStatsAdapter struct {
+	repo salereturn.Repository
+}
+
+func (a *testRefundStatsAdapter) GetCompletedRefundTotal(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (int, error) {
+	return a.repo.RefundTotalForWindow(ctx, db, start, end, storeID)
 }
 
 func (a *testSaleStatsAdapter) GetActiveCustomerCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error) {

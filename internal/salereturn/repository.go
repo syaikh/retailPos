@@ -526,3 +526,29 @@ func (r *Repository) ReturnTotalsForShift(ctx context.Context, q shared.DBPool, 
 	}
 	return totals, nil
 }
+
+// RefundTotalForWindow aggregates the completed refunds paid out in
+// [start, end) for the optional store. It is the query behind the report
+// module's refund netting (ReportRefundStatsProvider): the report read model
+// subtracts this from gross completed-sale revenue so a refund does not count
+// as revenue, matching 068_report_return_netting.sql and the shift close-time
+// netting above.
+//
+// Only status = 'completed' counts ('pending_approval' has not paid out, and
+// 'cancelled'/'expired' never will), and only total_refund_amount is summed —
+// a pure replacement return has total_refund_amount = 0. Bucketing uses the
+// return's own created_at, exactly as the sales side does; callers pass
+// Asia/Jakarta-located bounds.
+func (r *Repository) RefundTotalForWindow(ctx context.Context, q shared.DBPool, start, end time.Time, storeID *int) (total int, err error) {
+	err = q.QueryRow(ctx, `
+		SELECT COALESCE(SUM(total_refund_amount), 0)
+		FROM sale_returns
+		WHERE status = 'completed'
+		  AND created_at >= $1
+		  AND created_at < $2
+		  AND ($3::int IS NULL OR store_id = $3)`, start, end, storeID).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("failed to aggregate return refund total: %w", err)
+	}
+	return total, nil
+}

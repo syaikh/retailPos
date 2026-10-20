@@ -15,6 +15,7 @@ import (
 )
 
 func TestReportService_DashboardStats(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	wireTestAdapters(repo)
 	bus := eventbus.New()
@@ -37,6 +38,7 @@ func TestReportService_DashboardStats(t *testing.T) {
 }
 
 func TestReportService_LiveDashboardStats(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	wireTestAdapters(repo)
 	bus := eventbus.New()
@@ -55,6 +57,7 @@ func TestReportService_LiveDashboardStats(t *testing.T) {
 }
 
 func TestReportService_PeriodComparison(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	bus := eventbus.New()
 	go bus.Run()

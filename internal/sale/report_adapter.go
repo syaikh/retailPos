@@ -25,35 +25,24 @@ func (ReportAdapter) GetCompletedSalesStats(ctx context.Context, db shared.DBPoo
 	// directly as instants, so passing UTC-located times would silently shift
 	// the window by 7 hours.
 	//
-	// Revenue is netted by completed Sales Returns in the same window, exactly
-	// as the reporting materialized views do (068_report_return_netting.sql):
-	// a refund paid back to the customer must not count as revenue. Only the
-	// money paid out (total_refund_amount) is subtracted — a pure replacement
-	// return has total_refund_amount = 0 — and only status = 'completed'
-	// returns qualify. The order COUNT is deliberately left gross: a refund is
-	// not a sale, so it must not reduce the number of sales.
+	// This returns GROSS completed-sale figures: sale owns the sales table and
+	// MUST NOT read sale_returns, which belongs to internal/salereturn. The
+	// report module nets completed refunds out separately through its
+	// RefundStatsProvider (salereturn.ReportRefundStatsProvider), matching the
+	// reporting materialized views (068_report_return_netting.sql). The order
+	// COUNT stays gross on both sides: a refund is not a sale, so it must not
+	// reduce the number of sales.
 	storeFilter := ""
 	args := []interface{}{start, end}
 	if storeID != nil {
 		storeFilter = ` AND (store_id IS NULL OR store_id = $3)`
 		args = append(args, *storeID)
 	}
-	query := `SELECT s.sales_total - COALESCE(r.refund_amount, 0),
-			s.sales_orders
-		FROM (
-			SELECT COALESCE(SUM(total_amount), 0) AS sales_total, COUNT(*) AS sales_orders
-			FROM sales
-			WHERE status = 'completed'
-			  AND created_at >= $1
-			  AND created_at < $2` + storeFilter + `
-		) s
-		LEFT JOIN (
-			SELECT SUM(total_refund_amount) AS refund_amount
-			FROM sale_returns
-			WHERE status = 'completed'
-			  AND created_at >= $1
-			  AND created_at < $2` + storeFilter + `
-		) r ON TRUE`
+	query := `SELECT COALESCE(SUM(total_amount), 0), COUNT(*)
+		FROM sales
+		WHERE status = 'completed'
+		  AND created_at >= $1
+		  AND created_at < $2` + storeFilter
 	err = db.QueryRow(ctx, query, args...).Scan(&revenue, &orders)
 	return
 }

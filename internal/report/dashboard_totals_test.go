@@ -186,14 +186,15 @@ func TestRepository_DashboardTotals_NetRefunds(t *testing.T) {
 	raw := rawAllTimeNettedStats(ctx, t, &storeA)
 	assert.Equal(t, raw.revenue, gotRev, "view parity with the netted raw query")
 
-	// Live dashboard path (SaleStatsProvider.GetCompletedSalesStats), same
-	// netting, evaluated over the sale's window.
+	// Live dashboard path (report nets SaleStatsProvider gross revenue against
+	// RefundStatsProvider), same netting, evaluated over the sale's window.
 	wireReportAdapters(repo)
-	liveRev, liveOrders, err := repo.saleStats.GetCompletedSalesStats(
-		ctx, dbPool, time.Now().Add(-time.Hour), time.Now().Add(time.Hour), &storeA)
+	windowStart := time.Now().Add(-time.Hour)
+	windowEnd := time.Now().Add(time.Hour)
+	liveRev, liveOrders, err := repo.nettedCompletedSalesStats(ctx, windowStart, windowEnd, &storeA)
 	require.NoError(t, err)
-	assert.Equal(t, 70_000, liveRev, "live adapter nets only completed refunds")
-	assert.Equal(t, 1, liveOrders, "live adapter order count stays gross")
+	assert.Equal(t, 70_000, liveRev, "live path nets only completed refunds")
+	assert.Equal(t, 1, liveOrders, "live path order count stays gross")
 }
 
 // TestRepository_DailySales_ReturnOnlyBucket covers the case that the

@@ -21,6 +21,7 @@ type Repository struct {
 	db           shared.DBPool
 	cache        *cache.Cache
 	saleStats    SaleStatsProvider
+	refundStats  RefundStatsProvider
 	productStats ProductStatsProvider
 	stockStats   StockStatsProvider
 }
@@ -50,6 +51,13 @@ func (r *Repository) SetSaleStatsProvider(p SaleStatsProvider) {
 		panic("report: SaleStatsProvider already set")
 	}
 	r.saleStats = p
+}
+
+func (r *Repository) SetRefundStatsProvider(p RefundStatsProvider) {
+	if r.refundStats != nil {
+		panic("report: RefundStatsProvider already set")
+	}
+	r.refundStats = p
 }
 
 func (r *Repository) SetProductStatsProvider(p ProductStatsProvider) {
@@ -345,8 +353,8 @@ func (r *Repository) GetLiveDashboardStats(ctx context.Context, storeID *int) (t
 		}
 	}
 
-	if r.saleStats == nil || r.productStats == nil || r.stockStats == nil {
-		return 0, 0, 0, 0, fmt.Errorf("report: stats providers not wired; call SetSaleStatsProvider/SetProductStatsProvider/SetStockStatsProvider")
+	if r.saleStats == nil || r.refundStats == nil || r.productStats == nil || r.stockStats == nil {
+		return 0, 0, 0, 0, fmt.Errorf("report: stats providers not wired; call SetSaleStatsProvider/SetRefundStatsProvider/SetProductStatsProvider/SetStockStatsProvider")
 	}
 
 	jakartaNow := time.Now().In(shared.JakartaLocation())
@@ -355,7 +363,7 @@ func (r *Repository) GetLiveDashboardStats(ctx context.Context, storeID *int) (t
 
 	cfg := config.Load()
 
-	todaysRevenue, todaysSales, err = r.saleStats.GetCompletedSalesStats(ctx, r.db, todayStart, todayEnd, storeID)
+	todaysRevenue, todaysSales, err = r.nettedCompletedSalesStats(ctx, todayStart, todayEnd, storeID)
 	if err != nil {
 		return 0, 0, 0, 0, fmt.Errorf("failed to get today's sales stats: %w", err)
 	}
@@ -566,6 +574,29 @@ func (r *Repository) getAllCompletedSalesStats(ctx context.Context, storeID *int
 	return
 }
 
+// nettedCompletedSalesStats returns the completed-sale revenue in [start, end)
+// with completed refunds subtracted, plus the GROSS order count. It is the
+// live-dashboard counterpart of the netting in the reporting materialized views
+// (068_report_return_netting.sql): revenue must exclude money paid back to
+// customers, while the number of sales stays a gross count because a refund is
+// not a sale.
+//
+// The two sides live behind separate owner ports — sale owns sales, salereturn
+// owns sale_returns — so this module nets them rather than leaving the netting
+// in either provider. start/end MUST be located in Asia/Jakarta, matching the
+// sale and refund providers.
+func (r *Repository) nettedCompletedSalesStats(ctx context.Context, start, end time.Time, storeID *int) (revenue int, orders int, err error) {
+	grossRevenue, orders, err := r.saleStats.GetCompletedSalesStats(ctx, r.db, start, end, storeID)
+	if err != nil {
+		return 0, 0, err
+	}
+	refundTotal, err := r.refundStats.GetCompletedRefundTotal(ctx, r.db, start, end, storeID)
+	if err != nil {
+		return 0, 0, err
+	}
+	return grossRevenue - refundTotal, orders, nil
+}
+
 func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakartaLoc *time.Location) (*DashboardStats, error) {
 	key := "dashboard:stats"
 	if storeID != nil {
@@ -577,8 +608,8 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 		}
 	}
 
-	if r.saleStats == nil || r.productStats == nil || r.stockStats == nil {
-		return nil, fmt.Errorf("report: stats providers not wired; call SetSaleStatsProvider/SetProductStatsProvider/SetStockStatsProvider")
+	if r.saleStats == nil || r.refundStats == nil || r.productStats == nil || r.stockStats == nil {
+		return nil, fmt.Errorf("report: stats providers not wired; call SetSaleStatsProvider/SetRefundStatsProvider/SetProductStatsProvider/SetStockStatsProvider")
 	}
 
 	now := time.Now().In(jakartaLoc)
@@ -593,7 +624,7 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 
 	go func() {
 		defer wg.Done()
-		rev, sales, err := r.saleStats.GetCompletedSalesStats(ctx, r.db, todayStart, todayEnd, storeID)
+		rev, sales, err := r.nettedCompletedSalesStats(ctx, todayStart, todayEnd, storeID)
 		if err != nil {
 			slog.Error("dashboard: today stats failed", "err", err)
 			return

@@ -458,3 +458,58 @@ func TestRepository_ReturnTotalsForShift(t *testing.T) {
 	assert.Equal(t, 0, otherTotals.NonCashRefund)
 	assert.Equal(t, 1000, otherTotals.TotalRefund)
 }
+
+// TestRepository_RefundTotalForWindow pins the contract the report module's
+// refund netting depends on (report.RefundStatsProvider): only completed
+// returns count, the window is exclusive at the end, and an optional store
+// narrows the aggregate.
+func TestRepository_RefundTotalForWindow(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	repo := NewRepository(dbPool)
+	f := seedSaleFixture(t)
+
+	completed := &seeded{userID: f.userID, shiftID: f.shiftID, saleID: f.saleID, itemID: f.itemID, productID: f.productID, cashPM: f.cashPM, totalRefund: 7000}
+	completedRet := insertReturnWithItem(ctx, t, repo, completed, ReturnStatusCompleted, nil)
+
+	// Neither pending nor cancelled money has left the drawer.
+	pending := &seeded{userID: f.userID, shiftID: f.shiftID, saleID: f.saleID, itemID: f.itemID, productID: f.productID, cashPM: f.cashPM, totalRefund: 999_999}
+	insertReturnWithItem(ctx, t, repo, pending, ReturnStatusPendingApproval, nil)
+	cancelled := &seeded{userID: f.userID, shiftID: f.shiftID, saleID: f.saleID, itemID: f.itemID, productID: f.productID, cashPM: f.cashPM, totalRefund: 888_888}
+	insertReturnWithItem(ctx, t, repo, cancelled, ReturnStatusCancelled, nil)
+
+	// A pure replacement pays nothing out.
+	replacement := &seeded{userID: f.userID, shiftID: f.shiftID, saleID: f.saleID, itemID: f.itemID, productID: f.productID, cashPM: f.cashPM, totalRefund: 0}
+	insertReturnWithItem(ctx, t, repo, replacement, ReturnStatusCompleted, nil)
+
+	// The window must exclude a return created outside it.
+	_, err := dbPool.Exec(ctx, `UPDATE sale_returns SET created_at = NOW() - INTERVAL '30 days' WHERE id = $1`, completedRet.ID)
+	require.NoError(t, err)
+
+	start := time.Now().Add(-time.Hour)
+	end := time.Now().Add(time.Hour)
+	total, err := repo.RefundTotalForWindow(ctx, dbPool, start, end, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 0, total, "a return outside the window is excluded")
+
+	storeID := 1
+	total, err = repo.RefundTotalForWindow(ctx, dbPool, start, end, &storeID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, total, "completed refund outside the window stays excluded for a store filter too")
+
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO sale_returns (return_number, original_sale_id, cashier_id, store_id, shift_id,
+		                          return_type, reason, condition, status, total_refund_amount, created_at)
+		VALUES ($1, $2, $3, 1, $4, 'refund', 'barang rusak', 'damaged', 'completed', 5000, NOW())`,
+		"REF-"+uniqueSuffix(), f.saleID, f.userID, f.shiftID)
+	require.NoError(t, err)
+
+	total, err = repo.RefundTotalForWindow(ctx, dbPool, start, end, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 5000, total, "only the in-window completed refund counts")
+
+	otherStore := 2
+	total, err = repo.RefundTotalForWindow(ctx, dbPool, start, end, &otherStore)
+	require.NoError(t, err)
+	assert.Equal(t, 0, total, "another store's refunds are excluded")
+}

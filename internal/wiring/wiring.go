@@ -573,6 +573,7 @@ func Initialize(p Providers) *Dependencies {
 	d.SaleReturnSvc.SetSettingsProvider(d.AppSettingsSvc)
 	d.SaleReturnSvc.SetAuditService(d.AuditSvc)
 	d.ShiftRepo.SetReturnTotalsProvider(salereturn.ShiftReturnTotalsProvider{Repo: d.SaleReturnRepo})
+	d.ReportRepo.SetRefundStatsProvider(salereturn.ReportRefundStatsProvider{Repo: d.SaleReturnRepo})
 
 	d.UserH = user.NewHandler(d.UserSvc, d.AuditSvc)
 	d.AuthH = user.NewAuthHandler(d.AuthSvc, d.AuditSvc)
