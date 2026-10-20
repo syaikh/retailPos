@@ -169,7 +169,7 @@ func TestProcessReturn_DemotionPastThreshold_AbortsForRetry(t *testing.T) {
 
 	// The retry (stock now truly gone) plans the line as a refund from the
 	// start and correctly parks it for manager approval.
-	s2, _, _ := newFlowService(f, map[int]int{f.productID: 0}, &stubDeduct{}, "1000")
+	s2, bus2, _ := newFlowService(f, map[int]int{f.productID: 0}, &stubDeduct{}, "1000")
 	ret, err := s2.ProcessReturn(ctx, flowActor(f), nil, f.saleID, ProcessRequest{
 		Reason: "barang rusak", Condition: ConditionDamaged,
 		Items: []ItemRequest{{SaleItemID: f.itemID, Quantity: 1}},
@@ -177,6 +177,23 @@ func TestProcessReturn_DemotionPastThreshold_AbortsForRetry(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ReturnStatusPendingApproval, ret.Status)
 	require.NotNil(t, ret.ExpiresAt)
+
+	// A parked return must announce the request (so a manager's dashboard
+	// sees it live) without claiming completion: exactly one event, and it is
+	// the approval request — sale.returned.v1 must NOT fire for a pending row.
+	require.Len(t, bus2.sents, 1)
+	assert.Equal(t, events.TopicReturnApprovalRequested, bus2.topics[0])
+	requested, ok := bus2.sents[0].(*events.ReturnApprovalRequested)
+	require.True(t, ok)
+	assert.Equal(t, ret.ID, requested.ReturnID)
+	assert.Equal(t, ret.ReturnNumber, requested.ReturnNumber)
+	assert.Equal(t, f.saleID, requested.OriginalSaleID)
+	assert.Equal(t, 1, requested.StoreID, "the request is scoped to the return's store (fixture store 1)")
+	assert.Equal(t, flowActor(f).ID, requested.CashierID)
+	assert.Equal(t, flowActor(f).Username, requested.CashierName)
+	assert.Equal(t, ret.TotalRefundAmount, requested.TotalRefundAmount)
+	assert.Equal(t, len(ret.Items), requested.ItemCount)
+	assert.Equal(t, ret.ExpiresAt.UTC().Format(time.RFC3339), requested.ExpiresAt)
 }
 
 // ==================== APPROVE RETURN ====================
@@ -215,8 +232,12 @@ func TestApproveReturn_CompletesPending_ReplacesProposalRows(t *testing.T) {
 	assert.Equal(t, 5000, approved.TotalRefundAmount)
 
 	require.Equal(t, 1, adjuster.calls)
-	require.Len(t, bus.sents, 1)
-	ev, ok := bus.sents[0].(*events.SaleReturned)
+	// Approval resolves the queue first, then announces the completion.
+	require.Len(t, bus.sents, 2)
+	resolved, ok := bus.sents[0].(*events.ReturnApprovalResolved)
+	require.True(t, ok)
+	assert.Equal(t, ReturnStatusCompleted, resolved.Status)
+	ev, ok := bus.sents[1].(*events.SaleReturned)
 	require.True(t, ok)
 	assert.Equal(t, 1, ev.ItemCount)
 }
@@ -231,7 +252,14 @@ func TestApproveReturn_ElapsedWindow_FlipsAndFails(t *testing.T) {
 	_, err := s.ApproveReturn(ctx, flowActor(f), nil, pending.ID, nil)
 	assert.ErrorIs(t, err, ErrApprovalExpired)
 	assert.Equal(t, 0, adjuster.calls)
-	assert.Empty(t, bus.topics)
+	// The expiry flip commits, so the resolution is announced to the queue
+	// even though no goods or money moved.
+	require.Len(t, bus.topics, 1)
+	assert.Equal(t, events.TopicReturnApprovalResolved, bus.topics[0])
+	expired, ok := bus.sents[0].(*events.ReturnApprovalResolved)
+	require.True(t, ok)
+	assert.Equal(t, pending.ID, expired.ReturnID)
+	assert.Equal(t, ReturnStatusExpired, expired.Status)
 
 	// The flip commits (the expiry path returns ErrApprovalExpired from a
 	// SUCCESSFUL transaction), freeing the sale's returnable quantity.
@@ -434,7 +462,13 @@ func TestRejectReturn_CancelsPendingAndFreesQuantity(t *testing.T) {
 	assert.Equal(t, "di luar kebijakan", *loaded.Approval.RejectedReason)
 
 	assert.Zero(t, adjuster.calls, "a rejection moves no money")
-	assert.Empty(t, bus.topics, "and publishes no event")
+	// A rejection resolves the request, so the queue learns it is cancelled.
+	require.Len(t, bus.topics, 1)
+	assert.Equal(t, events.TopicReturnApprovalResolved, bus.topics[0])
+	resolved, ok := bus.sents[0].(*events.ReturnApprovalResolved)
+	require.True(t, ok)
+	assert.Equal(t, pending.ID, resolved.ReturnID)
+	assert.Equal(t, ReturnStatusCancelled, resolved.Status)
 }
 
 func TestRejectReturn_Guards(t *testing.T) {

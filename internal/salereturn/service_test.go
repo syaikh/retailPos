@@ -458,6 +458,14 @@ func TestPublishApprovalRequested(t *testing.T) {
 		s.publishApprovalRequested(ctx, &Return{Status: ReturnStatusCompleted}, Actor{}, "")
 		assert.Empty(t, bus.topics)
 	})
+
+	t.Run("an unwired bus or nil return is a no-op", func(t *testing.T) {
+		NewService(nil, nil).publishApprovalRequested(ctx,
+			&Return{Status: ReturnStatusPendingApproval}, Actor{}, "")
+		bus := &stubBus{}
+		NewService(nil, bus).publishApprovalRequested(ctx, nil, Actor{}, "")
+		assert.Empty(t, bus.topics)
+	})
 }
 
 func TestPublishApprovalResolved(t *testing.T) {
@@ -484,6 +492,14 @@ func TestPublishApprovalResolved(t *testing.T) {
 		bus := &stubBus{}
 		s := NewService(nil, bus)
 		s.publishApprovalResolved(ctx, &Return{Status: ReturnStatusPendingApproval})
+		assert.Empty(t, bus.topics)
+	})
+
+	t.Run("an unwired bus or nil return is a no-op", func(t *testing.T) {
+		NewService(nil, nil).publishApprovalResolved(ctx,
+			&Return{Status: ReturnStatusCompleted})
+		bus := &stubBus{}
+		NewService(nil, bus).publishApprovalResolved(ctx, nil)
 		assert.Empty(t, bus.topics)
 	})
 }

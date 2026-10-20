@@ -66,4 +66,26 @@ describe("NotificationBell.svelte source-structure guards", () => {
     expect(src).toContain("canReceiveStockOpnameNotifications");
     expect(src).toContain("if (!canSeeStockOpname) return;");
   });
+
+  it("gates the return-approval request on the approve permission at receive time", () => {
+    expect(src).toContain("canReceiveReturnApprovalNotifications");
+    expect(src).toContain("if (!canSeeReturnApprovals) return;");
+    expect(src).toContain('ws.on(\n        "return_approval_requested"');
+  });
+
+  it("notifies the cashier of a resolution and deep-links into the queue", () => {
+    expect(src).toContain('ws.on(\n        "return_approval_resolved"');
+    expect(src).toContain('if (canSeeReturnApprovals) return;');
+    expect(src).toContain('navigateTo: "/transactions?return_approvals=true"');
+  });
+
+  it("branches the resolution copy on the terminal status", () => {
+    // completed → approved, cancelled → rejected, expired → expired.
+    expect(src).toContain('data.status === "completed"');
+    expect(src).toContain('data.status === "cancelled"');
+    expect(src).toContain('data.status === "expired"');
+    expect(src).toContain("labels.returnApprovalApprovedTitle");
+    expect(src).toContain("labels.returnApprovalRejectedTitle");
+    expect(src).toContain("labels.returnApprovalExpiredTitle");
+  });
 });

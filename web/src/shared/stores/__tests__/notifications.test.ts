@@ -136,6 +136,8 @@ describe("notifications store", () => {
     expect(getNotificationIcon("so_needs_recount")).toBe("🔄");
     expect(getNotificationIcon("so_cancelled")).toBe("🚫");
     expect(getNotificationIcon("supplier_changed")).toBe("🏭");
+    expect(getNotificationIcon("return_approval_requested")).toBe("↩️");
+    expect(getNotificationIcon("return_approval_resolved")).toBe("✅");
   });
 
   it("canReceiveStockOpnameNotifications allows stock_opname.view", async () => {
@@ -165,5 +167,23 @@ describe("notifications store", () => {
     expect(canReceiveSupplierNotifications([])).toBe(false);
     expect(canReceiveSupplierNotifications(undefined)).toBe(false);
     expect(canReceiveSupplierNotifications(null)).toBe(false);
+  });
+
+  it("canReceiveReturnApprovalNotifications allows sale.return.approve", async () => {
+    const {
+      canReceiveReturnApprovalNotifications,
+      SALE_RETURN_APPROVE_PERMISSION,
+    } = await import("../notifications.svelte");
+    expect(SALE_RETURN_APPROVE_PERMISSION).toBe("sale.return.approve");
+    expect(
+      canReceiveReturnApprovalNotifications([
+        "dashboard.view",
+        "sale.return.approve",
+      ]),
+    ).toBe(true);
+    expect(canReceiveReturnApprovalNotifications(["sale.return"])).toBe(false);
+    expect(canReceiveReturnApprovalNotifications([])).toBe(false);
+    expect(canReceiveReturnApprovalNotifications(undefined)).toBe(false);
+    expect(canReceiveReturnApprovalNotifications(null)).toBe(false);
   });
 });

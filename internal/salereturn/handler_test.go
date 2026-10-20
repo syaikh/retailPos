@@ -843,8 +843,15 @@ func TestApproveReturnHandler(t *testing.T) {
 		// the pre-flip snapshot (still "pending") — a known production
 		// quirk. The database is the witness of the recorded decision.
 		require.Equal(t, 1, adjuster.calls)
-		require.Len(t, bus.topics, 1)
-		assert.Equal(t, events.TopicSaleReturned, bus.topics[0])
+		// The queue is told the request is over before the completion is
+		// announced: publishApprovalResolved runs first, then publishReturned.
+		require.Len(t, bus.topics, 2)
+		assert.Equal(t, events.TopicReturnApprovalResolved, bus.topics[0])
+		assert.Equal(t, events.TopicSaleReturned, bus.topics[1])
+		resolved, ok := bus.sents[0].(*events.ReturnApprovalResolved)
+		require.True(t, ok)
+		assert.Equal(t, pending.ID, resolved.ReturnID)
+		assert.Equal(t, ReturnStatusCompleted, resolved.Status)
 
 		status, _ := approvalRowStatus(t, pending.ID)
 		assert.Equal(t, "approved", status)
@@ -895,7 +902,14 @@ func TestApproveReturnHandler(t *testing.T) {
 		status, _ := approvalRowStatus(t, pending.ID)
 		assert.Equal(t, "expired", status)
 		assert.Zero(t, adjuster.calls, "no money moves on an expired approval")
-		assert.Empty(t, bus.topics)
+		// The expiry flip is committed, so the cashier's queue must learn the
+		// request is over even though the caller still sees a conflict.
+		require.Len(t, bus.topics, 1)
+		assert.Equal(t, events.TopicReturnApprovalResolved, bus.topics[0])
+		expired, ok := bus.sents[0].(*events.ReturnApprovalResolved)
+		require.True(t, ok)
+		assert.Equal(t, pending.ID, expired.ReturnID)
+		assert.Equal(t, ReturnStatusExpired, expired.Status)
 	})
 
 	t.Run("non-numeric id is not found", func(t *testing.T) {
@@ -938,7 +952,14 @@ func TestRejectReturnHandler(t *testing.T) {
 		assert.Equal(t, "rejected", status)
 		assert.Equal(t, "di luar kebijakan", reason)
 		assert.Equal(t, ReturnStatusCancelled, returnRowStatus(t, pending.ID))
-		assert.Empty(t, bus.topics, "a rejection moves no goods or money")
+		// A rejection moves no goods or money, but it does resolve the
+		// request, so the cashier's live queue drops it.
+		require.Len(t, bus.topics, 1)
+		assert.Equal(t, events.TopicReturnApprovalResolved, bus.topics[0])
+		resolved, ok := bus.sents[0].(*events.ReturnApprovalResolved)
+		require.True(t, ok)
+		assert.Equal(t, pending.ID, resolved.ReturnID)
+		assert.Equal(t, ReturnStatusCancelled, resolved.Status)
 		assert.Zero(t, adjuster.calls)
 	})
 

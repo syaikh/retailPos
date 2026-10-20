@@ -42,6 +42,20 @@ describe("PendingReturnsModal.svelte source-structure guards", () => {
     expect(src).toContain("formatCurrency(ret.total_refund_amount)");
     expect(src).toContain("ret.expires_at");
   });
+
+  it("keeps the open queue live from websocket events without reopening it", () => {
+    expect(src).toContain(
+      'import { useWebSocket } from "$shared/api/websocket"',
+    );
+    expect(src).toContain("const ws = useWebSocket()");
+    // A new request adds a row, a resolution drops one; reloading is guarded
+    // on the modal being open so a closed queue fires no redundant API call.
+    expect(src).toContain('ws.on("return_approval_requested", () => {');
+    expect(src).toContain('ws.on("return_approval_resolved", () => {');
+    expect(src).toContain("if (show) load();");
+    expect(src).toContain("unsubRequested();");
+    expect(src).toContain("unsubResolved();");
+  });
 });
 
 describe("ApprovalModal.svelte source-structure guards", () => {

@@ -256,4 +256,16 @@ describe("TransactionsPage.svelte source-structure guards", () => {
       "<PendingReturnsModal bind:show={showReturnApprovals} />",
     );
   });
+
+  it("deep-links the approval queue from ?return_approvals=true (approve holders only)", () => {
+    expect(src).toContain("function openReturnApprovalsFromQuery");
+    expect(src).toContain(
+      'new URLSearchParams(window.location.search).get(\n      "return_approvals",\n    )',
+    );
+    expect(src).toContain('flag === "true" && canApprove');
+    expect(src).toContain("showReturnApprovals = true");
+    // Both the mount path and the route-subscription effect must honour it.
+    const calls = src.match(/openReturnApprovalsFromQuery\(\)/g) ?? [];
+    expect(calls.length).toBeGreaterThanOrEqual(3);
+  });
 });

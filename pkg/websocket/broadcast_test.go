@@ -36,6 +36,9 @@ func TestEventTypes(t *testing.T) {
 	assert.Equal(t, EventType("po_created"), EventPOCreated)
 	assert.Equal(t, EventType("po_confirmed"), EventPOConfirmed)
 	assert.Equal(t, EventType("po_cancelled"), EventPOCancelled)
+	assert.Equal(t, EventType("supplier_changed"), EventSupplierChanged)
+	assert.Equal(t, EventType("return_approval_requested"), EventReturnApprovalRequested)
+	assert.Equal(t, EventType("return_approval_resolved"), EventReturnApprovalResolved)
 }
 
 func TestEventJSONMarshaling(t *testing.T) {
@@ -572,4 +575,105 @@ func TestBroadcastStockOpnameStatus_StoreFiltering(t *testing.T) {
 	if received {
 		t.Fatal("regular client at different store should not receive store-scoped so_created")
 	}
+}
+
+func TestBroadcastReturnApprovalRequested_NilHub(t *testing.T) {
+	BroadcastReturnApprovalRequested(nil, ReturnApprovalRequestedEvent{ReturnID: 1})
+}
+
+func TestBroadcastReturnApprovalRequested_WithHub(t *testing.T) {
+	hub := newListenerHub()
+	go hub.Run()
+	defer hub.Shutdown()
+
+	client := registerClient(t, hub, 1, nil, true)
+	drainMessages(client.send)
+
+	BroadcastReturnApprovalRequested(hub, ReturnApprovalRequestedEvent{
+		ReturnID:          12,
+		ReturnNumber:      "RET-2026-000012",
+		OriginalSaleID:    7,
+		InvoiceNumber:     "INV-2026-000042",
+		CashierID:         4,
+		CashierName:       "siti",
+		TotalRefundAmount: 750000,
+		ItemCount:         2,
+		ExpiresAt:         "2026-10-20T09:30:00Z",
+	})
+
+	msg, ok := waitForMessage(t, client.send, func(s string) bool {
+		return strings.Contains(s, "return_approval_requested") &&
+			strings.Contains(s, "RET-2026-000012")
+	}, 2*time.Second)
+	if !ok {
+		t.Fatal("timeout waiting for return_approval_requested broadcast")
+	}
+	// The payload must be self-contained so the manager's notification renders
+	// without a follow-up API call.
+	assert.Contains(t, msg, `"invoice_number":"INV-2026-000042"`)
+	assert.Contains(t, msg, `"cashier_name":"siti"`)
+	assert.Contains(t, msg, `"total_refund_amount":750000`)
+	assert.Contains(t, msg, `"expires_at":"2026-10-20T09:30:00Z"`)
+}
+
+func TestBroadcastReturnApprovalRequested_StoreFiltering(t *testing.T) {
+	hub := newListenerHub()
+	go hub.Run()
+	defer hub.Shutdown()
+
+	store1 := intPtr(1)
+	store2 := intPtr(2)
+
+	regularClient := registerClient(t, hub, 1, store2, false)
+	adminClient := registerClient(t, hub, 2, store1, true)
+	drainMessages(regularClient.send)
+	drainMessages(adminClient.send)
+
+	BroadcastReturnApprovalRequested(hub, ReturnApprovalRequestedEvent{
+		ReturnID:     12,
+		ReturnNumber: "RET-2026-000012",
+		StoreID:      store1,
+	})
+
+	_, ok := waitForMessage(t, adminClient.send, func(s string) bool {
+		return strings.Contains(s, "return_approval_requested")
+	}, 2*time.Second)
+	if !ok {
+		t.Fatal("timeout: admin should receive the cross-store approval request")
+	}
+
+	_, received := waitForMessage(t, regularClient.send, func(s string) bool {
+		return strings.Contains(s, "return_approval_requested")
+	}, 300*time.Millisecond)
+	if received {
+		t.Fatal("regular client at a different store should not receive the request")
+	}
+}
+
+func TestBroadcastReturnApprovalResolved_NilHub(t *testing.T) {
+	BroadcastReturnApprovalResolved(nil, ReturnApprovalResolvedEvent{ReturnID: 1})
+}
+
+func TestBroadcastReturnApprovalResolved_WithHub(t *testing.T) {
+	hub := newListenerHub()
+	go hub.Run()
+	defer hub.Shutdown()
+
+	client := registerClient(t, hub, 1, nil, true)
+	drainMessages(client.send)
+
+	BroadcastReturnApprovalResolved(hub, ReturnApprovalResolvedEvent{
+		ReturnID:     12,
+		ReturnNumber: "RET-2026-000012",
+		Status:       "completed",
+	})
+
+	msg, ok := waitForMessage(t, client.send, func(s string) bool {
+		return strings.Contains(s, "return_approval_resolved") &&
+			strings.Contains(s, "RET-2026-000012")
+	}, 2*time.Second)
+	if !ok {
+		t.Fatal("timeout waiting for return_approval_resolved broadcast")
+	}
+	assert.Contains(t, msg, `"status":"completed"`)
 }
