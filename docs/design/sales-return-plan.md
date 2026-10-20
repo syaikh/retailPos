@@ -1,17 +1,20 @@
 # Implementation Plan: Sales Return (Retur Penjualan)
 
-> **STATUS: PHASE 1 (BACKEND) IMPLEMENTED — awaiting review; frontend phases not started**
+> **STATUS: PHASES 1 & 2 IMPLEMENTED, PHASE 4.3 (REPORT NETTING) IMPLEMENTED — Phase 3 (WebSocket) not started**
 > Migration `database/migrations/067_sales_return.sql` exists and is applied, the
 > `sale.return` / `sale.return.approve` permission codes are registered in
-> `internal/permissions`, and the Phase 1 endpoints live under `/api/sales/...`
-> (`internal/salereturn`, wired in `internal/wiring`). The body of this plan is
+> `internal/permissions`, and the endpoints live under `/api/sales/...`
+> (`internal/salereturn`, wired in `internal/wiring`). The cashier UI and manager
+> approval queue live in `web/src/modules/salereturn/`. Refunds are netted out of
+> the reporting read model by `068_report_return_netting.sql` +
+> `internal/sale/report_adapter.go`. The body of this plan is
 > the ORIGINAL pre-review design: where it disagrees with the **Review
 > amendments** section below, the amendments win. Every "040" reference below is
 > stale — the migration number in use is **067**.
 
 | Field | Value |
 |-------|-------|
-| Status | Phase 1 (backend) implemented — pending review |
+| Status | Phases 1, 2 and 4.3 implemented; Phase 3 (WebSocket) pending |
 | Date | 2026-09-04 |
 | Amendments | 2026-10-19 (plan review, see "Review amendments") |
 | PRD | `docs/prd/PRD-Sales-Return.md` |
@@ -731,10 +734,35 @@ func (s *service) ExpireStaleApprovals(ctx context.Context) {
 
 ### Step 4.3: Reporting Adjustments (Day 12)
 
-- Verify `SaleReturned` event consumed by reporting module
-- Dashboard shows return count, replacement count, and refund total
-- Sales reports deduct refund returns from gross sales (replacement returns have no financial impact)
-- Shift summary: only refund amounts deducted from shift totals
+**Implemented** (see `database/migrations/068_report_return_netting.sql`,
+`internal/sale/report_adapter.go`). Refunds are netted out of the reporting
+read model directly rather than via a `sale.returned.v1` consumer: the event is
+published (service.go) but nothing subscribes, which is fine because both
+reporting paths aggregate `sale_returns` at read time.
+
+- **Materialized views** (`mv_daily_sales`, `mv_hourly_sales`,
+  `mv_dashboard_totals`) subtract `total_refund_amount` of `status = 'completed'`
+  returns in the same Jakarta bucket/store. This covers the daily chart, hourly
+  chart, dual-period comparison and all-time dashboard totals with no Go
+  query changes. The join is a `FULL OUTER JOIN` on `(bucket, store_id)` so a
+  refund processed on a day/hour with no completed sale in that store keeps its
+  own row (negative net revenue, zero sale count) instead of being dropped —
+  otherwise the daily/hourly charts would overstate revenue and disagree with
+  the all-time dashboard.
+- **Live dashboard adapter** (`ReportAdapter.GetCompletedSalesStats`, the
+  in-progress-window path that deliberately bypasses the MVs) applies the same
+  subtraction and is pinned to the views by a parity test.
+- Only money actually paid out is deducted: a pure replacement return has
+  `total_refund_amount = 0`, so replacements have no financial impact.
+  `pending_approval`/`cancelled`/`expired` returns are excluded — the money has
+  not left the drawer.
+- `transaction_count` / order counts stay **gross** (a refund is not a sale).
+  Only the money columns are netted.
+- Shift summary: only refund amounts are deducted from shift totals (already
+  implemented via `shift.ReturnTotalsProvider`).
+
+Deferred: a dashboard tile showing return/replacement/refund counts (the
+netting contract is met without it).
 
 ---
 
@@ -768,7 +796,8 @@ func (s *service) ExpireStaleApprovals(ctx context.Context) {
 
 | File | Description |
 |------|-------------|
-| `database/migrations/040_sales_return.sql` | Database migration |
+| `database/migrations/040_sales_return.sql` | Database migration (shipped as **067**) |
+| `database/migrations/068_report_return_netting.sql` | Net completed refunds out of the reporting materialized views (Phase 4.3) |
 | `internal/salereturn/domain.go` | Domain entities + errors |
 | `internal/salereturn/repository.go` | Database operations |
 | `internal/salereturn/service.go` | Business logic |
@@ -798,6 +827,7 @@ func (s *service) ExpireStaleApprovals(ctx context.Context) {
 |------|--------|
 | `internal/permissions/permissions.go` | Add `SaleReturn`, `SaleReturnApprove` codes |
 | `internal/shared/stock.go` | Add `StockRestoreItem` struct |
+| `internal/sale/report_adapter.go` | Net completed refunds out of live dashboard revenue (Phase 4.3) |
 | `cmd/server/main.go` | Wire salereturn routes + ports |
 | `docs/roadmap/upcoming-features.md` | Update return policy status |
 | `web/src/shared/i18n/en.ts` | Add return-related strings |

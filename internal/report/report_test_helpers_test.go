@@ -5,28 +5,26 @@ import (
 	"fmt"
 	"time"
 
+	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/shared"
 )
 
 func wireTestAdapters(repo *Repository) {
-	repo.SetSaleStatsProvider(&testSaleStatsAdapter{db: dbPool})
+	repo.SetSaleStatsProvider(&testSaleStatsAdapter{})
 	repo.SetProductStatsProvider(&testProductStatsAdapter{db: dbPool})
 	repo.SetStockStatsProvider(&testStockStatsAdapter{db: dbPool})
 }
 
 type testSaleStatsAdapter struct {
-	db shared.DBPool
+	// real delegates GetCompletedSalesStats to the production adapter rather
+	// than re-implementing its SQL here: the refund-netting query is
+	// non-trivial and duplicating it let the test keep passing against stale
+	// semantics. Wired explicitly so the report tests exercise the real code.
+	real sale.ReportAdapter
 }
 
 func (a *testSaleStatsAdapter) GetCompletedSalesStats(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (revenue int, orders int, err error) {
-	query := `SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM sales WHERE status = 'completed' AND created_at >= $1 AND created_at < $2`
-	args := []interface{}{start, end}
-	if storeID != nil {
-		query += ` AND (store_id IS NULL OR store_id = $3)`
-		args = append(args, *storeID)
-	}
-	err = db.QueryRow(ctx, query, args...).Scan(&revenue, &orders)
-	return
+	return a.real.GetCompletedSalesStats(ctx, db, start, end, storeID)
 }
 
 func (a *testSaleStatsAdapter) GetActiveCustomerCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error) {
