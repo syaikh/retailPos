@@ -23,7 +23,8 @@ before any action (verify, re-print, future return). A browsable list or no-rece
 purchase, so neither is provided. A lost receipt means the customer is **not entitled** to
 a lookup/action — that is the control working as intended, not a gap. Genuine exceptions
 (trusted customer, manager override) belong behind `manager`-level auth and are out of
-scope (return/void is **On Hold**).
+scope (return is handled by the Sales Return feature (`docs/prd/PRD-Sales-Return.md`);
+void remains **On Hold**).
 
 ## Scope of results
 
@@ -143,16 +144,26 @@ A cashier who locates a sale can drill into a **read-only itemized receipt** and
   With the relaxed GET, a cashier's reprinted (and POS) receipts include the store branding
   and receipt text.
 
-### Return / void — On Hold (pending review)
-Return and void flows of completed sales are **explicitly deferred** (no such mechanism
-exists anywhere in the codebase today — only parked-sale recall/cancel). They require
-manager-auth gates and are treated as net-new functionality. **Status: On Hold — pending
-review.** Reprint is allowed without it; return/void remains excluded from Phase 2.
+### Return / void — Return: hold resolved, backend implemented; Void: On Hold
+- **Return of completed sales** was previously **On Hold — pending review**. That hold
+  is resolved by `docs/prd/PRD-Sales-Return.md`, and the Phase 1 backend now exists:
+  migration `database/migrations/067_sales_return.sql`, the `sale.return` /
+  `sale.return.approve` permission codes, and the `internal/salereturn` module with
+  endpoints under `/api/sales/...`. **Status: backend implemented — pending review;
+  UI, real-time, reporting adjustments, return-receipt reprint and E2E not built**
+  (see `docs/design/sales-return-plan.md` for the remaining phases).
+- **Void of completed sales** does not exist anywhere in the codebase (only parked-sale
+  recall/cancel) and remains **On Hold — pending review**. It is treated as net-new
+  functionality requiring manager-auth gates, and is out of scope for Find Transaction.
+- Reprint is allowed without either flow; return/void are reached through the Sales
+  Return feature (or a future void feature), not through Find Transaction.
 
 ## Non-goals
 
 - Not a self-service "my own sales" view (that is the existing transactions screen).
 - Not a held-cart recall screen (separate feature).
 - Not an analytics / reporting filter (no export, no amount aggregation).
-- Not a return / void flow — **On Hold — pending review** (see Action scope above).
+- Not a return / void flow — return lives in the Sales Return feature
+  (`docs/prd/PRD-Sales-Return.md`, backend Phase 1 implemented, pending review);
+  void remains **On Hold — pending review** (see Action scope above).
 - Not a browsable / recent-sales list of other cashiers' transactions (proof-of-purchase gate — see Purpose).

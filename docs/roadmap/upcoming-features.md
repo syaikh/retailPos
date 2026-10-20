@@ -578,7 +578,7 @@ Barang titipan supplier: barang milik supplier yang dijual di toko, dengan terms
 
 ## Catatan
 
-- **Returns & Refund (Damaged Items):** Sedang direncanakan — Phase 1. Pelanggan dapat meretur barang rusak dalam batas waktu yang dikonfigurasi (default 1 hari) untuk pengembalian penuh ke metode pembayaran asli. Persetujuan manager diperlukan untuk retur bernilai tinggi. Lihat `docs/prd/PRD-Sales-Return.md` dan `docs/design/sales-return-plan.md`.
+- **Returns & Refund (Damaged Items):** Phase 1 (backend) sudah diimplementasikan — menunggu review; UI belum dimulai. Pelanggan dapat meretur barang rusak dalam batas waktu yang dikonfigurasi (default 1 hari), dengan penggantian (replacement) sebagai pilihan utama dan pengembalian dana penuh ke metode pembayaran asli sebagai fallback; retur bernilai tinggi melewati antrean persetujuan manager (`sale.return` / `sale.return.approve`, endpoint di `/api/sales/returns/...`). Yang belum dikerjakan: UI kasir & persetujuan manager, siaran WebSocket, penyesuaian laporan/dasarbor (refund belum mengurangi angka penjualan), cetak struk retur, dan tes E2E. Lihat `docs/prd/PRD-Sales-Return.md` dan `docs/design/sales-return-plan.md`.
 - **Supplier Returns:** Baru relevan setelah Purchase Order terbangun.
 - **Product Image Upload:** Dibatalkan untuk saat ini (tidak diprioritaskan).
 - **Admin Change Freeze & Time-based Pricing Update:** Ditolak di BDR — memblokir perubahan master data saat shift aktif menghambat operasional. Digantikan oleh *Price Consistency During Active Transactions* (snapshot dibuat saat add item; master data tetap mutable).
