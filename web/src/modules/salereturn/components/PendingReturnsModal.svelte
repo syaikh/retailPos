@@ -42,7 +42,17 @@
   }
 </script>
 
-<Modal bind:open={show} title={labels.returnApprovals} size="xl">
+<!-- Persistent while the review modal is stacked on top: both are Modal
+     instances and each binds Escape on window, so a single Escape would
+     otherwise close the review AND the queue behind it. The queue is also
+     the modal the reviewer returns to, so dismissing it by accident is
+     never what they meant. -->
+<Modal
+  bind:open={show}
+  title={labels.returnApprovals}
+  size="xl"
+  persistent={showReview}
+>
   {#if loading}
     <p class="py-8 text-center text-sm text-text-secondary">
       {labels.loading}

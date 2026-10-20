@@ -3,6 +3,7 @@
   import { labels } from "$shared/i18n";
   import { formatCurrency } from "$shared/utils/currency";
   import { Minus, Plus } from "lucide-svelte";
+  import { isRefundOutcome } from "../lib/labels";
   import type { ReturnableItem } from "../types";
 
   let {
@@ -26,9 +27,10 @@
     !item.consignment && item.returnable_quantity > 0,
   );
 
-  const showsReplacement = $derived(
-    selected && item.stock_available >= quantity,
-  );
+  // Replacement vs refund follows the server's proposeOutcomes rule (any
+  // on-hand stock ⇒ replacement), not a stock-vs-quantity comparison, so the
+  // badge cannot promise a refund the server then pays as a replacement.
+  const showsReplacement = $derived(selected && !isRefundOutcome(item));
 
   function changeQuantity(delta: number) {
     const next = Math.min(

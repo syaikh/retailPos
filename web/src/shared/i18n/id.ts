@@ -2249,7 +2249,8 @@ export const id = {
   returnSuccessPending: "Retur menunggu persetujuan manajer",
   returnFailed: "Gagal memproses retur",
   returnLoadFailed: "Gagal memuat data retur",
-  returnNoItems: "Tidak ada barang yang dapat diretur",
+  returnNoSelectableItems:
+    "Tidak ada barang pada penjualan ini yang dapat diretur",
   returnIneligibleNotCompleted: "Hanya penjualan selesai yang dapat diretur",
   returnIneligibleWindowExpired: "Melewati batas waktu retur ({days} hari)",
   returnIneligibleShiftNotOpen:
@@ -2260,6 +2261,7 @@ export const id = {
   returnApprovalsEmpty: "Tidak ada retur yang menunggu persetujuan",
   returnRejectReason: "Alasan Penolakan",
   returnRejectReasonRequired: "Alasan penolakan wajib diisi",
+  returnConfirmReject: "Konfirmasi Penolakan",
   returnApproveSuccess: "Retur disetujui",
   returnRejectSuccess: "Retur ditolak",
   returnApprovalFailed: "Gagal memproses persetujuan",

@@ -170,6 +170,16 @@ describe("TransactionDrawer.svelte source-structure guards", () => {
     expect(src).toContain("returnable.ineligible_reason");
   });
 
+  it("distinguishes a failed snapshot fetch from an ineligible sale", () => {
+    expect(src).toContain("returnLoadFailed = true");
+    expect(src).toContain("labels.returnLoadFailed");
+  });
+
+  it("ignores a stale snapshot response from an earlier sale", () => {
+    expect(src).toContain("returnRequestToken");
+    expect(src).toContain("token !== returnRequestToken");
+  });
+
   it("renders ReturnModal as a sibling of Drawer (Escape must not close both)", () => {
     // The drawer binds Escape on its panel; nesting the modal inside would let
     // one Escape close the drawer too. The sibling placement is deliberate.

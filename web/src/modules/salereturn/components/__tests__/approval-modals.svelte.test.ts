@@ -27,6 +27,12 @@ describe("PendingReturnsModal.svelte source-structure guards", () => {
     expect(src).toContain("load();");
   });
 
+  it("stays persistent while the review modal is stacked on top", () => {
+    // Both are Modal instances binding Escape on window; without this one
+    // Escape would close the review AND the queue behind it.
+    expect(src).toContain("persistent={showReview}");
+  });
+
   it("renders an empty state for an empty queue", () => {
     expect(src).toContain("labels.returnApprovalsEmpty");
   });
@@ -51,6 +57,13 @@ describe("ApprovalModal.svelte source-structure guards", () => {
   it("requires a rejection reason before calling rejectReturn", () => {
     expect(src).toContain("!rejectReason.trim()");
     expect(src).toContain("labels.returnRejectReasonRequired");
+  });
+
+  it("reveals the rejection reason field before submitting the rejection", () => {
+    // The first click must not call decide() with an empty reason and toast
+    // an error before the reviewer has had a chance to type.
+    expect(src).toContain('if (mode !== "reject")');
+    expect(src).toContain("labels.returnConfirmReject");
   });
 
   it("sends a blank approval note as undefined", () => {
@@ -82,8 +95,12 @@ describe("ReturnItemRow.svelte source-structure guards", () => {
     expect(src).toContain("changeQuantity");
   });
 
-  it("predicts replacement vs refund from current stock", () => {
-    expect(src).toContain("item.stock_available >= quantity");
+  it("predicts replacement vs refund from the server's outcome rule", () => {
+    // Any on-hand stock makes the line a replacement candidate server-side
+    // (proposeOutcomes), regardless of the requested quantity — comparing
+    // stock against quantity disagreed with what the server pays out.
+    expect(src).toContain("isRefundOutcome(item)");
+    expect(src).not.toContain("item.stock_available >= quantity");
     expect(src).toContain("labels.returnReplacement");
     expect(src).toContain("labels.returnRefund");
   });
@@ -92,6 +109,23 @@ describe("ReturnItemRow.svelte source-structure guards", () => {
     expect(src).toContain("labels.returnSoldQty");
     expect(src).toContain("labels.returnAlreadyReturned");
     expect(src).toContain("labels.returnAvailableQty");
+  });
+});
+
+describe("ReturnSummary.svelte source-structure guards", () => {
+  const src = getSource("ReturnSummary.svelte");
+
+  it("counts only refund-outcome lines toward the refund estimate", () => {
+    // Mirrors totalRefundOf: a replacement line pays nothing out, so
+    // including it could raise the approval warning for a return the server
+    // completes without approval.
+    expect(src).toContain("isRefundOutcome");
+    expect(src).toContain(".filter(isRefundOutcome)");
+  });
+
+  it("compares the estimate against the server-provided threshold", () => {
+    expect(src).toContain("estimatedRefund > threshold");
+    expect(src).toContain("labels.returnApprovalNeeded");
   });
 });
 
@@ -115,5 +149,17 @@ describe("labels.ts source-structure guards", () => {
     expect(src).toContain('"completed"');
     expect(src).toContain('"cancelled"');
     expect(src).toContain('"expired"');
+  });
+
+  it("gives 'expired' a distinct badge variant from the default", () => {
+    // Without an explicit case it fell through to 'muted' while the label
+    // already treated it as its own status.
+    expect(src).toContain('case "expired":');
+    expect(src).not.toMatch(/"expired":\s*return "muted"/);
+  });
+
+  it("exposes one shared refund-outcome rule for the row and the summary", () => {
+    expect(src).toContain("export function isRefundOutcome");
+    expect(src).toContain("stock_available <= 0");
   });
 });

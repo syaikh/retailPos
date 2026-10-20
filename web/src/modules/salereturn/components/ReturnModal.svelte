@@ -70,6 +70,14 @@
   const selectedItems = $derived(
     (data?.items ?? []).filter((it) => selected[it.sale_item_id]?.checked),
   );
+  // A fully-consignment sale is eligible by design (PRD §10.1 lists no
+  // consignment entry-point guard) yet has no selectable line, so the modal
+  // would otherwise open on a permanently disabled submit with no reason.
+  const hasSelectable = $derived(
+    (data?.items ?? []).some(
+      (it) => !it.consignment && it.returnable_quantity > 0,
+    ),
+  );
   const canSubmit = $derived(
     !submitting &&
       !loading &&
@@ -141,6 +149,13 @@
         <p class="text-sm font-semibold text-text-primary">
           {labels.returnSelectItems}
         </p>
+        {#if !hasSelectable}
+          <p
+            class="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning-light"
+          >
+            {labels.returnNoSelectableItems}
+          </p>
+        {/if}
         {#each data.items as item (item.sale_item_id)}
           <ReturnItemRow
             {item}

@@ -193,10 +193,18 @@
       class="rounded-xl px-4 h-11 text-sm font-semibold"
       disabled={processing || loading}
       onclick={() => {
-        mode = "reject";
+        // First click reveals the mandatory reason field; the second
+        // submits. Calling decide() on the first click would toast
+        // "reason required" before the reviewer has typed anything.
+        if (mode !== "reject") {
+          mode = "reject";
+          return;
+        }
         decide();
-      }}>{labels.reject}</Button
+      }}
     >
+      {mode === "reject" ? labels.returnConfirmReject : labels.reject}
+    </Button>
     <Button
       variant="success"
       class="rounded-xl px-4 h-11 text-sm font-semibold"

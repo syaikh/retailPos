@@ -73,4 +73,11 @@ describe("ReturnModal.svelte source-structure guards", () => {
   it("shows the approval-threshold notice through ReturnSummary", () => {
     expect(src).toContain("threshold={data.approval_threshold}");
   });
+
+  it("explains a sale whose every line is unselectable", () => {
+    // A fully-consignment sale is eligible by design yet has no selectable
+    // line; without this the modal opens on a disabled submit with no reason.
+    expect(src).toContain("hasSelectable");
+    expect(src).toContain("labels.returnNoSelectableItems");
+  });
 });

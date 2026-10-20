@@ -31,6 +31,8 @@
   let transactionDetail = $state<Sale | null>(null);
   let returnable = $state<ReturnableSale | null>(null);
   let returnLoading = $state(false);
+  let returnLoadFailed = $state(false);
+  let returnRequestToken = 0;
   let showReturnModal = $state(false);
 
   const displayTransaction = $derived(transactionDetail || selectedTransaction);
@@ -81,14 +83,25 @@
   });
 
   async function loadReturnable(id: number) {
+    // A drawer re-open can leave an older response in flight; ignoring any
+    // reply that is not from the latest request keeps sale A's snapshot from
+    // overwriting sale B's.
+    const token = ++returnRequestToken;
     returnLoading = true;
     returnable = null;
+    returnLoadFailed = false;
     try {
-      returnable = await getReturnableSale(id);
+      const data = await getReturnableSale(id);
+      if (token !== returnRequestToken) return;
+      returnable = data;
     } catch {
+      if (token !== returnRequestToken) return;
+      // Distinguish a failed fetch from an ineligible sale: both disable the
+      // button, but only one of them is explained by the reason text.
       returnable = null;
+      returnLoadFailed = true;
     } finally {
-      returnLoading = false;
+      if (token === returnRequestToken) returnLoading = false;
     }
   }
 
@@ -462,7 +475,11 @@
           >
             {labels.returnItems}
           </Button>
-          {#if !returnLoading && returnable && !returnable.eligible}
+          {#if !returnLoading && returnLoadFailed}
+            <p class="mt-1.5 text-xs text-warning-light">
+              {labels.returnLoadFailed}
+            </p>
+          {:else if !returnLoading && returnable && !returnable.eligible}
             <p class="mt-1.5 text-xs text-text-muted">
               {ineligibleText(
                 returnable.ineligible_reason,

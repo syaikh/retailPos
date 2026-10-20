@@ -1,6 +1,7 @@
 <script lang="ts">
   import { labels } from "$shared/i18n";
   import { formatCurrency } from "$shared/utils/currency";
+  import { isRefundOutcome } from "../lib/labels";
   import type { ReturnableItem, ReturnLineSelection } from "../types";
 
   let {
@@ -23,14 +24,19 @@
     ),
   );
   // unit_price is the tax-inclusive line value, so unit_price × qty is the
-  // same refund figure the server computes for a refund outcome; a
-  // replacement outcome pays nothing out, so this stays an estimate.
+  // same refund figure the server computes for a refund-outcome line; a
+  // replacement outcome pays nothing out. Only refund-outcome lines count,
+  // mirroring totalRefundOf — otherwise a replacement worth more than the
+  // threshold would raise the approval warning for a return the server
+  // completes without approval.
   const estimatedRefund = $derived(
-    chosen.reduce(
-      (sum, it) =>
-        sum + it.unit_price * (selected[it.sale_item_id]?.quantity ?? 0),
-      0,
-    ),
+    chosen
+      .filter(isRefundOutcome)
+      .reduce(
+        (sum, it) =>
+          sum + it.unit_price * (selected[it.sale_item_id]?.quantity ?? 0),
+        0,
+      ),
   );
   const needsApproval = $derived(estimatedRefund > threshold);
 </script>
