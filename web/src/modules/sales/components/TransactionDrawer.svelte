@@ -41,6 +41,7 @@
   let showReturnModal = $state(false);
   let returns = $state<SaleReturn[]>([]);
   let returnsToken = 0;
+  let returnPrinting = $state(false);
 
   const displayTransaction = $derived(transactionDetail || selectedTransaction);
 
@@ -102,8 +103,13 @@
 
   async function loadReturns(id: number) {
     // Same stale-response guard as loadReturnable: a re-open can leave an
-    // older reply in flight.
+    // older reply in flight. The rows are cleared up front too: a drawer
+    // close via Escape or the backdrop never runs handleClose, so without
+    // this the previous sale's returns (including a reprint button that
+    // would build a receipt against the NEW sale's invoice number) flash
+    // under the new sale until the list reply lands.
     const token = ++returnsToken;
+    returns = [];
     try {
       const list = await listReturnsBySale(id);
       if (token === returnsToken) returns = list;
@@ -115,11 +121,24 @@
   }
 
   async function printReturnReceipt(r: SaleReturn) {
-    const full = await getReturnById(r.id);
-    if (!full || !displayTransaction) return;
-    await printReceiptWithToast(
-      buildReturnReceipt(full, displayTransaction.invoice_number),
-    );
+    // printReceiptWithToast surfaces its own failure toast and never throws,
+    // so the detail fetch is the only rejection source — without this guard a
+    // failed getReturnById would surface as an unhandled promise rejection
+    // from the onclick handler with no user feedback. The in-flight flag also
+    // stops a double click from firing two fetch/print cycles.
+    if (returnPrinting) return;
+    returnPrinting = true;
+    try {
+      const full = await getReturnById(r.id);
+      if (!full || !displayTransaction) return;
+      await printReceiptWithToast(
+        buildReturnReceipt(full, displayTransaction.invoice_number),
+      );
+    } catch {
+      toast.error(labels.returnLoadFailed);
+    } finally {
+      returnPrinting = false;
+    }
   }
 
   async function loadReturnable(id: number) {
@@ -561,6 +580,7 @@
                     class="rounded-xl h-9 px-3 text-sm font-semibold flex items-center gap-1.5 whitespace-nowrap"
                     aria-label={labels.returnPrintReceipt}
                     title={labels.returnPrintReceipt}
+                    disabled={returnPrinting}
                     onclick={() => printReturnReceipt(r)}
                   >
                     <Printer size={15} />

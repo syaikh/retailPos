@@ -1,13 +1,18 @@
 # Implementation Plan: Sales Return (Retur Penjualan)
 
-> **STATUS: PHASES 1, 2, 3 (WEBSOCKET) & 4.3 (REPORT NETTING) IMPLEMENTED — Phase 3.4 sweeper deliberately not built**
+> **STATUS: PHASES 1, 2, 3 (WEBSOCKET), 4.1 (SHIFT), 4.3 (REPORT NETTING), 4.4 (RETURN RECEIPTS) & 4.5 (E2E) IMPLEMENTED — Phase 3.4 sweeper deliberately not built, Phase 4.2 superseded (consignment returns rejected outright)**
 > Migration `database/migrations/067_sales_return.sql` exists and is applied, the
 > `sale.return` / `sale.return.approve` permission codes are registered in
 > `internal/permissions`, and the endpoints live under `/api/sales/...`
 > (`internal/salereturn`, wired in `internal/wiring`). The cashier UI and manager
 > approval queue live in `web/src/modules/salereturn/`. Refunds are netted out of
-> the reporting read model by `068_report_return_netting.sql` +
-> `internal/sale/report_adapter.go`. Approval traffic is broadcast live over the
+> the reporting read model by `068_report_return_netting.sql` (the materialized
+> views) and, on the live dashboard path, by `report.Repository.nettedCompletedSalesStats`
+> behind the consumer-side `RefundStatsProvider` port — `internal/sale/report_adapter.go`
+> deliberately stays gross-only. Return receipts print through the print agent
+> behind a `type: "sale" | "return"` payload discriminant (Phase 4.4), and the
+> API-level E2E suite is `tests/e2e/sales-return-api.spec.ts` (Phase 4.5).
+> Approval traffic is broadcast live over the
 > websocket (`internal/events/salereturn.go` DTOs → `NewReturnApprovalListener`)
 > and consumed by `NotificationBell.svelte` + `PendingReturnsModal.svelte`. The
 > body of this plan is
@@ -17,7 +22,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Phases 1, 2, 3, 4.3, 4.4 and 4.5 implemented; Phase 3.4 (expiry sweeper) deliberately not built |
+| Status | Phases 1, 2, 3, 4.1, 4.3, 4.4 and 4.5 implemented; 4.2 superseded (consignment returns rejected outright); Phase 3.4 (expiry sweeper) deliberately not built |
 | Date | 2026-09-04 |
 | Amendments | 2026-10-19 (plan review, see "Review amendments") |
 | PRD | `docs/prd/PRD-Sales-Return.md` |
@@ -528,7 +533,7 @@ Update `All()` function to include new codes.
 
 | File | Tests |
 |------|-------|
-| `internal/salereturn/service_test.go` | ProcessReturn success (replacement), ProcessReturn success (refund), window expired, over-return, shift closed (skip adjustment), approval required, approve success, reject success, approval expired, stock unavailable → refund, **discontinued product (skip stock restore)**, **consignment-owned item (dual ledger restore)**, **registered customer (total_spent update)**, **cross-store rejection** |
+| `internal/salereturn/service_test.go` | ProcessReturn success (replacement), ProcessReturn success (refund), window expired, over-return, shift closed (skip adjustment), approval required, approve success, reject success, approval expired, stock unavailable → refund, **discontinued product (skip stock restore)**, **consignment line (rejected outright, `ErrConsignmentNotSupported`)**, **cross-store rejection** |
 | `internal/salereturn/handler_test.go` | All endpoints: success, permission denied, validation errors |
 | `internal/salereturn/repository_test.go` | CRUD operations, returned qty calculation, replacement CRUD |
 | `internal/inventory/stock_restorer_test.go` | RestoreStock success, concurrent access |
@@ -750,13 +755,27 @@ func (s *service) ExpireStaleApprovals(ctx context.Context) {
 
 ### Step 4.1: Shift Integration (Day 11)
 
+**Implemented** (behaviour built with Phase 1 + 4.3; tests:
+`internal/shift/total_updater_test.go` `TestTotalUpdater_ApplyReturnAdjustment`
+covers the open-shift decrease, `internal/shift/return_netting_test.go` covers
+close-time and live netting, and `internal/salereturn/service_test.go`
+`TestApplyShiftAdjustment` + `handler_test.go` cover shift-closed → 409).
+
 - Verify shift total reversal works correctly
 - Test: return during open shift → totals decrease
 - Test: return after shift closed → rejected
 
 ---
 
-### Step 4.2: Consignment Integration (Day 11)
+### Step 4.2: Consignment Integration (Day 11) — **superseded**
+
+The bullets below are the ORIGINAL pre-review design. The **Review amendments**
+("Validation & guards") changed the design: consignment lines are rejected
+outright in Phase 1 (`ErrConsignmentNotSupported`, "retur untuk barang
+konsinyasi belum didukung", guarded at creation *and* re-approval — covered by
+`TestRejectConsignment`). There is no dual-ledger restore or
+settlement-exclusion path to test; revisit only if consignment returns are ever
+supported.
 
 - Test: return consignment-owned item → both `product_stock` and `consignment_stock` restored
 - Verify settlement unaffected (returned items excluded)
