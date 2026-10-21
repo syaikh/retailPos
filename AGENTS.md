@@ -168,7 +168,7 @@ After a reset it prints the manual steps it cannot perform (restart the backend,
 Migrations must be applied **before** deploying a new server binary. Permission codes are seeded in dot notation by `000_baseline.sql`; there is no startup validation of codes — a mismatch surfaces as permission failures at request time, not at boot.
 
 - Per-migration purpose: read the header comment of each `database/migrations/*.sql` file; design history is in `docs/design/squash-v1-baseline-plan.md`.
-- **New migrations continue from the highest existing number (currently `066`, next `067_*.sql`).** Any new permission code and its grants must also be added to `000_baseline.sql` — it is the authoritative fresh-install seed, and `internal/permissions` baseline tests require every registered code to have a baseline row and grant.
+- **New migrations continue from the highest existing number (currently `068`, next `069_*.sql`).** Any new permission code and its grants must also be added to `000_baseline.sql` — it is the authoritative fresh-install seed, and `internal/permissions` baseline tests require every registered code to have a baseline row and grant.
 - The 32 migrations squashed into the baseline (`000_squash.sql` + `001`–`007` + `031`–`053`) are preserved in `database/migrations/archive/pre-squash-migrations.tar.gz`.
 
 `000_baseline.sql` is generated, not hand-written: it was produced from a `pg_dump` of a fully-migrated reference database and normalised so that it replays on an empty database, on a database that already went through the legacy chain, and on every re-run. Anything it does not cover (timestamps, random-salt credential hashes, materialised-view contents) is deliberately excluded rather than frozen into the file.
