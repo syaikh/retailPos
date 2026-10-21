@@ -76,9 +76,12 @@ function buildAgentPayload(data: PrintDocument): PrintAgentPayload {
   };
 }
 
+function agentBase(): string {
+  return printConfig.agentUrl.replace(/\/+$/, "");
+}
+
 async function sendToAgent(payload: PrintAgentPayload): Promise<void> {
-  const base = printConfig.agentUrl.replace(/\/+$/, "");
-  const res = await fetch(`${base}/print`, {
+  const res = await fetch(`${agentBase()}/print`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -144,4 +147,37 @@ export async function printReceiptWithToast(
     toast.error(labels.printAgentUnavailable);
   }
   return res;
+}
+
+/**
+ * Pulse the cash drawer wired to this till's printer.
+ *
+ * The drawer is not a second device on the PC: Indonesian cash drawers are
+ * RJ11 and printer-driven, so they hang off the printer's drawer port and open
+ * on an ESC/POS pulse. That makes this a print job with no receipt, which is
+ * why it goes to the same endpoint and inherits the same origin allowlist and
+ * job-id idempotency rather than opening a second route.
+ *
+ * Unlike a receipt it ignores `printConfig.mode`. Preview mode is a choice
+ * about how a receipt is presented; it is not a claim that this till owns no
+ * drawer, and the drawer is the one thing that cannot be shown on screen
+ * instead.
+ *
+ * Failure resolves `false` and stays quiet. When no agent is reachable the
+ * receipt that follows already raises its own notification, and a second toast
+ * on every cash sale would be noise. Callers that need to report the outcome —
+ * the manual test button during setup — check the returned value.
+ */
+export async function openCashDrawer(): Promise<boolean> {
+  try {
+    const res = await fetch(`${agentBase()}/print`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "drawer" }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn("[print] cash drawer pulse failed", err);
+    return false;
+  }
 }

@@ -3,11 +3,13 @@
     printConfig,
     isLocalAgentUrl,
   } from "$shared/stores/printConfig.svelte";
+  import { openCashDrawer } from "$shared/services/print-service";
   import { labels } from "$shared/i18n";
 
   let editing = $state(false);
   let urlDraft = $state(printConfig.agentUrl);
   let status = $state<"idle" | "ok" | "err">("idle");
+  let drawerStatus = $state<"idle" | "ok" | "err">("idle");
 
   // Only meaningful while actually printing silently: in preview mode the agent
   // is not used, so a remote address is not a problem worth flagging.
@@ -35,6 +37,15 @@
     } catch {
       status = "err";
     }
+  }
+
+  // The receipt test only proves the agent answers; it proves nothing about
+  // the printer's drawer port or the pin the pulse is sent on. This is the one
+  // control that exercises the whole chain, so it gets its own row and its own
+  // result rather than sharing the health check's.
+  async function openDrawer() {
+    drawerStatus = "idle";
+    drawerStatus = (await openCashDrawer()) ? "ok" : "err";
   }
 
   const segBase =
@@ -111,4 +122,16 @@
   {:else if status === "err"}
     <p class="px-1 text-[10px] text-rose-600">● {labels.agentUnreachable}</p>
   {/if}
+  <div class="flex items-center gap-1 px-1 pb-1">
+    <button
+      type="button"
+      class="text-[11px] px-1.5 py-0.5 rounded border border-border text-text-muted hover:text-text-secondary"
+      onclick={openDrawer}>{labels.openDrawer}</button
+    >
+    {#if drawerStatus === "ok"}
+      <p class="text-[10px] text-emerald-600">● {labels.drawerOpened}</p>
+    {:else if drawerStatus === "err"}
+      <p class="text-[10px] text-rose-600">● {labels.drawerUnavailable}</p>
+    {/if}
+  </div>
 {/if}

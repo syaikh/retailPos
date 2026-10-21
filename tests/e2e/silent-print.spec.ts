@@ -133,6 +133,29 @@ test.describe('Silent receipt printing (real print-agent)', () => {
     expect(found, 'expected a completed print job on the agent').toBeTruthy();
     if (invoice) expect(found.receipt.invoice_number).toBe(invoice);
 
+    // The same cash sale must also have pulsed this till's drawer. Polled on
+    // its own because the two POSTs are independent requests, so neither is
+    // guaranteed to have landed first; the receipt lookup above deliberately
+    // skips the drawer job, whose receipt.invoice_number is empty.
+    let drawerJob: any = null;
+    const drawerStart = Date.now();
+    while (Date.now() - drawerStart < 15000 && !drawerJob) {
+      try {
+        const res = await page.request.get(`${AGENT_URL}/print/jobs/`);
+        if (res.ok()) {
+          const body = await res.json();
+          drawerJob = ((body.jobs || []) as any[]).find(
+            (j) => j.status === 'completed' && j.type === 'drawer',
+          );
+        }
+      } catch {
+        /* agent not ready */
+      }
+      if (!drawerJob) await new Promise((r) => setTimeout(r, 300));
+    }
+    expect(drawerJob, 'expected a completed cash drawer pulse on the agent').toBeTruthy();
+    expect(drawerJob.job_id).toMatch(/^drawer-/);
+
     // The rendered ESC/POS stream should have been written to disk.
     const files = readdirSync(outDir).filter((f) => f.endsWith('.bin'));
     expect(files.length).toBeGreaterThan(0);
@@ -146,12 +169,16 @@ test.describe('Silent receipt printing (real print-agent)', () => {
     const invoice = await completeSale(page);
     expect(invoice).toBeTruthy();
 
-    // Count completed jobs now.
+    // Count completed jobs now. Drawer pulses are excluded: a cash sale fires
+    // one alongside the receipt, and counting it would let a late-completing
+    // drawer satisfy `after > before` on its own rather than the reprint.
     const countCompleted = async (): Promise<number> => {
       const res = await page.request.get(`${AGENT_URL}/print/jobs/`);
       if (!res.ok()) return 0;
       const body = await res.json();
-      return ((body.jobs || []) as any[]).filter((j) => j.status === 'completed').length;
+      return ((body.jobs || []) as any[]).filter(
+        (j) => j.status === 'completed' && j.type !== 'drawer',
+      ).length;
     };
 
     const before = await countCompleted();

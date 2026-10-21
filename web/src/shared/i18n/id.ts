@@ -1691,6 +1691,9 @@ export const id = {
   agentNotLocalhost: "Agen cetak ada di komputer lain — struk tercetak di sana",
   printAgentUnavailable:
     "Printer struk tidak tersedia — transaksi selesai. Gunakan Cetak Struk untuk mencoba lagi.",
+  openDrawer: "Buka Laci",
+  drawerOpened: "Sinyal terkirim — laci seharusnya terbuka",
+  drawerUnavailable: "Agen cetak tidak dapat dihubungi — sinyal tidak terkirim",
   selesai: "Selesai",
   newTransaction: "Transaksi Baru",
   holdReceipt: "Tahan Struk",

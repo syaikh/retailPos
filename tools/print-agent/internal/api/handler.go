@@ -124,7 +124,17 @@ func (h *Handler) handlePrint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	job := queue.Job{Branding: req.Branding}
-	if req.Type == "return" {
+	switch req.Type {
+	case queue.TypeDrawer:
+		// A drawer pulse carries nothing to validate: nothing is rendered from
+		// it, so there is no invoice that could be missing. It is deliberately
+		// routed through the same queue as a receipt because that is what buys
+		// it the origin allowlist, the job-id idempotency below, and — decisive
+		// for a cash drawer — the configured transport. The drawer hangs off
+		// the printer, so it can only be reached by travelling the printer's
+		// own path, over serial or tcp alike.
+		job.Type = queue.TypeDrawer
+	case queue.TypeReturn:
 		// A return payload must arrive under "return_data": decoding it from
 		// "data" is impossible (one key, two structs) and silently dropping the
 		// unknown fields would print a wrong receipt.
@@ -132,9 +142,9 @@ func (h *Handler) handlePrint(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, errBody("missing return data"))
 			return
 		}
-		job.Type = "return"
+		job.Type = queue.TypeReturn
 		job.Return = req.ReturnData
-	} else {
+	default:
 		rc := req.Data
 		if rc.InvoiceNumber == "" {
 			rc = req.Receipt
@@ -143,12 +153,19 @@ func (h *Handler) handlePrint(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, errBody("missing receipt data"))
 			return
 		}
+		job.Type = queue.TypeSale
 		job.Receipt = rc
 	}
 
 	jobID := req.JobID
 	if jobID == "" {
-		jobID = "print-" + randHex(10)
+		// The prefix is cosmetic but it is what an operator reads out of the
+		// log when a till will not open its drawer, so the two stay apart.
+		prefix := "print-"
+		if job.Type == queue.TypeDrawer {
+			prefix = "drawer-"
+		}
+		jobID = prefix + randHex(10)
 	}
 
 	// Idempotency: the same job_id returns the existing job instead of reprinting.

@@ -325,6 +325,16 @@ cd web && npm run preview                      # serve the built frontend (port 
 
 Repeat steps 2–3 on every register terminal. No central print configuration is needed; each agent is independent and the backend is not in the print path. Use a non-`silent` build (`npm run dev` or a plain `npm run build`) only for development/back-office terminals where the preview dialog is still wanted.
 
+### Cash drawer
+
+The drawer is not a second device on the register. It plugs into the printer's drawer port with an RJ11 lead and opens when the printer receives a four-byte pulse, so there is no driver to install and nothing to configure in the app.
+
+- **It opens by itself** when a sale is paid in cash — including a split payment with a cash part — and does not open after a QRIS or card sale, which has nothing to hand back.
+- **To test it**, in the cart footer click the gear next to the Preview/Silent toggle and press **Open Drawer**. "Signal sent — the drawer should have opened" means the agent accepted the pulse; "Print agent unreachable — no signal sent" means the drawer never had a chance, and the agent needs fixing first. Use this on a new register and any time the printer has been moved or replaced.
+- Neither the drawer nor this button shows a receipt preview or the browser's print dialog, and it makes no difference whether the register prints silently or in preview.
+
+The two settings that cover a drawer which will not fire, or fires with the wrong polarity, are documented in the [production install guide](print-agent-production.md#cash-drawer), along with the wiring. If you are still choosing hardware, the [hardware recommendations](hardware-recommendations.md) list printers and drawers that are sold locally and that pair correctly.
+
 ### Keyboard Shortcuts
 
 | Key | Action |

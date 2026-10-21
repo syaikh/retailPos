@@ -21,8 +21,24 @@ const (
 	StatusFailed    Status = "failed"
 )
 
-// Job is a single print job. Type distinguishes the payloads: "" or "sale"
-// renders Receipt, "return" renders Return.
+// Job type tags. They are named here rather than repeated as literals so the
+// handler that accepts a request and the worker that dispatches it cannot
+// drift: a misspelling in either direction would silently route a cash-drawer
+// pulse into the receipt renderer, which would fail on the missing invoice.
+const (
+	// TypeSale is a sale receipt. It is the zero value so jobs submitted
+	// without a type keep their original meaning.
+	TypeSale = ""
+	// TypeReturn is a return receipt.
+	TypeReturn = "return"
+	// TypeDrawer is a bare cash-drawer pulse with no payload.
+	TypeDrawer = "drawer"
+)
+
+// Job is a single print job. Type distinguishes the payloads: TypeSale (the
+// zero value, so a request that sent no type still behaves as before) renders
+// Receipt, TypeReturn renders Return, and TypeDrawer carries no payload at all
+// — it only pulses the cash drawer wired to this till's printer.
 type Job struct {
 	ID        string                `json:"job_id"`
 	Status    Status                `json:"status"`

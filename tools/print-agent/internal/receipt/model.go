@@ -81,6 +81,12 @@ type ReturnReceipt struct {
 // silently dropped, so an agent that did not know the shape would print a wrong
 // receipt. With the separate key an old agent finds no payload and rejects the
 // job instead.
+//
+// A request of type "drawer" is the one payload-free case: it opens the cash
+// drawer wired to this printer and renders nothing, so Data, Receipt and
+// ReturnData are all empty and nothing is validated but the type itself. An
+// agent that predates the type falls through to the sale path and rejects the
+// job for a missing receipt, rather than accepting a request it cannot serve.
 type PrintRequest struct {
 	JobID      string        `json:"job_id"`
 	Type       string        `json:"type"`

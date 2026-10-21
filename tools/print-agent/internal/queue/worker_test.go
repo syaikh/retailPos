@@ -149,3 +149,57 @@ func TestWorkerFailsReturnJobWithoutReturnRenderer(t *testing.T) {
 		t.Fatal("nothing must be written when no return renderer is configured")
 	}
 }
+
+// A drawer job must reach the drawer renderer rather than the sale renderer,
+// which is configured here on purpose: had the type been ignored, the job would
+// have completed through it and this counter would still read 0.
+func TestWorkerDispatchesDrawerJobsToTheDrawerRenderer(t *testing.T) {
+	store := NewStore()
+	ft := &fakeTransport{}
+	w := NewWorker(store, ft)
+	w.SetRenderer(func(receipt.Receipt, receipt.Branding) ([]byte, error) {
+		return []byte("sale"), nil
+	})
+	var drawerCalls int
+	w.SetDrawerRenderer(func() []byte {
+		drawerCalls++
+		return []byte{0x1B, 'p', 0, 25}
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go w.Run(ctx)
+
+	store.Enqueue(&Job{ID: "drawer-1", Type: TypeDrawer})
+	waitForJob(t, store, "drawer-1", StatusCompleted)
+
+	if drawerCalls != 1 {
+		t.Fatalf("drawer renderer called %d times, want 1", drawerCalls)
+	}
+	if ft.count() != 1 {
+		t.Fatalf("transport wrote %d jobs, want 1", ft.count())
+	}
+}
+
+func TestWorkerFailsDrawerJobWithoutDrawerRenderer(t *testing.T) {
+	store := NewStore()
+	ft := &fakeTransport{}
+	w := NewWorker(store, ft)
+	w.SetRenderer(func(receipt.Receipt, receipt.Branding) ([]byte, error) {
+		return []byte("sale"), nil
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go w.Run(ctx)
+
+	store.Enqueue(&Job{ID: "drawer-2", Type: TypeDrawer})
+	waitForJob(t, store, "drawer-2", StatusFailed)
+
+	if _, errMsg, _ := jobSnapshot(store, "drawer-2"); errMsg == "" {
+		t.Fatal("expected a failure reason")
+	}
+	if ft.count() != 0 {
+		t.Fatal("nothing must be written when no drawer renderer is configured")
+	}
+}

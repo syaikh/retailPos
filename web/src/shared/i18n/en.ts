@@ -1681,6 +1681,9 @@ export const en: Labels = {
     "Print agent is on another computer — receipts print there",
   printAgentUnavailable:
     "Receipt printer unavailable — transaction completed. Use Print Receipt to retry.",
+  openDrawer: "Open Drawer",
+  drawerOpened: "Signal sent — the drawer should have opened",
+  drawerUnavailable: "Print agent unreachable — no signal sent",
   selesai: "Done",
   newTransaction: "New Transaction",
   holdReceipt: "Hold Receipt",

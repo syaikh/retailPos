@@ -6,7 +6,10 @@
   import { toast } from "$shared/stores/toast.svelte";
   import { debounce } from "$shared/utils/debounce";
   import { useWebSocket } from "$shared/api/websocket";
-  import { printReceiptWithToast } from "$shared/services/print-service";
+  import {
+    printReceiptWithToast,
+    openCashDrawer,
+  } from "$shared/services/print-service";
   import {
     getTodayInJakarta,
     getDateNDaysAgoInJakarta,
@@ -63,6 +66,10 @@
   let unsubscribeSale: (() => void) | null = null;
 
   let previousSearchQuery = "";
+  // The query whose results are currently in `products`, and an Enter that
+  // arrived before its own results did. See handleSearchSubmit.
+  let fetchedSearchQuery = "";
+  let pendingAddForQuery = "";
   let showCopySuccess: Set<string> | null = $state(null);
   let warningThreshold = $state(10);
   let criticalThreshold = $state(5);
@@ -150,14 +157,20 @@
   }
 
   async function fetchProducts(isSearch = false) {
+    // Read once, up front: the answer is matched back against exactly this
+    // query, so a slow response for a code the cashier has already replaced
+    // cannot be mistaken for results that are ready.
+    const query = searchQuery;
     try {
       if (!isSearch) loading = true;
       const r = await apiClient.get(
-        `/products?limit=${limit}&offset=${offset}&search=${searchQuery}&status=active`,
+        `/products?limit=${limit}&offset=${offset}&search=${query}&status=active`,
       );
       products = r.data.data || [];
       total = r.data.total || 0;
       selectedProductIndex = products.length > 0 ? 0 : -1;
+      fetchedSearchQuery = query;
+      flushPendingAdd(query);
     } catch (_err) {
       toast.error(labels.toastFailedToLoadProducts);
     } finally {
@@ -238,6 +251,10 @@
     if (isInitialMount) return;
     if (previousSearchQuery === searchQuery) return;
     previousSearchQuery = searchQuery;
+    // An Enter still waiting on its own results stands only while the cashier
+    // has not typed over it — otherwise the answer would auto-add the top of a
+    // list they are no longer looking at.
+    pendingAddForQuery = "";
     if (searchQuery === "") {
       offset = 0;
       fetchProducts(false);
@@ -262,10 +279,54 @@
     }
   });
 
-  function handleSearchSubmit() {
+  function addTopResult() {
     if (products.length > 0) {
       addToCart(products[selectedProductIndex >= 0 ? selectedProductIndex : 0]);
     }
+  }
+
+  function handleSearchSubmit() {
+    // A barcode scanner is a keyboard that types a whole code and presses
+    // Enter inside a few dozen milliseconds — well inside the 400 ms search
+    // debounce, so at this moment the list still shows the previous query's
+    // products. Adding here would silently push the wrong item, so fetch this
+    // query at once and let the answer release the add.
+    if (searchQuery !== fetchedSearchQuery) {
+      pendingAddForQuery = searchQuery;
+      debouncedSearch.cancel();
+      offset = 0;
+      void fetchProducts(true);
+      return;
+    }
+    addTopResult();
+    armSearchForNextScan();
+  }
+
+  // Runs the add an impatient Enter asked for, once, and only while that exact
+  // query is still what the cashier is looking at.
+  function flushPendingAdd(query: string) {
+    if (pendingAddForQuery === "" || query !== pendingAddForQuery) return;
+    if (searchQuery !== query) return;
+    pendingAddForQuery = "";
+    addTopResult();
+    armSearchForNextScan();
+  }
+
+  // Refocus the search box and select its contents after a submit-add. Two
+  // things a scanner needs: focus must still be in that field for the next
+  // code to land anywhere, and a selected value means the next code typed
+  // REPLACES this one instead of being appended — a wedge scanner
+  // concatenates, so without this the second scan searches for
+  // "code1code2" and quietly finds nothing.
+  //
+  // Synchronous on purpose. focusSearch() defers by 50 ms, and a scanner
+  // delivers a code in well under that: a late select() would catch the
+  // incoming text mid-code and swallow characters from it.
+  function armSearchForNextScan() {
+    const input = document.getElementById("pos-search-input");
+    if (!input) return;
+    input.focus();
+    (input as HTMLInputElement).select();
   }
 
   async function ensureCart(): Promise<number> {
@@ -479,6 +540,14 @@
     }
   }
 
+  // The drawer and the receipt's own "cash received" figure have to agree, so
+  // both ask this rather than each spelling out the method code: a split that
+  // hands back change has to pop the latch, and a sale settled entirely by
+  // QRIS or card has nothing to put in or take out.
+  function isCashPayment(p: PaymentAllocation): boolean {
+    return p.payment_method_code === "CASH";
+  }
+
   function buildReceiptPayload(
     sale: Sale,
     payments: PaymentAllocation[],
@@ -513,9 +582,7 @@
         method: p.payment_method_code,
         amount: p.amount,
       })),
-      cashReceived:
-        payments.find((p) => p.payment_method_code === "CASH")?.amount ||
-        sale.total_amount,
+      cashReceived: payments.find(isCashPayment)?.amount || sale.total_amount,
       changeDue: sale.change_due ?? 0,
       customer_name: customer?.name,
       total_savings: (sale.items || []).reduce(
@@ -590,6 +657,18 @@
     closeCheckoutModal();
     processCheckout(payments)
       .then(async () => {
+        // Only a cash tender needs the drawer: there is no change to hand back
+        // on a QRIS or card sale. Deliberately derived from `payments` and not
+        // from `lastSale`, because that read happens after this async gap and
+        // is already flagged as fragile.
+        if (payments.some(isCashPayment)) {
+          // Fire-and-forget. The drawer is a four-byte pulse the printer
+          // answers on its own, and holding the cashier's next sale for it
+          // would be the wrong trade. When the agent is down the receipt just
+          // below reports that, so this stays silent rather than raising a
+          // second toast for the same cause.
+          void openCashDrawer();
+        }
         if (lastSale && lastSale.items) {
           await printReceiptWithToast(
             buildReceiptPayload(lastSale, payments, customer),

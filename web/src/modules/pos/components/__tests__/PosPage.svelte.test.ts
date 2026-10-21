@@ -28,10 +28,21 @@ describe("PosPage.svelte source-structure guards", () => {
     );
   });
 
-  it("imports printReceipt toast helper from shared service", () => {
+  it("imports printReceipt toast helper and openCashDrawer from shared service", () => {
+    // Prettier breaks this import over three lines; assert the shape it will
+    // keep rather than the single line it no longer is.
     expect(src).toContain(
-      'import { printReceiptWithToast } from "$shared/services/print-service"',
+      'import {\n    printReceiptWithToast,\n    openCashDrawer,\n  } from "$shared/services/print-service"',
     );
+  });
+
+  it("pulses the cash drawer when the tender was cash, and only then", () => {
+    expect(src).toContain("openCashDrawer()");
+    // The guard and the receipt's own cash-received figure share one predicate,
+    // so the latch cannot pop on a QRIS-only sale while the receipt still
+    // reports cash in the drawer.
+    expect(src).toContain("payments.some(isCashPayment)");
+    expect(src).toContain('p.payment_method_code === "CASH"');
   });
 
   it("delegates silent print + failure toast to printReceiptWithToast (no fallback to preview)", () => {
@@ -168,6 +179,35 @@ describe("PosPage.svelte source-structure guards", () => {
     expect(src).toContain(
       "addToCart(products[selectedProductIndex >= 0 ? selectedProductIndex : 0])",
     );
+  });
+
+  it("holds a submit until that query's own results have arrived", () => {
+    // A barcode scanner types the whole code and sends Enter inside ~50 ms,
+    // far inside the 400 ms search debounce. Submitting straight away would
+    // add whatever the PREVIOUS query had listed — the wrong product, with no
+    // error anywhere. So an unmatched query fetches immediately and the add
+    // waits for the answer, and the wait is abandoned the moment the cashier
+    // types over it.
+    expect(src).toContain("searchQuery !== fetchedSearchQuery");
+    expect(src).toContain("pendingAddForQuery = searchQuery;");
+    expect(src).toContain("debouncedSearch.cancel();");
+    expect(src).toContain("flushPendingAdd(query)");
+    expect(src).toContain("function addTopResult()");
+    // One helper for both paths, so a deferred add and an immediate one take
+    // the same row off the list.
+    expect(src).toContain(
+      'if (pendingAddForQuery === "" || query !== pendingAddForQuery) return;',
+    );
+  });
+
+  it("reselects the search box after a submit add so the next scan does not append", () => {
+    // A scanner concatenates its next code onto whatever is still in the box,
+    // so an add has to leave the field focused and selected. It must be the
+    // synchronous select here, not focusSearch()'s 50 ms one: a code arrives
+    // faster than that, and a late select() would swallow part of it.
+    expect(src).toContain("function armSearchForNextScan()");
+    expect(src).toContain("(input as HTMLInputElement).select();");
+    expect(src).toContain("armSearchForNextScan();");
   });
 
   it("binds selectedIndex and element to PosProductTable", () => {

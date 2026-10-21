@@ -3,7 +3,7 @@ import { get } from "svelte/store";
 import { printConfig } from "$shared/stores/printConfig.svelte";
 import { printReceipt as printReceiptStore } from "$shared/stores/printReceipt.svelte";
 import { settingsStore } from "$shared/stores/settings.svelte";
-import { printReceipt } from "../print-service";
+import { printReceipt, openCashDrawer } from "../print-service";
 import type {
   ReceiptData,
   ReturnReceiptData,
@@ -179,5 +179,68 @@ describe("printReceipt service", () => {
   it("preview mode renders a return payload on the overlay store", async () => {
     await printReceipt(sampleReturn);
     expect(get(printReceiptStore)?.document_type).toBe("return");
+  });
+});
+
+describe("openCashDrawer service", () => {
+  // beforeEach leaves printConfig in "preview" mode, which is the interesting
+  // default: the drawer must fire regardless of how receipts are presented.
+  it("POSTs a payload-free drawer job to the agent", async () => {
+    let captured: string | undefined;
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async (_url: string, opts: RequestInit) => {
+        captured = opts.body as string;
+        return { ok: true };
+      });
+    (globalThis as unknown as { fetch: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
+
+    await expect(openCashDrawer()).resolves.toBe(true);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:9123/print",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(captured).toBeDefined();
+    const body = JSON.parse(captured as string);
+    // Nothing about a specific sale: the drawer only needs the discriminator,
+    // and sending a receipt-less payload is what lets it reuse the print route
+    // (origin allowlist, job id) instead of needing its own.
+    expect(body).toEqual({ type: "drawer" });
+  });
+
+  it("opens the drawer in preview mode too", async () => {
+    printConfig.setMode("preview");
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    (globalThis as unknown as { fetch: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
+
+    await expect(openCashDrawer()).resolves.toBe(true);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Preview mode shows the receipt overlay; it must not gate the drawer, and
+    // it must not raise the browser print dialog for a pulse either.
+    expect(
+      (window as unknown as { print: () => void }).print,
+    ).not.toHaveBeenCalled();
+    expect(get(printReceiptStore)).toBeNull();
+  });
+
+  it("resolves false when the agent is unreachable", async () => {
+    (globalThis as unknown as { fetch: typeof fetch }).fetch = vi
+      .fn()
+      .mockRejectedValue(new Error("conn refused")) as unknown as typeof fetch;
+
+    await expect(openCashDrawer()).resolves.toBe(false);
+  });
+
+  it("resolves false when the agent answers non-ok", async () => {
+    (globalThis as unknown as { fetch: typeof fetch }).fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 500 }) as unknown as typeof fetch;
+
+    await expect(openCashDrawer()).resolves.toBe(false);
   });
 });

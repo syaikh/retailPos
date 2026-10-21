@@ -210,6 +210,43 @@ test.describe('POS UI Edge Cases', () => {
     expect(await cartLineCount(page)).toBe(afterFirstAdd);
   });
 
+  test('CS-F5 fast path: Enter lands before this query has any results (barcode scanner timing)', async ({ page }) => {
+    const search = page.locator('#pos-search-input');
+
+    // A wedge scanner types a whole barcode and sends Enter within
+    // milliseconds — inside the 400 ms search debounce. Land the list in the
+    // "last fetch returned nothing" state first: at that moment a naive submit
+    // would fall back to the previous results, and here the previous results
+    // are empty, so a submit that fetches nothing adds nothing at all.
+    await search.fill('zzqqxx-no-match');
+    await expect(page.locator('text=No products found')).toBeVisible({ timeout: 10000 });
+    expect(await cartLineCount(page)).toBe(0);
+
+    // No wait between these two lines — the missing wait is the whole point.
+    await search.fill('Quality');
+    await search.press('Enter');
+
+    // The add has to be released by the answer to THIS query. A submit that
+    // simply reused the list already on screen would add nothing at all here,
+    // because that list is empty — which is exactly how a barcode scan would
+    // silently do nothing (or take the previous query's first product).
+    await expect(
+      page.locator('button[aria-label="Increase quantity"]').first(),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Focus has to have survived the add too — a scanner sends its next code
+    // wherever focus is, so a lost focus means the second scan lands nowhere.
+    await expect(search).toBeFocused();
+
+    // The field must not accumulate either. A scanner types into whatever is
+    // already focused, so send keystrokes directly rather than through the
+    // locator — a locator would re-focus the input first and could undo the
+    // selection the add just set. `fill()` would hide the bug too, by replacing
+    // the value wholesale.
+    await page.keyboard.type('next-code-');
+    expect(await search.inputValue()).toBe('next-code-');
+  });
+
   test('CS-F8: reprint is disabled when the last sale is older than 7 Jakarta days', async ({ page, request }) => {
     const admin = await authAs(request, 'superadmin');
     const cashier = await authAs(request, 'cashier');

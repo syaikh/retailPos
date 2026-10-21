@@ -29,6 +29,10 @@ func newTestServer(t *testing.T) *httptest.Server {
 	worker := queue.NewWorker(store, trans)
 	worker.SetRenderer(receipt.Render)
 	worker.SetReturnRenderer(receipt.RenderReturn)
+	// main.go wires the real encoder here; the bytes are irrelevant to an
+	// HTTP-level test, but something must be configured or a drawer job would
+	// fail for a missing renderer rather than for anything under test.
+	worker.SetDrawerRenderer(func() []byte { return []byte{0x1B, 'p', 0, 25} })
 	go worker.Run(context.Background())
 
 	h := NewHandler(store, pm, config.Config{})
@@ -287,5 +291,56 @@ func TestReturnPrintMissingDataRejected(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("expected 400 for a return request without return data, got %d", resp.StatusCode)
+	}
+}
+
+// A drawer request carries no receipt at all: there is nothing to validate and
+// nothing to render, only a pulse to put on the wire. It must still be accepted,
+// dispatched through the queue and reach the printer like any other job — the
+// drawer is only reachable through the printer's own transport.
+func TestDrawerPrintLifecycle(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+
+	body, _ := json.Marshal(map[string]interface{}{"type": "drawer"})
+	resp, err := http.Post(srv.URL+"/print", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("expected 202 for a payload-free drawer request, got %d", resp.StatusCode)
+	}
+
+	var created map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode response into created: %v", err)
+	}
+	jobID, _ := created["job_id"].(string)
+	if jobID == "" {
+		t.Fatal("no job_id returned")
+	}
+	// The drawer prefix is what an operator reads out of the log when a till
+	// will not open, so it has to survive into the API response.
+	if !strings.HasPrefix(jobID, "drawer-") {
+		t.Fatalf("job_id %q, want a drawer- prefix", jobID)
+	}
+
+	var status string
+	for i := 0; i < 100; i++ {
+		resp2, _ := http.Get(srv.URL + "/print/jobs/" + jobID)
+		var js map[string]interface{}
+		if err := json.NewDecoder(resp2.Body).Decode(&js); err != nil {
+			t.Fatalf("decode response into js: %v", err)
+		}
+		_ = resp2.Body.Close()
+		status, _ = js["status"].(string)
+		if status == "completed" || status == "failed" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if status != "completed" {
+		t.Fatalf("drawer job did not complete, status=%s", status)
 	}
 }

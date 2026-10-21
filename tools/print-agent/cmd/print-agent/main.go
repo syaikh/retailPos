@@ -17,6 +17,7 @@ import (
 
 	"print-agent/internal/api"
 	"print-agent/internal/config"
+	"print-agent/internal/escpos"
 	"print-agent/internal/printer"
 	"print-agent/internal/queue"
 	"print-agent/internal/receipt"
@@ -59,6 +60,11 @@ func main() {
 	worker := queue.NewWorker(store, trans)
 	worker.SetRenderer(receipt.Render)
 	worker.SetReturnRenderer(receipt.RenderReturn)
+	// Built once: pin and width are fixed for the life of the process, and the
+	// pulse is four bytes that only change when an operator restarts the agent
+	// with a new configuration.
+	pulse := escpos.DrawerPulse(cfg.DrawerPin, cfg.DrawerPulseMs)
+	worker.SetDrawerRenderer(func() []byte { return pulse })
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -80,9 +86,12 @@ func main() {
 	// The agent holds no credential. Logging that explicitly is useful: a
 	// startup line that lists the bind address, transport and the exact origins
 	// it will accept is how an operator confirms a register is pointed at the
-	// right agent and that no other origin is allowed.
-	log.Printf("[print-agent] listening on %s transport=%s origins=%v auth=origin-allowlist",
-		srv.Addr, cfg.Transport, cfg.AllowedOrigins)
+	// right agent and that no other origin is allowed. The drawer settings are
+	// on the same line because "the drawer will not open" is a pin mismatch far
+	// more often than a hardware fault, and this is the only place both halves
+	// of that are visible at once.
+	log.Printf("[print-agent] listening on %s transport=%s origins=%v auth=origin-allowlist drawer-pin=%d drawer-pulse-ms=%d",
+		srv.Addr, cfg.Transport, cfg.AllowedOrigins, cfg.DrawerPin, cfg.DrawerPulseMs)
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

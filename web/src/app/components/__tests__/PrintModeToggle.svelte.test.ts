@@ -62,6 +62,17 @@ describe("PrintModeToggle.svelte source-structure guards", () => {
     expect(src).toContain("{labels.agentUnreachable}");
   });
 
+  it("offers a manual cash drawer test next to the connection test", () => {
+    // /health proves the agent answers; it proves nothing about the printer's
+    // drawer port or the pin, so the drawer gets its own control and its own
+    // result rather than borrowing the health check's.
+    expect(src).toContain("function openDrawer");
+    expect(src).toContain("openCashDrawer()");
+    expect(src).toContain("{labels.openDrawer}");
+    expect(src).toContain("{labels.drawerOpened}");
+    expect(src).toContain("{labels.drawerUnavailable}");
+  });
+
   it("warns when silent printing is pointed at an agent on another machine", () => {
     expect(src).toContain("agentIsRemote");
     expect(src).toContain("isLocalAgentUrl(printConfig.agentUrl)");
