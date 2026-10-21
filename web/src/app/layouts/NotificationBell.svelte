@@ -337,7 +337,11 @@
       ),
       ws.on(
         "return_approval_resolved",
-        (data: { return_id: number; return_number: string; status: string }) => {
+        (data: {
+          return_id: number;
+          return_number: string;
+          status: string;
+        }) => {
           // The resolution is for the cashier who raised the return; managers
           // already saw the request and do not need a second ping.
           if (canSeeReturnApprovals) return;

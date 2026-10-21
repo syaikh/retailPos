@@ -75,7 +75,7 @@ describe("NotificationBell.svelte source-structure guards", () => {
 
   it("notifies the cashier of a resolution and deep-links into the queue", () => {
     expect(src).toContain('ws.on(\n        "return_approval_resolved"');
-    expect(src).toContain('if (canSeeReturnApprovals) return;');
+    expect(src).toContain("if (canSeeReturnApprovals) return;");
     expect(src).toContain('navigateTo: "/transactions?return_approvals=true"');
   });
 
