@@ -42,7 +42,7 @@ describe("ProductsPage.svelte source-structure guards", () => {
       'import ProductFilterDrawer from "$modules/product/components/ProductFilterDrawer.svelte"',
     );
     expect(src).toContain("import ProductFormModal");
-    expect(src).toContain("import StockAdjustModal");
+    expect(src).toContain("import { StockAdjustModal }");
     expect(src).toContain("import ProductFiltersToolbar");
   });
 

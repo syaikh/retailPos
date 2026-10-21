@@ -23,8 +23,8 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
     expect(src).toContain("checkConflicts");
   });
 
-  it("imports product service functions including getProductsByIds", () => {
-    expect(src).toContain('from "$modules/product/services/product-service"');
+  it("imports product module functions including getProductsByIds", () => {
+    expect(src).toContain('from "$modules/product"');
     expect(src).toContain("getProductsByIds");
   });
 

@@ -117,7 +117,7 @@ describe("Home.svelte source-structure guards", () => {
 
   it("source imports PendingSettlementsModal from consignment module", () => {
     expect(src).toContain(
-      'import PendingSettlementsModal from "$modules/consignment/components/PendingSettlementsModal.svelte"',
+      'import { PendingSettlementsModal } from "$modules/consignment"',
     );
   });
 

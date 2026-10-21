@@ -1,5 +1,6 @@
 // Web API Client (Axios)
 import axios from "axios";
+// eslint-disable-next-line no-restricted-imports -- known debt: shared↔auth cycle, see ADR_Frontend_Module_Import_Boundaries.md (2026-10-21 update); fix by relocating session code to $shared
 import {
   getAuthToken,
   refreshAccessToken,

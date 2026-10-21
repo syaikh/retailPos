@@ -23,7 +23,7 @@ describe("RackStockPanel.svelte source-structure guards", () => {
 
   it("imports storage locations service", () => {
     expect(src).toContain(
-      'getStorageLocations } from "$modules/storage-location/services/storage-location-service"',
+      'getStorageLocations } from "$modules/storage-location"',
     );
   });
 

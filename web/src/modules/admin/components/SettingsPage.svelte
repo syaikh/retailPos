@@ -7,7 +7,7 @@
     updateSettings,
     uploadLogo,
     removeLogo,
-  } from "../services/app-settings-service";
+  } from "$shared/services/app-settings-service";
   import { toast } from "$shared/stores/toast.svelte";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { Permissions } from "$shared/constants/permissions";

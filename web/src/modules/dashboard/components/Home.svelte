@@ -16,7 +16,7 @@
   import { useWebSocket } from "$shared/api/websocket";
   import { labels } from "$shared/i18n";
   import { useAuthStore } from "$modules/auth";
-  import PendingSettlementsModal from "$modules/consignment/components/PendingSettlementsModal.svelte";
+  import { PendingSettlementsModal } from "$modules/consignment";
   import type { Component } from "svelte";
 
   const RpIconComp = RpIcon as unknown as Component;

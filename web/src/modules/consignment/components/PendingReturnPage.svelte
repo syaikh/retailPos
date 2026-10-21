@@ -15,7 +15,7 @@
   import { Plus, RotateCcw, Copy, Check } from "lucide-svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { labels, t } from "$shared/i18n";
-  import { getProductOptions } from "$modules/product/services/product-service";
+  import { getProductOptions } from "$modules/product";
   import {
     listStock,
     listPendingReturns,

@@ -15,7 +15,7 @@
     StorageLocationFilters,
     StorageLocationUpdatePayload,
   } from "../types";
-  import { getWarehouses } from "$modules/product/services/product-service";
+  import { getWarehouses } from "$modules/product";
   import { getActiveStores } from "$modules/stores";
   import { Pagination } from "$shared/ui";
   import { debounce } from "$shared/utils/debounce";

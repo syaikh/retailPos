@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { goto } from "$app/router";
-  import { useAuthStore } from "$modules/auth";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { Permissions } from "$shared/constants/permissions";
   import { toast } from "$shared/stores/toast.svelte";
@@ -26,10 +25,8 @@
   import CustomerGroupDetailDrawer from "./CustomerGroupDetailDrawer.svelte";
   import ImportWizard from "$shared/ui/ImportWizard.svelte";
 
-  const authStore = useAuthStore();
   const rbac = useRBAC();
 
-  const userPermissions = $derived(authStore.user?.permissions || []);
   const canCreate = $derived(rbac.can(Permissions.customerGroup.create));
   const canUpdate = $derived(rbac.can(Permissions.customerGroup.update));
   const canDelete = $derived(rbac.can(Permissions.customerGroup.delete));

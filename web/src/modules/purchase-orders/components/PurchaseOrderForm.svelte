@@ -1,9 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { usePurchaseOrderStore } from "../stores/po-store.svelte";
-  import { getSuppliers } from "$modules/supplier/services/supplier-service";
-  import { getProductsBySupplier } from "$modules/supplier/services/supplier-service";
-  import { getActiveStores } from "$modules/stores/services/stores-service";
+  import { getSuppliers, getProductsBySupplier } from "$modules/supplier";
+  import { getActiveStores } from "$modules/stores";
   import { Button, Input, Modal, SelectSearch } from "$shared/ui";
   import CurrencyInput from "$shared/ui/CurrencyInput.svelte";
   import { toast } from "$shared/stores/toast.svelte";
@@ -12,7 +11,7 @@
   import { getTodayInJakarta } from "$shared/utils/jakartaTime";
   import { useAuthStore } from "$modules/auth";
   import type { PurchaseOrderItem } from "../types";
-  import type { ProductSupplier } from "$modules/supplier/types";
+  import type { ProductSupplier } from "$modules/supplier";
 
   const store = usePurchaseOrderStore();
 

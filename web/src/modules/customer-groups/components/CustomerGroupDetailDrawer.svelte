@@ -9,7 +9,7 @@
     formatTimeInJakarta,
     JAKARTA_OFFSET_MS,
   } from "$shared/utils/jakartaTime";
-  import type { AuditLog } from "$modules/admin/types";
+  import type { AuditLog } from "$modules/admin";
 
   let {
     group = null,

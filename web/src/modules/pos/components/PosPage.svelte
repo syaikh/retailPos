@@ -32,8 +32,8 @@
     PaymentOption,
     DisplayCartItem,
   } from "../types";
-  import type { Sale, SaleItem } from "$modules/sales/types";
-  import type { Customer } from "$modules/customers/types";
+  import type { Sale, SaleItem } from "$modules/sales";
+  import type { Customer } from "$modules/customers";
 
   import { ShoppingCart } from "lucide-svelte";
   import { useAuthStore } from "$modules/auth";

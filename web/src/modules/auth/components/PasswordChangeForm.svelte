@@ -3,7 +3,7 @@
   import { Button, Input } from "$shared/ui";
   import { labels } from "$shared/i18n";
   import { toast } from "$shared/stores/toast.svelte";
-  import { changePassword } from "$modules/auth";
+  import { changePassword } from "../services/auth-service";
 
   let {
     idPrefix = "account",

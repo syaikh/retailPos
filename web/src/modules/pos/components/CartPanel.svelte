@@ -15,7 +15,7 @@
   } from "lucide-svelte";
   import { labels, t } from "$shared/i18n";
   import type { DisplayCartItem } from "../types";
-  import type { Sale } from "$modules/sales/types";
+  import type { Sale } from "$modules/sales";
   import PrintModeToggle from "$app/components/PrintModeToggle.svelte";
 
   let scrollEl: HTMLDivElement | undefined = $state();

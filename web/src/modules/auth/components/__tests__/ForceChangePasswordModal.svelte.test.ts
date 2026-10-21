@@ -43,8 +43,10 @@ describe("ForceChangePasswordModal.svelte source-structure guards", () => {
 describe("PasswordChangeForm.svelte source-structure guards", () => {
   const src = getSource("PasswordChangeForm.svelte");
 
-  it("imports changePassword from the auth module", () => {
-    expect(src).toContain('import { changePassword } from "$modules/auth"');
+  it("imports changePassword via a relative path (the barrel re-exports this component, so a barrel import would be circular)", () => {
+    expect(src).toContain(
+      'import { changePassword } from "../services/auth-service"',
+    );
   });
 
   it("collects current, new and confirmation passwords with labels", () => {

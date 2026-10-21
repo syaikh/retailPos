@@ -9,14 +9,14 @@
   import { Loader2, PackageX } from "lucide-svelte";
   import { toast } from "$shared/stores/toast.svelte";
   import { labels } from "$shared/i18n";
-  import { getStorageLocations } from "$modules/storage-location/services/storage-location-service";
+  import { getStorageLocations } from "$modules/storage-location";
   import {
     getLocationStock,
     setLocationStock,
     transferLocationStock,
   } from "../services/inventory-service";
   import type { LocationStockItem } from "../types";
-  import type { StorageLocation } from "$modules/storage-location/types";
+  import type { StorageLocation } from "$modules/storage-location";
 
   const {
     productId = null as number | null,

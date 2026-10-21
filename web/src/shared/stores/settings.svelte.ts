@@ -2,7 +2,7 @@ import {
   fetchPublicBranding,
   fetchAllSettings,
   type AllSettings,
-} from "$modules/admin/services/app-settings-service";
+} from "$shared/services/app-settings-service";
 
 class SettingsStore {
   storeName = $state("RetailPOS");

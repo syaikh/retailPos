@@ -4,9 +4,9 @@
   import { Pencil, Trash2, Copy, Percent } from "lucide-svelte";
   import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime";
   import { toast } from "$shared/stores/toast.svelte";
-  import { getPricingRules } from "$modules/pricing/services/pricing-service";
-  import type { PricingRule } from "$modules/pricing/types";
-  import RackStockPanel from "$modules/inventory/components/RackStockPanel.svelte";
+  import { getPricingRules } from "$modules/pricing";
+  import type { PricingRule } from "$modules/pricing";
+  import { RackStockPanel } from "$modules/inventory";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { Permissions } from "$shared/constants/permissions";
   import { labels, t } from "$shared/i18n";

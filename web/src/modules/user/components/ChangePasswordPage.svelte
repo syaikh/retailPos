@@ -1,7 +1,7 @@
 <script lang="ts">
   import { PageHeader, Card } from "$shared/ui";
   import { labels } from "$shared/i18n";
-  import PasswordChangeForm from "$modules/auth/components/PasswordChangeForm.svelte";
+  import { PasswordChangeForm } from "$modules/auth";
 </script>
 
 <div class="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8">

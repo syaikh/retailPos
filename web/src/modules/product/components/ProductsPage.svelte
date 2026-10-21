@@ -18,7 +18,7 @@
   import ProductFilterDrawer from "$modules/product/components/ProductFilterDrawer.svelte";
   import ProductFormModal from "$modules/product/components/ProductFormModal.svelte";
   import ProductDetailDrawer from "./ProductDetailDrawer.svelte";
-  import StockAdjustModal from "$modules/inventory/components/StockAdjustModal.svelte";
+  import { StockAdjustModal } from "$modules/inventory";
   import ProductFiltersToolbar from "./ProductFiltersToolbar.svelte";
   import ProductTable from "./ProductTable.svelte";
   import ProductBulkActions from "./ProductBulkActions.svelte";

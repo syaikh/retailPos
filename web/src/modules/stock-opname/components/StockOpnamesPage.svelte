@@ -12,9 +12,9 @@
     getCategories,
     getProductOptions,
     getWarehouses,
-  } from "$modules/product/services/product-service";
-  import { getSuppliers } from "$modules/supplier/services/supplier-service";
-  import { getStorageLocations } from "$modules/storage-location/services/storage-location-service";
+  } from "$modules/product";
+  import { getSuppliers } from "$modules/supplier";
+  import { getStorageLocations } from "$modules/storage-location";
   import type { StockOpnameSession, StockOpnameScopeType } from "../types";
   import {
     STOCK_OPNAME_SCOPE_LABELS,

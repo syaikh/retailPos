@@ -11,6 +11,10 @@ export {
   getUnitsOfMeasure,
   getStockThresholds,
   adjustStock,
+  getProductsByIds,
+  getNextSku,
+  getProductOptions,
+  getWarehouses,
 } from "./services/product-service";
 export {
   statusInfo,

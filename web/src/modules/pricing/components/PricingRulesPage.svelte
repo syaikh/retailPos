@@ -19,7 +19,7 @@
     getCategories,
     getBrands,
     getProductsByIds,
-  } from "$modules/product/services/product-service";
+  } from "$modules/product";
   import type { PricingRule, CreatePricingRulePayload } from "../types";
   import type { ConflictRule } from "../services/pricing-service";
   import type { PricingRuleListParams } from "../services/pricing-service";

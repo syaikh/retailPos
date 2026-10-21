@@ -16,7 +16,7 @@ describe("StockOpnamesPage.svelte location-scope source guards", () => {
 
   it("imports getStorageLocations for the location scope options", () => {
     expect(src).toContain(
-      'import { getStorageLocations } from "$modules/storage-location/services/storage-location-service"',
+      'import { getStorageLocations } from "$modules/storage-location"',
     );
   });
 

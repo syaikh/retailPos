@@ -40,7 +40,7 @@
     bulkReturnAllStock,
     forceReturnAllStock,
   } from "../services/consignment-service";
-  import { getActiveStores } from "$modules/stores/services/stores-service";
+  import { getActiveStores } from "$modules/stores";
   import type { Arrangement, ConsignmentSupplierRef, StockRow } from "../types";
   import type { ArrangementListParams } from "../services/consignment-service";
   import {

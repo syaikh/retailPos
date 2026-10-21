@@ -20,7 +20,7 @@
   import {
     createProduct,
     getNextSku,
-  } from "$modules/product/services/product-service";
+  } from "$modules/product";
   import type { Arrangement, Term } from "../types";
   import { SHARE_TYPE_PERCENTAGE, SHARE_TYPE_LABELS } from "../types";
   import { formatCurrency } from "../lib/format";

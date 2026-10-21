@@ -2,11 +2,23 @@
 
 | Field         | Nilai |
 |---------------|-------|
-| Status        | **On Hold** — pending review |
-| Date          | 2026-08-20 |
+| Status        | **Accepted** — lightweight enforcement (superseded On Hold decision 2026-10-21) |
+| Date          | 2026-08-20 (revisited 2026-10-21) |
 | Deciders      | Tim Engineering |
 | Scope         | `web/src/modules/` cross-module import policy, enforcement mechanism |
-| Related       | `docs/adr/ADR_Modular_Monolith_Module_Boundaries.md` (backend equivalent) |
+| Related       | `docs/adr/ADR_Modular_Monolith_Module_Boundaries.md` (backend equivalent), `docs/design/frontend-import-boundary-enforcement-plan.md` (implementation plan) |
+
+> **2026-10-21 update:** the On Hold decision below was revisited. ESLint was
+> introduced to `web/` after this ADR was written, violations grew from ~20+ to
+> ~27, and several test files pinned the deep-import strings. Enforcement is
+> now in place via core-ESLint `no-restricted-imports` (no extra plugin),
+> generated per module in `web/eslint.config.js`, starting at `warn` severity.
+> All ~27 cross-module deep imports were converted to barrel imports and the
+> `shared` → `admin` dependency inversion was fixed by moving
+> `app-settings-service` to `$shared/services/`. Remaining known debt: three
+> `shared` → `$modules/auth` imports (incl. an `http-client` ↔ `auth` cycle)
+> tracked as lint warnings. Rationale and verification:
+> `docs/design/frontend-import-boundary-enforcement-plan.md`.
 
 ---
 

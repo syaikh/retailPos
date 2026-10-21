@@ -24,8 +24,8 @@
   import { settingsStore } from "$shared/stores/settings.svelte";
   import { labels } from "$shared/i18n";
   import { getApiErrorMessage } from "$shared/utils/error-utils";
-  import { getActiveStores } from "$modules/stores/services/stores-service";
-  import type { Store } from "$modules/stores/types";
+  import { getActiveStores } from "$modules/stores";
+  import type { Store } from "$modules/stores";
   import {
     Clock,
     Plus,

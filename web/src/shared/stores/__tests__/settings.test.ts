@@ -5,7 +5,7 @@ import {
   loadFullSettings,
 } from "../settings.svelte";
 
-vi.mock("$modules/admin/services/app-settings-service", () => ({
+vi.mock("$shared/services/app-settings-service", () => ({
   fetchPublicBranding: vi.fn(),
   fetchAllSettings: vi.fn(),
 }));
@@ -13,7 +13,7 @@ vi.mock("$modules/admin/services/app-settings-service", () => ({
 import {
   fetchPublicBranding,
   fetchAllSettings,
-} from "$modules/admin/services/app-settings-service";
+} from "$shared/services/app-settings-service";
 
 const mockFetchPublicBranding = vi.mocked(fetchPublicBranding);
 const mockFetchAllSettings = vi.mocked(fetchAllSettings);

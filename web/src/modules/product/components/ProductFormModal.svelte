@@ -9,8 +9,8 @@
     Plus,
     Loader2,
   } from "lucide-svelte";
-  import { getPricingRules } from "$modules/pricing/services/pricing-service";
-  import type { PricingRule } from "$modules/pricing/types";
+  import { getPricingRules } from "$modules/pricing";
+  import type { PricingRule } from "$modules/pricing";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { Permissions } from "$shared/constants/permissions";
   import { labels, t } from "$shared/i18n";
