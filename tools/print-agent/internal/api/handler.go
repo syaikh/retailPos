@@ -123,13 +123,27 @@ func (h *Handler) handlePrint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rc := req.Data
-	if rc.InvoiceNumber == "" {
-		rc = req.Receipt
-	}
-	if rc.InvoiceNumber == "" {
-		writeJSON(w, http.StatusBadRequest, errBody("missing receipt data"))
-		return
+	job := queue.Job{Branding: req.Branding}
+	if req.Type == "return" {
+		// A return payload must arrive under "return_data": decoding it from
+		// "data" is impossible (one key, two structs) and silently dropping the
+		// unknown fields would print a wrong receipt.
+		if req.ReturnData.InvoiceNumber == "" {
+			writeJSON(w, http.StatusBadRequest, errBody("missing return data"))
+			return
+		}
+		job.Type = "return"
+		job.Return = req.ReturnData
+	} else {
+		rc := req.Data
+		if rc.InvoiceNumber == "" {
+			rc = req.Receipt
+		}
+		if rc.InvoiceNumber == "" {
+			writeJSON(w, http.StatusBadRequest, errBody("missing receipt data"))
+			return
+		}
+		job.Receipt = rc
 	}
 
 	jobID := req.JobID
@@ -146,11 +160,8 @@ func (h *Handler) handlePrint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.store.Enqueue(&queue.Job{
-		ID:       jobID,
-		Receipt:  rc,
-		Branding: req.Branding,
-	})
+	job.ID = jobID
+	h.store.Enqueue(&job)
 	writeJSON(w, http.StatusAccepted, map[string]string{
 		"job_id": jobID,
 		"status": string(queue.StatusQueued),

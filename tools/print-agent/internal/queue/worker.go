@@ -11,12 +11,16 @@ import (
 // RenderFunc renders a receipt to ESC/POS bytes.
 type RenderFunc func(receipt.Receipt, receipt.Branding) ([]byte, error)
 
+// RenderReturnFunc renders a return receipt to ESC/POS bytes.
+type RenderReturnFunc func(receipt.ReturnReceipt, receipt.Branding) ([]byte, error)
+
 // Worker consumes jobs from the store and dispatches them via the transport.
 type Worker struct {
-	store  *Store
-	render RenderFunc
-	trans  transport.Transport
-	logf   func(string, ...interface{})
+	store        *Store
+	render       RenderFunc
+	renderReturn RenderReturnFunc
+	trans        transport.Transport
+	logf         func(string, ...interface{})
 }
 
 // NewWorker builds a worker. The render function must be set (defaults to
@@ -32,6 +36,9 @@ func NewWorker(store *Store, trans transport.Transport) *Worker {
 // SetRenderer sets the render function (used so the worker package need not
 // hard-depend on the receipt package at construction time).
 func (w *Worker) SetRenderer(fn RenderFunc) { w.render = fn }
+
+// SetReturnRenderer sets the return-receipt render function (see SetRenderer).
+func (w *Worker) SetReturnRenderer(fn RenderReturnFunc) { w.renderReturn = fn }
 
 // Run processes jobs until the context is cancelled, then drains any remaining
 // queued jobs before returning so in-flight and pending prints are not lost on
@@ -68,11 +75,21 @@ func (w *Worker) process(id string) {
 		return
 	}
 	w.store.Update(id, StatusPrinting, "")
-	if w.render == nil {
-		w.store.Update(id, StatusFailed, "no renderer configured")
-		return
+	var data []byte
+	var err error
+	if j.Type == "return" {
+		if w.renderReturn == nil {
+			w.store.Update(id, StatusFailed, "no return renderer configured")
+			return
+		}
+		data, err = w.renderReturn(j.Return, j.Branding)
+	} else {
+		if w.render == nil {
+			w.store.Update(id, StatusFailed, "no renderer configured")
+			return
+		}
+		data, err = w.render(j.Receipt, j.Branding)
 	}
-	data, err := w.render(j.Receipt, j.Branding)
 	if err != nil {
 		w.store.Update(id, StatusFailed, err.Error())
 		return

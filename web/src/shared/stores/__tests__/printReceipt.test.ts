@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ReceiptData } from "../printReceipt.svelte.ts";
+import type { PrintDocument } from "../printReceipt.svelte.ts";
 import type { printReceipt as PrintReceiptStore } from "../printReceipt.svelte.ts";
 
 describe("printReceipt store", () => {
@@ -20,7 +20,7 @@ describe("printReceipt store", () => {
   it("initial value is null", async () => {
     const { printReceipt: p } = await import("../printReceipt.svelte");
     printReceipt = p;
-    let value: ReceiptData | null = "not null" as unknown as ReceiptData;
+    let value: PrintDocument | null = "not null" as unknown as PrintDocument;
     printReceipt.subscribe((v) => {
       value = v;
     })();
@@ -40,7 +40,7 @@ describe("printReceipt store", () => {
       changeDue: 0,
     };
     printReceipt.set(data);
-    let value: ReceiptData | null = null;
+    let value: PrintDocument | null = null;
     printReceipt.subscribe((v) => {
       value = v;
     })();
@@ -60,7 +60,7 @@ describe("printReceipt store", () => {
       changeDue: 0,
     });
     printReceipt.set(null);
-    let value: ReceiptData | null = "not null" as unknown as ReceiptData;
+    let value: PrintDocument | null = "not null" as unknown as PrintDocument;
     printReceipt.subscribe((v) => {
       value = v;
     })();

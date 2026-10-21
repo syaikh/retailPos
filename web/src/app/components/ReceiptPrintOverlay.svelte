@@ -5,110 +5,202 @@
   import { settingsStore } from "$shared/stores/settings.svelte";
 </script>
 
-{#if $printReceipt}
-  <div class="thermal-receipt-container">
-    <div class="thermal-receipt" id="thermal-receipt">
-      <div class="thermal-shop-name">{settingsStore.storeName}</div>
-      {#if settingsStore.storeAddress}
-        <div class="thermal-shop-detail">{settingsStore.storeAddress}</div>
-      {/if}
-      {#if settingsStore.storePhone}
-        <div class="thermal-shop-detail">
-          {labels.phone}: {settingsStore.storePhone}
-        </div>
-      {/if}
-      {#if settingsStore.receiptHeader}
-        <div class="thermal-receipt-header">{settingsStore.receiptHeader}</div>
-      {/if}
-      <div class="thermal-row">
-        <span class="thermal-label">{labels.invoice}:</span>
-        <span class="thermal-value">{$printReceipt.invoice_number}</span>
-      </div>
-      <div class="thermal-row">
-        <span class="thermal-label">{labels.waktu}:</span>
-        <span class="thermal-value"
-          >{formatDateTimeInJakarta(
-            $printReceipt.created_at || new Date().toISOString(),
-          )}</span
-        >
-      </div>
-      {#if $printReceipt.customer_name}
-        <div class="thermal-row">
-          <span class="thermal-label">{labels.customer}:</span>
-          <span class="thermal-value">{$printReceipt.customer_name}</span>
-        </div>
-      {/if}
-      <div class="thermal-divider"></div>
-      {#each $printReceipt.items as item, i (i)}
-        <div class="thermal-item">
-          <div class="thermal-item-name">{item.name} x{item.quantity}</div>
-          <div class="thermal-item-price">
-            {(item.unit_price * item.quantity).toLocaleString("id-ID")}
-          </div>
-        </div>
+{#snippet shopHeader()}
+  <div class="thermal-shop-name">{settingsStore.storeName}</div>
+  {#if settingsStore.storeAddress}
+    <div class="thermal-shop-detail">{settingsStore.storeAddress}</div>
+  {/if}
+  {#if settingsStore.storePhone}
+    <div class="thermal-shop-detail">
+      {labels.phone}: {settingsStore.storePhone}
+    </div>
+  {/if}
+  {#if settingsStore.receiptHeader}
+    <div class="thermal-receipt-header">{settingsStore.receiptHeader}</div>
+  {/if}
+{/snippet}
+
+{#snippet shopFooter()}
+  <div class="thermal-footer">
+    {#if settingsStore.receiptFooter}
+      {#each settingsStore.receiptFooter.split("\n") as line, i (i)}
+        <p>{line}</p>
       {/each}
-      <div class="thermal-divider"></div>
-      {#if $printReceipt.subtotal_dpp != null && $printReceipt.tax != null && $printReceipt.tax > 0}
+    {:else}
+      <p>{labels.receiptThanks}</p>
+      <p>{labels.receiptNoReturn}</p>
+    {/if}
+  </div>
+{/snippet}
+
+{#if $printReceipt}
+  {#if $printReceipt.document_type === "return"}
+    <div class="thermal-receipt-container">
+      <div class="thermal-receipt" id="thermal-receipt">
+        {@render shopHeader()}
+        <div class="thermal-receipt-header">{labels.returnReceiptTitle}</div>
         <div class="thermal-row">
-          <span class="thermal-label">{labels.dpp}</span>
+          <span class="thermal-label">{labels.returnReceiptNumber}:</span>
+          <span class="thermal-value">{$printReceipt.invoice_number}</span>
+        </div>
+        <div class="thermal-row">
+          <span class="thermal-label">{labels.returnOriginalInvoice}:</span>
           <span class="thermal-value"
-            >{$printReceipt.subtotal_dpp.toLocaleString("id-ID")}</span
+            >{$printReceipt.original_invoice_number}</span
           >
         </div>
         <div class="thermal-row">
-          <span class="thermal-label">{labels.ppn}</span>
+          <span class="thermal-label">{labels.waktu}:</span>
           <span class="thermal-value"
-            >{$printReceipt.tax.toLocaleString("id-ID")}</span
+            >{formatDateTimeInJakarta(
+              $printReceipt.created_at || new Date().toISOString(),
+            )}</span
           >
         </div>
-        <div class="thermal-divider-thin"></div>
-      {/if}
-      <div class="thermal-item thermal-item-total">
-        <span>{labels.total}</span>
-        <span>{$printReceipt.total_amount.toLocaleString("id-ID")}</span>
-      </div>
-      <div class="thermal-payment-section">
+        <div class="thermal-divider"></div>
+        {#each $printReceipt.items as item, i (i)}
+          <div class="thermal-item">
+            <div class="thermal-item-name">{item.name} x{item.quantity}</div>
+            <div class="thermal-item-price">
+              {(item.unit_price * item.quantity).toLocaleString("id-ID")}
+            </div>
+          </div>
+        {/each}
+        <div class="thermal-divider"></div>
         <div class="thermal-row">
-          <span class="thermal-label">{labels.payment}</span>
-          <span></span>
+          <span class="thermal-label">{labels.returnReason}:</span>
+          <span class="thermal-value">{$printReceipt.reason}</span>
         </div>
-        {#if $printReceipt.payments && $printReceipt.payments.length > 0}
-          {#each $printReceipt.payments as p, i (i)}
-            <div class="thermal-payment-row">
-              <span class="thermal-payment-method"
-                >{p.method === "CASH" ? labels.cash : p.method}</span
-              >
-              <span class="thermal-payment-amount"
-                >{p.amount.toLocaleString("id-ID")}</span
-              >
+        <div class="thermal-row">
+          <span class="thermal-label">{labels.returnCondition}:</span>
+          <span class="thermal-value">{$printReceipt.condition}</span>
+        </div>
+        {#if $printReceipt.notes}
+          <div class="thermal-row">
+            <span class="thermal-label">{labels.returnNotes}:</span>
+            <span class="thermal-value">{$printReceipt.notes}</span>
+          </div>
+        {/if}
+        <div class="thermal-divider"></div>
+        {#if $printReceipt.return_type === "replacement"}
+          <div class="thermal-item thermal-item-total">
+            <span>{labels.returnReplacement}</span>
+            <span></span>
+          </div>
+          {#each $printReceipt.replacements ?? [] as rep, i (i)}
+            <div class="thermal-item">
+              <div class="thermal-item-name">{rep.name} x{rep.quantity}</div>
             </div>
           {/each}
         {:else}
-          <div class="thermal-payment-row">
-            <span class="thermal-payment-value"
-              >{$printReceipt.paymentMethod}</span
-            >
+          <div class="thermal-item thermal-item-total">
+            <span>{labels.returnTotalRefund}</span>
+            <span>{$printReceipt.refund_amount.toLocaleString("id-ID")}</span>
           </div>
+          {#if $printReceipt.payments && $printReceipt.payments.length > 0}
+            <div class="thermal-payment-section">
+              {#each $printReceipt.payments as p, i (i)}
+                <div class="thermal-payment-row">
+                  <span class="thermal-payment-method"
+                    >{p.method === "CASH" ? labels.cash : p.method}</span
+                  >
+                  <span class="thermal-payment-amount"
+                    >{p.amount.toLocaleString("id-ID")}</span
+                  >
+                </div>
+              {/each}
+            </div>
+          {/if}
         {/if}
-      </div>
-      {#if $printReceipt.changeDue > 0}
-        <div class="thermal-divider-thin"></div>
-        <div class="thermal-item thermal-item-total">
-          <span>{labels.changeDue}</span>
-          <span>{$printReceipt.changeDue.toLocaleString("id-ID")}</span>
-        </div>
-      {/if}
-      <div class="thermal-divider"></div>
-      <div class="thermal-footer">
-        {#if settingsStore.receiptFooter}
-          {#each settingsStore.receiptFooter.split("\n") as line, i (i)}
-            <p>{line}</p>
-          {/each}
-        {:else}
-          <p>{labels.receiptThanks}</p>
-          <p>{labels.receiptNoReturn}</p>
-        {/if}
+        <div class="thermal-divider"></div>
+        {@render shopFooter()}
       </div>
     </div>
-  </div>
+  {:else}
+    <div class="thermal-receipt-container">
+      <div class="thermal-receipt" id="thermal-receipt">
+        {@render shopHeader()}
+        <div class="thermal-row">
+          <span class="thermal-label">{labels.invoice}:</span>
+          <span class="thermal-value">{$printReceipt.invoice_number}</span>
+        </div>
+        <div class="thermal-row">
+          <span class="thermal-label">{labels.waktu}:</span>
+          <span class="thermal-value"
+            >{formatDateTimeInJakarta(
+              $printReceipt.created_at || new Date().toISOString(),
+            )}</span
+          >
+        </div>
+        {#if $printReceipt.customer_name}
+          <div class="thermal-row">
+            <span class="thermal-label">{labels.customer}:</span>
+            <span class="thermal-value">{$printReceipt.customer_name}</span>
+          </div>
+        {/if}
+        <div class="thermal-divider"></div>
+        {#each $printReceipt.items as item, i (i)}
+          <div class="thermal-item">
+            <div class="thermal-item-name">{item.name} x{item.quantity}</div>
+            <div class="thermal-item-price">
+              {(item.unit_price * item.quantity).toLocaleString("id-ID")}
+            </div>
+          </div>
+        {/each}
+        <div class="thermal-divider"></div>
+        {#if $printReceipt.subtotal_dpp != null && $printReceipt.tax != null && $printReceipt.tax > 0}
+          <div class="thermal-row">
+            <span class="thermal-label">{labels.dpp}</span>
+            <span class="thermal-value"
+              >{$printReceipt.subtotal_dpp.toLocaleString("id-ID")}</span
+            >
+          </div>
+          <div class="thermal-row">
+            <span class="thermal-label">{labels.ppn}</span>
+            <span class="thermal-value"
+              >{$printReceipt.tax.toLocaleString("id-ID")}</span
+            >
+          </div>
+          <div class="thermal-divider-thin"></div>
+        {/if}
+        <div class="thermal-item thermal-item-total">
+          <span>{labels.total}</span>
+          <span>{$printReceipt.total_amount.toLocaleString("id-ID")}</span>
+        </div>
+        <div class="thermal-payment-section">
+          <div class="thermal-row">
+            <span class="thermal-label">{labels.payment}</span>
+            <span></span>
+          </div>
+          {#if $printReceipt.payments && $printReceipt.payments.length > 0}
+            {#each $printReceipt.payments as p, i (i)}
+              <div class="thermal-payment-row">
+                <span class="thermal-payment-method"
+                  >{p.method === "CASH" ? labels.cash : p.method}</span
+                >
+                <span class="thermal-payment-amount"
+                  >{p.amount.toLocaleString("id-ID")}</span
+                >
+              </div>
+            {/each}
+          {:else}
+            <div class="thermal-payment-row">
+              <span class="thermal-payment-value"
+                >{$printReceipt.paymentMethod}</span
+              >
+            </div>
+          {/if}
+        </div>
+        {#if $printReceipt.changeDue > 0}
+          <div class="thermal-divider-thin"></div>
+          <div class="thermal-item thermal-item-total">
+            <span>{labels.changeDue}</span>
+            <span>{$printReceipt.changeDue.toLocaleString("id-ID")}</span>
+          </div>
+        {/if}
+        <div class="thermal-divider"></div>
+        {@render shopFooter()}
+      </div>
+    </div>
+  {/if}
 {/if}

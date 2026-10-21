@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Drawer } from "$shared/ui";
+  import { Button, Drawer, Badge } from "$shared/ui";
   import { Printer, Download } from "lucide-svelte";
   import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime";
   import { printReceiptWithToast } from "$shared/services/print-service";
@@ -10,9 +10,14 @@
   import {
     ReturnModal,
     getReturnableSale,
+    getReturnById,
+    listReturnsBySale,
+    buildReturnReceipt,
     ineligibleText,
+    returnStatusLabel,
+    returnStatusVariant,
   } from "$modules/salereturn";
-  import type { ReturnableSale } from "$modules/salereturn";
+  import type { ReturnableSale, SaleReturn } from "$modules/salereturn";
   import type { Sale, SaleItem, PaymentInfo } from "../types";
 
   let {
@@ -34,6 +39,8 @@
   let returnLoadFailed = $state(false);
   let returnRequestToken = 0;
   let showReturnModal = $state(false);
+  let returns = $state<SaleReturn[]>([]);
+  let returnsToken = 0;
 
   const displayTransaction = $derived(transactionDetail || selectedTransaction);
 
@@ -81,6 +88,39 @@
       loadReturnable(selectedTransaction.id);
     }
   });
+
+  // Reprint support (Phase 4.4): the returns already recorded against this
+  // sale, so a completed one can be reprinted from here. The list rows are
+  // headers only (the repository does not hydrate items), so printing fetches
+  // the full detail first. Lookup mode is excluded on purpose: that endpoint
+  // is redacted for cross-cashier views.
+  $effect(() => {
+    if (showTransactionDrawer && mode !== "lookup" && selectedTransaction?.id) {
+      loadReturns(selectedTransaction.id);
+    }
+  });
+
+  async function loadReturns(id: number) {
+    // Same stale-response guard as loadReturnable: a re-open can leave an
+    // older reply in flight.
+    const token = ++returnsToken;
+    try {
+      const list = await listReturnsBySale(id);
+      if (token === returnsToken) returns = list;
+    } catch {
+      // The section is a convenience; a failed list just means no reprint
+      // shortcuts, and the modal's own print still covers the fresh return.
+      if (token === returnsToken) returns = [];
+    }
+  }
+
+  async function printReturnReceipt(r: SaleReturn) {
+    const full = await getReturnById(r.id);
+    if (!full || !displayTransaction) return;
+    await printReceiptWithToast(
+      buildReturnReceipt(full, displayTransaction.invoice_number),
+    );
+  }
 
   async function loadReturnable(id: number) {
     // A drawer re-open can leave an older response in flight; ignoring any
@@ -196,6 +236,7 @@
   function handleClose() {
     showTransactionDrawer = false;
     transactionDetail = null;
+    returns = [];
     onclose();
   }
 
@@ -490,6 +531,48 @@
         </div>
       {/if}
     {/if}
+
+    {#if mode !== "lookup" && returns.length > 0}
+      <div class="mt-5">
+        <p class="text-sm font-semibold text-text-secondary mb-3">
+          {labels.returnsOfSale}
+        </p>
+        <div class="border border-border rounded-lg divide-y divide-border">
+          {#each returns as r (r.id)}
+            <div
+              class="flex items-center justify-between gap-2 px-4 py-3 text-sm"
+            >
+              <div class="min-w-0">
+                <p class="font-mono text-text-primary">{r.return_number}</p>
+                <p class="text-xs text-text-muted">
+                  {formatDateTime(r.created_at)} ·
+                  {r.return_type === "replacement"
+                    ? labels.returnReplacement
+                    : labels.returnRefund}
+                </p>
+              </div>
+              <div class="flex items-center gap-2">
+                <Badge variant={returnStatusVariant(r.status)}
+                  >{returnStatusLabel(r.status)}</Badge
+                >
+                {#if r.status === "completed"}
+                  <Button
+                    variant="secondary"
+                    class="rounded-xl h-9 px-3 text-sm font-semibold flex items-center gap-1.5 whitespace-nowrap"
+                    aria-label={labels.returnPrintReceipt}
+                    title={labels.returnPrintReceipt}
+                    onclick={() => printReturnReceipt(r)}
+                  >
+                    <Printer size={15} />
+                    {labels.print}
+                  </Button>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
   {/if}
 
   {#snippet footer()}
@@ -549,5 +632,8 @@
 <ReturnModal
   saleId={selectedTransaction?.id ?? null}
   bind:show={showReturnModal}
-  onreturned={() => onreturned()}
+  onreturned={() => {
+    if (selectedTransaction?.id) loadReturns(selectedTransaction.id);
+    onreturned();
+  }}
 />

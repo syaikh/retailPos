@@ -4,7 +4,10 @@ import { printConfig } from "$shared/stores/printConfig.svelte";
 import { printReceipt as printReceiptStore } from "$shared/stores/printReceipt.svelte";
 import { settingsStore } from "$shared/stores/settings.svelte";
 import { printReceipt } from "../print-service";
-import type { ReceiptData } from "$shared/stores/printReceipt.svelte";
+import type {
+  ReceiptData,
+  ReturnReceiptData,
+} from "$shared/stores/printReceipt.svelte";
 
 const sample: ReceiptData = {
   invoice_number: "INV-1",
@@ -14,6 +17,19 @@ const sample: ReceiptData = {
   paymentMethod: "CASH",
   cashReceived: 10000,
   changeDue: 0,
+};
+
+const sampleReturn: ReturnReceiptData = {
+  document_type: "return",
+  invoice_number: "RETUR-0001",
+  created_at: "2026-08-26 11:00",
+  return_type: "refund",
+  original_invoice_number: "INV-1",
+  refund_amount: 10000,
+  payments: [{ method: "CASH", amount: 10000 }],
+  reason: "Damaged Item",
+  condition: "Damaged",
+  items: [{ name: "Kopi", quantity: 2, unit_price: 5000 }],
 };
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -114,5 +130,54 @@ describe("printReceipt service", () => {
     expect(body.invoice).toBe("INV-1");
     expect(body.data).toEqual(sample);
     expect(body.branding.storeName).toBe("Toko Test");
+  });
+
+  it("tags sale payloads with type sale so the agent dispatches its sale renderer", async () => {
+    printConfig.setMode("silent");
+    let captured: string | undefined;
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async (_url: string, opts: RequestInit) => {
+        captured = opts.body as string;
+        return { ok: true };
+      });
+    (globalThis as unknown as { fetch: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
+
+    await printReceipt(sample);
+
+    const body = JSON.parse(captured as string);
+    expect(body.type).toBe("sale");
+    expect(body.return_data).toBeUndefined();
+  });
+
+  it("routes a return payload under its own return_data key with type return", async () => {
+    // The agent decodes JSON into concrete Go structs: a return payload under
+    // the sale "data" key would have its fields silently dropped and print a
+    // wrong receipt, so it must travel under return_data.
+    printConfig.setMode("silent");
+    let captured: string | undefined;
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async (_url: string, opts: RequestInit) => {
+        captured = opts.body as string;
+        return { ok: true };
+      });
+    (globalThis as unknown as { fetch: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
+
+    const result = await printReceipt(sampleReturn);
+
+    expect(result.ok).toBe(true);
+    const body = JSON.parse(captured as string);
+    expect(body.type).toBe("return");
+    expect(body.invoice).toBe("RETUR-0001");
+    expect(body.return_data).toEqual(sampleReturn);
+    expect(body.data).toBeUndefined();
+  });
+
+  it("preview mode renders a return payload on the overlay store", async () => {
+    await printReceipt(sampleReturn);
+    expect(get(printReceiptStore)?.document_type).toBe("return");
   });
 });

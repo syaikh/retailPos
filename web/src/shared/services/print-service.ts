@@ -1,7 +1,8 @@
 // Receipt printing service.
 //
 // Single entry point used by the POS and sales screens. It dispatches a
-// ReceiptData payload to the appropriate sink:
+// PrintDocument payload (a sale receipt or a return receipt, told apart by
+// document_type) to the appropriate sink:
 //   - "preview" mode: show the on-screen 58mm overlay and trigger the browser
 //     print dialog (window.print) — the explicit/manual preview path.
 //   - "silent"  mode: POST the payload to the local print agent. No overlay, no
@@ -15,7 +16,9 @@
 
 import {
   printReceipt as printReceiptStore,
+  type PrintDocument,
   type ReceiptData,
+  type ReturnReceiptData,
 } from "$shared/stores/printReceipt.svelte";
 import { printConfig } from "$shared/stores/printConfig.svelte";
 import { settingsStore } from "$shared/stores/settings.svelte";
@@ -32,7 +35,16 @@ export interface ReceiptBranding {
 
 export interface PrintAgentPayload {
   invoice: string;
-  data: ReceiptData;
+  /** Discriminator the agent dispatches its renderer on. Absent = "sale":
+   * an old frontend payload without it still renders as a sale receipt. */
+  type: "sale" | "return";
+  /** Sale payload (type "sale"). */
+  data?: ReceiptData;
+  /** Return payload (type "return") — a separate key because the agent decodes
+   * JSON into concrete Go structs and cannot map one `data` key onto two
+   * shapes: unknown fields would be silently dropped, so an agent that did not
+   * know the shape would print a wrong receipt rather than refuse. */
+  return_data?: ReturnReceiptData;
   branding: ReceiptBranding;
 }
 
@@ -46,11 +58,21 @@ function brandingFromSettings(): ReceiptBranding {
   };
 }
 
-function buildAgentPayload(data: ReceiptData): PrintAgentPayload {
+function buildAgentPayload(data: PrintDocument): PrintAgentPayload {
+  const branding = brandingFromSettings();
+  if (data.document_type === "return") {
+    return {
+      invoice: data.invoice_number,
+      type: "return",
+      return_data: data,
+      branding,
+    };
+  }
   return {
     invoice: data.invoice_number,
+    type: "sale",
     data,
-    branding: brandingFromSettings(),
+    branding,
   };
 }
 
@@ -66,7 +88,7 @@ async function sendToAgent(payload: PrintAgentPayload): Promise<void> {
   }
 }
 
-function previewPrint(data: ReceiptData) {
+function previewPrint(data: PrintDocument) {
   printReceiptStore.set(data);
   setTimeout(() => {
     window.print();
@@ -94,7 +116,7 @@ export interface PrintResult {
  * Retry/Dismiss notification. The manual "Print Receipt" action is the retry
  * path; the notification itself is the Dismiss path.
  */
-export async function printReceipt(data: ReceiptData): Promise<PrintResult> {
+export async function printReceipt(data: PrintDocument): Promise<PrintResult> {
   if (printConfig.mode !== "silent") {
     previewPrint(data);
     return { ok: true, mode: "preview" };
@@ -115,7 +137,7 @@ export async function printReceipt(data: ReceiptData): Promise<PrintResult> {
  * not each re-implement the same `!res.ok` check.
  */
 export async function printReceiptWithToast(
-  data: ReceiptData,
+  data: PrintDocument,
 ): Promise<PrintResult> {
   const res = await printReceipt(data);
   if (!res.ok) {

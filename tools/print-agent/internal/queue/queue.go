@@ -21,15 +21,18 @@ const (
 	StatusFailed    Status = "failed"
 )
 
-// Job is a single print job.
+// Job is a single print job. Type distinguishes the payloads: "" or "sale"
+// renders Receipt, "return" renders Return.
 type Job struct {
-	ID        string           `json:"job_id"`
-	Status    Status           `json:"status"`
-	Receipt   receipt.Receipt  `json:"receipt"`
-	Branding  receipt.Branding `json:"branding"`
-	Error     string           `json:"error"`
-	CreatedAt time.Time        `json:"created_at"`
-	UpdatedAt time.Time        `json:"updated_at"`
+	ID        string                `json:"job_id"`
+	Status    Status                `json:"status"`
+	Type      string                `json:"type"`
+	Receipt   receipt.Receipt       `json:"receipt"`
+	Return    receipt.ReturnReceipt `json:"return_receipt"`
+	Branding  receipt.Branding      `json:"branding"`
+	Error     string                `json:"error"`
+	CreatedAt time.Time             `json:"created_at"`
+	UpdatedAt time.Time             `json:"updated_at"`
 }
 
 // Store is an in-memory, concurrency-safe job store with a dispatch channel.

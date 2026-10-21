@@ -4,7 +4,12 @@
 export { default as ReturnModal } from "./components/ReturnModal.svelte";
 export { default as ApprovalModal } from "./components/ApprovalModal.svelte";
 export { default as PendingReturnsModal } from "./components/PendingReturnsModal.svelte";
-export { ineligibleText } from "./lib/labels";
+export {
+  ineligibleText,
+  returnStatusLabel,
+  returnStatusVariant,
+} from "./lib/labels";
+export { buildReturnReceipt } from "./lib/receipt";
 export {
   getReturnableSale,
   processReturn,

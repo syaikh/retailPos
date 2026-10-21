@@ -4,14 +4,24 @@
   import { formatDateTimeInJakarta } from "$shared/utils/jakartaTime";
   import { toast } from "$shared/stores/toast.svelte";
   import { getApiErrorMessage } from "$shared/utils/error-utils";
+  import { printReceiptWithToast } from "$shared/services/print-service";
   import ReturnItemRow from "./ReturnItemRow.svelte";
   import ReturnSummary from "./ReturnSummary.svelte";
-  import { ineligibleText } from "../lib/labels";
+  import {
+    ineligibleText,
+    returnConditionLabel,
+    returnReasonLabel,
+  } from "../lib/labels";
+  import { buildReturnReceipt } from "../lib/receipt";
   import {
     getReturnableSale,
     processReturn,
   } from "../services/salereturn-service";
-  import type { ProcessReturnRequest, ReturnLineSelection } from "../types";
+  import type {
+    ProcessReturnRequest,
+    ReturnLineSelection,
+    SaleReturn,
+  } from "../types";
 
   let {
     saleId = null,
@@ -29,6 +39,11 @@
   let reason = $state("damaged");
   let notes = $state("");
   let selected = $state<Record<number, ReturnLineSelection>>({});
+  // A just-completed return: the modal stays open on it so the cashier can
+  // hand the customer their receipt (Phase 4.4), mirroring the POS's
+  // post-checkout print. Pending returns have nothing to print yet.
+  let completed = $state<SaleReturn | null>(null);
+  let printing = $state(false);
 
   // (Re)load the pre-flight snapshot every time the modal opens: quantities,
   // eligibility and stock are all live server state, so a stale snapshot
@@ -45,6 +60,7 @@
     selected = {};
     reason = "damaged";
     notes = "";
+    completed = null;
     try {
       data = await getReturnableSale(id);
     } catch (e) {
@@ -105,13 +121,39 @@
           ? labels.returnSuccessPending
           : labels.returnSuccess,
       );
-      show = false;
+      if (ret.status === "completed") {
+        // Stay open on the result view so the receipt can be printed now or
+        // reprinted later from the transaction drawer.
+        completed = ret;
+      } else {
+        show = false;
+      }
       onreturned(ret.status);
     } catch (e) {
       toast.error(getApiErrorMessage(e, labels.returnFailed));
     } finally {
       submitting = false;
     }
+  }
+
+  /** Print the just-completed return's receipt (Phase 4.4). Failure surfaces
+   * as the shared print-agent toast; the result view stays open so the cashier
+   * can retry. */
+  async function printReturnReceipt() {
+    if (!completed || !data) return;
+    printing = true;
+    try {
+      await printReceiptWithToast(
+        buildReturnReceipt(completed, data.invoice_number),
+      );
+    } finally {
+      printing = false;
+    }
+  }
+
+  function close() {
+    completed = null;
+    show = false;
   }
 </script>
 
@@ -124,6 +166,56 @@
     <p class="py-8 text-center text-sm text-text-secondary">
       {labels.loading}
     </p>
+  {:else if completed}
+    <div class="space-y-4">
+      <div
+        class="rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-success-light"
+      >
+        {labels.returnSuccess}
+      </div>
+      <div class="space-y-2">
+        <div class="flex items-center justify-between text-sm">
+          <span class="text-text-secondary">{labels.returnReceiptNumber}</span>
+          <span class="text-text-primary">{completed.return_number}</span>
+        </div>
+        <div class="flex items-center justify-between text-sm">
+          <span class="text-text-secondary">{labels.returnReason}</span>
+          <span class="text-text-primary"
+            >{returnReasonLabel(completed.reason)}</span
+          >
+        </div>
+        <div class="flex items-center justify-between text-sm">
+          <span class="text-text-secondary">{labels.returnCondition}</span>
+          <span class="text-text-primary"
+            >{returnConditionLabel(completed.condition)}</span
+          >
+        </div>
+        <div class="border-t border-border-default"></div>
+        {#each completed.items as it (it.id)}
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-text-primary"
+              >{it.product_name} × {it.quantity}</span
+            >
+            {#if completed.return_type === "refund"}
+              <span class="text-text-secondary"
+                >{it.subtotal.toLocaleString("id-ID")}</span
+              >
+            {:else}
+              <span class="text-text-secondary">{labels.returnReplacement}</span
+              >
+            {/if}
+          </div>
+        {/each}
+        {#if completed.return_type === "refund"}
+          <div class="flex items-center justify-between text-sm font-semibold">
+            <span class="text-text-secondary">{labels.returnTotalRefund}</span>
+            <span class="text-text-primary"
+              >{completed.total_refund_amount.toLocaleString("id-ID")}</span
+            >
+          </div>
+        {/if}
+      </div>
+    </div>
   {:else if !data}
     <p class="py-8 text-center text-sm text-text-secondary">
       {labels.returnLoadFailed}
@@ -210,24 +302,38 @@
     </div>
   {/if}
   {#snippet footer()}
-    <Button
-      variant="secondary"
-      class="rounded-xl px-4 h-11 text-sm font-semibold"
-      onclick={() => (show = false)}>{labels.cancel}</Button
-    >
-    {#if data?.eligible}
+    {#if completed}
+      <Button
+        variant="secondary"
+        class="rounded-xl px-4 h-11 text-sm font-semibold"
+        onclick={close}>{labels.close}</Button
+      >
       <Button
         variant="primary"
         class="rounded-xl px-4 h-11 text-sm font-semibold"
-        disabled={!canSubmit}
-        onclick={submit}
+        disabled={printing}
+        onclick={printReturnReceipt}>{labels.returnPrintReceipt}</Button
       >
-        {#if selectedItems.length === 0}
-          {labels.returnSelectItems}
-        {:else}
-          {labels.returnSubmit}
-        {/if}
-      </Button>
+    {:else}
+      <Button
+        variant="secondary"
+        class="rounded-xl px-4 h-11 text-sm font-semibold"
+        onclick={() => (show = false)}>{labels.cancel}</Button
+      >
+      {#if data?.eligible}
+        <Button
+          variant="primary"
+          class="rounded-xl px-4 h-11 text-sm font-semibold"
+          disabled={!canSubmit}
+          onclick={submit}
+        >
+          {#if selectedItems.length === 0}
+            {labels.returnSelectItems}
+          {:else}
+            {labels.returnSubmit}
+          {/if}
+        </Button>
+      {/if}
     {/if}
   {/snippet}
 </Modal>

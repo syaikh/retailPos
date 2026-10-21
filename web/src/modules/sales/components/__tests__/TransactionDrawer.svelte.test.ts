@@ -18,8 +18,8 @@ describe("TransactionDrawer.svelte source-structure guards", () => {
     expect(src).toContain("= $props()");
   });
 
-  it("imports Button and Drawer from shared/ui", () => {
-    expect(src).toContain('import { Button, Drawer } from "$shared/ui"');
+  it("imports Button, Drawer and Badge from shared/ui", () => {
+    expect(src).toContain('import { Button, Drawer, Badge } from "$shared/ui"');
   });
 
   it("imports Printer, Download icons", () => {
@@ -192,6 +192,25 @@ describe("TransactionDrawer.svelte source-structure guards", () => {
 
   it("forwards the return outcome through the onreturned callback", () => {
     expect(src).toContain("onreturned = () => {}");
-    expect(src).toContain("onreturned={() => onreturned()}");
+    expect(src).toContain("onreturned();");
+  });
+
+  it("lists the sale's returns for reprint (Phase 4.4)", () => {
+    expect(src).toContain("listReturnsBySale");
+    expect(src).toContain("let returns = $state<SaleReturn[]>");
+    expect(src).toContain("{labels.returnsOfSale}");
+    // The list rows are headers only, so printing re-fetches the full detail.
+    expect(src).toContain("getReturnById(r.id)");
+    expect(src).toContain(
+      "buildReturnReceipt(full, displayTransaction.invoice_number)",
+    );
+  });
+
+  it("offers reprint only for completed returns and refreshes the list after a new one", () => {
+    expect(src).toContain('{#if r.status === "completed"}');
+    expect(src).toContain("labels.returnPrintReceipt");
+    expect(src).toContain("loadReturns(selectedTransaction.id)");
+    // Cross-cashier lookup is redacted: no returns list there.
+    expect(src).toContain('{#if mode !== "lookup" && returns.length > 0}');
   });
 });

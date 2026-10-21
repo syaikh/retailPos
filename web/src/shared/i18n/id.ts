@@ -2279,6 +2279,15 @@ export const id = {
   returnStatusExpired: "Kedaluwarsa",
   returnExpires: "Berlaku sampai",
   returnTotalRefund: "Total Pengembalian",
+  // Return receipt (Phase 4.4). Judul sengaja "RETUR" di kedua locale: ini
+  // menandai jenis dokumen fisik di kertas dan harus terbaca sama di semua
+  // bahasa UI.
+  returnReceiptTitle: "RETUR",
+  returnReceiptNumber: "No. Retur",
+  returnOriginalInvoice: "Inv Asal",
+  returnNotes: "Catatan",
+  returnsOfSale: "Retur pada transaksi ini",
+  returnPrintReceipt: "Cetak Retur",
 } as const;
 
 export type IdLabels = typeof id;

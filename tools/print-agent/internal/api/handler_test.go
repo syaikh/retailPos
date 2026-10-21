@@ -28,6 +28,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	pm := printer.New(trans)
 	worker := queue.NewWorker(store, trans)
 	worker.SetRenderer(receipt.Render)
+	worker.SetReturnRenderer(receipt.RenderReturn)
 	go worker.Run(context.Background())
 
 	h := NewHandler(store, pm, config.Config{})
@@ -201,5 +202,90 @@ func TestPreflightDoesNotOfferAuthorizationHeader(t *testing.T) {
 	allowed := resp.Header.Get("Access-Control-Allow-Headers")
 	if strings.Contains(allowed, "Authorization") {
 		t.Fatalf("preflight still offers Authorization in %q", allowed)
+	}
+}
+
+func TestReturnPrintLifecycle(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+
+	payload := map[string]interface{}{
+		"type": "return",
+		"return_data": map[string]interface{}{
+			"invoice_number":          "RETUR-1",
+			"created_at":              "2026-08-26 11:00",
+			"return_type":             "refund",
+			"original_invoice_number": "INV-1",
+			"refund_amount":           10000,
+			"payments": []map[string]interface{}{
+				{"method": "CASH", "amount": 10000},
+			},
+			"reason":    "Barang rusak",
+			"condition": "Rusak",
+			"items": []map[string]interface{}{
+				{"name": "Kopi", "quantity": 2, "unit_price": 5000},
+			},
+		},
+		"branding": map[string]interface{}{"storeName": "Toko Test"},
+	}
+	body, _ := json.Marshal(payload)
+
+	resp, err := http.Post(srv.URL+"/print", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", resp.StatusCode)
+	}
+	var created map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode response into created: %v", err)
+	}
+	jobID, _ := created["job_id"].(string)
+	if jobID == "" {
+		t.Fatal("no job_id returned")
+	}
+
+	// The return payload must reach the return renderer and complete — not be
+	// dropped by the sale path (which would find no invoice and fail).
+	var status string
+	for i := 0; i < 100; i++ {
+		resp2, _ := http.Get(srv.URL + "/print/jobs/" + jobID)
+		var js map[string]interface{}
+		if err := json.NewDecoder(resp2.Body).Decode(&js); err != nil {
+			t.Fatalf("decode response into js: %v", err)
+		}
+		_ = resp2.Body.Close()
+		status, _ = js["status"].(string)
+		if status == "completed" || status == "failed" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if status != "completed" {
+		t.Fatalf("return job did not complete, status=%s", status)
+	}
+}
+
+// A "return" request whose return_data is missing must be rejected outright:
+// falling through to the sale path would either 400 confusingly or, worse,
+// print whatever the sale slots held.
+func TestReturnPrintMissingDataRejected(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"type":        "return",
+		"return_data": map[string]interface{}{},
+		"data":        map[string]interface{}{"invoice_number": "INV-SHOULD-NOT-PRINT"},
+	})
+	resp, err := http.Post(srv.URL+"/print", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for a return request without return data, got %d", resp.StatusCode)
 	}
 }

@@ -58,6 +58,7 @@ func main() {
 
 	worker := queue.NewWorker(store, trans)
 	worker.SetRenderer(receipt.Render)
+	worker.SetReturnRenderer(receipt.RenderReturn)
 
 	var wg sync.WaitGroup
 	wg.Add(1)

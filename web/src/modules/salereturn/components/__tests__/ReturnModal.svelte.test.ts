@@ -80,4 +80,26 @@ describe("ReturnModal.svelte source-structure guards", () => {
     expect(src).toContain("hasSelectable");
     expect(src).toContain("labels.returnNoSelectableItems");
   });
+
+  it("keeps a completed return open on a result view instead of closing (Phase 4.4)", () => {
+    expect(src).toContain("completed = ret");
+    expect(src).toContain('ret.status === "completed"');
+    // The pending path still closes: there is nothing to print yet.
+    expect(src).toContain("show = false");
+  });
+
+  it("offers printing the just-completed return receipt", () => {
+    expect(src).toContain("buildReturnReceipt");
+    expect(src).toContain("printReceiptWithToast");
+    expect(src).toContain("labels.returnPrintReceipt");
+    // The return number becomes the receipt's own document number, and the
+    // sale's invoice from the snapshot is the "Inv asal" link.
+    expect(src).toContain("buildReturnReceipt(completed, data.invoice_number)");
+  });
+
+  it("clears the result state on close and on every reopen", () => {
+    // Without this a second return in the same session would open straight
+    // onto the previous return's receipt screen.
+    expect(src).toContain("completed = null");
+  });
 });

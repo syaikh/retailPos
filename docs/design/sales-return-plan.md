@@ -17,7 +17,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Phases 1, 2, 3 and 4.3 implemented; Phase 3.4 (expiry sweeper) deliberately not built; Phase 4.4/4.5 pending |
+| Status | Phases 1, 2, 3, 4.3, 4.4 and 4.5 implemented; Phase 3.4 (expiry sweeper) deliberately not built |
 | Date | 2026-09-04 |
 | Amendments | 2026-10-19 (plan review, see "Review amendments") |
 | PRD | `docs/prd/PRD-Sales-Return.md` |
@@ -809,6 +809,48 @@ netting contract is met without it).
 
 ### Step 4.4: Receipt Reprint (Day 12)
 
+**Implemented.** The five content bullets below are met by a parallel payload
+type rather than an overloaded sale receipt:
+
+- **Payload shape.** `printReceipt.svelte.ts` now defines `ReceiptBase`
+  (document number, timestamp, lines — the ~30% both documents share),
+  `ReceiptData` (sale, `document_type?: "sale"` so existing builders are
+  untouched) and `ReturnReceiptData` (`document_type: "return"`, carrying
+  `return_type`, `original_invoice_number`, `refund_amount`, payout `payments`,
+  translated `reason`/`condition`/`notes` and `replacements`). The store and
+  print service accept the `PrintDocument` union and narrow on the tag; the
+  layouts genuinely differ (no DPP/PPN block, Penggantian/Pengembalian
+  section), so a single interface would have left ~10 fields meaningless in
+  half the states.
+- **Transport.** `print-service.ts` tags every agent POST with `type` and
+  routes return payloads under a dedicated `return_data` key. Go decodes JSON
+  into concrete structs — unknown fields under the sale `data` key would be
+  silently dropped, so an agent unaware of the shape would print a wrong
+  receipt. With the separate key, version skew degrades safely both ways: an
+  old agent 400s "missing return data" (the shared print-failure toast
+  appears) and an old frontend payload renders as a sale.
+- **Agent.** `receipt.ReturnReceipt` + `RenderReturn` (sharing
+  `formatRupiah`/`divider` with `Render`; hardcoded Indonesian labels, same
+  policy as the sale receipt — the overlay is the translated surface),
+  `queue.Job.Type` dispatch, `SetReturnRenderer` wired in main.
+- **Entry points.** `ReturnModal` stays open on a result view after a
+  **completed** return and offers Print (pending closes as before — nothing to
+  print yet); `TransactionDrawer` gains a "Returns of this sale" section
+  (reuses the previously unconsumed `listReturnsBySale`) with a per-return
+  reprint for completed returns. Lookup (redacted cross-cashier) mode is
+  excluded.
+- **No backend change.** `presentReturn` already emits `return_number`,
+  `reason`, `condition`, per-line `product_name` and payout
+  `payment_method_code`; reason/condition codes are translated at build time
+  (`lib/receipt.ts`). The original invoice number is a builder parameter that
+  both callers already know (drawer displays it, modal snapshot carries it).
+  `ListReturns` is headers-only, so reprint re-fetches full detail via
+  `getReturnById`.
+- **Covered by:** print-service routing tests, builder unit tests, overlay /
+  ReturnModal / TransactionDrawer source-structure guards, and Go tests for
+  `RenderReturn`, the worker dispatch and the handler's `return_data`
+  decode/rejection.
+
 - Generate return receipt with "RETUR" header
 - Link to original invoice number
 - **For replacement**: Show "Penggantian" with replacement item details (no refund amount)
@@ -819,7 +861,13 @@ netting contract is met without it).
 
 ### Step 4.5: E2E Tests (Day 12)
 
-**File:** `tests/e2e/sales-return.spec.ts`
+**Implemented** (see `tests/e2e/sales-return-api.spec.ts`). Shipped as an
+API-layer spec (`*-api.spec.ts` convention) under its own name rather than the
+planned `sales-return.spec.ts`: the five scenarios below are HTTP contract
+behaviour, the modal in front of them is thin and already covered by the
+salereturn component guards, and API specs sidestep the login/WS/UI timing
+that makes browser specs flaky. 8 tests: the 5 planned scenarios plus a
+rejection flow and two RBAC guards.
 
 | Test | Description |
 |------|-------------|
@@ -828,6 +876,44 @@ netting contract is met without it).
 | `TestE2E_SalesReturn_WindowExpired` | Return rejected after window |
 | `TestE2E_SalesReturn_ManagerApproval` | High-value return → manager approves |
 | `TestE2E_SalesReturn_ApprovalExpired` | Approval times out |
+
+Determinism levers (each scenario drives server-side decisions instead of
+hoping for them):
+
+- **Replacement vs refund** is decided from the product's global
+  `product_stock` row at process time (`proposeOutcomes`), so each test creates
+  its own product and drives its stock through `POST /inventory/adjust` (signed
+  delta) — "stock available" and "last unit" are exact.
+- **The approval gate** (`total_refund_amount > return.approval_threshold`,
+  `loadPolicy` accepts `>= 0`) is forced with `return.approval_threshold=0` for
+  the approval/expiry scenarios and an unreachable value for the inline ones.
+  `app_settings` is global to the database, so the spec restores the seeded
+  defaults (`500000`/`1`) in `afterAll` — safe under CI because each e2e shard
+  provisions its own database and `workers:1` + `fullyParallel:false` keep specs
+  sequential within it.
+- **Approval-window expiry** (the only end-to-end exercise of lazy expiry,
+  Step 3.4 not built) backdates both `sale_returns.expires_at` (drives the
+  effective status in `presentReturn`) and `return_approvals.expires_at` (drives
+  the approval block and `ListPending`), then asserts the approve attempt 409s
+  and flips the row.
+
+Behavioural findings surfaced while writing it (latent, no user-visible impact
+— the frontend branches on `status`, and the queue/detail views re-fetch, so
+they are recorded here rather than fixed in this step):
+
+1. `ProcessReturn`'s 201 body carries `approval: null` — the pending branch
+   calls `InsertApproval` (service.go) but never assigns `ret.Approval`, so
+   `presentReturn` emits nil. `ApproveReturn`/`RejectReturn` have the sibling
+   problem: they mutate `ret.Status` but not the loaded approval row, so the
+   reject response reports `approval.status: "pending"` next to
+   `status: "cancelled"`. The spec therefore reads approval state back through
+   `GET /sales/returns/:id`.
+2. `returnItemsOf` writes `outcome: "written_off"` unconditionally, so a parked
+   (pre-approval) item already presents as written off.
+3. `GET /sales/:id/returnable` gates on the **requesting actor's** open shift,
+   not the sale's cashier's — a shift-less superadmin always reads
+   `shift_not_open`. Correct as designed (the caller is the one who would
+   process the return), but worth knowing for any future API consumer.
 
 ---
 
@@ -860,7 +946,9 @@ netting contract is met without it).
 | `web/src/modules/salereturn/stores/salereturn-store.svelte.ts` | State management |
 | `web/src/modules/salereturn/components/__tests__/ReturnModal.svelte.test.ts` | Modal tests |
 | `web/src/modules/salereturn/components/__tests__/ApprovalModal.svelte.test.ts` | Approval tests |
-| `tests/e2e/sales-return.spec.ts` | E2E tests |
+| `web/src/modules/salereturn/lib/receipt.ts` | Return-receipt payload builder (Step 4.4) |
+| `web/src/modules/salereturn/lib/__tests__/receipt.test.ts` | Builder tests (Step 4.4) |
+| `tests/e2e/sales-return-api.spec.ts` | E2E tests (planned as `sales-return.spec.ts`; shipped API-layer per the `*-api.spec.ts` convention — Step 4.5) |
 
 ### Modified Files
 
@@ -873,9 +961,19 @@ netting contract is met without it).
 | `internal/salereturn/repository.go`, `internal/salereturn/service.go` | `RefundTotalForWindow` + `ReportRefundStatsProvider` implement the report port (Phase 4.3) |
 | `internal/wiring/wiring.go` | Wire `report.RefundStatsProvider` + salereturn routes/ports |
 | `docs/roadmap/upcoming-features.md` | Update return policy status |
-| `web/src/shared/i18n/en.ts` | Add return-related strings |
-| `web/src/shared/i18n/id.ts` | Add return-related strings |
+| `web/src/shared/i18n/en.ts` | Add return-related strings (+ Phase 4.4 receipt labels) |
+| `web/src/shared/i18n/id.ts` | Add return-related strings (+ Phase 4.4 receipt labels) |
 | `web/src/modules/pos/components/FindTransaction.svelte` | Add "Return Items" button |
+| `web/src/shared/stores/printReceipt.svelte.ts` | `PrintDocument` union: `ReceiptBase` + `ReturnReceiptData` discriminant (Phase 4.4) |
+| `web/src/shared/services/print-service.ts` | Agent payload `type` + `return_data` routing (Phase 4.4) |
+| `web/src/app/components/ReceiptPrintOverlay.svelte` | Return-receipt preview branch, shared header/footer snippets (Phase 4.4) |
+| `web/src/modules/sales/components/TransactionDrawer.svelte` | "Returns of this sale" reprint section (Phase 4.4) |
+| `web/src/modules/salereturn/components/ReturnModal.svelte` | Post-completion result view with Print (Phase 4.4) |
+| `web/src/modules/salereturn/lib/labels.ts` | `returnReasonLabel`/`returnConditionLabel` code→text translators (Phase 4.4) |
+| `tools/print-agent/internal/receipt/model.go`, `renderer.go` | `ReturnReceipt` + `RenderReturn` ("RETUR" header, Penggantian/Pengembalian) (Phase 4.4) |
+| `tools/print-agent/internal/queue/queue.go`, `worker.go` | `Job.Type` dispatch to the return renderer (Phase 4.4) |
+| `tools/print-agent/internal/api/handler.go` | `return_data` decode + type dispatch (Phase 4.4) |
+| `tools/print-agent/cmd/print-agent/main.go` | Wire `SetReturnRenderer` (Phase 4.4) |
 
 ---
 

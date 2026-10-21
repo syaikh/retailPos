@@ -74,3 +74,33 @@ export function returnStatusVariant(
       return "muted";
   }
 }
+
+/** Maps the stored reason code (processReturn request wire value) to display
+ * text. Receipt payloads carry translated text, never wire codes — neither the
+ * print agent nor the paper translates. Unknown codes pass through verbatim so
+ * a future reason renders as-is instead of blank. */
+export function returnReasonLabel(code: string): string {
+  switch (code) {
+    case "damaged":
+      return labels.returnReasonCodeDamaged;
+    case "defective":
+      return labels.returnReasonCodeDefective;
+    case "wrong_item":
+      return labels.returnReasonCodeWrongItem;
+    case "other":
+      return labels.returnReasonCodeOther;
+    default:
+      return code;
+  }
+}
+
+/** Maps the stored condition code to display text; same contract as
+ * returnReasonLabel. Phase 1 locks condition to 'damaged' server-side. */
+export function returnConditionLabel(code: string): string {
+  switch (code) {
+    case "damaged":
+      return labels.returnConditionDamaged;
+    default:
+      return code;
+  }
+}

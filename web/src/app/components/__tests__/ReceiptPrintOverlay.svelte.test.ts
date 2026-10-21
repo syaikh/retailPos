@@ -88,4 +88,33 @@ describe("ReceiptPrintOverlay.svelte source-structure guards", () => {
     expect(src).toContain("{labels.receiptThanks}");
     expect(src).toContain("{labels.receiptNoReturn}");
   });
+
+  it("renders a return receipt behind the document_type discriminant (Phase 4.4)", () => {
+    expect(src).toContain('{#if $printReceipt.document_type === "return"}');
+    expect(src).toContain("{labels.returnReceiptTitle}");
+    expect(src).toContain("{labels.returnOriginalInvoice}");
+    expect(src).toContain("$printReceipt.original_invoice_number");
+    expect(src).toContain("$printReceipt.reason");
+    expect(src).toContain("$printReceipt.condition");
+    // The return number doubles as the receipt's own document number.
+    expect(src).toContain("{labels.returnReceiptNumber}");
+  });
+
+  it("branches the return layout into replacement and refund blocks", () => {
+    expect(src).toContain('{#if $printReceipt.return_type === "replacement"}');
+    expect(src).toContain("{labels.returnReplacement}");
+    expect(src).toContain("{labels.returnTotalRefund}");
+    expect(src).toContain("$printReceipt.refund_amount");
+    expect(src).toContain("$printReceipt.replacements");
+    // The refund block lists payout tenders; the replacement block shows no
+    // money at all.
+    expect(src).toContain("{#if $printReceipt.payments");
+  });
+
+  it("shares the shop header and footer between both document layouts", () => {
+    expect(src).toContain("{#snippet shopHeader()}");
+    expect(src).toContain("{#snippet shopFooter()}");
+    expect(src).toContain("{@render shopHeader()}");
+    expect(src).toContain("{@render shopFooter()}");
+  });
 });

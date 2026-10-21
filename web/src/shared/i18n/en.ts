@@ -2263,4 +2263,13 @@ export const en: Labels = {
   returnStatusExpired: "Expired",
   returnExpires: "Valid until",
   returnTotalRefund: "Total Refund",
+  // Return receipt (Phase 4.4). The title is deliberately "RETUR" in both
+  // locales: it identifies the physical document type on paper, per plan, and
+  // must read the same regardless of UI language.
+  returnReceiptTitle: "RETUR",
+  returnReceiptNumber: "Return No.",
+  returnOriginalInvoice: "Orig. Invoice",
+  returnNotes: "Notes",
+  returnsOfSale: "Returns of this sale",
+  returnPrintReceipt: "Print Return Receipt",
 };
