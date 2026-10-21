@@ -115,6 +115,42 @@ describe("buildReturnReceipt", () => {
     expect(out.reason).toBe("custom_code");
   });
 
+  it("passes an unknown condition code through verbatim instead of blanking", () => {
+    const out = buildReturnReceipt(
+      saleReturn({ condition: "custom_condition" }),
+      "INV-1",
+    );
+    expect(out.condition).toBe("custom_condition");
+  });
+
+  it("collects replacement lines across every returned item", () => {
+    // Each replacement names its own returned line: ProcessReturn rejects
+    // mixed-product replacements, so the flatMap must aggregate per-item.
+    const out = buildReturnReceipt(
+      saleReturn({
+        return_type: "replacement",
+        total_refund_amount: 0,
+        payments: [],
+        items: [
+          item({
+            id: 11,
+            replacements: [{ id: 1, product_id: 3, quantity: 1 }],
+          }),
+          item({
+            id: 12,
+            product_name: "Teh",
+            replacements: [{ id: 2, product_id: 4, quantity: 3 }],
+          }),
+        ],
+      }),
+      "INV-1",
+    );
+    expect(out.replacements).toEqual([
+      { name: "Kopi Hitam", quantity: 1 },
+      { name: "Teh", quantity: 3 },
+    ]);
+  });
+
   it("omits empty optional fields (notes, replacements)", () => {
     const out = buildReturnReceipt(saleReturn(), "INV-1");
     expect("notes" in out).toBe(false);

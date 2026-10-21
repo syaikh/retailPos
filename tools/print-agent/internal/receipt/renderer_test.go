@@ -147,6 +147,25 @@ func TestRenderReturnMissingInvoice(t *testing.T) {
 	}
 }
 
+// A return whose original invoice is unknown must still print — it just omits
+// the "Inv asal" link line instead of rendering an empty one.
+func TestRenderReturnOmitsOriginalInvoiceWhenEmpty(t *testing.T) {
+	r := sampleReturnRefund()
+	r.OriginalInvoiceNumber = ""
+	out, err := RenderReturn(r, Branding{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(out)
+	if strings.Contains(s, "Inv asal:") {
+		t.Fatalf("receipt without an original invoice must omit the link line\n%s", s)
+	}
+	// The return's own number and the rest of the document still render.
+	if !strings.Contains(s, "No retur: RETUR-0001") {
+		t.Fatalf("return number missing from receipt\n%s", s)
+	}
+}
+
 func TestRenderReturnStartsWithInitEndsWithCut(t *testing.T) {
 	out, err := RenderReturn(sampleReturnRefund(), Branding{})
 	if err != nil {
