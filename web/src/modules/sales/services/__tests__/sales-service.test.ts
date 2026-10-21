@@ -5,7 +5,7 @@ vi.mock("$shared/api/http-client", () => ({
   apiFetch: (...args: unknown[]) => mockFetch(...args),
 }));
 
-vi.mock("$modules/auth", () => ({
+vi.mock("$shared/api/session", () => ({
   getAuthToken: () => "mock-token",
 }));
 
@@ -129,7 +129,9 @@ describe("sales-service", () => {
   });
 
   it("exportSales returns null when no token", async () => {
-    vi.mocked(await import("$modules/auth")).getAuthToken = vi.fn(() => null);
+    vi.mocked(await import("$shared/api/session")).getAuthToken = vi.fn(
+      () => null,
+    );
 
     const { exportSales } = await import("../sales-service");
     const result = await exportSales("csv", {

@@ -12,17 +12,19 @@
 > introduced to `web/` after this ADR was written, violations grew from ~20+ to
 > ~27, and several test files pinned the deep-import strings. Enforcement is
 > now in place via core-ESLint `no-restricted-imports` (no extra plugin),
-> generated per module in `web/eslint.config.js`, starting at `warn` severity.
+> generated per module in `web/eslint.config.js`, at `error` severity (it
+> started at `warn` and was raised once the last violations were cleared).
 > All ~27 cross-module deep imports were converted to barrel imports and the
 > `shared` → `admin` dependency inversion was fixed by moving
 > `app-settings-service` to `$shared/services/`. The `shared` → `$modules/auth`
 > inversions (incl. the `http-client` ↔ `auth` cycle) were resolved the same
 > day by relocating the session kernel (token refresh, interceptors, logout,
-> auth store, session helpers) into `$shared` — `modules/auth` re-exports it,
-> with shims and a runtime identity test guarding the single-instance
-> invariant. `shared/` is now free of `$modules` imports; lint reports 0
-> errors, 0 warnings. Rationale and verification:
-> `docs/design/frontend-import-boundary-enforcement-plan.md`.
+> auth store, session helpers) into `$shared`; the transitional re-export
+> shims were then deleted, all `useAuthStore`/`getAuthToken` consumers were
+> repointed at `$shared`, and a runtime identity test guards the
+> single-instance invariant of the kernel re-exports. `shared/` is now free
+> of `$modules` imports; lint reports 0 errors, 0 warnings. Rationale and
+> verification: `docs/design/frontend-import-boundary-enforcement-plan.md`.
 
 ---
 

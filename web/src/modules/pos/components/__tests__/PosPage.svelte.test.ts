@@ -40,7 +40,9 @@ describe("PosPage.svelte source-structure guards", () => {
   });
 
   it("imports auth store and shift store", () => {
-    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
+    expect(src).toContain(
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
+    );
     expect(src).toContain('import { useShiftStore } from "$modules/shifts"');
   });
 

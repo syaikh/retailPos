@@ -35,7 +35,9 @@ describe("PricingRulesPage.svelte source-structure guards", () => {
   });
 
   it("imports auth store", () => {
-    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
+    expect(src).toContain(
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
+    );
   });
 
   it("imports PricingRule type", () => {

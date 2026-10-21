@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { SvelteURLSearchParams } from "svelte/reactivity";
   import { toast } from "$shared/stores/toast.svelte";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { goto } from "$app/router";
   import { labels } from "$shared/i18n";
   import { useWebSocket } from "$shared/api/websocket";

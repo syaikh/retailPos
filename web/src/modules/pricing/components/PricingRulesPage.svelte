@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
   import { toast } from "$shared/stores/toast.svelte";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import {
     getPricingRules,
     createPricingRule,
@@ -15,11 +15,7 @@
     getStores,
     checkConflicts,
   } from "../services/pricing-service";
-  import {
-    getCategories,
-    getBrands,
-    getProductsByIds,
-  } from "$modules/product";
+  import { getCategories, getBrands, getProductsByIds } from "$modules/product";
   import type { PricingRule, CreatePricingRulePayload } from "../types";
   import type { ConflictRule } from "../services/pricing-service";
   import type { PricingRuleListParams } from "../services/pricing-service";

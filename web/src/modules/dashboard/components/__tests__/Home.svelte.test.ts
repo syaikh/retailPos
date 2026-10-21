@@ -34,6 +34,12 @@ describe("Home.svelte source-structure guards", () => {
     expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
+  it("imports auth store from $shared", () => {
+    expect(src).toContain(
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
+    );
+  });
+
   it("uses $state for dashboard data", () => {
     expect(src).toContain("let todaysRevenue = $state");
     expect(src).toContain("let todaysSales = $state");

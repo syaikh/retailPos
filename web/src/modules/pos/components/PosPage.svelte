@@ -36,7 +36,7 @@
   import type { Customer } from "$modules/customers";
 
   import { ShoppingCart } from "lucide-svelte";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { useShiftStore } from "$modules/shifts";
   import { labels, t } from "$shared/i18n";
   import ProductSearchPanel from "./ProductSearchPanel.svelte";

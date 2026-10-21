@@ -1,10 +1,7 @@
 <script>
   import { goto, getPath, subscribe } from "$app/router";
-  import {
-    useAuthStore,
-    startProactiveRefresh,
-    handleCrossTabLogout,
-  } from "$modules/auth";
+  import { startProactiveRefresh, handleCrossTabLogout } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { initWebSocket } from "$app/providers/websocket";
   import { initAuth } from "$app/providers/auth-init";
   import ReceiptPrintOverlay from "$app/components/ReceiptPrintOverlay.svelte";

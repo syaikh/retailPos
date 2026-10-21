@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { goto } from "$app/router";
   import { useStockOpnameStore } from "../stores/stock-opname-store.svelte";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { toast } from "$shared/stores/toast.svelte";
   import { Button, Input, Modal, Pagination, SelectSearch } from "$shared/ui";
   import { Plus, Trash2 } from "lucide-svelte";

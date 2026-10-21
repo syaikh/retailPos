@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { usePurchaseOrderStore } from "../stores/po-store.svelte";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { toast } from "$shared/stores/toast.svelte";
   import { Pagination } from "$shared/ui";
   import type { PurchaseOrder } from "../types";

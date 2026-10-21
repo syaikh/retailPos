@@ -1,7 +1,8 @@
 <script lang="ts">
   import { Button } from "$shared/ui";
   import { labels } from "$shared/i18n";
-  import { logout, useAuthStore } from "$modules/auth";
+  import { logout } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { fade, fly } from "svelte/transition";
   import { LockKeyhole } from "lucide-svelte";
   import PasswordChangeForm from "./PasswordChangeForm.svelte";

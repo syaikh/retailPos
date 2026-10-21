@@ -9,7 +9,7 @@
   import { labels, t } from "$shared/i18n";
   import { Loader2, ChevronLeft, ChevronRight } from "lucide-svelte";
   import { getTodayInJakarta } from "$shared/utils/jakartaTime";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import type { PurchaseOrderItem } from "../types";
   import type { ProductSupplier } from "$modules/supplier";
 

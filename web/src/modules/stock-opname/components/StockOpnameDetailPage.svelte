@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { getPath, goto } from "$app/router";
   import { useStockOpnameStore } from "../stores/stock-opname-store.svelte";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { toast } from "$shared/stores/toast.svelte";
   import {
     Badge,

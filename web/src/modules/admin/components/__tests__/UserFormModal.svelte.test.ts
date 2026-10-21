@@ -28,6 +28,12 @@ describe("UserFormModal.svelte source-structure guards", () => {
     expect(src).toContain('import { labels } from "$shared/i18n"');
   });
 
+  it("imports auth store from $shared", () => {
+    expect(src).toContain(
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
+    );
+  });
+
   it("renders Modal with dynamic title", () => {
     expect(src).toContain("title={modalMode ===");
   });

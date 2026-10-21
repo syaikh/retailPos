@@ -1,4 +1,5 @@
-import { restoreSession, useAuthStore } from "$modules/auth";
+import { restoreSession } from "$modules/auth";
+import { useAuthStore } from "$shared/stores/auth.svelte";
 
 export async function initAuth(): Promise<void> {
   const store = useAuthStore();

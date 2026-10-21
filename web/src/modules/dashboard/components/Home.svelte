@@ -15,7 +15,7 @@
   } from "lucide-svelte";
   import { useWebSocket } from "$shared/api/websocket";
   import { labels } from "$shared/i18n";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { PendingSettlementsModal } from "$modules/consignment";
   import type { Component } from "svelte";
 

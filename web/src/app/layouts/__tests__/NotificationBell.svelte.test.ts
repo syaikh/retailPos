@@ -28,6 +28,12 @@ describe("NotificationBell.svelte source-structure guards", () => {
     expect(src).toContain("notifications.markAsRead");
   });
 
+  it("imports auth store from $shared for permission gating", () => {
+    expect(src).toContain(
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
+    );
+  });
+
   it("permission-gates navigation in handleNotificationClick", () => {
     expect(src).toContain('const targetPath = n.navigateTo.split("?")[0]');
     expect(src).toContain("const requiredPerms =");

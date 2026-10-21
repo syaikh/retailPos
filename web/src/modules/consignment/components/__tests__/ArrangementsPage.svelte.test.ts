@@ -14,6 +14,12 @@ function getSource(): string {
 describe("ArrangementsPage.svelte source-structure guards", () => {
   const src = getSource();
 
+  it("imports auth store from $shared", () => {
+    expect(src).toContain(
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
+    );
+  });
+
   it("gates the force-return action behind consignment.force_return", () => {
     expect(src).toContain(
       'userPermissions.includes("consignment.force_return")',

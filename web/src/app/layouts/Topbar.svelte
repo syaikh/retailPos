@@ -5,7 +5,7 @@
     getCurrentJakartaClock,
   } from "$shared/utils/jakartaTime";
   import NotificationBell from "$app/layouts/NotificationBell.svelte";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { useShiftStore } from "$modules/shifts";
   import { Menu, User } from "lucide-svelte";

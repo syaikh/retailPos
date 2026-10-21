@@ -23,7 +23,7 @@
     formatJakartaDateStr,
     JAKARTA_OFFSET_MS,
   } from "$shared/utils/jakartaTime";
-  import { getAuthToken } from "$modules/auth";
+  import { getAuthToken } from "$shared/api/session";
   import { toast } from "$shared/stores/toast.svelte";
   import { onMount } from "svelte";
   import { labels } from "$shared/i18n";

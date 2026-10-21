@@ -20,7 +20,10 @@ describe("Sidebar.svelte source-structure guards", () => {
 
   it("imports auth module functions", () => {
     expect(src).toContain(
-      'import { logout, useAuthStore, updatePreferences } from "$modules/auth"',
+      'import { logout, updatePreferences } from "$modules/auth"',
+    );
+    expect(src).toContain(
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
     );
   });
 

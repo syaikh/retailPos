@@ -15,7 +15,7 @@
     canReceiveReturnApprovalNotifications,
     type Notification,
   } from "$shared/stores/notifications.svelte";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { labels, t } from "$shared/i18n";
   import { routePermissions } from "$app/config/permissions";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";

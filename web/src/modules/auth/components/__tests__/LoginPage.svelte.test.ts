@@ -37,9 +37,11 @@ describe("LoginPage.svelte source-structure guards", () => {
     expect(src).toContain("settingsStore.logoPath");
   });
 
-  it("imports login and useAuthStore from auth module", () => {
+  it("imports login from the auth module and the store from $shared", () => {
     expect(src).toContain('import { login } from "$modules/auth"');
-    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
+    expect(src).toContain(
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
+    );
   });
 
   it("uses $state for form fields", () => {

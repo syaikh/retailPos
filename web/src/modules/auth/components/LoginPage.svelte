@@ -2,7 +2,7 @@
   import { Button, Input } from "$shared/ui";
   import { goto } from "$app/router";
   import { login } from "$modules/auth";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { getDefaultRoute } from "$shared/utils/default-route";
   import { Eye, EyeOff, Store, ShieldCheck } from "lucide-svelte";
   import { fade, fly } from "svelte/transition";

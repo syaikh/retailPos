@@ -21,6 +21,15 @@ describe("main.svelte source-structure guards", () => {
     expect(src).toContain("const authStore = useAuthStore()");
   });
 
+  it("takes session state from $shared and refresh flows from the auth barrel", () => {
+    expect(src).toContain(
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
+    );
+    expect(src).toContain(
+      'import { startProactiveRefresh, handleCrossTabLogout } from "$modules/auth"',
+    );
+  });
+
   it("blocks rendering while a first-login password rotation is owed", () => {
     const gate = src.indexOf("{:else if authStore.mustChangePassword}");
     const login = src.indexOf('{:else if currentPath === "/login"}');

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useAuthStore } from "../auth-store.svelte";
-import type { User } from "../../types";
+import { useAuthStore } from "../auth.svelte";
+import type { User } from "$shared/types/user";
 
 describe("auth-store", () => {
   beforeEach(() => {

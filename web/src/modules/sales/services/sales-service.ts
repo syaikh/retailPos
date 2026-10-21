@@ -1,5 +1,5 @@
 import { apiFetch } from "$shared/api/http-client";
-import { getAuthToken } from "$modules/auth";
+import { getAuthToken } from "$shared/api/session";
 import type {
   Sale,
   SaleFilters,

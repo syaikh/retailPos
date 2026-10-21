@@ -31,7 +31,9 @@ describe("UsersPage.svelte source-structure guards", () => {
   });
 
   it("imports auth store for RBAC", () => {
-    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
+    expect(src).toContain(
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
+    );
   });
 
   // ── RBAC guards ──────────────────────────────────────────────────────────────

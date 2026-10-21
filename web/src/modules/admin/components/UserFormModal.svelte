@@ -8,7 +8,7 @@
     UserRoundCog,
   } from "lucide-svelte";
   import { getUsers } from "$modules/admin";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { Roles } from "$shared/constants/roles";
   import { labels } from "$shared/i18n";
   import type { Role, User } from "../types";

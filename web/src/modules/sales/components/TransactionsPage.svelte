@@ -9,7 +9,7 @@
   import { useSalesStore } from "../stores/sales-store.svelte";
   import type { Sale, SaleLookupDetail } from "../types";
   import { createQueryManager } from "../lib/query-manager";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { useShiftStore } from "$modules/shifts";
   import { goto, subscribe as subscribeRoute } from "$app/router";

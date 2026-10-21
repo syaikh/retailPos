@@ -19,7 +19,7 @@ const importBoundaryConfigs = moduleNames.map((name) => ({
   files: [`src/modules/${name}/**/*.{ts,svelte}`],
   rules: {
     'no-restricted-imports': [
-      'warn',
+      'error',
       {
         patterns: [
           {
@@ -39,7 +39,7 @@ const sharedNoModuleImports = {
   files: ['src/shared/**/*.{ts,svelte}'],
   rules: {
     'no-restricted-imports': [
-      'warn',
+      'error',
       {
         patterns: [
           {

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Implemented** (2026-10-21) — enforcement at `warn` severity; shared→auth debt resolved same day (§7) |
+| Status | **Implemented** (2026-10-21) — enforcement at `error` severity; shared→auth debt resolved same day (§7), shims removed + call sites repointed (§8) |
 | Date | 2026-10-21 |
 | Supersedes | `docs/adr/ADR_Frontend_Module_Import_Boundaries.md` (On Hold, 2026-08-20) |
 | Scope | `web/src/modules/` cross-module imports, `web/eslint.config.js` |
@@ -183,6 +183,38 @@ machinery into `$shared`, inverting the dependency instead of suppressing it:
   singletons against a future re-split.
 - All 4 `eslint-disable` debt comments removed; `npx eslint src` → **0
   errors, 0 warnings**.
-- Follow-up (PR2, optional): delete the shims, repoint the ~33
-  `useAuthStore`/`getAuthToken` import sites (36 files, incl. tests) at
-  `$shared`, and flip the boundary rule to `error`.
+- Follow-up (PR2, optional): done the same day — see §8.
+
+## 8. PR2: shims removed, rule at error (2026-10-21)
+
+The transitional surface described in §7 is gone; session state now has a
+single import path (`$shared`):
+
+- Deleted the re-export shims `modules/auth/lib/session.ts` and
+  `modules/auth/stores/auth-store.svelte.ts` (and their empty parent
+  directories).
+- Repointed all `useAuthStore` / `getAuthToken` consumers at
+  `$shared/stores/auth.svelte` / `$shared/api/session` — 30 source files
+  across `app/` and `modules/`, plus the source-asserting tests that pinned
+  the old import strings. Mixed imports were split (e.g. Sidebar keeps
+  `logout, updatePreferences` on the barrel and takes `useAuthStore` from
+  `$shared`).
+- The `$modules/auth` barrel no longer exports `useAuthStore` /
+  `getAuthToken` — the auth module owns flows (login/logout/refresh/…)
+  only; re-adding a session-state export would fork the store singleton.
+- The store and session test suites moved with their implementations:
+  `shared/stores/__tests__/auth.test.ts`, `shared/api/__tests__/session.test.ts`.
+- Behavior mocks retargeted: `sales-service.test.ts` now mocks
+  `$shared/api/session`; `PurchaseOrdersPage.pagination.test.ts` mocks
+  `$shared/stores/auth.svelte`.
+- `kernel-identity.test.ts` reduced to what can still diverge: the
+  auth-service ↔ kernel re-export identity (refresh lock / cross-tab
+  leader). Its second case now asserts the barrel does **not** export
+  session state again.
+- Both boundary `no-restricted-imports` rules flipped `warn` → `error`
+  in `web/eslint.config.js`; any future violation fails `npm run lint`.
+
+Verified: `npx eslint src` → 0 errors/0 warnings (at `error` severity),
+`npx prettier --check` clean on all touched files, targeted vitest green
+(47 files, 439 tests) covering auth, shared, layouts, sales, purchase
+orders, admin, customers, settings, pos.

@@ -66,7 +66,7 @@ describe("AuditLogsFilterToolbar.svelte source-structure guards", () => {
   });
 
   it("imports getAuthToken for export auth", () => {
-    expect(src).toContain('import { getAuthToken } from "$modules/auth"');
+    expect(src).toContain('import { getAuthToken } from "$shared/api/session"');
   });
 
   it("imports toast for export notifications", () => {

@@ -26,7 +26,7 @@ vi.mock(
   },
 );
 
-vi.mock("$modules/auth", async (importOriginal) => {
+vi.mock("$shared/stores/auth.svelte", async (importOriginal) => {
   const orig = await importOriginal<object>();
   return {
     ...orig,

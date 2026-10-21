@@ -77,7 +77,9 @@ describe("TransactionsPage.svelte source-structure guards", () => {
   });
 
   it("imports auth store and RBAC", () => {
-    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
+    expect(src).toContain(
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
+    );
     expect(src).toContain(
       'import { useRBAC } from "$shared/composables/useRBAC.svelte"',
     );

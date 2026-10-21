@@ -41,7 +41,7 @@ describe("TransactionFilters.svelte source-structure guards", () => {
   });
 
   it("imports getAuthToken", () => {
-    expect(src).toContain('import { getAuthToken } from "$modules/auth"');
+    expect(src).toContain('import { getAuthToken } from "$shared/api/session"');
   });
 
   it("imports toast", () => {

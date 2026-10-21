@@ -15,7 +15,9 @@ describe("CategoriesPage.svelte source-structure guards", () => {
   const src = getSource();
 
   it("imports auth store", () => {
-    expect(src).toContain('import { useAuthStore } from "$modules/auth"');
+    expect(src).toContain(
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
+    );
   });
 
   it("imports Jakarta time utility", () => {

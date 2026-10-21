@@ -12,8 +12,9 @@ describe("ForceChangePasswordModal.svelte source-structure guards", () => {
   const src = getSource("ForceChangePasswordModal.svelte");
 
   it("imports logout and the auth store, and delegates to the shared form", () => {
+    expect(src).toContain('import { logout } from "$modules/auth"');
     expect(src).toContain(
-      'import { logout, useAuthStore } from "$modules/auth"',
+      'import { useAuthStore } from "$shared/stores/auth.svelte"',
     );
     expect(src).toContain(
       'import PasswordChangeForm from "./PasswordChangeForm.svelte"',

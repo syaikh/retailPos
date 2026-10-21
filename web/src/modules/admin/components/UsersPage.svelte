@@ -11,7 +11,7 @@
   import { getActiveStores } from "$modules/stores";
   import { toast } from "$shared/stores/toast.svelte";
   import { debounce } from "$shared/utils/debounce";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { Permissions } from "$shared/constants/permissions";
   import { Roles } from "$shared/constants/roles";

@@ -20,7 +20,7 @@
   } from "$shared/ui";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { Permissions } from "$shared/constants/permissions";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { settingsStore } from "$shared/stores/settings.svelte";
   import { labels } from "$shared/i18n";
   import { getApiErrorMessage } from "$shared/utils/error-utils";

@@ -212,7 +212,7 @@ describe("auth-service", () => {
 
     it("raises the blocking password gate on 428 and re-rejects", async () => {
       const interceptor = await capturedErrorInterceptor();
-      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      const { useAuthStore } = await import("$shared/stores/auth.svelte");
       const store = useAuthStore();
       store.mustChangePassword = false;
 
@@ -224,7 +224,7 @@ describe("auth-service", () => {
 
     it("does not raise the password gate for other failures", async () => {
       const interceptor = await capturedErrorInterceptor();
-      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      const { useAuthStore } = await import("$shared/stores/auth.svelte");
       const store = useAuthStore();
       store.mustChangePassword = false;
 
@@ -410,7 +410,7 @@ describe("auth-service", () => {
 
     it("markPasswordChangeRequired sets the store flag", async () => {
       const { markPasswordChangeRequired } = await import("../auth-service");
-      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      const { useAuthStore } = await import("$shared/stores/auth.svelte");
 
       useAuthStore().mustChangePassword = false;
       markPasswordChangeRequired();
@@ -421,7 +421,7 @@ describe("auth-service", () => {
   describe("changePassword", () => {
     it("posts credentials, stores the rotated token and clears the flag", async () => {
       const { changePassword } = await import("../auth-service");
-      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      const { useAuthStore } = await import("$shared/stores/auth.svelte");
       const store = useAuthStore();
       store.mustChangePassword = true;
       sessionStorage.setItem("access_token", "old-token");
@@ -449,7 +449,7 @@ describe("auth-service", () => {
 
     it("refreshes once and retries when the access token expired", async () => {
       const { changePassword } = await import("../auth-service");
-      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      const { useAuthStore } = await import("$shared/stores/auth.svelte");
       const store = useAuthStore();
       store.mustChangePassword = true;
       sessionStorage.setItem("access_token", "stale-token");
@@ -485,7 +485,7 @@ describe("auth-service", () => {
     it("reports an expired session when the refresh token is dead", async () => {
       const { changePassword } = await import("../auth-service");
       const { labels } = await import("$shared/i18n");
-      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      const { useAuthStore } = await import("$shared/stores/auth.svelte");
       useAuthStore().mustChangePassword = true;
       sessionStorage.setItem("access_token", "stale-token");
 
@@ -504,7 +504,7 @@ describe("auth-service", () => {
 
     it("returns the backend message on rejection", async () => {
       const { changePassword } = await import("../auth-service");
-      const { useAuthStore } = await import("../../stores/auth-store.svelte");
+      const { useAuthStore } = await import("$shared/stores/auth.svelte");
       useAuthStore().mustChangePassword = true;
 
       const err = new Error("HTTP 400") as Error & {

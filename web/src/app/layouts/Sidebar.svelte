@@ -31,7 +31,8 @@
   } from "lucide-svelte";
   import { fly } from "svelte/transition";
   import { goto } from "$app/router";
-  import { logout, useAuthStore, updatePreferences } from "$modules/auth";
+  import { logout, updatePreferences } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { useShiftStore } from "$modules/shifts";
   import { Tooltip } from "$shared/ui";
   import { routePermissions } from "$app/config/permissions";

@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { goto } from "$app/router";
   import apiClient from "$shared/api/http-client";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
   import { toast } from "$shared/stores/toast.svelte";
   import { Pagination, ImportWizard } from "$shared/ui";
   import { debounce } from "$shared/utils/debounce";

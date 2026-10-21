@@ -8,7 +8,7 @@
   import { formatDateInJakarta } from "$shared/utils/jakartaTime";
   import { labels, t } from "$shared/i18n";
   import { useSortable } from "$shared/composables/useSortable.svelte";
-  import { useAuthStore } from "$modules/auth";
+  import { useAuthStore } from "$shared/stores/auth.svelte";
 
   const authStore = useAuthStore();
   const rbac = useRBAC();
