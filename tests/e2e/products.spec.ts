@@ -34,10 +34,21 @@ test.describe('Products Management', () => {
     await expect(page.locator('text=No products found')).toBeHidden();
   });
 
-  test('should search products', async ({ page }) => {
+  test('should search products', async ({ page, request }) => {
+    // Seeder product names are crypto/rand-generated, so a hardcoded name like
+    // "Quality Model C Premium" may not exist in a given seed — create one.
+    const ts = Date.now();
+    const name = `E2E Search Product ${ts}`;
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const productResp = await page.request.post(`${API_BASE}/api/products`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { name, sku: `E2E-SEARCH-${ts}`, price: 50000, stock: 100, category_name: 'Personal Care', status: 'active' }
+    });
+    expect(productResp.ok()).toBeTruthy();
+
     await navigateToProducts(page);
-    await page.getByPlaceholder('Search by name, SKU, or barcode...').fill('Quality Model C Premium');
-    await expect(page.locator('text=Quality Model C Premium').first()).toBeVisible({ timeout: 5000 });
+    await page.getByPlaceholder('Search by name, SKU, or barcode...').fill(name);
+    await expect(page.locator(`text=${name}`).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should filter by single category', async ({ page }) => {
