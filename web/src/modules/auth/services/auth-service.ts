@@ -1,19 +1,32 @@
 import axios from "axios";
-import type { AxiosInstance, AxiosError, AxiosRequestConfig } from "axios";
-import { useAuthStore } from "../stores/auth-store.svelte";
-import { setAccessToken, getAuthToken } from "../lib/session";
+import { useAuthStore } from "$shared/stores/auth.svelte";
+import { setAccessToken } from "$shared/api/session";
+import {
+  authApi,
+  refreshAccessToken,
+  getAuthHeaders,
+  stopProactiveRefresh,
+} from "$shared/auth/refresh-kernel";
 import type { User } from "../types";
 import { applyTheme } from "$shared/utils/theme";
 import { labels, setLocale } from "$shared/i18n";
-import {
-  initTabCoordination,
-  destroyTabCoordination,
-  isTabLeader,
-  requestRefresh,
-  onLeaderChange,
-  onCrossTabLogout,
-  broadcastLogout,
-} from "$shared/utils/tab-coordination";
+import { onCrossTabLogout } from "$shared/utils/tab-coordination";
+
+// The session/refresh machinery (token refresh, proactive refresh, axios
+// interceptors, logout, 428 gate) lives in $shared/auth/refresh-kernel.ts so
+// $shared/api/http-client can use it without importing this module. It is
+// re-exported below to keep this module's public API stable — one source
+// instance, verified by kernel-identity.test.ts.
+export {
+  refreshAccessToken,
+  startProactiveRefresh,
+  stopProactiveRefresh,
+  PASSWORD_CHANGE_REQUIRED,
+  isPasswordChangeRequired,
+  markPasswordChangeRequired,
+  setupAxiosInterceptors,
+  logout,
+} from "$shared/auth/refresh-kernel";
 
 function decodeTokenPayload(token: string): Record<string, unknown> | null {
   try {
@@ -27,211 +40,13 @@ function decodeTokenPayload(token: string): Record<string, unknown> | null {
   }
 }
 
-const authApi = axios.create({
-  baseURL: "/api",
-  withCredentials: true,
-});
-
-// --- Shared refresh lock (deduplication queue) ---
-let refreshPromise: Promise<string | null> | null = null;
-const refreshQueue: Array<{
-  resolve: (token: string | null) => void;
-  reject: (err: unknown) => void;
-}> = [];
-
-async function doRefresh(): Promise<string | null> {
-  // Cross-tab: if follower, ask leader to refresh and wait for result
-  if (!isTabLeader()) {
-    try {
-      const token = await requestRefresh();
-      if (token) return token;
-    } catch {
-      // Leader refresh failed — fall through to direct refresh as fallback
-    }
-  }
-
-  // Leader or fallback: refresh directly
-  if (refreshPromise) {
-    return new Promise<string | null>((resolve, reject) => {
-      refreshQueue.push({ resolve, reject });
-    });
-  }
-
-  refreshPromise = (async () => {
-    try {
-      const response = await authApi.post("/refresh");
-      const newAccessToken = response.data.access_token;
-      setAccessToken(newAccessToken);
-      return newAccessToken;
-    } catch (err) {
-      // Notify all queued callers of the failure
-      const queue = refreshQueue.splice(0);
-      queue.forEach((cb) => cb.reject(err));
-      refreshPromise = null;
-      return null;
-    }
-  })();
-
-  try {
-    const result = await refreshPromise;
-    // Notify all queued callers with the new token
-    const queue = refreshQueue.splice(0);
-    queue.forEach((cb) => cb.resolve(result));
-    return result;
-  } finally {
-    refreshPromise = null;
-  }
-}
-
-export async function refreshAccessToken(): Promise<string | null> {
-  return doRefresh();
-}
-
-// --- Proactive token refresh ---
-let proactiveRefreshTimer: ReturnType<typeof setInterval> | null = null;
-const PROACTIVE_REFRESH_INTERVAL = 13 * 60 * 1000;
-
-function startProactiveTimer() {
-  stopProactiveTimer();
-  proactiveRefreshTimer = setInterval(async () => {
-    const token = getAuthToken();
-    if (!token) {
-      stopProactiveTimer();
-      return;
-    }
-    await doRefresh();
-  }, PROACTIVE_REFRESH_INTERVAL);
-}
-
-function stopProactiveTimer() {
-  if (proactiveRefreshTimer) {
-    clearInterval(proactiveRefreshTimer);
-    proactiveRefreshTimer = null;
-  }
-}
-
-export function startProactiveRefresh() {
-  initTabCoordination();
-
-  // Start timer only if this tab is the leader
-  if (isTabLeader()) {
-    startProactiveTimer();
-  }
-
-  // React to leadership changes
-  onLeaderChange((leader) => {
-    if (leader) {
-      startProactiveTimer();
-    } else {
-      stopProactiveTimer();
-    }
-  });
-}
-
-export function stopProactiveRefresh() {
-  stopProactiveTimer();
-  destroyTabCoordination();
-}
-// The backend answers 428 Precondition Required with this code while a valid
-// session still owes a first-login password rotation.
-export const PASSWORD_CHANGE_REQUIRED = "PASSWORD_CHANGE_REQUIRED";
-
-export function isPasswordChangeRequired(err: unknown): boolean {
-  if (!axios.isAxiosError(err)) return false;
-  if (err.response?.status !== 428) return false;
-  const code = (err.response.data as { error?: { code?: string } } | undefined)
-    ?.error?.code;
-  return code === PASSWORD_CHANGE_REQUIRED;
-}
-
-export function markPasswordChangeRequired(): void {
-  useAuthStore().mustChangePassword = true;
-}
-
-export function setupAxiosInterceptors(apiClient: AxiosInstance) {
-  let failedQueue: Array<{
-    resolve: (token: string) => void;
-    reject: (err: unknown) => void;
-  }> = [];
-
-  const processQueue = (error: unknown, token: string | null = null) => {
-    failedQueue.forEach((prom) => {
-      if (error) {
-        prom.reject(error);
-      } else {
-        prom.resolve(token as string);
-      }
-    });
-    failedQueue = [];
-  };
-
-  apiClient.interceptors.response.use(
-    (response) => response,
-    async (error: AxiosError) => {
-      // 428: the token is valid but the account still owes a first-login
-      // password rotation. Surface it as a blocking modal instead of retrying
-      // or logging the user out.
-      if (isPasswordChangeRequired(error)) {
-        markPasswordChangeRequired();
-        return Promise.reject(error);
-      }
-
-      const originalRequest = error.config as AxiosRequestConfig & {
-        _retry?: boolean;
-      };
-
-      if (error.response?.status === 401 && !originalRequest._retry) {
-        if (refreshPromise) {
-          return new Promise<string>((resolve, reject) => {
-            failedQueue.push({ resolve, reject });
-          })
-            .then((token: string) => {
-              originalRequest.headers = originalRequest.headers || {};
-              originalRequest.headers["Authorization"] = "Bearer " + token;
-              return apiClient(originalRequest);
-            })
-            .catch((err) => Promise.reject(err));
-        }
-
-        originalRequest._retry = true;
-
-        try {
-          const newToken = await doRefresh();
-          if (!newToken) {
-            processQueue(new Error("Refresh failed"), null);
-            logout();
-            return Promise.reject(new Error("Refresh failed"));
-          }
-
-          processQueue(null, newToken);
-
-          originalRequest.headers = originalRequest.headers || {};
-          originalRequest.headers["Authorization"] = "Bearer " + newToken;
-          return apiClient(originalRequest);
-        } catch (refreshError) {
-          processQueue(refreshError, null);
-          logout();
-          return Promise.reject(refreshError);
-        }
-      }
-
-      return Promise.reject(error);
-    },
-  );
-}
-
-function getAuthHeaders(): Record<string, string> {
-  const accessToken = sessionStorage.getItem("access_token");
-  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-}
-
 export async function checkAuth(): Promise<boolean> {
   try {
     await authApi.post("/validate", {}, { headers: getAuthHeaders() });
     return true;
   } catch (err: unknown) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
-      const newToken = await doRefresh();
+      const newToken = await refreshAccessToken();
       if (!newToken) return false;
       try {
         await authApi.post(
@@ -280,7 +95,7 @@ export async function restoreSession(): Promise<{
     return { success: false };
   } catch (err) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
-      const newToken = await doRefresh();
+      const newToken = await refreshAccessToken();
       if (!newToken) return { success: false };
       try {
         const retry = await authApi.post(
@@ -363,7 +178,7 @@ export async function changePassword(
       if (!axios.isAxiosError(err) || err.response?.status !== 401) {
         throw err;
       }
-      const refreshed = await doRefresh();
+      const refreshed = await refreshAccessToken();
       if (!refreshed) {
         return { ok: false, message: labels.toastSessionExpired };
       }
@@ -390,19 +205,6 @@ export async function changePassword(
     }
     return { ok: false, message: "Failed to change password" };
   }
-}
-
-export async function logout(): Promise<void> {
-  stopProactiveRefresh();
-  broadcastLogout();
-  try {
-    await authApi.post("/logout", {}, { headers: getAuthHeaders() });
-  } catch (_err) {
-    // Ignore errors on logout
-  }
-  const store = useAuthStore();
-  store.clearUser();
-  window.location.replace("/login");
 }
 
 export function handleCrossTabLogout(): void {

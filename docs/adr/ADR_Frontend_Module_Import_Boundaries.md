@@ -15,9 +15,13 @@
 > generated per module in `web/eslint.config.js`, starting at `warn` severity.
 > All ~27 cross-module deep imports were converted to barrel imports and the
 > `shared` → `admin` dependency inversion was fixed by moving
-> `app-settings-service` to `$shared/services/`. Remaining known debt: three
-> `shared` → `$modules/auth` imports (incl. an `http-client` ↔ `auth` cycle)
-> tracked as lint warnings. Rationale and verification:
+> `app-settings-service` to `$shared/services/`. The `shared` → `$modules/auth`
+> inversions (incl. the `http-client` ↔ `auth` cycle) were resolved the same
+> day by relocating the session kernel (token refresh, interceptors, logout,
+> auth store, session helpers) into `$shared` — `modules/auth` re-exports it,
+> with shims and a runtime identity test guarding the single-instance
+> invariant. `shared/` is now free of `$modules` imports; lint reports 0
+> errors, 0 warnings. Rationale and verification:
 > `docs/design/frontend-import-boundary-enforcement-plan.md`.
 
 ---

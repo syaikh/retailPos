@@ -6,8 +6,11 @@ const logout = vi.fn();
 const setupAxiosInterceptors = vi.fn();
 const getAuthToken = vi.fn((): string | null => null);
 
-vi.mock("$modules/auth", () => ({
+vi.mock("$shared/api/session", () => ({
   getAuthToken: () => getAuthToken(),
+}));
+
+vi.mock("$shared/auth/refresh-kernel", () => ({
   refreshAccessToken: () => refreshAccessToken(),
   setupAxiosInterceptors: () => setupAxiosInterceptors(),
   logout: () => logout(),

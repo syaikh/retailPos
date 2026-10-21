@@ -1,14 +1,4 @@
-export function getAuthToken(): string | null {
-  if (typeof window !== "undefined") {
-    return sessionStorage.getItem("access_token");
-  }
-  return null;
-}
-
-export function setAccessToken(token: string): void {
-  sessionStorage.setItem("access_token", token);
-}
-
-export function removeAccessToken(): void {
-  sessionStorage.removeItem("access_token");
-}
+// Pure re-export shim: the implementation moved to $shared/api/session.ts so
+// shared code (http-client) can read the token without importing $modules.
+// See docs/adr/ADR_Frontend_Module_Import_Boundaries.md.
+export * from "$shared/api/session";

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Implemented** (2026-10-21) — enforcement at `warn` severity; Step 1 debt follow-ups noted in §6 |
+| Status | **Implemented** (2026-10-21) — enforcement at `warn` severity; shared→auth debt resolved same day (§7) |
 | Date | 2026-10-21 |
 | Supersedes | `docs/adr/ADR_Frontend_Module_Import_Boundaries.md` (On Hold, 2026-08-20) |
 | Scope | `web/src/modules/` cross-module imports, `web/eslint.config.js` |
@@ -153,8 +153,36 @@ Targeted vitest for all touched test files: 143/143 pass.
   to the 4 known shared→auth debt lines (http-client, useRBAC + its test),
   referencing this ADR — the lint output now shows only genuinely new
   violations (plus the pre-existing unrelated unused-var warning).
+  *(These comments were removed the same day — §7 resolved the debt.)*
 - Known follow-up (not fixed, low severity): Svelte components exported from
   barrels (`consignment`, `auth`, `inventory`) may defeat bundler
   tree-shaking and pull extra code into consumer chunks — verify chunk sizes
   on the next CI build; if retained, annotate with `/* @__PURE__ */` or
   accept.
+
+## 7. Session-kernel relocation — shared→auth debt resolved (2026-10-21)
+
+The 4 warn-phase debt lines shared→`$modules/auth` (http-client, useRBAC,
+useRBAC test) were fixed the same day by relocating the session/refresh
+machinery into `$shared`, inverting the dependency instead of suppressing it:
+
+- `modules/auth/lib/session.ts` → `shared/api/session.ts` (pure token
+  helpers); `modules/auth/stores/auth-store.svelte.ts` →
+  `shared/stores/auth.svelte.ts`; `User` type → `shared/types/user.ts`.
+- New `shared/auth/refresh-kernel.ts` owns `authApi`, the refresh
+  lock/queue (`doRefresh`/`refreshAccessToken`), proactive refresh, the
+  428 password-rotation gate, axios interceptors, `logout` and
+  `getAuthHeaders`. `modules/auth/services/auth-service.ts` keeps the flows
+  (login/restore/checkAuth/changePassword/updatePreferences/
+  handleCrossTabLogout) and re-exports the kernel API unchanged, so the
+  `$modules/auth` public surface is stable.
+- Old module paths remain as **pure re-export shims**; a runtime identity
+  test (`modules/auth/services/__tests__/kernel-identity.test.ts`) asserts
+  that importing via `$modules/auth` or `$shared` resolves to the same
+  module instances — guarding the refresh-dedup and cross-tab-leader
+  singletons against a future re-split.
+- All 4 `eslint-disable` debt comments removed; `npx eslint src` → **0
+  errors, 0 warnings**.
+- Follow-up (PR2, optional): delete the shims, repoint the ~33
+  `useAuthStore`/`getAuthToken` import sites (36 files, incl. tests) at
+  `$shared`, and flip the boundary rule to `error`.

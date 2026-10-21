@@ -1,14 +1,13 @@
 // Web API Client (Axios)
 import axios from "axios";
-// eslint-disable-next-line no-restricted-imports -- known debt: shared↔auth cycle, see ADR_Frontend_Module_Import_Boundaries.md (2026-10-21 update); fix by relocating session code to $shared
+import { getAuthToken } from "$shared/api/session";
 import {
-  getAuthToken,
   refreshAccessToken,
   setupAxiosInterceptors,
   logout,
   markPasswordChangeRequired,
   PASSWORD_CHANGE_REQUIRED,
-} from "$modules/auth";
+} from "$shared/auth/refresh-kernel";
 
 // 1. Buat instance Axios untuk aplikasi
 const apiClient = axios.create({

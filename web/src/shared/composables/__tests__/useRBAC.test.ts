@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useRBAC } from "../useRBAC.svelte";
-// eslint-disable-next-line no-restricted-imports -- known debt: shared→auth dependency, see ADR_Frontend_Module_Import_Boundaries.md (2026-10-21 update)
-import { useAuthStore } from "$modules/auth";
+import { useAuthStore } from "$shared/stores/auth.svelte";
 import { ALL_PERMISSIONS } from "$shared/constants/permissions";
 import { Roles } from "$shared/constants/roles";
 

@@ -1,7 +1,5 @@
-// eslint-disable-next-line no-restricted-imports -- known debt: shared→auth dependency, see ADR_Frontend_Module_Import_Boundaries.md (2026-10-21 update)
-import { useAuthStore } from "$modules/auth";
-// eslint-disable-next-line no-restricted-imports -- known debt: shared→auth dependency, see ADR_Frontend_Module_Import_Boundaries.md (2026-10-21 update)
-import type { User } from "$modules/auth";
+import { useAuthStore } from "$shared/stores/auth.svelte";
+import type { User } from "$shared/types/user";
 import { Roles } from "$shared/constants/roles";
 
 function resolveRoleName(user: User | null): string {
