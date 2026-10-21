@@ -2,20 +2,20 @@
 
 ## Codebase Investigation & Semantic Index
 
-This project uses a semantic codebase index at `.opencode/index`, use semantic tools provided as much as possible. The current working tree is always the source of truth.
+This project uses a **provider-free structural codebase index** (`indexing.mode: "structural"`, stored at `.opencode/index/structural`) — BM25 keyword search, symbol catalog and call graph, with **no embeddings, no embedding provider and no Ollama**. Use the index tools as much as possible; natural-language/paraphrase search and code-similarity are covered by the Semble MCP index (`semble.search`, `semble.find_related`). The current working tree is always the source of truth.
 
 ### Tool selection
 
 | Tool | When to use |
 |------|-------------|
-| `codebase_context` | Default starting point for feature-level, architectural, or cross-module questions |
+| `codebase_context` | Default starting point for feature-level, architectural, or cross-module questions — lexical/structural in this repo, so for paraphrase-style questions also cross-check `semble.search` |
 | `codebase_peek` | Conceptual area is known, but exact files/symbols are not |
 | `implementation_lookup` | Symbol name is known, locate its authoritative definition |
 | `codebase_search` | Need actual source content for known files/symbols/concepts |
 | `semble.search` | Second opinion from the independent Semble index when `codebase_search` misses or returns doc-heavy noise; strongest on frontend/Svelte, where the Go-weighted index underperforms. Discards paths under `docs/`, `*.md`, and `database/migrations/` when judging whether a hit is real code. Reached inside `execute` as `tools.semble["search"]` |
 | `call_graph` | Understand callers or callees of a known symbol |
 | `call_graph_path` | Investigate end-to-end execution path between two points |
-| `find_similar` | Before creating new implementation, check for existing patterns; matches against a pasted snippet |
+| `find_similar` | **Unavailable in this repo** — the structural index has no vectors, so the tool returns a non-retryable `UNSUPPORTED_OPERATION` error. Use `semble.search` (paste the snippet as the query) or `semble.find_related` instead |
 | `semble.find_related` | Similarity from the Semble index, keyed off a `file:line` you already have — use when there is no snippet to match against, e.g. locating near-duplicates of a known implementation for the duplication review track. Inside `execute`: `tools.semble["find_related"]` |
 | `code_communities` | Module boundaries, architecture, coupling, hub symbols |
 | `codebase_edit_context` | Before modifying a known implementation, get bounded context |
@@ -23,7 +23,7 @@ This project uses a semantic codebase index at `.opencode/index`, use semantic t
 | `index_status` / `index_health_check` | Index readiness, provider/model compatibility, pending migrations, and stale-entry cleanup — check before diagnosing a miss as a stale index |
 | `pr_impact` | Assess blast radius of a branch or planned change |
 
-**Quick rules:** For known symbols, start with `implementation_lookup`. For exact text, use `grep`. For new features, add `find_similar` → `code_communities` before implementing. When a semantic search comes back thin, cross-check with `semble.search` before falling back to `grep`. When you have a location but no snippet, use `semble.find_related` instead of `find_similar`.
+**Quick rules:** For known symbols, start with `implementation_lookup`. For exact text, use `grep`. For new features, add `semble.search`/`codebase_search` → `code_communities` before implementing. When a keyword search comes back thin, cross-check with `semble.search` (semantic) before falling back to `grep`. For similarity/duplicate checks, use `semble.find_related` (from a known `file:line`) or paste the snippet into `semble.search` — `find_similar` is unavailable here.
 
 ### Incremental indexing
 
