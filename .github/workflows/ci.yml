@@ -12,7 +12,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.26"
+  # Pinned to an exact patch: the bare minor resolves to the runner's
+  # preinstalled Go, which lags the toolchain fix for GO-2026-6809
+  # (crypto/x509, fixed in go1.26.10).
+  GO_VERSION: "1.26.10"
   NODE_VERSION: "24"
   GOLANGCI_LINT_VERSION: "v2.13.2"
   GOVULNCHECK_VERSION: "v1.1.4"
