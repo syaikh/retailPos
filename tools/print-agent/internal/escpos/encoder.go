@@ -52,6 +52,17 @@ func Cut() []byte { return []byte{gs, 'V', 0x00} }
 // DefaultDrawerPulseMs is the pulse length used when a caller passes 0.
 const DefaultDrawerPulseMs uint8 = 25
 
+// EffectiveDrawerPulseMs resolves a configured pulse length to the value the
+// wire will actually carry. It exists so the startup log and the encoder agree
+// by construction: what an operator reads as drawer-pulse-ms is the pulse the
+// printer receives, never the raw 0 that only means "unset".
+func EffectiveDrawerPulseMs(onMs uint8) uint8 {
+	if onMs == 0 {
+		return DefaultDrawerPulseMs
+	}
+	return onMs
+}
+
 // DrawerPulse generates the electrical pulse that opens a cash drawer wired to
 // the printer's drawer port (RJ11 on almost every printer sold for this
 // purpose). The drawer is powered and driven by the printer, not by the PC, so
@@ -70,10 +81,7 @@ const DefaultDrawerPulseMs uint8 = 25
 // back to DefaultDrawerPulseMs instead of sending a pulse the printer may
 // interpret as no pulse at all.
 func DrawerPulse(pin, onMs uint8) []byte {
-	if onMs == 0 {
-		onMs = DefaultDrawerPulseMs
-	}
-	return []byte{esc, 'p', pin, onMs}
+	return []byte{esc, 'p', pin, EffectiveDrawerPulseMs(onMs)}
 }
 
 // Text encodes s as CP858-compatible bytes and appends a newline.

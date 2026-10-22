@@ -47,3 +47,18 @@ func TestDrawerPulse(t *testing.T) {
 		t.Fatalf("DrawerPulse(0,0) = %v, want ESC p 0 %d", DrawerPulse(0, 0), DefaultDrawerPulseMs)
 	}
 }
+
+func TestEffectiveDrawerPulseMs(t *testing.T) {
+	// The startup log prints this resolved value, so zero must resolve to the
+	// same default DrawerPulse sends and explicit lengths must pass through
+	// unaltered — the log's claim and the wire's bytes are the same number.
+	if got := EffectiveDrawerPulseMs(0); got != DefaultDrawerPulseMs {
+		t.Fatalf("EffectiveDrawerPulseMs(0) = %d, want %d", got, DefaultDrawerPulseMs)
+	}
+	if got := EffectiveDrawerPulseMs(40); got != 40 {
+		t.Fatalf("EffectiveDrawerPulseMs(40) = %d, want 40", got)
+	}
+	if got := EffectiveDrawerPulseMs(255); got != 255 {
+		t.Fatalf("EffectiveDrawerPulseMs(255) = %d, want 255", got)
+	}
+}

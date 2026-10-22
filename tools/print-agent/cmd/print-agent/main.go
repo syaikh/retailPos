@@ -91,7 +91,8 @@ func main() {
 	// more often than a hardware fault, and this is the only place both halves
 	// of that are visible at once.
 	log.Printf("[print-agent] listening on %s transport=%s origins=%v auth=origin-allowlist drawer-pin=%d drawer-pulse-ms=%d",
-		srv.Addr, cfg.Transport, cfg.AllowedOrigins, cfg.DrawerPin, cfg.DrawerPulseMs)
+		srv.Addr, cfg.Transport, cfg.AllowedOrigins, cfg.DrawerPin,
+		escpos.EffectiveDrawerPulseMs(cfg.DrawerPulseMs))
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
