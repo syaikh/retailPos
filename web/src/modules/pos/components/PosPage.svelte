@@ -172,6 +172,12 @@
       fetchedSearchQuery = query;
       flushPendingAdd(query);
     } catch (_err) {
+      // An Enter whose results never arrived must not stay armed: the code is
+      // still in the box, so a later successful fetch for that same query —
+      // the post-checkout refresh runs one on every sale — would release an
+      // add the cashier never repeated. Scoped to this fetch's query, so a
+      // late failure cannot disarm a newer Enter.
+      if (pendingAddForQuery === query) pendingAddForQuery = "";
       toast.error(labels.toastFailedToLoadProducts);
     } finally {
       if (!isSearch) loading = false;

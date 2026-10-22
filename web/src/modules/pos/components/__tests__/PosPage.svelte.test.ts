@@ -200,6 +200,17 @@ describe("PosPage.svelte source-structure guards", () => {
     );
   });
 
+  it("disarms a submit whose own results never arrived", () => {
+    // The failed fetch leaves the code in the box, so the next successful
+    // fetch for that same query would otherwise release an add the cashier
+    // never repeated — into the cart checkout just emptied. Scoped to the
+    // failing fetch's own query, so a late failure cannot disarm a newer
+    // Enter.
+    expect(src).toContain(
+      'if (pendingAddForQuery === query) pendingAddForQuery = "";',
+    );
+  });
+
   it("reselects the search box after a submit add so the next scan does not append", () => {
     // A scanner concatenates its next code onto whatever is still in the box,
     // so an add has to leave the field focused and selected. It must be the
