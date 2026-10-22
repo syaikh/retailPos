@@ -12,14 +12,14 @@ This project uses a **provider-free structural codebase index** (`indexing.mode:
 | `codebase_peek` | Conceptual area is known, but exact files/symbols are not |
 | `implementation_lookup` | Symbol name is known, locate its authoritative definition |
 | `codebase_search` | Need actual source content for known files/symbols/concepts |
-| `semble.search` | Second opinion from the independent Semble index when `codebase_search` misses or returns doc-heavy noise; strongest on frontend/Svelte, where the Go-weighted index underperforms. Discards paths under `docs/`, `*.md`, and `database/migrations/` when judging whether a hit is real code. Reached inside `execute` as `tools.semble["search"]` |
+| `semble.search` | Second opinion from the independent Semble index when `codebase_search` misses or returns doc-heavy noise; strongest on frontend/Svelte, where the lexical (BM25) index underperforms. Discards paths under `docs/`, `*.md`, and `database/migrations/` when judging whether a hit is real code. Reached inside `execute` as `tools.semble["search"]` |
 | `call_graph` | Understand callers or callees of a known symbol |
 | `call_graph_path` | Investigate end-to-end execution path between two points |
 | `find_similar` | **Unavailable in this repo** — the structural index has no vectors, so the tool returns a non-retryable `UNSUPPORTED_OPERATION` error. Use `semble.search` (paste the snippet as the query) or `semble.find_related` instead |
 | `semble.find_related` | Similarity from the Semble index, keyed off a `file:line` you already have — use when there is no snippet to match against, e.g. locating near-duplicates of a known implementation for the duplication review track. Inside `execute`: `tools.semble["find_related"]` |
 | `code_communities` | Module boundaries, architecture, coupling, hub symbols |
 | `codebase_edit_context` | Before modifying a known implementation, get bounded context |
-| `architecture_context` | Repository-scale orientation first: module responsibilities, boundaries, and recent Git activity before focused retrieval or planning |
+| `architecture_context` | **Unavailable in this repo** — the structural index has no vectors, so the tool throws `vector store is unavailable in structural indexing mode`. Use `codebase_context` for repository orientation or `code_communities` for module boundaries instead |
 | `index_status` / `index_health_check` | Index readiness, provider/model compatibility, pending migrations, and stale-entry cleanup — check before diagnosing a miss as a stale index |
 | `pr_impact` | Assess blast radius of a branch or planned change |
 

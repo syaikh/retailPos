@@ -1,10 +1,15 @@
-# Semantic Explore Agent
+# Codebase Explore Agent
 
-This guide explains how to configure and use the semantic explore subagent for codebase exploration using the `open-codebase-index` plugin.
+This guide explains how to configure and use the explore subagent for codebase exploration with the `open-codebase-index` plugin.
 
 ## Overview
 
-The semantic explore agent provides access to the `open-codebase-index` tools, enabling semantic search and codebase analysis beyond basic grep/glob operations. It replaces the built-in `explore` subagent with enhanced capabilities.
+The explore agent gives a subagent access to the `open-codebase-index` tools for repository navigation beyond plain grep/glob. It replaces the built-in `explore` subagent.
+
+**The index in this project runs in `structural` mode** (`.opencode/codebase-index.json` → `indexing.mode: "structural"`): BM25 keyword search, a symbol catalog, and a call graph — **no embeddings, no embedding provider, no Ollama**. Consequences:
+
+- Queries are lexical. Describe behavior in the words used in the code, or cross-check with the Semble MCP server (`semble.search`) for paraphrase-style questions.
+- Two tools are unavailable because they need vectors: **`find_similar`** (returns a non-retryable `UNSUPPORTED_OPERATION` error) and **`architecture_context`** (throws `vector store is unavailable in structural indexing mode`). Use `semble.find_related` / `semble.search` for similarity, and `codebase_context` or `code_communities` for repository orientation.
 
 ## Table of Contents
 
@@ -13,39 +18,38 @@ The semantic explore agent provides access to the `open-codebase-index` tools, e
 - [Usage](#usage)
 - [Reverting to Built-in Explore](#reverting-to-built-in-explore)
 - [Troubleshooting](#troubleshooting)
+- [Verified Behavior](#verified-behavior)
 
 ---
 
 ## Available Tools
 
-The semantic explore agent has access to the following tools:
-
 | Tool | Description |
 |------|-------------|
-| `codebase_context` | Route repository questions to bounded evidence packs |
-| `codebase_search` | Search by meaning and return full source results |
-| `codebase_peek` | Find likely locations with minimal content |
-| `implementation_lookup` | Find a symbol's authoritative definition |
-| `call_graph` | Query direct callers or callees |
-| `call_graph_path` | Find shortest connection path between symbols |
-| `find_similar` | Find code similar to a given snippet |
+| `codebase_context` | Route repository questions to bounded evidence packs (lexical/structural) |
+| `codebase_search` | Search for matching code and return full source content |
+| `codebase_peek` | Find likely locations with metadata only (file, line, name) |
+| `implementation_lookup` | Find a symbol's authoritative definition (argument: `query`) |
+| `call_graph` | Query direct callers or callees (exact symbol name + `filePath` on ambiguity) |
+| `call_graph_path` | Find shortest connection path between two symbols |
 | `codebase_edit_context` | Get bounded context before modifying code |
-| `pr_impact` | Analyze blast radius of a branch or change |
 | `code_communities` | Discover module boundaries and hub symbols |
-| `index_codebase` | Index the codebase for semantic search |
-| `index_status` | Check index readiness |
-| `add_knowledge_base` | Add folders to the index |
-| `list_knowledge_bases` | List configured knowledge bases |
-| `remove_knowledge_base` | Remove a knowledge base |
-| `read` | Read file contents |
-| `glob` | Find files by pattern |
-| `grep` | Search file contents |
+| `pr_impact` | Analyze blast radius of a branch (branch vs. base — reports zero for uncommitted work) |
+| `index_codebase` | Incremental indexing; structural mode requests no embeddings |
+| `index_status` | Check index readiness, mode, provider, and pending migrations |
+| `index_health_check` | Check index health and drop stale entries after deletions |
+| `add_knowledge_base` / `list_knowledge_bases` / `remove_knowledge_base` | Manage documentation folders added to the index |
+| `read`, `glob`, `grep` | Base file tools |
+
+**Unavailable in this project:** `find_similar`, `architecture_context` (both require vectors).
+
+**Second index (Semble MCP):** `semble.search` and `semble.find_related`, reached inside `execute` as `tools.semble["search"]` and `tools.semble["find_related"]`. Semble indexes `docs/` too, so ignore hits under `docs/`, `*.md`, and `database/migrations/` when judging whether something is real code. Semble has no call graph — keep using `call_graph` / `call_graph_path`.
 
 ---
 
 ## Configuration
 
-The semantic explore agent is configured in `.opencode/opencode.json` with a custom prompt:
+The explore agent is configured in `.opencode/opencode.json` with a custom prompt:
 
 ```json
 {
@@ -54,20 +58,20 @@ The semantic explore agent is configured in `.opencode/opencode.json` with a cus
       "description": "Semantic codebase exploration using codebase index tools",
       "mode": "subagent",
       "prompt": "{file:./prompts/explore.txt}",
-      "permission": { ... }
+      "permission": { "codebase_context": "allow", "...": "..." }
     }
   }
 }
 ```
 
-The prompt file (`.opencode/prompts/explore.txt`) contains tool selection guidance and the `call_graph` usage workflow.
-```
+The prompt file (`.opencode/prompts/explore.txt`) holds the tool-selection guide, the `call_graph` exact-name/ambiguity workflow, and the fallback rules.
 
 ### How It Works
 
-- The `agent.explore` entry overrides the built-in explore subagent
-- The `permission` block grants access to semantic tools from the `open-codebase-index` plugin
-- The agent runs in a child session with its own context
+- The `agent.explore` entry overrides the built-in explore subagent.
+- The `permission` block grants access to the plugin's index tools.
+- The agent runs in a child session with its own context.
+- **Agent definitions are cached for the life of an opencode session.** After editing this config, restart opencode. If an already-running `explore` session shows only `glob`, `grep`, `read`, `shell`, `webfetch`, `websearch`, it is stale — restart, do not edit the config further.
 
 ---
 
@@ -75,42 +79,40 @@ The prompt file (`.opencode/prompts/explore.txt`) contains tool selection guidan
 
 ### Via @mention
 
-Type `@explore` followed by your query:
-
 ```
 @explore use codebase_context to find how authentication is structured
 ```
 
-### Via Task Tool (Programmatic)
+### Via the `subagent` tool
 
 ```javascript
-task({
-  subagent_type: "explore",
+subagent({
+  agent: "explore",
+  description: "Map authentication flow",
   prompt: "Use codebase_context to find how authentication is structured"
 })
 ```
 
+(Older examples showing `task({ subagent_type: "explore" })` refer to a removed API.)
+
+For heavy research fan-out that also needs the index, the `general` agent carries the same toolset.
+
 ### Example Queries
 
-**Semantic queries (preferred):**
 - `@explore use codebase_context to find how authentication is structured`
 - `@explore use implementation_lookup to find the AuthService definition`
-- `@explore use call_graph to find all callers of the Login method`
-
-**Hybrid queries:**
-- `@explore use codebase_search to find all error handling patterns, then grep for specific error codes`
+- `@explore use call_graph with filePath to find all callers of CreateSale`
+- `@explore use codebase_search for error handling patterns, then grep for specific error codes`
 
 ---
 
 ## Reverting to Built-in Explore
 
-To restore the original built-in explore agent, remove the `agent.explore` block from `.opencode/opencode.json`:
+Remove the `agent.explore` block from `.opencode/opencode.json`:
 
 ```json
 {
-  "agent": {
-    "explore": <--- delete this entire block
-  }
+  "agent": {}
 }
 ```
 
@@ -122,62 +124,69 @@ Restart opencode for changes to take effect.
 
 ### "Unknown agent type" error
 
-The agent configuration is loaded at session start. Restart opencode after making config changes:
+Agent configuration is loaded at session start. Restart opencode after config changes:
 
 ```
 # Exit opencode, then:
 opencode
 ```
 
-### Semantic tools not available
+### Explore agent has no index tools
 
-Verify the `open-codebase-index` plugin is installed and configured:
+Run the probe again after a restart. If it still lists only base tools, verify the plugin is wired up:
 
 ```bash
-# Check plugin exists
-ls ~/.config/opencode/node_modules/open-codebase-index/
+# Plugin lives inside the project config directory
+ls .opencode/node_modules/open-codebase-index/
 
-# Check project config
+# Index config
 cat .opencode/codebase-index.json
 ```
 
-### Index not ready
+### `find_similar` / `architecture_context` errors
 
-Check index status:
+Expected in structural mode — those tools need vectors. Use `semble.find_related` / `semble.search` instead.
 
-```
-@index_status
-```
+### Index not ready or stale
 
-If the index is not ready, run:
+Use the `/status` slash command (or the `index_status` / `index_health_check` tools).
 
-```
-@index_codebase
-```
+To refresh: `/index` (incremental) — and only when files actually changed.
+
+**Never run `/reindex` or a forced `index_codebase` on your own initiative**: it is expensive and the user runs it. Report staleness instead, and fall back to `grep`/`read` meanwhile.
+
+### Diagnostics are disabled by default
+
+- `index_logs` replies "Debug mode is disabled" until `"debug": { "enabled": true }` is set.
+- `index_metrics` replies "Metrics collection is disabled" until `"effectivenessMetrics": { "enabled": true }` is set.
 
 ---
 
-## Test Results
+## Verified Behavior
 
-Verified on 2026-09-04 with `open-codebase-index` plugin:
+Last verified **2026-10-21** against the structural index (`open-codebase-index` 0.37.1):
 
 | Tool | Status | Notes |
 |------|--------|-------|
-| `codebase_context` | ✅ PASS | Returns deduplicated evidence packs with relevance scores |
-| `implementation_lookup` | ✅ PASS | Precise definition lookup (score 0.99) |
-| `codebase_search` | ✅ PASS | Returns full source content |
-| `call_graph` | ⚠️ FAIL | Requires exact symbol names (e.g., `AuthService.Login`, not just `Login`) |
-| `codebase_peek` | ✅ PASS | Returns lightweight metadata for navigation |
+| `codebase_context` | ✅ | Bounded evidence packs with relevance scores |
+| `implementation_lookup` | ✅ | Takes `query`, not `symbol` |
+| `codebase_search` | ✅ | `directory` filter + `minScore` (0.4) can drop low-scoring matches — a "No matching code found" reply is not necessarily a missing file |
+| `codebase_peek` | ✅ | Metadata-only navigation; deep files are indexed (`maxDepth: 5` does not exclude them) |
+| `call_graph` / `call_graph_path` | ⚠️ | Exact symbol names, and duplicate names (test mocks, overloads) require `filePath` / `fromFilePath` / `toFilePath` |
+| `pr_impact` | ⚠️ | Diffs the branch against its base — reports `Files changed: 0` for uncommitted work |
+| `find_similar` | ❌ | Unavailable in structural mode |
+| `architecture_context` | ❌ | Throws `vector store is unavailable in structural indexing mode` |
 
 ### Usage Notes
 
-- `call_graph` requires **exact symbol names**. Use `implementation_lookup` first to find the correct symbol name, then pass it to `call_graph`.
-- `codebase_context` is the best starting point for exploratory queries — it routes questions to bounded evidence packs.
-- `implementation_lookup` is best for finding a specific symbol's definition.
+- Check the working tree (`git status`, `git diff --cached`) before trusting `pr_impact`.
+- Use `grep` for exhaustive literal matches — semantic search returns top N only.
+- Report index results as `file_path:line_number`.
 
 ---
 
 ## Related Documentation
 
+- Tool-selection table in `AGENTS.md` ("Codebase Investigation & Semantic Index")
 - [open-codebase-index documentation](https://github.com/Helweg/open-codebase-index)
 - [OpenCode Agents Documentation](https://opencode.ai/docs/agents/)
