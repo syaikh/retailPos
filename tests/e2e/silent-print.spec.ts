@@ -120,7 +120,10 @@ test.describe('Silent receipt printing (real print-agent)', () => {
           const body = await res.json();
           const jobs: any[] = body.jobs || [];
           found = jobs.find(
-            (j) => j.status === 'completed' && (!invoice || j.receipt?.invoice_number === invoice),
+            (j) =>
+              j.status === 'completed' &&
+              j.type !== 'drawer' &&
+              (!invoice || j.receipt?.invoice_number === invoice),
           );
           if (found) break;
         }
@@ -135,8 +138,9 @@ test.describe('Silent receipt printing (real print-agent)', () => {
 
     // The same cash sale must also have pulsed this till's drawer. Polled on
     // its own because the two POSTs are independent requests, so neither is
-    // guaranteed to have landed first; the receipt lookup above deliberately
-    // skips the drawer job, whose receipt.invoice_number is empty.
+    // guaranteed to have landed first; the receipt lookup above excludes
+    // drawer jobs by type rather than by their empty invoice number, so it
+    // cannot settle on the drawer job even when invoice is null.
     let drawerJob: any = null;
     const drawerStart = Date.now();
     while (Date.now() - drawerStart < 15000 && !drawerJob) {
