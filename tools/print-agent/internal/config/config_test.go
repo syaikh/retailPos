@@ -189,3 +189,22 @@ func TestValidateRefusesUnusableCashDrawerSettings(t *testing.T) {
 		})
 	}
 }
+
+// The drawer settings are refused in production too: validateDrawer runs
+// before the environment gate, so the pin error surfaces even while
+// ALLOWED_ORIGINS is also unset — which would otherwise fail Validate for an
+// unrelated reason and hide the drawer misconfiguration.
+func TestValidateDrawerRefusalAppliesInProduction(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("ALLOWED_ORIGINS", "")
+	t.Setenv("PRINT_DRAWER_PIN", "3")
+	t.Setenv("PRINT_DRAWER_PULSE_MS", "")
+
+	err := Load().Validate()
+	if err == nil {
+		t.Fatal("Validate() = nil, want the drawer pin refusal")
+	}
+	if !strings.Contains(err.Error(), "PRINT_DRAWER_PIN") {
+		t.Fatalf("Validate() = %q, want the drawer pin refusal", err)
+	}
+}

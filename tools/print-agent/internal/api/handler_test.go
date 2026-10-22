@@ -344,3 +344,73 @@ func TestDrawerPrintLifecycle(t *testing.T) {
 		t.Fatalf("drawer job did not complete, status=%s", status)
 	}
 }
+
+// The drawer inherits job-id dedupe rather than getting its own write path: a
+// replayed POST (a proxy retry, a double submit) must return the existing job
+// instead of pulsing the till a second time.
+func TestDrawerPrintIdempotency(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+
+	payload := func() []byte {
+		b, _ := json.Marshal(map[string]interface{}{
+			"job_id": "drawer-fixed-id",
+			"type":   "drawer",
+		})
+		return b
+	}
+
+	resp1, err := http.Post(srv.URL+"/print", "application/json", bytes.NewReader(payload()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp1.StatusCode != http.StatusAccepted {
+		t.Fatalf("first post expected 202, got %d", resp1.StatusCode)
+	}
+	_ = resp1.Body.Close()
+
+	resp2, err := http.Post(srv.URL+"/print", "application/json", bytes.NewReader(payload()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp2.Body.Close() }()
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("duplicate post expected 200, got %d", resp2.StatusCode)
+	}
+	var dup map[string]string
+	if err := json.NewDecoder(resp2.Body).Decode(&dup); err != nil {
+		t.Fatalf("decode response into dup: %v", err)
+	}
+	if dup["job_id"] != "drawer-fixed-id" {
+		t.Fatalf("duplicate job_id = %q, want %q", dup["job_id"], "drawer-fixed-id")
+	}
+	if dup["status"] == "" {
+		t.Fatal("duplicate response missing status")
+	}
+}
+
+// A type this agent does not recognise falls through to the sale path — the
+// same code an agent predating a newer job type runs when handed that type.
+// With no receipt attached it must refuse the request rather than accept work
+// it cannot serve.
+func TestPrintUnknownTypeWithoutReceiptRejected(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+
+	body, _ := json.Marshal(map[string]interface{}{"type": "drawer-v2"})
+	resp, err := http.Post(srv.URL+"/print", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for an unknown type without receipt data, got %d", resp.StatusCode)
+	}
+	var errResp map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+	if !strings.Contains(errResp["error"], "missing receipt data") {
+		t.Fatalf("error = %q, want it to contain %q", errResp["error"], "missing receipt data")
+	}
+}
