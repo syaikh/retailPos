@@ -53,7 +53,7 @@ describe("PrintModeToggle.svelte source-structure guards", () => {
     // the panel must not present yesterday's pulse outcome as fresh, which is
     // exactly how the health-check status already behaves.
     const openEditor =
-      src.match(/function openEditor\(\)\s*\{[\s\S]*?\n  \}/)?.[0] ?? "";
+      src.match(/function openEditor\(\)\s*\{[\s\S]*?\n {2}\}/)?.[0] ?? "";
     expect(openEditor).toContain('drawerStatus = "idle"');
   });
 
