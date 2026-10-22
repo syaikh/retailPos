@@ -21,6 +21,9 @@
     urlDraft = printConfig.agentUrl;
     editing = !editing;
     status = "idle";
+    // A drawer result belongs to the attempt that produced it; a reopened
+    // panel must not present the previous pulse's outcome as fresh.
+    drawerStatus = "idle";
   }
 
   function saveUrl() {

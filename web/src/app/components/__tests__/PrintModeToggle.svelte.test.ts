@@ -48,6 +48,15 @@ describe("PrintModeToggle.svelte source-structure guards", () => {
     expect(src).toContain("function openEditor");
   });
 
+  it("clears the previous drawer result when the panel toggles", () => {
+    // The drawer status belongs to the attempt that produced it: reopening
+    // the panel must not present yesterday's pulse outcome as fresh, which is
+    // exactly how the health-check status already behaves.
+    const openEditor =
+      src.match(/function openEditor\(\)\s*\{[\s\S]*?\n  \}/)?.[0] ?? "";
+    expect(openEditor).toContain('drawerStatus = "idle"');
+  });
+
   it("saves the agent URL via setAgentUrl", () => {
     expect(src).toContain("printConfig.setAgentUrl(urlDraft)");
   });
