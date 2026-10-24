@@ -3,6 +3,7 @@ package sale
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"testing"
 	"time"
 
@@ -742,13 +743,16 @@ func TestCartService_UpdateCartCustomer(t *testing.T) {
 // ==================== UC-01: CUSTOMER SWAP RE-PRICING (B5) ====================
 
 // insertGroupCustomer inserts a customer optionally bound to a customer group.
-// The phone doubles as the unique key, so it is derived from the name.
+// The phone doubles as the unique key, so it is derived from the name — hashed
+// because customers.phone is varchar(20) and raw test names exceed it.
 func insertGroupCustomer(ctx context.Context, t *testing.T, name string, groupID *int) int {
 	t.Helper()
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(name))
 	var id int
 	err := dbPool.QueryRow(ctx,
 		`INSERT INTO customers (name, email, phone, store_id, customer_group_id) VALUES ($1, $2, $3, 1, $4) RETURNING id`,
-		name, name+"@test.com", "08-"+name, groupID,
+		name, name+"@test.com", fmt.Sprintf("08%016x", h.Sum64()), groupID,
 	).Scan(&id)
 	require.NoError(t, err)
 	return id
@@ -788,7 +792,6 @@ func TestCartService_UpdateCartCustomer_RepricesLinesForNewGroup(t *testing.T) {
 	ctx := context.Background()
 	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(ctx, t)
 	prodID := insertTestProductWithTax(ctx, t, "CART-CUSTSWAP-PROD", "Customer Swap Product", 5000, 100, 11)
 
 	var groupID int
@@ -804,6 +807,9 @@ func TestCartService_UpdateCartCustomer_RepricesLinesForNewGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("attaching a member mid-cart discounts the scanned line", func(t *testing.T) {
+		// Each subtest uses its own cashier so CreateOrGetOpenCart starts from
+		// a fresh cart instead of the one the previous subtest left open.
+		cashierID := insertTestCashierNamed(ctx, t, "swap-attach-cashier")
 		memberID := insertGroupCustomer(ctx, t, "swap-member", &groupID)
 
 		cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
@@ -825,6 +831,7 @@ func TestCartService_UpdateCartCustomer_RepricesLinesForNewGroup(t *testing.T) {
 	})
 
 	t.Run("deselecting the member restores base pricing", func(t *testing.T) {
+		cashierID := insertTestCashierNamed(ctx, t, "swap-deselect-cashier")
 		walkInID := insertGroupCustomer(ctx, t, "swap-walkin", nil)
 
 		cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
@@ -844,6 +851,7 @@ func TestCartService_UpdateCartCustomer_RepricesLinesForNewGroup(t *testing.T) {
 	})
 
 	t.Run("swapping within the same group keeps the snapshot", func(t *testing.T) {
+		cashierID := insertTestCashierNamed(ctx, t, "swap-samegroup-cashier")
 		memberB := insertGroupCustomer(ctx, t, "swap-same-b", &groupID)
 
 		cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)

@@ -432,11 +432,19 @@ func TestSaleRepository_StreamSalesExportCSV_ChunkBoundary(t *testing.T) {
 
 	// exportChunkSize is 500 (repository.go), so 501 crosses exactly one
 	// boundary: a full first chunk and a single-row second chunk.
+	//
+	// customer_id must be supplied explicitly: TruncateTestData empties the
+	// customers table, so the column DEFAULT 1 no longer resolves and the FK
+	// (sales_customer_id_fkey) rejects the insert.
+	var customerID int
+	err := dbPool.QueryRow(ctx, `INSERT INTO customers (name, email, phone, store_id) VALUES ('Chunk Boundary Customer', 'chunkboundary@test.com', '08-CHUNK-BND', 1) RETURNING id`).Scan(&customerID)
+	require.NoError(t, err)
+
 	const totalSales = 501
-	_, err := dbPool.Exec(ctx, `
-		INSERT INTO sales (invoice_number, cashier_id, subtotal, total_amount, payment_method)
-		SELECT 'CHUNK-' || lpad(i::text, 4, '0'), $1, 1000, 1000, 'CASH'
-		FROM generate_series(1, $2::int) AS i`, cashierID, totalSales)
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO sales (invoice_number, cashier_id, customer_id, subtotal, total_amount, payment_method)
+		SELECT 'CHUNK-' || lpad(i::text, 4, '0'), $1, $2, 1000, 1000, 'CASH'
+		FROM generate_series(1, $3::int) AS i`, cashierID, customerID, totalSales)
 	require.NoError(t, err)
 
 	repo := newTestRepo(t)

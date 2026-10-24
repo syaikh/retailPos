@@ -2,6 +2,7 @@ package product
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -340,8 +341,11 @@ func TestGetAllProducts_SortOptions(t *testing.T) {
 		products, _, err := repo.GetAllProducts(ctx, 20, 0, "", nil, "v.name", "ASC", nil, nil, "", nil, nil, "")
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(products), 2)
+		// PostgreSQL orders by the database collation (en_US.utf8), which
+		// ignores case at the primary level, so byte comparison in Go would
+		// flag valid results (e.g. "globally-linked" before "GUARD").
 		for i := 1; i < len(products); i++ {
-			assert.LessOrEqual(t, products[i-1].Name, products[i].Name)
+			assert.LessOrEqual(t, strings.ToLower(products[i-1].Name), strings.ToLower(products[i].Name))
 		}
 	})
 

@@ -3,6 +3,7 @@ package shift
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -52,6 +53,11 @@ func newMockRepo(t *testing.T) (pgxmock.PgxPoolIface, *Repository, context.Conte
 	repo.SetCartSessionChecker(sale.CartSessionProvider{})
 	return mock, repo, context.Background()
 }
+
+// cashMethodArg is the second bind parameter sale.ShiftSummaryProvider sends to
+// the cash-vs-non-cash bucketing SQL ($2 = the lowercased cash method code),
+// so every sqlmock expectation for that query matches both arguments.
+var cashMethodArg = strings.ToLower(shared.PaymentMethodCash)
 
 func TestRepositoryMock_ErrorBranches(t *testing.T) {
 	boom := errors.New("boom")
@@ -106,7 +112,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1, 1).WillReturnRows(rowShift())
 		mock.ExpectQuery("SELECT COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
-		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnError(boom)
+		mock.ExpectQuery("FROM sales").WithArgs(1, cashMethodArg).WillReturnError(boom)
 		_, err := repo.CloseShift(ctx, 1, 1, 100000, nil)
 		assert.ErrorContains(t, err, "failed to calculate shift summary")
 	})
@@ -116,7 +122,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1, 1).WillReturnRows(rowShift())
 		mock.ExpectQuery("SELECT COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
-		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnRows(summaryRow())
+		mock.ExpectQuery("FROM sales").WithArgs(1, cashMethodArg).WillReturnRows(summaryRow())
 		mock.ExpectQuery("FROM cash_movements").WithArgs(1).WillReturnRows(
 			pgxmock.NewRows([]string{"net"}).AddRow(0))
 		mock.ExpectQuery("UPDATE shifts").WithArgs(100000, 0, 0, 0, 0, 0, (*string)(nil), false, 1).WillReturnError(boom)
@@ -129,7 +135,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1, 1).WillReturnRows(rowShift())
 		mock.ExpectQuery("SELECT COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
-		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnRows(summaryRow())
+		mock.ExpectQuery("FROM sales").WithArgs(1, cashMethodArg).WillReturnRows(summaryRow())
 		mock.ExpectQuery("FROM cash_movements").WithArgs(1).WillReturnRows(
 			pgxmock.NewRows([]string{"net"}).AddRow(0))
 		mock.ExpectQuery("UPDATE shifts").WithArgs(100000, 0, 0, 0, 0, 0, (*string)(nil), false, 1).WillReturnRows(
@@ -178,7 +184,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 				"opened_at", "closed_at", "created_at", "updated_at",
 			}).AddRow(1, 1, nil, "open", 0, nil, 0, 0, 0, 0, nil, nil, false, nil, nil,
 				now, nil, now, now))
-		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnError(boom)
+		mock.ExpectQuery("FROM sales").WithArgs(1, cashMethodArg).WillReturnError(boom)
 		_, _, err := repo.GetShiftWithLiveSales(ctx, ownership.Scope{}, 1)
 		assert.ErrorContains(t, err, "failed to query live cash sales")
 	})
@@ -218,7 +224,7 @@ func TestRepositoryMock_GetActiveShiftByUserID_FullData(t *testing.T) {
 			0, 0, 0, 0, disc, notes, true, reviewedBy, now,
 			now, now, now, now))
 	repo.SetStoreNameProvider(stubStoreNameProvider{names: map[int]string{7: "Store A"}})
-	mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnRows(
+	mock.ExpectQuery("FROM sales").WithArgs(1, cashMethodArg).WillReturnRows(
 		pgxmock.NewRows([]string{"cash", "non_cash", "total", "count"}).AddRow(100000, 50000, 150000, 3))
 
 	shift, err := repo.GetActiveShiftByUserID(ctx, 1)

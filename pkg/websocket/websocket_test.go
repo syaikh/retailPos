@@ -211,7 +211,7 @@ func TestServeWebSocket_EmptyToken(t *testing.T) {
 }
 
 func TestServeWebSocket_WritePumpDeliversMessages(t *testing.T) {
-	validator := &mockValidator{claims: &Claims{ID: 2, Role: "cashier"}}
+	validator := &mockValidator{claims: &Claims{ID: 2, Role: "cashier", StoreID: intPtr(10)}}
 	hub := newTestHub(validator)
 	go hub.Run()
 	defer hub.Shutdown()
@@ -315,7 +315,7 @@ func TestServeWebSocket_AdminReceivesAllStoreEvents(t *testing.T) {
 }
 
 func TestServeWebSocket_WritePumpCancelledContext(t *testing.T) {
-	validator := &mockValidator{claims: &Claims{ID: 5, Role: "cashier"}}
+	validator := &mockValidator{claims: &Claims{ID: 5, Role: "cashier", StoreID: intPtr(10)}}
 	hub := newTestHub(validator)
 	go hub.Run()
 	defer hub.Shutdown()
@@ -351,7 +351,7 @@ func TestServeWebSocket_WritePumpCancelledContext(t *testing.T) {
 }
 
 func TestServeWebSocket_ReadPumpDisconnect(t *testing.T) {
-	validator := &mockValidator{claims: &Claims{ID: 6, Role: "cashier"}}
+	validator := &mockValidator{claims: &Claims{ID: 6, Role: "cashier", StoreID: intPtr(10)}}
 	hub := newTestHub(validator)
 	go hub.Run()
 	defer hub.Shutdown()
@@ -387,7 +387,7 @@ func TestServeWebSocket_OriginRejected(t *testing.T) {
 }
 
 func TestServeWebSocket_AllowlistedOrigin(t *testing.T) {
-	validator := &mockValidator{claims: &Claims{ID: 8, Role: "cashier"}}
+	validator := &mockValidator{claims: &Claims{ID: 8, Role: "cashier", StoreID: intPtr(10)}}
 	hub := newTestHub(validator)
 	go hub.Run()
 	defer hub.Shutdown()
@@ -407,7 +407,7 @@ func TestServeWebSocket_AllowlistedOrigin(t *testing.T) {
 }
 
 func TestServeWebSocket_MaxConnectionsPerUser(t *testing.T) {
-	validator := &mockValidator{claims: &Claims{ID: 9, Role: "cashier"}}
+	validator := &mockValidator{claims: &Claims{ID: 9, Role: "cashier", StoreID: intPtr(10)}}
 	hub := newTestHub(validator)
 	go hub.Run()
 	defer hub.Shutdown()

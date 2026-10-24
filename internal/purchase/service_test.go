@@ -511,12 +511,12 @@ func (b *recordingCriticalBus) PublishCritical(_ context.Context, topic string, 
 func TestPurchaseService_CreateGoodsReceipt_PublishesStockEventCritically(t *testing.T) {
 	ctx := context.Background()
 
-	receiptFlow := func(t *testing.T, bus shared.EventBus) {
+	receiptFlow := func(t *testing.T, bus shared.EventBus, sku string) {
 		t.Helper()
 		svc := newWiredService(NewRepository(dbPool), bus)
 
 		supplierID := insertTestSupplier(ctx, t, "Svc Critbus Supplier")
-		prodID := insertTestProduct(ctx, t, "SVC-CRITBUS-001", "Critbus Product", 10000, 100)
+		prodID := insertTestProduct(ctx, t, sku, "Critbus Product "+sku, 10000, 100)
 		userID := insertTestUser(ctx, t, "po_critbus_user")
 
 		po := &Order{
@@ -530,8 +530,8 @@ func TestPurchaseService_CreateGoodsReceipt_PublishesStockEventCritically(t *tes
 				ProductID:   prodID,
 				QtyOrdered:  10,
 				UnitCost:    8000,
-				ProductName: "Critbus Product",
-				SKU:         "SVC-CRITBUS-001",
+				ProductName: "Critbus Product " + sku,
+				SKU:         sku,
 			},
 		}
 		require.NoError(t, svc.CreateDraft(ctx, po, items))
@@ -552,7 +552,7 @@ func TestPurchaseService_CreateGoodsReceipt_PublishesStockEventCritically(t *tes
 
 	t.Run("receipt event uses PublishCritical", func(t *testing.T) {
 		bus := &recordingCriticalBus{}
-		receiptFlow(t, bus)
+		receiptFlow(t, bus, "SVC-CRITBUS-001")
 
 		bus.mu.Lock()
 		defer bus.mu.Unlock()
@@ -566,7 +566,7 @@ func TestPurchaseService_CreateGoodsReceipt_PublishesStockEventCritically(t *tes
 		// The incident is logged, not returned: the receipt is already committed
 		// and the bus persisted the payload to the dead-letter store for replay.
 		bus := &recordingCriticalBus{critErr: eventbus.ErrChannelFull}
-		receiptFlow(t, bus)
+		receiptFlow(t, bus, "SVC-CRITBUS-002")
 
 		bus.mu.Lock()
 		defer bus.mu.Unlock()

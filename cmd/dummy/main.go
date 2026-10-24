@@ -3088,11 +3088,14 @@ func guardNotProduction() {
 	if os.Getenv("DATABASE_URL") != "" {
 		return
 	}
+	// The refusal messages must not echo the environment values: gosec G706
+	// (log injection) flags tainted os.Getenv data reaching the log sink, and
+	// the operator set these variables and already knows their values.
 	if host := os.Getenv("DB_HOST"); host != "" && host != "localhost" && host != "127.0.0.1" {
-		log.Fatalf("dummy seeder refuses to run against non-localhost DB_HOST=%q", host)
+		log.Fatal("dummy seeder refuses to run against a non-localhost DB_HOST")
 	}
 	if name := os.Getenv("DB_NAME"); name != "" && name != "retail_pos" {
-		log.Fatalf("dummy seeder refuses to run against DB_NAME=%q (expected retail_pos)", name)
+		log.Fatal("dummy seeder refuses to run against DB_NAME other than retail_pos")
 	}
 }
 
