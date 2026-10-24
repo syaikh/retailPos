@@ -918,6 +918,12 @@ func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostA
 	movements := make([]movementRow, 0, len(items))
 	updates := make([]ItemAdjustmentUpdate, len(items))
 	var totalDiff, totalAdj float64
+	// Collect each product's stock write and apply them in ONE batch after the
+	// loop (backend review P3: was one SQL round-trip per item). Products are
+	// unique per session, so each product is written exactly once, and the
+	// caller's tx has already locked the affected rows.
+	reconciles := make([]shared.LocationStockReconcile, 0, len(items))
+	sets := make([]shared.StockSetItem, 0, len(items))
 	for i, it := range items {
 		expected := float64(stock[it.ProductID])
 		diff := it.PhysicalQy - expected
@@ -940,8 +946,9 @@ func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostA
 			continue
 		}
 		delta := int(math.Round(diff))
+		movements = append(movements, movementRow{ProductID: it.ProductID, QuantityChange: delta, Notes: reason})
 		if session.LocationID != nil {
-			err = s.stockApplier.ReconcileLocationStock(ctx, tx, shared.LocationStockReconcile{
+			reconciles = append(reconciles, shared.LocationStockReconcile{
 				ProductID:   it.ProductID,
 				LocationID:  *session.LocationID,
 				WarehouseID: session.WarehouseID,
@@ -949,15 +956,19 @@ func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostA
 				Delta:       delta,
 			})
 		} else {
-			err = s.stockApplier.SetProductStock(ctx, tx, shared.StockSetItem{
+			sets = append(sets, shared.StockSetItem{
 				ProductID: it.ProductID,
 				Quantity:  int(math.Round(expected + diff)),
 			})
 		}
-		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrAdjustmentFailed, err)
-		}
-		movements = append(movements, movementRow{ProductID: it.ProductID, QuantityChange: delta, Notes: reason})
+	}
+	if session.LocationID != nil {
+		err = s.stockApplier.ReconcileLocationStocks(ctx, tx, reconciles)
+	} else {
+		err = s.stockApplier.SetProductStocks(ctx, tx, sets)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrAdjustmentFailed, err)
 	}
 	if err := s.repo.UpdateItemAdjustments(ctx, tx, updates); err != nil {
 		return nil, err

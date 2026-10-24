@@ -23,7 +23,14 @@ type SaleStatsProvider interface {
 	// The report module nets the refund side itself via RefundStatsProvider, so
 	// the two owners stay behind their own ports.
 	GetCompletedSalesStats(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (revenue int, orders int, err error)
-	GetActiveCustomerCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error)
+	// GetActiveCustomerCount returns the number of DISTINCT customers with a
+	// completed sale in [start, end). The window is REQUIRED: an all-time
+	// COUNT(DISTINCT customer_id) is a full scan of sales on every dashboard
+	// load and cannot be pre-aggregated into mv_dashboard_totals (per-store
+	// distinct counts over-count a customer who shopped at several stores,
+	// including the store_id IS NULL group). Bounding to a window lets the
+	// query use idx_sales_active_aggregations (backend review P2).
+	GetActiveCustomerCount(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (count int64, err error)
 	GetWeeklySales(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.WeeklyReportItem, error)
 	GetMonthlySales(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.MonthlyReportItem, error)
 	GetPricingBreakdown(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error)

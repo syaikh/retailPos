@@ -1,12 +1,41 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// jsPDF's doc.save() falls back to Node's fs when there is no real browser
+// download, which used to dump invoice-INV-*.pdf into the working directory.
+// Mock both jspdf modules so the tests never touch the filesystem; the saved
+// filename is asserted on the spy instead.
+const { saveSpy } = vi.hoisted(() => ({ saveSpy: vi.fn() }));
+
+vi.mock("jspdf", () => {
+  class MockJsPDF {
+    lastAutoTable = { finalY: 0 };
+    setFontSize() {}
+    text() {}
+    save(filename: string) {
+      saveSpy(filename);
+    }
+  }
+  return { jsPDF: MockJsPDF };
+});
+
+vi.mock("jspdf-autotable", () => ({
+  default: (doc: { lastAutoTable: { finalY: number } }) => {
+    doc.lastAutoTable.finalY = 70;
+  },
+}));
 
 describe("invoicePdf", () => {
+  beforeEach(() => {
+    saveSpy.mockClear();
+  });
+
   it("returns false for null transaction", async () => {
     const { downloadInvoice } = await import("../invoicePdf");
     const result = await downloadInvoice(null as never, (d: Date) =>
       d.toISOString(),
     );
     expect(result).toBe(false);
+    expect(saveSpy).not.toHaveBeenCalled();
   });
 
   it("exports downloadInvoice function", async () => {
@@ -25,6 +54,7 @@ describe("invoicePdf", () => {
       (d: Date) => d.toISOString(),
     );
     expect(result).toBe(true);
+    expect(saveSpy).toHaveBeenCalledWith("invoice-INV-001.pdf");
   });
 
   it("returns true with customer name", async () => {
@@ -39,6 +69,7 @@ describe("invoicePdf", () => {
       (d: Date) => d.toISOString(),
     );
     expect(result).toBe(true);
+    expect(saveSpy).toHaveBeenCalledWith("invoice-INV-002.pdf");
   });
 
   it("returns true with items", async () => {
@@ -57,6 +88,7 @@ describe("invoicePdf", () => {
       (d: Date) => d.toISOString(),
     );
     expect(result).toBe(true);
+    expect(saveSpy).toHaveBeenCalledWith("invoice-INV-003.pdf");
   });
 
   it("returns true with tax breakdown", async () => {
@@ -72,5 +104,6 @@ describe("invoicePdf", () => {
       (d: Date) => d.toISOString(),
     );
     expect(result).toBe(true);
+    expect(saveSpy).toHaveBeenCalledWith("invoice-INV-004.pdf");
   });
 });

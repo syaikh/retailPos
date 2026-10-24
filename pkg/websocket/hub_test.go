@@ -396,10 +396,14 @@ func TestHub_ShouldReceiveEvent(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "client nil store receives event with store",
+			// Backend review S1: a non-admin client without a store must NOT
+			// receive other stores' events — the filter fails closed. (Such a
+			// client is rejected at connect time by ServeWebSocket; this case
+			// pins the filter contract itself.)
+			name:     "client nil store does not receive event with store",
 			client:   &Client{storeID: nil, isAdmin: false},
 			event:    &Event{StoreID: intPtr(1)},
-			expected: true,
+			expected: false,
 		},
 	}
 

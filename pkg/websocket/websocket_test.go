@@ -11,6 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/permissions"
 )
 
 type mockValidator struct {
@@ -499,5 +501,66 @@ func TestServeWebSocket_NonAdminFilteredByStore(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected stock_update for matching store")
+	}
+}
+
+// TestServeWebSocket_StoreGate pins the S1 connect-time gate in
+// ServeWebSocket: mirroring the HTTP surface's RequireStoreID, only a
+// superadmin may connect with no store. Any other role presenting a nil
+// StoreID is closed before registration, so it can never sit in the hub
+// receiving cross-store live sales and stock events (the fail-open the backend
+// review flagged).
+func TestServeWebSocket_StoreGate(t *testing.T) {
+	tests := []struct {
+		name         string
+		role         string
+		storeID      *int
+		wantAccepted bool
+	}{
+		{name: "storeless cashier rejected", role: "cashier", storeID: nil, wantAccepted: false},
+		{name: "storeless admin rejected", role: "admin", storeID: nil, wantAccepted: false},
+		{name: "storeless superadmin accepted", role: permissions.RoleSuperadmin, storeID: nil, wantAccepted: true},
+		{name: "store-bound cashier accepted", role: "cashier", storeID: intPtr(10), wantAccepted: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			validator := &mockValidator{
+				claims: &Claims{ID: 1, Role: tt.role, StoreID: tt.storeID},
+			}
+			hub := newTestHub(validator)
+			go hub.Run()
+			defer hub.Shutdown()
+
+			srv := setupGinWithWS(hub)
+			defer srv.Close()
+
+			conn, err := wsDial(t, srv.URL)
+			require.NoError(t, err)
+			defer func() { _ = conn.Close() }()
+
+			sendWSAuth(t, conn, "valid-token")
+
+			if !tt.wantAccepted {
+				// The server closes the connection without sending anything.
+				_, _, err = conn.ReadMessage()
+				require.Error(t, err, "store-less non-superadmin must be disconnected after auth")
+
+				hub.mutex.RLock()
+				count := len(hub.clients)
+				hub.mutex.RUnlock()
+				require.Zero(t, count, "rejected client must never register with the hub")
+				return
+			}
+
+			msg := readOneMessage(t, conn, 3*time.Second)
+			var evt Event
+			require.NoError(t, json.Unmarshal(msg, &evt))
+			require.Equal(t, EventUserOnline, evt.Type)
+
+			hub.mutex.RLock()
+			count := len(hub.clients)
+			hub.mutex.RUnlock()
+			require.Equal(t, 1, count, "accepted client must register with the hub")
+		})
 	}
 }

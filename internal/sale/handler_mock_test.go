@@ -285,6 +285,9 @@ func (m *mockService) SetPriceResolver(r PriceResolver) {
 func (m *mockService) SetStockDeducer(sd StockDeducer) {
 }
 
+func (m *mockService) SetCustomerGroupReader(p CustomerGroupReader) {
+}
+
 func (m *mockService) SetConsignmentCheckout(cc ConsignmentCheckout) {
 }
 

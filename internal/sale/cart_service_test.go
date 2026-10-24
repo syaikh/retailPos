@@ -11,6 +11,7 @@ import (
 
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
+	"retail-pos-system/internal/customer"
 	"retail-pos-system/internal/customergroup"
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/events"
@@ -34,6 +35,7 @@ func newCartTestService(ctx context.Context, t *testing.T) (Service, *eventbus.B
 	svc.SetStockDeducer(inventory.StockDeducer{})
 	svc.SetConsignmentCheckout(noopConsignmentCheckout{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
+	svc.SetCustomerGroupReader(customer.GroupLookup{})
 	svc.SetCartConfig(CartConfig{HoldTTLHours: 24})
 	svc.SetPriceResolver(newPricingTestResolver())
 	return svc, bus
@@ -735,4 +737,180 @@ func TestCartService_UpdateCartCustomer(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cart.CustomerID)
 	assert.Equal(t, customerID, *cart.CustomerID)
+}
+
+// ==================== UC-01: CUSTOMER SWAP RE-PRICING (B5) ====================
+
+// insertGroupCustomer inserts a customer optionally bound to a customer group.
+// The phone doubles as the unique key, so it is derived from the name.
+func insertGroupCustomer(ctx context.Context, t *testing.T, name string, groupID *int) int {
+	t.Helper()
+	var id int
+	err := dbPool.QueryRow(ctx,
+		`INSERT INTO customers (name, email, phone, store_id, customer_group_id) VALUES ($1, $2, $3, 1, $4) RETURNING id`,
+		name, name+"@test.com", "08-"+name, groupID,
+	).Scan(&id)
+	require.NoError(t, err)
+	return id
+}
+
+// TestSameGroupID pins the nullable-group equality UpdateCartCustomer uses to
+// decide which lines are stale after a customer swap (nil == nil: both mean
+// base pricing).
+func TestSameGroupID(t *testing.T) {
+	g5, g6 := 5, 6
+	tests := []struct {
+		name string
+		a, b *int
+		want bool
+	}{
+		{name: "nil nil means base pricing", a: nil, b: nil, want: true},
+		{name: "nil vs group", a: nil, b: &g5, want: false},
+		{name: "group vs nil", a: &g5, b: nil, want: false},
+		{name: "same group", a: &g5, b: &g5, want: true},
+		{name: "different groups", a: &g5, b: &g6, want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, sameGroupID(tc.a, tc.b))
+		})
+	}
+}
+
+// TestCartService_UpdateCartCustomer_RepricesLinesForNewGroup covers backend
+// review B5: changing the cart's customer must re-resolve every line whose
+// stored pricing group differs from the NEW customer's group, or checkout
+// charges the previous customer's group price (a member discount survived
+// deselecting the member, and a member attached mid-cart never discounted the
+// lines already scanned).
+func TestCartService_UpdateCartCustomer_RepricesLinesForNewGroup(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	svc, _ := newCartTestService(ctx, t)
+
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-CUSTSWAP-PROD", "Customer Swap Product", 5000, 100, 11)
+
+	var groupID int
+	err := dbPool.QueryRow(ctx, `INSERT INTO customer_groups (name) VALUES ('swap-group') RETURNING id`).Scan(&groupID)
+	require.NoError(t, err)
+
+	// status/is_active must be set explicitly: migration 055 defaults new
+	// rules to pending/inactive.
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO pricing_rules (product_id, pricing_type, name, minimum_quantity, priority, pricing_method, pricing_value, customer_group_id, is_active, status)
+		VALUES ($1, 'special_price', 'member-swap-promo', 1, 0, 'fixed_price', 3000, $2, true, 'approved')
+	`, prodID, groupID)
+	require.NoError(t, err)
+
+	t.Run("attaching a member mid-cart discounts the scanned line", func(t *testing.T) {
+		memberID := insertGroupCustomer(ctx, t, "swap-member", &groupID)
+
+		cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
+		require.NoError(t, err)
+		cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 1, nil, cashierID)
+		require.NoError(t, err)
+		require.Len(t, cart.Items, 1)
+		assert.Equal(t, 5000, cart.Items[0].UnitPrice, "base price before the member is attached")
+
+		cart, err = svc.UpdateCartCustomer(ctx, cart.ID, &memberID, cashierID)
+		require.NoError(t, err)
+		require.Len(t, cart.Items, 1)
+		assert.Equal(t, 3000, cart.Items[0].UnitPrice, "member group price must apply to lines already in the cart")
+		assert.Equal(t, 3000, cart.Items[0].Subtotal, "line totals follow the re-resolved price")
+		require.NotNil(t, cart.Items[0].CustomerGroupID, "the line records the group it was re-priced under")
+		assert.Equal(t, groupID, *cart.Items[0].CustomerGroupID)
+		require.NotNil(t, cart.Items[0].PricingRuleName)
+		assert.Equal(t, "member-swap-promo", *cart.Items[0].PricingRuleName)
+	})
+
+	t.Run("deselecting the member restores base pricing", func(t *testing.T) {
+		walkInID := insertGroupCustomer(ctx, t, "swap-walkin", nil)
+
+		cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
+		require.NoError(t, err)
+		cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 1, &groupID, cashierID)
+		require.NoError(t, err)
+		require.Len(t, cart.Items, 1)
+		assert.Equal(t, 3000, cart.Items[0].UnitPrice, "member price at add time")
+
+		cart, err = svc.UpdateCartCustomer(ctx, cart.ID, &walkInID, cashierID)
+		require.NoError(t, err)
+		require.Len(t, cart.Items, 1)
+		assert.Equal(t, 5000, cart.Items[0].UnitPrice, "member discount must not survive deselecting the member")
+		assert.Equal(t, 5000, cart.Items[0].Subtotal, "line totals follow the re-based price")
+		assert.Nil(t, cart.Items[0].CustomerGroupID, "the line is re-based with no group")
+		assert.Nil(t, cart.Items[0].PricingRuleName, "the group-scoped rule no longer applies")
+	})
+
+	t.Run("swapping within the same group keeps the snapshot", func(t *testing.T) {
+		memberB := insertGroupCustomer(ctx, t, "swap-same-b", &groupID)
+
+		cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
+		require.NoError(t, err)
+		cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 1, &groupID, cashierID)
+		require.NoError(t, err)
+		require.Len(t, cart.Items, 1)
+		ruleIDAtAdd := cart.Items[0].PricingRuleID
+
+		cart, err = svc.UpdateCartCustomer(ctx, cart.ID, &memberB, cashierID)
+		require.NoError(t, err)
+		require.Len(t, cart.Items, 1)
+		assert.Equal(t, 3000, cart.Items[0].UnitPrice, "the add-time snapshot is kept when the group is unchanged")
+		require.NotNil(t, cart.Items[0].CustomerGroupID)
+		assert.Equal(t, groupID, *cart.Items[0].CustomerGroupID)
+		if ruleIDAtAdd != nil {
+			require.NotNil(t, cart.Items[0].PricingRuleID)
+			assert.Equal(t, *ruleIDAtAdd, *cart.Items[0].PricingRuleID, "no re-resolve happened for the unchanged group")
+		}
+	})
+}
+
+// TestCartService_UpdateCartCustomer_FailsFast covers the two wiring guards on
+// the customer-swap path (backend review B5): an unwired group reader fails
+// before the cart is touched, and stale lines with no price resolver configured
+// fail before any mutation.
+func TestCartService_UpdateCartCustomer_FailsFast(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+
+	t.Run("unwired group reader", func(t *testing.T) {
+		svc, _ := newCartTestService(ctx, t)
+		svc.SetCustomerGroupReader(nil)
+
+		cashierID := insertTestCashier(ctx, t)
+		customerID := insertGroupCustomer(ctx, t, "swap-unwired", nil)
+
+		cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
+		require.NoError(t, err)
+
+		_, err = svc.UpdateCartCustomer(ctx, cart.ID, &customerID, cashierID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "customer group reader not wired")
+	})
+
+	t.Run("stale lines without a price resolver", func(t *testing.T) {
+		svc, _ := newCartTestService(ctx, t)
+
+		cashierID := insertTestCashier(ctx, t)
+		prodID := insertTestProductWithTax(ctx, t, "CART-SWAP-NORESOLVER", "No Resolver Product", 4000, 100, 0)
+
+		var groupID int
+		err := dbPool.QueryRow(ctx, `INSERT INTO customer_groups (name) VALUES ('swap-no-resolver-group') RETURNING id`).Scan(&groupID)
+		require.NoError(t, err)
+
+		// Add the line while the resolver is still wired, then unwire it: the
+		// swap to a group-less customer makes the line stale and must fail fast
+		// instead of charging a stale price.
+		cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
+		require.NoError(t, err)
+		cart, err = svc.AddCartItem(ctx, cart.ID, prodID, 1, &groupID, cashierID)
+		require.NoError(t, err)
+		svc.SetPriceResolver(nil)
+
+		walkInID := insertGroupCustomer(ctx, t, "swap-no-resolver-walkin", nil)
+		_, err = svc.UpdateCartCustomer(ctx, cart.ID, &walkInID, cashierID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "price resolver is not configured")
+	})
 }

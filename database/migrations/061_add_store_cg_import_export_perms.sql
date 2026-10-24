@@ -5,21 +5,23 @@ DO $$
 DECLARE
   v_count int;
 BEGIN
-  -- Add permissions if not exist
-  INSERT INTO permissions (code, description)
-  SELECT 'store.import', 'Import stores'
+  -- Add permissions if not exist. name is NOT NULL, so it must be supplied —
+  -- omitting it would fail with a not-null violation on any database that does
+  -- not already carry these codes (backend review P2, replay contract).
+  INSERT INTO permissions (code, name, description)
+  SELECT 'store.import', 'Import Stores', 'Import stores'
   WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'store.import');
 
-  INSERT INTO permissions (code, description)
-  SELECT 'store.export', 'Export stores'
+  INSERT INTO permissions (code, name, description)
+  SELECT 'store.export', 'Export Stores', 'Export stores'
   WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'store.export');
 
-  INSERT INTO permissions (code, description)
-  SELECT 'customer_group.import', 'Import customer groups'
+  INSERT INTO permissions (code, name, description)
+  SELECT 'customer_group.import', 'Import Customer Groups', 'Import customer groups'
   WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'customer_group.import');
 
-  INSERT INTO permissions (code, description)
-  SELECT 'customer_group.export', 'Export customer groups'
+  INSERT INTO permissions (code, name, description)
+  SELECT 'customer_group.export', 'Export Customer Groups', 'Export customer groups'
   WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'customer_group.export');
 
   -- Grant store.import/export to superadmin, manager, supervisor, inventory_staff

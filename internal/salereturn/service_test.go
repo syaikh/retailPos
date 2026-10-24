@@ -88,6 +88,10 @@ func (m *stubBus) Publish(_ context.Context, topic string, event interface{}) er
 	return nil
 }
 
+func (m *stubBus) PublishCritical(ctx context.Context, topic string, event interface{}) error {
+	return m.Publish(ctx, topic, event)
+}
+
 // ==================== POLICY ====================
 
 func TestLoadPolicy_WiredDefaultsAndOutage(t *testing.T) {

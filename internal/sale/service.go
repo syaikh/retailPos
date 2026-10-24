@@ -88,6 +88,7 @@ type service struct {
 	stockStore       StockDeducer
 	consignmentStore ConsignmentCheckout
 	shiftStore       ShiftTotalUpdater
+	customerGroups   CustomerGroupReader
 	cartConfig       CartConfig
 }
 
@@ -132,6 +133,14 @@ func (s *service) ResolveCheckoutPrices(ctx context.Context, items []ResolveItem
 
 func (s *service) SetStockDeducer(sd StockDeducer) {
 	s.stockStore = sd
+}
+
+// SetCustomerGroupReader wires the customer→group membership read used by the
+// cart customer-swap path (UpdateCartCustomer). The composition root MUST wire
+// it before any customer-swap on an item-bearing cart — an unwired service
+// fails fast at runtime, matching the stock/shift/resolver ports.
+func (s *service) SetCustomerGroupReader(p CustomerGroupReader) {
+	s.customerGroups = p
 }
 
 func (s *service) SetConsignmentCheckout(cc ConsignmentCheckout) {
@@ -233,7 +242,7 @@ func (s *service) validatePayments(ctx context.Context, totalAmount int, payment
 			return nil, 0, ErrPaymentMethodInactive
 		}
 
-		if strings.EqualFold(p.PaymentMethodCode, "CASH") {
+		if strings.EqualFold(p.PaymentMethodCode, shared.PaymentMethodCash) {
 			cashCount++
 			if cashCount > 1 {
 				return nil, 0, ErrMultipleCashPayments
@@ -569,7 +578,7 @@ func (s *service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sal
 func shiftContribution(shiftID, cashierID, totalAmount, changeDue int, payments []Payment) shared.ShiftSaleContribution {
 	c := shared.ShiftSaleContribution{ShiftID: shiftID, CashierID: cashierID, TotalAmount: totalAmount}
 	for _, p := range payments {
-		if strings.EqualFold(p.PaymentMethodCode, "CASH") {
+		if strings.EqualFold(p.PaymentMethodCode, shared.PaymentMethodCash) {
 			c.CashSales += p.Amount
 		} else {
 			c.NonCashSales += p.Amount

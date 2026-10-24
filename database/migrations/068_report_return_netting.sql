@@ -49,6 +49,15 @@
 -- Dropping and recreating also discards any concurrently-refreshing session's
 -- snapshot, which is why WITH DATA is used (a populated view, matching the
 -- baseline definition's WITH DATA).
+--
+-- Wrapped in a single transaction (BEGIN/COMMIT): without it, a failure between
+-- a DROP and its CREATE would leave the reporting read model partially
+-- destroyed (e.g. mv_daily_sales dropped but not recreated). CREATE/DROP
+-- MATERIALIZED VIEW and plain CREATE UNIQUE INDEX are all transactional in
+-- PostgreSQL — only the CONCURRENTLY variants are not, and none appear here —
+-- so a mid-file error rolls everything back and leaves the views intact.
+
+BEGIN;
 
 -- ---------------------------------------------------------------------------
 -- mv_daily_sales
@@ -158,3 +167,5 @@ CREATE MATERIALIZED VIEW public.mv_hourly_sales AS
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_hourly_sales_hour_store
     ON public.mv_hourly_sales USING btree (sale_hour, store_id);
+
+COMMIT;

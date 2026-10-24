@@ -17,8 +17,15 @@ import (
 // implementation; the composition root MUST wire it via SetStockApplier before
 // any posting path runs — an unwired service fails fast at runtime.
 type StockApplier interface {
-	SetProductStock(ctx context.Context, tx pgx.Tx, item shared.StockSetItem) error
-	ReconcileLocationStock(ctx context.Context, tx pgx.Tx, reconcile shared.LocationStockReconcile) error
+	// SetProductStocks sets many products' global stock to absolute values in
+	// one batch (backend review P3: was one SQL round-trip per product). An
+	// empty slice is a no-op.
+	SetProductStocks(ctx context.Context, tx pgx.Tx, items []shared.StockSetItem) error
+	// ReconcileLocationStocks applies signed deltas to many products' rack rows
+	// and reconciles each product's global row from the rack share, in one batch
+	// (backend review P3: was one SQL round-trip per product). An empty slice is
+	// a no-op.
+	ReconcileLocationStocks(ctx context.Context, tx pgx.Tx, reconciles []shared.LocationStockReconcile) error
 }
 
 // UsernameProvider resolves usernames for stock opname reads (assignments,

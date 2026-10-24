@@ -23,6 +23,13 @@ type PaymentMethodTotal struct {
 	Count  int    `json:"count"`
 }
 
+// PaymentMethodCash is the canonical code for the physical-cash payment method.
+// It is the single source of truth for "is this line cash?" across the sale
+// checkout (cash-drawer totals), the salereturn refund split, and the shift/
+// return SQL that buckets amounts by cash vs non-cash, so the literal cannot
+// drift between those call sites.
+const PaymentMethodCash = "CASH"
+
 // ErrShiftNotOpen is returned when a sale contribution targets a shift that is
 // no longer 'open' (closed concurrently, already closed, or nonexistent).
 // Cross-module sentinel so consumers (sale checkout) can map it to a client

@@ -37,9 +37,23 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 	var products []Product
 	var total int
 
+	// Count on products directly rather than the v_products_full view: the view
+	// pulls in categories/brands/units/tax_classes/supplier joins that are
+	// irrelevant to a COUNT, and the view is exactly one row per non-deleted
+	// product (every join is LEFT or LATERAL ... LIMIT 1 on unique keys), so a
+	// base-table count with the same predicates is identical. The stock filter
+	// is the exception: stock lives in product_stock (owned by
+	// internal/inventory), which the katalog module reaches only through the
+	// view, so a maxStock filter counts on the view — the same source the list
+	// query below reads, keeping the count and the page in lockstep.
 	query := `SELECT COUNT(*)
+		FROM products v
+		WHERE v.deleted_at IS NULL`
+	if maxStock != nil {
+		query = `SELECT COUNT(*)
 		FROM v_products_full v
 		WHERE 1=1`
+	}
 	args := []interface{}{}
 	argIdx := 1
 	if search != "" {

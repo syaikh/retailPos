@@ -414,10 +414,6 @@ func (r *Repository) GetProductsBySupplierID(ctx context.Context, supplierID int
 	return r.linkStore().ListLinksBySupplier(ctx, r.db, supplierID, storeID)
 }
 
-func (r *Repository) HasPreferredSupplier(ctx context.Context, productID int, storeID *int) (bool, error) {
-	return r.linkStore().HasPreferredLink(ctx, r.db, productID, storeID)
-}
-
 func scanSuppliers(rows pgx.Rows) ([]Supplier, error) {
 	var suppliers []Supplier
 	for rows.Next() {

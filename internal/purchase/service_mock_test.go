@@ -16,6 +16,10 @@ type noopBus struct{}
 
 func (noopBus) Publish(ctx context.Context, topic string, event interface{}) error { return nil }
 
+func (noopBus) PublishCritical(ctx context.Context, topic string, event interface{}) error {
+	return nil
+}
+
 type fakeProductLookup struct {
 	names map[int]ProductInfo
 	err   error

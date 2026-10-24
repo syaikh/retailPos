@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -509,7 +510,7 @@ func (r *Repository) ReturnTotalsForShift(ctx context.Context, q shared.DBPool, 
 	var totals shared.ShiftReturnTotals
 	err := q.QueryRow(ctx, `
 		WITH cash AS (
-			SELECT COALESCE(SUM(sp.amount) FILTER (WHERE LOWER(sp.payment_method_code) = 'cash'), 0) AS amount
+			SELECT COALESCE(SUM(sp.amount) FILTER (WHERE LOWER(sp.payment_method_code) = $2), 0) AS amount
 			FROM sale_return_payments sp
 			JOIN sale_returns sr ON sr.id = sp.sale_return_id
 			WHERE sr.shift_id = $1 AND sr.status = 'completed'
@@ -520,7 +521,7 @@ func (r *Repository) ReturnTotalsForShift(ctx context.Context, q shared.DBPool, 
 		)
 		SELECT cash.amount, total.amount - cash.amount, total.amount
 		FROM cash, total
-	`, shiftID).Scan(&totals.CashRefund, &totals.NonCashRefund, &totals.TotalRefund)
+	`, shiftID, strings.ToLower(CashMethodCode)).Scan(&totals.CashRefund, &totals.NonCashRefund, &totals.TotalRefund)
 	if err != nil {
 		return shared.ShiftReturnTotals{}, fmt.Errorf("failed to aggregate shift return totals: %w", err)
 	}

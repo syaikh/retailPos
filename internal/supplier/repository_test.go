@@ -224,12 +224,6 @@ func TestSupplierRepository_ProductSupplierLinking(t *testing.T) {
 		assert.Equal(t, s.ID, ps.SupplierID)
 	})
 
-	t.Run("Has preferred supplier", func(t *testing.T) {
-		has, err := repo.HasPreferredSupplier(ctx, productID, nil)
-		require.NoError(t, err)
-		assert.True(t, has)
-	})
-
 	t.Run("Set preferred supplier", func(t *testing.T) {
 		s2 = &Supplier{
 			Name:     "Preferred Test 2",

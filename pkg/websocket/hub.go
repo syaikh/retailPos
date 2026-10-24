@@ -327,13 +327,22 @@ func (h *Hub) Run() {
 	}
 }
 
+// ShouldReceiveEvent mirrors the HTTP surface's store scoping (RequireStoreID
+// plus per-handler GetStoreID filtering): only superadmin operates across all
+// stores, every other role is bound to its own store, and the filter fails
+// CLOSED — a store-scoped event never reaches a client of another store. A
+// nil client.storeID can only be a superadmin (ServeWebSocket rejects
+// store-less non-superadmins at connect time), so it never widens delivery.
 func (h *Hub) ShouldReceiveEvent(client *Client, event *Event) bool {
-	if event.StoreID != nil && client.storeID != nil {
-		if *event.StoreID != *client.storeID && !client.isAdmin {
-			return false
-		}
+	if client.isAdmin {
+		return true
 	}
-	return true
+	// Global events (no store scope, e.g. the online-count broadcast) reach
+	// every connected client.
+	if event.StoreID == nil {
+		return true
+	}
+	return client.storeID != nil && *event.StoreID == *client.storeID
 }
 
 func (h *Hub) Broadcast(event Event) {
@@ -442,6 +451,17 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 		storeID = &sid
 	}
 
+	// Mirror the HTTP surface's RequireStoreID: only superadmin operates with
+	// no store. Without this gate a store-less non-superadmin token passed the
+	// store filter below (fail-open) and received every store's live sales and
+	// stock events (backend review S1).
+	isAdmin := claims.Role == permissions.RoleSuperadmin
+	if storeID == nil && !isAdmin {
+		slog.Warn("WebSocket auth rejected: non-superadmin without store", "user_id", claims.ID, "role", claims.Role, "ip", clientIP)
+		_ = conn.Close()
+		return
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	client := &Client{
@@ -451,7 +471,7 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 		userID:  claims.ID,
 		role:    claims.Role,
 		storeID: storeID,
-		isAdmin: claims.Role == permissions.RoleSuperadmin || claims.Role == permissions.RoleManager,
+		isAdmin: isAdmin,
 		ip:      clientIP,
 		ctx:     ctx,
 		cancel:  cancel,

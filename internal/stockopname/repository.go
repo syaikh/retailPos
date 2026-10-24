@@ -290,28 +290,6 @@ func (r *Repository) GetNextSessionNumber(ctx context.Context) (string, error) {
 	return fmt.Sprintf("SO-%d-%06d", year, seq), nil
 }
 
-// LoadSnapshotProducts returns the general-stock snapshot for all active products.
-// LoadSnapshotProducts returns the general-stock snapshot for all active
-// products. The catalog rows come from the product-owned ProductCatalogProvider
-// and the stock quantities from the inventory-owned StockSnapshotProvider; the
-// global snapshot inner-joins product_stock, so products without a global stock
-// row are excluded.
-func (r *Repository) LoadSnapshotProducts(ctx context.Context) ([]SessionItem, error) {
-	catalog, err := r.snapshotCatalog(ctx, r.db, nil)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int, 0, len(catalog))
-	for _, p := range catalog {
-		ids = append(ids, p.ProductID)
-	}
-	quantities, err := r.snapshotQuantities(ctx, r.db, ids, nil)
-	if err != nil {
-		return nil, err
-	}
-	return r.buildSnapshotItems(ctx, r.db, catalog, quantities, false)
-}
-
 // ListAssignableUsers returns active users eligible for assignment to a stock
 // opname session (counters and supervisors). Superadmins are excluded as they
 // sit outside the day-to-day assignment flow. The read is routed through the

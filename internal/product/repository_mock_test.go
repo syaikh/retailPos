@@ -317,21 +317,6 @@ func TestRepo_GetAllTaxClasses(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestRepo_GetTaxClassIDByName_Found(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	mock.ExpectQuery("SELECT id FROM tax_classes").WithArgs("PPN").WillReturnRows(
-		pgxmock.NewRows([]string{"id"}).AddRow(1))
-
-	repo := NewRepository(mock)
-	id, err := repo.GetTaxClassIDByName(context.Background(), "PPN")
-	require.NoError(t, err)
-	assert.Equal(t, 1, id)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestRepo_CreateProduct(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)

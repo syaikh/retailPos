@@ -2,12 +2,14 @@ package purchase
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/supplier"
@@ -474,4 +476,100 @@ func TestPurchaseService_ReceiveOnDraftFails(t *testing.T) {
 	}
 	_, err = svc.CreateGoodsReceipt(ctx, po.ID, userID, 1, grItems)
 	assert.ErrorIs(t, err, ErrInvalidPOStatusForReceiving)
+}
+
+// recordingCriticalBus captures which publish path each topic took. The goods
+// receipt's stock-deduction event MUST go through PublishCritical (backend
+// review B6): a silently dropped purchase_receipt.completed commits the goods
+// receipt while never moving product_stock — inventory drift.
+type recordingCriticalBus struct {
+	mu        sync.Mutex
+	published []string
+	critical  []string
+	critErr   error
+}
+
+func (b *recordingCriticalBus) Publish(_ context.Context, topic string, _ interface{}) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.published = append(b.published, topic)
+	return nil
+}
+
+func (b *recordingCriticalBus) PublishCritical(_ context.Context, topic string, _ interface{}) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.critical = append(b.critical, topic)
+	return b.critErr
+}
+
+// TestPurchaseService_CreateGoodsReceipt_PublishesStockEventCritically pins the
+// B6 contract: the purchase_receipt.completed event that drives the stock
+// deduction is published through the never-drop critical path, never the
+// drop-on-full Publish path, and a critical publish failure does not fail the
+// already-committed receipt (the bus persisted the payload for replay).
+func TestPurchaseService_CreateGoodsReceipt_PublishesStockEventCritically(t *testing.T) {
+	ctx := context.Background()
+
+	receiptFlow := func(t *testing.T, bus shared.EventBus) {
+		t.Helper()
+		svc := newWiredService(NewRepository(dbPool), bus)
+
+		supplierID := insertTestSupplier(ctx, t, "Svc Critbus Supplier")
+		prodID := insertTestProduct(ctx, t, "SVC-CRITBUS-001", "Critbus Product", 10000, 100)
+		userID := insertTestUser(ctx, t, "po_critbus_user")
+
+		po := &Order{
+			SupplierID: supplierID,
+			StoreID:    1,
+			CreatedBy:  userID,
+			UpdatedBy:  userID,
+		}
+		items := []OrderItem{
+			{
+				ProductID:   prodID,
+				QtyOrdered:  10,
+				UnitCost:    8000,
+				ProductName: "Critbus Product",
+				SKU:         "SVC-CRITBUS-001",
+			},
+		}
+		require.NoError(t, svc.CreateDraft(ctx, po, items))
+		require.NoError(t, svc.Confirm(ctx, po.ID, userID))
+
+		po, err := svc.GetDetail(ctx, po.ID, nil)
+		require.NoError(t, err)
+
+		grItems := []CreateGRItemInput{
+			{
+				PurchaseOrderItemID: po.Items[0].ID,
+				QtyGood:             5,
+			},
+		}
+		_, err = svc.CreateGoodsReceipt(ctx, po.ID, userID, 1, grItems)
+		require.NoError(t, err)
+	}
+
+	t.Run("receipt event uses PublishCritical", func(t *testing.T) {
+		bus := &recordingCriticalBus{}
+		receiptFlow(t, bus)
+
+		bus.mu.Lock()
+		defer bus.mu.Unlock()
+		assert.Equal(t, []string{events.TopicPurchaseReceiptCompleted}, bus.critical,
+			"the stock-deduction event must be published through the critical path")
+		assert.NotContains(t, bus.published, events.TopicPurchaseReceiptCompleted,
+			"the stock-deduction event must never take the drop-on-full path")
+	})
+
+	t.Run("critical publish failure still commits the receipt", func(t *testing.T) {
+		// The incident is logged, not returned: the receipt is already committed
+		// and the bus persisted the payload to the dead-letter store for replay.
+		bus := &recordingCriticalBus{critErr: eventbus.ErrChannelFull}
+		receiptFlow(t, bus)
+
+		bus.mu.Lock()
+		defer bus.mu.Unlock()
+		assert.Equal(t, []string{events.TopicPurchaseReceiptCompleted}, bus.critical)
+	})
 }

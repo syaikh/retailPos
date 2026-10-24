@@ -235,25 +235,6 @@ func TestRepository_GetSessionNotFound(t *testing.T) {
 	require.ErrorIs(t, err, ErrNotFound)
 }
 
-func TestRepository_LoadSnapshotProducts(t *testing.T) {
-	repo := newTestRepository()
-	ctx := context.Background()
-	p := insertTestProduct(ctx, t, "SO-SNAP-001")
-	insertTestStock(ctx, t, p, 7)
-
-	items, err := repo.LoadSnapshotProducts(ctx)
-	require.NoError(t, err)
-	found := false
-	for _, it := range items {
-		if it.ProductID == p {
-			found = true
-			assert.Equal(t, float64(7), it.OpeningQty)
-			assert.Equal(t, "Test Product SO-SNAP-001", it.ProductName)
-		}
-	}
-	assert.True(t, found, "snapshot should include the test product")
-}
-
 func TestRepository_UpdateStatusGuarded(t *testing.T) {
 	repo := newTestRepository()
 	ctx := context.Background()

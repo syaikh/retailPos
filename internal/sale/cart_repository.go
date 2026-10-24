@@ -417,13 +417,13 @@ func (r *Repository) UpdateCartItemQuantity(ctx context.Context, tx pgx.Tx, cart
 		    pricing_rule_id = $5, pricing_rule_name = $6, pricing_rule_type = $7,
 		    pricing_type = $8, cost = $9, tax_class_id = $10, tax_rate = $11,
 		    snapshot_created_at = $12, subtotal = $13, dpp_amount = $14,
-		    tax_amount = $15, updated_at = NOW()
-		WHERE id = $16 AND cart_session_id = $17
+		    tax_amount = $15, customer_group_id = $16, updated_at = NOW()
+		WHERE id = $17 AND cart_session_id = $18
 	`, item.Quantity, item.UnitPrice, item.OriginalPrice, item.Discount,
 		item.PricingRuleID, item.PricingRuleName, item.PricingRuleType,
 		item.Type, item.Cost, item.TaxClassID, item.TaxRate,
 		item.SnapshotCreatedAt, item.Subtotal, item.DPPAmount, item.TaxAmount,
-		item.ID, cartID)
+		item.CustomerGroupID, item.ID, cartID)
 	if err != nil {
 		return fmt.Errorf("update cart item quantity: %w", err)
 	}

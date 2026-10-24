@@ -21,6 +21,10 @@ func (f *failingEventBus) Publish(_ context.Context, _ string, _ interface{}) er
 	return fmt.Errorf("publish failed")
 }
 
+func (f *failingEventBus) PublishCritical(_ context.Context, _ string, _ interface{}) error {
+	return fmt.Errorf("publish failed")
+}
+
 func TestInventoryService_GetStockByProductID(t *testing.T) {
 	repo := newTestRepo(t)
 	bus := eventbus.New()

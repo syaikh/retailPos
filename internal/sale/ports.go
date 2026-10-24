@@ -101,6 +101,21 @@ type CustomerNameProvider interface {
 	CustomerIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error)
 }
 
+// CustomerGroupReader resolves a customer's customer-group membership. Pricing
+// rules are scoped by customer group, so changing the cart's customer MUST
+// re-resolve every line snapshot against the NEW customer's group — otherwise
+// checkout charges the previous customer's group price (member discounts kept
+// after the member is removed, or a member never discounted; backend review
+// B5). internal/customer provides the production implementation (structural
+// typing — customer.GroupLookup satisfies this interface); the composition
+// root MUST wire it via SetCustomerGroupReader before any customer-swap on an
+// item-bearing cart — an unwired service fails fast at runtime.
+type CustomerGroupReader interface {
+	// CustomerGroupID returns the customer's group id; nil when the customer
+	// has no group or does not exist (base pricing, never an error).
+	CustomerGroupID(ctx context.Context, db shared.DBPool, customerID int) (*int, error)
+}
+
 // UserNameProvider resolves cashier/user names for sale listings and exports.
 // The users table is owned by the platform bounded context (internal/user);
 // sale no longer JOINs users directly (ADR audit finding, users) and instead

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -77,7 +76,19 @@ func (s *service) ListHeldCarts(ctx context.Context, cashierID int) ([]CartSessi
 }
 
 // UpdateCartCustomer sets the customer on an open cart, ensuring ownership.
+// Changing the customer changes the pricing context: pricing rules are scoped
+// by customer group (PriceResolver filters by CustomerGroupID), so every line
+// whose stored group differs from the NEW customer's group is re-resolved
+// against that group (nil when the customer is removed or has no group) and
+// the cart totals recomputed inside the same transaction. Without this,
+// checkout charged the previous customer's group price — a member discount
+// survived deselecting the member, and a member attached mid-cart never
+// discounted the lines already scanned (backend review B5).
 func (s *service) UpdateCartCustomer(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error) {
+	if s.customerGroups == nil {
+		return nil, errors.New("sale service: customer group reader not wired; call SetCustomerGroupReader")
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
@@ -100,14 +111,70 @@ func (s *service) UpdateCartCustomer(ctx context.Context, cartID int, customerID
 		return nil, err
 	}
 
+	// Resolve the new customer's pricing group BEFORE mutating anything, so a
+	// lookup failure leaves the cart untouched.
+	var newGroupID *int
+	if customerID != nil {
+		newGroupID, err = s.customerGroups.CustomerGroupID(ctx, tx, *customerID)
+		if err != nil {
+			return nil, fmt.Errorf("resolve customer group: %w", err)
+		}
+	}
+
+	items, err := s.repo.LoadCartItemsForCheckout(ctx, tx, cartID)
+	if err != nil {
+		return nil, err
+	}
+
+	stale := make([]*CartItem, 0, len(items))
+	for i := range items {
+		if sameGroupID(items[i].CustomerGroupID, newGroupID) {
+			continue
+		}
+		stale = append(stale, &items[i])
+	}
+	if len(stale) > 0 && s.resolver == nil {
+		return nil, errors.New("price resolver is not configured")
+	}
+
 	if err := s.repo.UpdateCartCustomer(ctx, tx, cartID, customerID); err != nil {
 		return nil, err
+	}
+
+	// Re-price only the lines whose stored group no longer matches the new
+	// pricing context; lines already priced under this group keep their
+	// add-time snapshot semantics.
+	for _, item := range stale {
+		snap, err := s.resolveLineSnapshot(ctx, cart, item.ProductID, item.Quantity, newGroupID)
+		if err != nil {
+			return nil, err
+		}
+		applyLineSnapshot(item, snap, item.Quantity)
+		item.CustomerGroupID = newGroupID
+		if err := s.repo.UpdateCartItemQuantity(ctx, tx, cartID, item); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(stale) > 0 {
+		if err := s.recalculateCartTotals(ctx, tx, cartID); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 	return s.repo.GetCartSessionByID(ctx, cartID)
+}
+
+// sameGroupID reports whether two nullable customer-group ids refer to the
+// same group (nil == nil: both mean base pricing).
+func sameGroupID(a, b *int) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 // ==================== UC-02: ADD CART ITEM ====================
@@ -757,14 +824,16 @@ type cartItemKey struct {
 	HasRule       bool
 }
 
-// computeLineTotals computes subtotal, DPP, and tax for a single line.
+// computeLineTotals computes subtotal, DPP, and tax for a single line. The
+// DPP/tax split is delegated to the shared helper so a sale and its later
+// refund always agree on the rounding.
 func computeLineTotals(quantity, unitPrice int, taxRate *float64) (subtotal, dpp, tax int) {
 	subtotal = quantity * unitPrice
-	if taxRate == nil || *taxRate <= 0 {
-		return subtotal, subtotal, 0
+	var rate float64
+	if taxRate != nil {
+		rate = *taxRate
 	}
-	dpp = int(math.Round(float64(subtotal) * 100.0 / (100.0 + *taxRate)))
-	tax = subtotal - dpp
+	dpp, tax = shared.SplitTaxInclusive(subtotal, rate)
 	return subtotal, dpp, tax
 }
 

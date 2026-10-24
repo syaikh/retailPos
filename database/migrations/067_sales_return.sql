@@ -391,20 +391,42 @@ CREATE INDEX IF NOT EXISTS idx_return_approvals_status ON public.return_approval
 -- Sequence ownership: id defaults
 -- ---------------------------------------------------------------------------
 
--- setval(seq, max+1, false): the next nextval() returns max+1 (or 1 on an
--- empty table), so replaying over an already-populated table never collides.
+-- Forward-only setval (matches 000_baseline.sql's sequence-repair loop): read
+-- the sequence's current position and only bump it when MAX(id) has actually
+-- advanced past it. The previous unconditional setval(seq, MAX(id)+1, false)
+-- would REWIND the sequence whenever it had already moved ahead of MAX(id) —
+-- e.g. ids consumed by rolled-back transactions or since-deleted rows — and
+-- hand out sequence values a concurrent in-flight transaction had already
+-- claimed, causing a primary-key collision. These sequences are all INCREMENT
+-- BY 1, so the next value is last_value + (1 if is_called else 0).
 DO $$
+DECLARE
+    seq       text;
+    tbl       text;
+    max_id    bigint;
+    last_val  bigint;
+    called    boolean;
+    next_val  bigint;
+    i         int;
+    -- sequence -> owning table pairs (each table's id defaults to its sequence).
+    pairs text[][] := ARRAY[
+        ['public.sale_returns_id_seq',              'public.sale_returns'],
+        ['public.sale_return_items_id_seq',         'public.sale_return_items'],
+        ['public.sale_return_replacements_id_seq',  'public.sale_return_replacements'],
+        ['public.sale_return_payments_id_seq',      'public.sale_return_payments'],
+        ['public.return_approvals_id_seq',          'public.return_approvals']
+    ];
 BEGIN
-    PERFORM setval('public.sale_returns_id_seq',
-        COALESCE((SELECT MAX(id) FROM public.sale_returns), 0) + 1, false);
-    PERFORM setval('public.sale_return_items_id_seq',
-        COALESCE((SELECT MAX(id) FROM public.sale_return_items), 0) + 1, false);
-    PERFORM setval('public.sale_return_replacements_id_seq',
-        COALESCE((SELECT MAX(id) FROM public.sale_return_replacements), 0) + 1, false);
-    PERFORM setval('public.sale_return_payments_id_seq',
-        COALESCE((SELECT MAX(id) FROM public.sale_return_payments), 0) + 1, false);
-    PERFORM setval('public.return_approvals_id_seq',
-        COALESCE((SELECT MAX(id) FROM public.return_approvals), 0) + 1, false);
+    FOR i IN 1 .. array_length(pairs, 1) LOOP
+        seq := pairs[i][1];
+        tbl := pairs[i][2];
+        EXECUTE format('SELECT COALESCE(MAX(id), 0) FROM %s', tbl) INTO max_id;
+        EXECUTE format('SELECT last_value, is_called FROM %s', seq) INTO last_val, called;
+        next_val := last_val + CASE WHEN called THEN 1 ELSE 0 END;
+        IF max_id >= next_val THEN
+            PERFORM setval(seq::regclass, max_id, true);
+        END IF;
+    END LOOP;
 END;
 $$;
 

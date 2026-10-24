@@ -47,11 +47,13 @@ func (ReportAdapter) GetCompletedSalesStats(ctx context.Context, db shared.DBPoo
 	return
 }
 
-func (ReportAdapter) GetActiveCustomerCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error) {
-	query := `SELECT COUNT(DISTINCT customer_id) FROM sales WHERE status = 'completed' AND customer_id IS NOT NULL`
-	args := []interface{}{}
+func (ReportAdapter) GetActiveCustomerCount(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (count int64, err error) {
+	query := `SELECT COUNT(DISTINCT customer_id) FROM sales
+		WHERE status = 'completed' AND customer_id IS NOT NULL
+		  AND created_at >= $1 AND created_at < $2`
+	args := []interface{}{start, end}
 	if storeID != nil {
-		query += ` AND (store_id IS NULL OR store_id = $1)`
+		query += ` AND (store_id IS NULL OR store_id = $3)`
 		args = append(args, *storeID)
 	}
 	err = db.QueryRow(ctx, query, args...).Scan(&count)

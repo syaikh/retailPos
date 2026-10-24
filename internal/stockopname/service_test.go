@@ -30,6 +30,10 @@ func (b *capturingEventBus) Publish(_ context.Context, topic string, event inter
 	return nil
 }
 
+func (b *capturingEventBus) PublishCritical(ctx context.Context, topic string, event interface{}) error {
+	return b.Publish(ctx, topic, event)
+}
+
 func (b *capturingEventBus) topics() []string {
 	b.mu.Lock()
 	defer b.mu.Unlock()

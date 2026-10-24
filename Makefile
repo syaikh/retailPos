@@ -133,7 +133,29 @@ db-fresh: ## Reset the dev database (postgres-dev) to first-install state (DESTR
 	./scripts/reset-dev-db.sh
 
 # Cleanup targets
-clean: stop ## Stop and remove containers and volumes
+# The volumes removed below (retail-pos-postgres-data, retail-pos-uploads) are
+# the DEPLOYMENT stack's persistent storage (deploy/podman-deploy.sh:139,144) —
+# the dev database lives in postgres-dev-volume and is never touched here. Two
+# guards therefore run BEFORE anything is stopped or removed: a hard refusal on
+# ENV=production (same idiom as reset-dev-db.sh and the podman-deploy.sh seed
+# wrapper), and a refusal while a deployed `postgres` container still exists on
+# the host — which catches a production shell that did not export ENV. The stop
+# step is inlined rather than a prerequisite precisely so the guards fire first
+# (stop removes the pod and containers, which would defeat the existence check).
+# Deliberate full teardown: ./deploy/podman-deploy.sh stop, then make clean
+# removes the now-orphaned volumes.
+clean: ## Stop and remove containers and volumes (dev teardown; refuses production)
+	@if [ "$${ENV:-}" = "production" ]; then \
+		echo "make clean: refusing: ENV=production (this removes the persistent database volume)" >&2; \
+		exit 1; \
+	fi
+	@if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'postgres'; then \
+		echo "make clean: refusing: a deployed 'postgres' container exists on this host." >&2; \
+		echo "These volumes (retail-pos-postgres-data, retail-pos-uploads) hold deployment data." >&2; \
+		echo "Tear down first with ./deploy/podman-deploy.sh stop, then re-run make clean if intended." >&2; \
+		exit 1; \
+	fi
+	@./deploy/podman-deploy.sh stop
 	@echo "Removing volumes..."
 	podman volume rm retail-pos-postgres-data 2>/dev/null || true
 	podman volume rm retail-pos-uploads 2>/dev/null || true

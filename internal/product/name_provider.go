@@ -42,14 +42,26 @@ func (NameLookup) ProductNamesByIDs(ctx context.Context, db shared.DBPool, ids [
 	return names, rows.Err()
 }
 
+// maxSearchIDs bounds how many product IDs a free-text search may resolve to.
+// A leading-wildcard ILIKE (e.g. "%a%") matches a large fraction of the catalog,
+// and the caller feeds the result into an id = ANY($n) filter — an uncapped
+// resolution produces a pathologically large IN list. Truncating to the first
+// maxSearchIDs (ordered by id, so the result is deterministic) keeps the
+// downstream filter bounded; a search broad enough to hit the cap is already too
+// imprecise to be useful, so the truncation is an acceptable trade-off.
+const maxSearchIDs = 1000
+
 // ProductIDsByName returns the IDs of products whose name ILIKE-matches the
-// given search pattern (caller supplies the '%' pattern).
+// given search pattern (caller supplies the '%' pattern). At most maxSearchIDs
+// IDs are returned (see maxSearchIDs).
 func (NameLookup) ProductIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error) {
 	rows, err := db.Query(ctx, `
 		SELECT id
 		FROM products
 		WHERE name ILIKE $1
-	`, search)
+		ORDER BY id
+		LIMIT $2
+	`, search, maxSearchIDs)
 	if err != nil {
 		return nil, err
 	}

@@ -557,16 +557,20 @@ func (r *Repository) buildExportQuery(ctx context.Context, search string, minTot
 		return "", nil, err
 	}
 	qb := r.buildSaleFilter(productIDs, customerIDs, search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil, nil)
+	// Aggregations are correlated subqueries (not LEFT JOINed derived tables):
+	// a derived `GROUP BY sale_id` over the whole sale_items/sale_payments
+	// tables is computed for every possible sale and then filtered, whereas a
+	// correlated subquery runs only for the sales that survive the WHERE clause
+	// and uses the idx_sale_items_sale / idx_sale_payments_sale indexes
+	// (backend review P1).
 	query := `SELECT s.invoice_number, s.created_at, s.customer_id,
-		COALESCE(si_counts.cnt, 0) as items_count,
-		COALESCE(sp_codes.payment_codes, s.payment_method) as payment_method, s.total_amount
+		(SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) as items_count,
+		COALESCE(
+			(SELECT STRING_AGG(sp.payment_method_code, ',' ORDER BY sp.id)
+			 FROM sale_payments sp WHERE sp.sale_id = s.id),
+			s.payment_method
+		) as payment_method, s.total_amount
 		FROM sales s
-		LEFT JOIN (SELECT sale_id, COUNT(*) AS cnt FROM sale_items GROUP BY sale_id) si_counts ON si_counts.sale_id = s.id
-		LEFT JOIN (
-			SELECT sale_id, STRING_AGG(payment_method_code, ',' ORDER BY id) AS payment_codes
-			FROM sale_payments
-			GROUP BY sale_id
-		) sp_codes ON sp_codes.sale_id = s.id
 		WHERE ` + qb.Where() + " ORDER BY s.created_at DESC, s.id DESC"
 	return query, qb.Args, nil
 }
@@ -634,16 +638,17 @@ func (r *Repository) StreamSalesExportCSV(ctx context.Context, w io.Writer, sear
 		return err
 	}
 	qb := r.buildSaleFilter(productIDs, customerIDs, search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil, nil)
+	// Same correlated-subquery aggregation as buildExportQuery (backend review
+	// P1): run only for the filtered sales, using idx_sale_items_sale /
+	// idx_sale_payments_sale, rather than GROUP BY over the whole tables.
 	query := `SELECT s.invoice_number, s.created_at, s.customer_id,
-		COALESCE(si_counts.cnt, 0) as items_count,
-		COALESCE(sp_codes.payment_codes, s.payment_method) as payment_method, s.total_amount
+		(SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) as items_count,
+		COALESCE(
+			(SELECT STRING_AGG(sp.payment_method_code, ',' ORDER BY sp.id)
+			 FROM sale_payments sp WHERE sp.sale_id = s.id),
+			s.payment_method
+		) as payment_method, s.total_amount
 		FROM sales s
-		LEFT JOIN (SELECT sale_id, COUNT(*) AS cnt FROM sale_items GROUP BY sale_id) si_counts ON si_counts.sale_id = s.id
-		LEFT JOIN (
-			SELECT sale_id, STRING_AGG(payment_method_code, ',' ORDER BY id) AS payment_codes
-			FROM sale_payments
-			GROUP BY sale_id
-		) sp_codes ON sp_codes.sale_id = s.id
 		WHERE ` + qb.Where() + " ORDER BY s.created_at DESC, s.id DESC"
 
 	rows, err := r.db.Query(ctx, query, qb.Args...)
@@ -652,6 +657,16 @@ func (r *Repository) StreamSalesExportCSV(ctx context.Context, w io.Writer, sear
 	}
 	defer rows.Close()
 
+	cw := csv.NewWriter(w)
+	_ = shared.WriteCSVRow(cw, []string{"Invoice Number", "Date", "Customer", "Items", "Payment Method", "Total Amount"})
+
+	// Stream the export in bounded chunks instead of buffering every sale row in
+	// memory (backend review P4). Each chunk's customer names are resolved in a
+	// single cross-module lookup, so this stays a batched lookup (no per-row
+	// N+1) while memory is capped at exportChunkSize rows regardless of the
+	// result size. Like any streaming export, a mid-stream failure can leave a
+	// partially written CSV, which the caller surfaces as an error.
+	const exportChunkSize = 500
 	type exportRow struct {
 		invoiceNumber string
 		createdAt     time.Time
@@ -660,59 +675,65 @@ func (r *Repository) StreamSalesExportCSV(ctx context.Context, w io.Writer, sear
 		paymentMethod string
 		totalAmount   int64
 	}
-	var allRows []exportRow
-	customerIDSet := make(map[int]bool)
-	for rows.Next() {
-		var r exportRow
-		var customerIDVal sql.NullInt64
-		if err := rows.Scan(&r.invoiceNumber, &r.createdAt, &customerIDVal, &r.itemCount, &r.paymentMethod, &r.totalAmount); err != nil {
-			return fmt.Errorf("scan sale export row: %w", err)
+	for {
+		buf := make([]exportRow, 0, exportChunkSize)
+		for len(buf) < exportChunkSize && rows.Next() {
+			var row exportRow
+			var customerIDVal sql.NullInt64
+			if err := rows.Scan(&row.invoiceNumber, &row.createdAt, &customerIDVal, &row.itemCount, &row.paymentMethod, &row.totalAmount); err != nil {
+				return fmt.Errorf("scan sale export row: %w", err)
+			}
+			if customerIDVal.Valid {
+				id := int(customerIDVal.Int64)
+				row.customerID = &id
+			}
+			buf = append(buf, row)
 		}
-		if customerIDVal.Valid {
-			id := int(customerIDVal.Int64)
-			r.customerID = &id
-			customerIDSet[id] = true
+		if len(buf) == 0 {
+			break
 		}
-		allRows = append(allRows, r)
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
 
-	customerNames := map[int]string{}
-	if len(customerIDSet) > 0 {
-		customerIDList := make([]int, 0, len(customerIDSet))
-		for id := range customerIDSet {
-			customerIDList = append(customerIDList, id)
+		// Resolve this chunk's customer names in one lookup.
+		seen := make(map[int]bool, len(buf))
+		ids := make([]int, 0, len(buf))
+		for _, row := range buf {
+			if row.customerID != nil && !seen[*row.customerID] {
+				seen[*row.customerID] = true
+				ids = append(ids, *row.customerID)
+			}
 		}
-		customerNames, err = r.customerNamesByIDs(ctx, customerIDList)
-		if err != nil {
-			return err
+		customerNames := map[int]string{}
+		if len(ids) > 0 {
+			customerNames, err = r.customerNamesByIDs(ctx, ids)
+			if err != nil {
+				return err
+			}
 		}
-	}
 
-	cw := csv.NewWriter(w)
-	_ = shared.WriteCSVRow(cw, []string{"Invoice Number", "Date", "Customer", "Items", "Payment Method", "Total Amount"})
-
-	for _, row := range allRows {
-		customerName := ""
-		if row.customerID != nil {
-			customerName = customerNames[*row.customerID]
+		for _, row := range buf {
+			customerName := ""
+			if row.customerID != nil {
+				customerName = customerNames[*row.customerID]
+			}
+			_ = shared.WriteCSVRow(cw, []string{
+				row.invoiceNumber,
+				row.createdAt.In(shared.JakartaLocation()).Format(time.RFC3339),
+				customerName,
+				strconv.Itoa(row.itemCount),
+				row.paymentMethod,
+				fmt.Sprintf("%d", row.totalAmount),
+			})
 		}
-		_ = shared.WriteCSVRow(cw, []string{
-			row.invoiceNumber,
-			row.createdAt.In(shared.JakartaLocation()).Format(time.RFC3339),
-			customerName,
-			strconv.Itoa(row.itemCount),
-			row.paymentMethod,
-			fmt.Sprintf("%d", row.totalAmount),
-		})
 		cw.Flush()
 		if err := cw.Error(); err != nil {
 			return err
 		}
+
+		if len(buf) < exportChunkSize {
+			break
+		}
 	}
-	return nil
+	return rows.Err()
 }
 
 func (r *Repository) GetNextInvoiceNumber(ctx context.Context) (string, error) {

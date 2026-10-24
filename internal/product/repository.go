@@ -566,12 +566,6 @@ func (r *Repository) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) {
 	return taxClasses, nil
 }
 
-func (r *Repository) GetTaxClassIDByName(ctx context.Context, name string) (int, error) {
-	var id int
-	err := r.db.QueryRow(ctx, "SELECT id FROM tax_classes WHERE name = $1 AND is_active = true", name).Scan(&id)
-	return id, err
-}
-
 func (r *Repository) GetActiveProductOptions(ctx context.Context) ([]Option, error) {
 	query := "SELECT id, sku, name FROM products WHERE deleted_at IS NULL AND status = 'active' ORDER BY name"
 

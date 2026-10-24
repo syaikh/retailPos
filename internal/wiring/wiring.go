@@ -526,6 +526,7 @@ func Initialize(p Providers) *Dependencies {
 	d.SaleSvc.SetPriceResolver(&priceResolverAdapter{resolver: d.PricingResolver})
 	d.SaleSvc.SetStockDeducer(inventory.StockDeducer{})
 	d.SaleSvc.SetShiftTotalUpdater(shift.TotalUpdater{})
+	d.SaleSvc.SetCustomerGroupReader(customer.GroupLookup{})
 	d.SaleSvc.SetConsignmentCheckout(consignment.NewCheckoutProvider(d.ConsignmentRepo))
 
 	d.InventorySvc = inventory.NewService(d.InventoryRepo, d.Bus)

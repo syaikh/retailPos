@@ -421,6 +421,45 @@ func TestSaleRepository_StreamSalesExportCSV(t *testing.T) {
 	assert.True(t, found)
 }
 
+// TestSaleRepository_StreamSalesExportCSV_ChunkBoundary pins the P4 chunked
+// streaming: with exportChunkSize = 500, a 501-row export spans one full chunk
+// plus one leftover row, and every sale must appear exactly once — no row
+// dropped or duplicated at the chunk seam.
+func TestSaleRepository_StreamSalesExportCSV_ChunkBoundary(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	cashierID := insertTestCashier(ctx, t)
+
+	// exportChunkSize is 500 (repository.go), so 501 crosses exactly one
+	// boundary: a full first chunk and a single-row second chunk.
+	const totalSales = 501
+	_, err := dbPool.Exec(ctx, `
+		INSERT INTO sales (invoice_number, cashier_id, subtotal, total_amount, payment_method)
+		SELECT 'CHUNK-' || lpad(i::text, 4, '0'), $1, 1000, 1000, 'CASH'
+		FROM generate_series(1, $2::int) AS i`, cashierID, totalSales)
+	require.NoError(t, err)
+
+	repo := newTestRepo(t)
+	var buf bytes.Buffer
+	require.NoError(t, repo.StreamSalesExportCSV(ctx, &buf, "", "", "", "", nil, nil, nil))
+
+	records, err := csv.NewReader(&buf).ReadAll()
+	require.NoError(t, err)
+	require.Len(t, records, totalSales+1, "header plus one row per sale")
+
+	seen := make(map[string]int, totalSales)
+	for _, rec := range records[1:] {
+		require.Len(t, rec, 6)
+		seen[rec[0]]++
+	}
+	require.Len(t, seen, totalSales, "every sale must appear exactly once across the chunk boundary")
+	for invoice, n := range seen {
+		require.Equal(t, 1, n, "invoice %s appeared %d times in the export", invoice, n)
+	}
+	require.Contains(t, seen, "CHUNK-0001")
+	require.Contains(t, seen, "CHUNK-0501")
+}
+
 // TestSaleRepository_StoreScopedReads covers the store-scoped read branches:
 // the GetSaleByID store filter and the non-null store_id scan branches across
 // the sale read queries.

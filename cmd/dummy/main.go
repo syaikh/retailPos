@@ -215,6 +215,11 @@ var (
 )
 
 func main() {
+	// The seeder truncates and rewrites most tables — never let it run against a
+	// production database. Guard before either entry path (daily or bulk) opens a
+	// connection.
+	guardNotProduction()
+
 	// Detect whether this is a daily-seeder invocation by inspecting
 	// os.Args *before* any flag.Parse() call, so that -daily.* flags
 	// never collide with the bulk seeder's known flags.
@@ -3067,6 +3072,28 @@ func promptTimeRange() int {
 		return 99999 // effectively unlimited
 	}
 	return 180 // fallback
+}
+
+// guardNotProduction hard-refuses to run when the environment looks like a
+// production deployment. The dummy seeder truncates and rewrites most business
+// tables, so running it against production would destroy real data. It applies
+// the same three checks as scripts/reset-dev-db.sh and the Makefile `clean`
+// target: refuse ENV=production, a non-localhost DB_HOST, or a DB_NAME other
+// than retail_pos. When DATABASE_URL is set it fully determines the target, so
+// the DB_* checks are skipped (only the ENV check applies).
+func guardNotProduction() {
+	if os.Getenv("ENV") == "production" {
+		log.Fatalf("dummy seeder refuses to run with ENV=production")
+	}
+	if os.Getenv("DATABASE_URL") != "" {
+		return
+	}
+	if host := os.Getenv("DB_HOST"); host != "" && host != "localhost" && host != "127.0.0.1" {
+		log.Fatalf("dummy seeder refuses to run against non-localhost DB_HOST=%q", host)
+	}
+	if name := os.Getenv("DB_NAME"); name != "" && name != "retail_pos" {
+		log.Fatalf("dummy seeder refuses to run against DB_NAME=%q (expected retail_pos)", name)
+	}
 }
 
 // getDSN returns the connection string from DATABASE_URL, or composes one from

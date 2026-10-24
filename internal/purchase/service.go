@@ -576,13 +576,22 @@ func (s *service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 	})
 
 	if len(receiptItems) > 0 {
-		_ = s.eventBus.Publish(bgCtx, events.TopicPurchaseReceiptCompleted, &events.PurchaseReceiptCompleted{
+		// PublishCritical: this event drives the stock deduction
+		// (inventory.PurchaseReceiptListener). A silently dropped event would
+		// commit the goods receipt while never incrementing product_stock —
+		// inventory drift. The critical path blocks briefly on a full channel
+		// and, failing that, persists the payload to the dead-letter store so
+		// it can be replayed (backend review B6).
+		if err := s.eventBus.PublishCritical(bgCtx, events.TopicPurchaseReceiptCompleted, &events.PurchaseReceiptCompleted{
 			POID:    poID,
 			GRID:    gr.ID,
 			StoreID: storeID,
 			UserID:  userID,
 			Items:   receiptItems,
-		})
+		}); err != nil {
+			slog.Error("goods receipt committed but stock event could not be enqueued; payload persisted for replay",
+				"gr_id", gr.ID, "po_id", poID, "error", err)
+		}
 	}
 
 	return gr, nil

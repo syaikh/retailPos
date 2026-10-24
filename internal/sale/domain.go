@@ -152,11 +152,6 @@ func (c Caller) IsSupervisor() bool {
 	return c.Role == permissions.RoleSupervisor
 }
 
-// IsManager reports whether the caller is a store manager (legacy alias).
-func (c Caller) IsManager() bool {
-	return c.Role == permissions.RoleManager
-}
-
 // ownerScope returns the cashier owner filter to apply at the repository level.
 // A nil scope means no cashier restriction (supervisor/elevated). All other roles
 // (cashier, inventory_staff, unknown) are treated as owner-scoped so they can never

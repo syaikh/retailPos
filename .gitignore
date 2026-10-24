@@ -100,9 +100,6 @@ web/coverage/
 test-results*
 playwright-report/
 
-# Generated test artifacts
-invoice-INV-*.pdf
-
 # Local development files
 .kilo/
 session-*.md

@@ -679,3 +679,23 @@ func TestReportRepository_DashboardStats_Seeded(t *testing.T) {
 	assert.GreaterOrEqual(t, stats.TodaysSales, int64(0))
 	assert.GreaterOrEqual(t, stats.TodaysRevenue, int64(0))
 }
+
+// TestReportRepository_DashboardStats_ActiveCustomersWindowed covers backend
+// review P2: the dashboard's active-customer count is bounded to the current
+// Jakarta day (start, end). Before the fix it was an all-time
+// COUNT(DISTINCT customer_id), counting every customer who ever checked out.
+func TestReportRepository_DashboardStats_ActiveCustomersWindowed(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
+	repo := NewRepository(dbPool)
+	wireReportAdapters(repo)
+	ctx := context.Background()
+
+	// Two distinct customers: one checked out today (inside the window), the
+	// other three days ago (outside it).
+	seedSale(ctx, t)
+	seedSaleAt(ctx, t, time.Now().In(shared.JakartaLocation()).AddDate(0, 0, -3))
+
+	stats, err := repo.GetDashboardStats(ctx, nil, shared.JakartaLocation())
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), stats.ActiveCustomers, "only today's buyer is inside the active-customer window")
+}

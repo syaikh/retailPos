@@ -3,6 +3,7 @@ package eventbus
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -14,7 +15,25 @@ import (
 var (
 	maxRetries     = 3
 	retryBaseDelay = 1 * time.Second
+	// criticalPublishTimeout bounds how long PublishCritical blocks waiting for
+	// the dispatch loop to drain the full channel before falling back to
+	// dead-letter persistence. Kept short: the publish happens post-commit on a
+	// background context, so a brief stall is acceptable but must not hang the
+	// caller indefinitely.
+	criticalPublishTimeout = 5 * time.Second
 )
+
+// ErrChannelFull is returned by Publish (and PublishCritical after exhausting
+// its wait and dead-letter fallback) when the internal event channel is at
+// capacity and the event could not be enqueued. Callers publishing
+// business-state events MUST NOT discard this error: a dropped event silently
+// loses the state change it carried (backend review B6).
+var ErrChannelFull = errors.New("eventbus: channel full, event not enqueued")
+
+// ErrBusClosed is returned by PublishCritical when the bus has been shut down,
+// so a critical event published into the shutdown window is surfaced rather
+// than silently reported as delivered (backend review follow-up).
+var ErrBusClosed = errors.New("eventbus: bus is closed, event not enqueued")
 
 // MetricsSnapshot is a point-in-time copy of event processing counters.
 type MetricsSnapshot struct {
@@ -111,7 +130,108 @@ func (b *Bus) Publish(ctx context.Context, topic string, payload interface{}) er
 	default:
 		b.dropCount.Add(1)
 		slog.Warn("eventbus channel full, dropping event", "event", topic, "total_drops", b.dropCount.Load())
+		return ErrChannelFull
+	}
+}
+
+// PublishCritical publishes an event whose loss would corrupt business state
+// (e.g. purchase_receipt.completed, which drives stock deductions). Unlike
+// Publish, it does not silently drop when the channel is full: it first tries
+// a non-blocking enqueue, then blocks (bounded by criticalPublishTimeout) for
+// the dispatch loop to drain space, and finally — if the event still cannot be
+// enqueued — persists it to the dead-letter store so the payload is never
+// lost and an operator can replay it. It returns ErrChannelFull only in that
+// final persisted-but-not-delivered case, so callers can surface the incident,
+// and ErrBusClosed when the bus has shut down (the event is NOT delivered and
+// NOT dead-lettered — the server is going down, so the caller must not treat
+// it as a success).
+func (b *Bus) PublishCritical(ctx context.Context, topic string, payload interface{}) error {
+	evt := Event{
+		Type:      EventType(topic),
+		Payload:   payload,
+		Ctx:       ctx,
+		Timestamp: time.Now(),
+	}
+
+	// Fast path: non-blocking enqueue when the channel has room.
+	b.mu.RLock()
+	if b.closed {
+		b.mu.RUnlock()
+		return ErrBusClosed
+	}
+	select {
+	case b.eventCh <- evt:
+		b.metrics.published.Add(1)
+		b.mu.RUnlock()
 		return nil
+	default:
+	}
+	b.mu.RUnlock()
+
+	// Channel full: block, bounded, for the dispatch loop to drain space. The
+	// consumer (Run) receives from eventCh without holding the lock, so holding
+	// RLock here cannot deadlock it; a writer (Subscribe/Shutdown) would wait at
+	// most criticalPublishTimeout.
+	timer := time.NewTimer(criticalPublishTimeout)
+	defer timer.Stop()
+	b.mu.RLock()
+	if b.closed {
+		b.mu.RUnlock()
+		return ErrBusClosed
+	}
+	select {
+	case b.eventCh <- evt:
+		b.metrics.published.Add(1)
+		b.mu.RUnlock()
+		return nil
+	case <-timer.C:
+	}
+	b.mu.RUnlock()
+
+	// Still full after waiting: persist to dead-letter (WITHOUT holding the
+	// lock, since this performs a bounded DB write) so the payload survives for
+	// manual replay rather than being silently discarded.
+	b.dropCount.Add(1)
+	slog.Error("eventbus channel full for critical event, persisting to dead-letter",
+		"event", topic, "total_drops", b.dropCount.Load())
+	b.persistCriticalDrop(evt)
+	return ErrChannelFull
+}
+
+// persistCriticalDrop writes a critical event that could not be enqueued to
+// the dead-letter store, mirroring deadLetter but for an undelivered (rather
+// than listener-failed) event. A nil store or marshal failure is logged; the
+// caller has already returned ErrChannelFull to surface the incident.
+func (b *Bus) persistCriticalDrop(event Event) {
+	store := b.deadLetterStore
+	if store == nil {
+		slog.Error("eventbus: no dead-letter store configured; critical event payload lost",
+			"event", string(event.Type))
+		return
+	}
+
+	var payloadBytes []byte
+	if event.Payload != nil {
+		marshalErr := func() error {
+			p, err := json.Marshal(event.Payload)
+			if err != nil {
+				return err
+			}
+			payloadBytes = p
+			return nil
+		}()
+		if marshalErr != nil {
+			slog.Error("eventbus: failed to marshal payload for critical dead letter",
+				"event", string(event.Type), "error", marshalErr)
+			return
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := store.Store(ctx, string(event.Type), payloadBytes, ErrChannelFull.Error()); err != nil {
+		slog.Error("eventbus: failed to persist critical dropped event to dead letter",
+			"event", string(event.Type), "error", err)
 	}
 }
 

@@ -6,6 +6,8 @@ This project uses a **provider-free structural codebase index** (`indexing.mode:
 
 ### Tool selection
 
+> **Invocation:** every codegraph tool below (except `semble.*`) is a Code Mode catalog entry — call it *inside* `execute` as `tools.<name>({...})`, never as a top-level tool (that yields `No tool named "<x>" is currently available`). Prefer the slash commands in §Incremental indexing if a call is rejected.
+
 | Tool | When to use |
 |------|-------------|
 | `codebase_context` | Default starting point for feature-level, architectural, or cross-module questions — lexical/structural in this repo, so for paraphrase-style questions also cross-check `semble.search` |
@@ -15,11 +17,11 @@ This project uses a **provider-free structural codebase index** (`indexing.mode:
 | `semble.search` | Second opinion from the independent Semble index when `codebase_search` misses or returns doc-heavy noise; strongest on frontend/Svelte, where the lexical (BM25) index underperforms. Discards paths under `docs/`, `*.md`, and `database/migrations/` when judging whether a hit is real code. Reached inside `execute` as `tools.semble["search"]` |
 | `call_graph` | Understand callers or callees of a known symbol |
 | `call_graph_path` | Investigate end-to-end execution path between two points |
-| `find_similar` | **Unavailable in this repo** — the structural index has no vectors, so the tool returns a non-retryable `UNSUPPORTED_OPERATION` error. Use `semble.search` (paste the snippet as the query) or `semble.find_related` instead |
+| `find_similar` | **Present but unusable here** — throws at runtime because `indexing.mode` is `structural` (no embeddings). Do **not** switch to `hybrid`; that needs a provider this repo deliberately omits. Use `semble.search` (paste the snippet as the query) or `semble.find_related` instead |
 | `semble.find_related` | Similarity from the Semble index, keyed off a `file:line` you already have — use when there is no snippet to match against, e.g. locating near-duplicates of a known implementation for the duplication review track. Inside `execute`: `tools.semble["find_related"]` |
 | `code_communities` | Module boundaries, architecture, coupling, hub symbols |
-| `codebase_edit_context` | Before modifying a known implementation, get bounded context |
-| `architecture_context` | **Unavailable in this repo** — the structural index has no vectors, so the tool throws `vector store is unavailable in structural indexing mode`. Use `codebase_context` for repository orientation or `code_communities` for module boundaries instead |
+| `codebase_edit_context` | Before modifying a known implementation, get bounded context. Pass `symbol`/`filePath`, otherwise it degrades to a docs-only conceptual fallback flagged `Risk:` |
+| `architecture_context` | **Present but unusable here** — throws `vector store is unavailable in structural indexing mode`. Use `codebase_context` for repository orientation or `code_communities` for module boundaries instead |
 | `index_status` / `index_health_check` | Index readiness, provider/model compatibility, pending migrations, and stale-entry cleanup — check before diagnosing a miss as a stale index |
 | `pr_impact` | Assess blast radius of a branch or planned change |
 

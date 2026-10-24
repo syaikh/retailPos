@@ -25,6 +25,10 @@ func (b *recordingBus) Publish(_ context.Context, topic string, event interface{
 	return nil
 }
 
+func (b *recordingBus) PublishCritical(ctx context.Context, topic string, event interface{}) error {
+	return b.Publish(ctx, topic, event)
+}
+
 func (b *recordingBus) snapshot() ([]string, []interface{}) {
 	b.mu.Lock()
 	defer b.mu.Unlock()

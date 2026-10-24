@@ -330,13 +330,17 @@ BEGIN
     SELECT count(*) INTO n FROM schema_migrations WHERE filename = '000_baseline.sql';
     IF n <> 1 THEN bad := bad || format(' baseline_row=%s/1', n); END IF;
 
-    -- The nine seeded tables, at their exact first-install counts.
+    -- The nine seeded tables, at their exact first-install counts. The
+    -- permissions / role_permissions / app_settings counts are the baseline
+    -- truth (000_baseline.sql is a fully-migrated dump; migrations 008-067
+    -- re-insert only codes/rows the baseline already seeds, so a full replay
+    -- leaves these unchanged).
     SELECT count(*) INTO n FROM roles;            IF n <> 6   THEN bad := bad || format(' roles=%s/6', n); END IF;
-    SELECT count(*) INTO n FROM permissions;      IF n <> 86  THEN bad := bad || format(' permissions=%s/86', n); END IF;
-    SELECT count(*) INTO n FROM role_permissions; IF n <> 264 THEN bad := bad || format(' role_permissions=%s/264', n); END IF;
+    SELECT count(*) INTO n FROM permissions;      IF n <> 99  THEN bad := bad || format(' permissions=%s/99', n); END IF;
+    SELECT count(*) INTO n FROM role_permissions; IF n <> 297 THEN bad := bad || format(' role_permissions=%s/297', n); END IF;
     SELECT count(*) INTO n FROM payment_methods;  IF n <> 5   THEN bad := bad || format(' payment_methods=%s/5', n); END IF;
     SELECT count(*) INTO n FROM customer_groups;  IF n <> 3   THEN bad := bad || format(' customer_groups=%s/3', n); END IF;
-    SELECT count(*) INTO n FROM app_settings;     IF n <> 7   THEN bad := bad || format(' app_settings=%s/7', n); END IF;
+    SELECT count(*) INTO n FROM app_settings;     IF n <> 10  THEN bad := bad || format(' app_settings=%s/10', n); END IF;
     SELECT count(*) INTO n FROM stores;           IF n <> 1   THEN bad := bad || format(' stores=%s/1', n); END IF;
     SELECT count(*) INTO n FROM customers;        IF n <> 1   THEN bad := bad || format(' customers=%s/1', n); END IF;
     SELECT count(*) INTO n FROM users;            IF n <> 6   THEN bad := bad || format(' users=%s/6', n); END IF;

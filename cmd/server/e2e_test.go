@@ -256,6 +256,7 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	saleSvc := sale.NewService(saleRepo, bus)
 	saleSvc.SetStockDeducer(inventory.StockDeducer{})
 	saleSvc.SetShiftTotalUpdater(shift.TotalUpdater{})
+	saleSvc.SetCustomerGroupReader(customer.GroupLookup{})
 	saleSvc.SetConsignmentCheckout(consignment.NewCheckoutProvider(consignmentRepo))
 	inventorySvc := inventory.NewService(inventoryRepo, bus)
 	customerSvc := customer.NewService(customerRepo)

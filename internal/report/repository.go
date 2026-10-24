@@ -650,7 +650,7 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 
 	go func() {
 		defer wg.Done()
-		count, err := r.saleStats.GetActiveCustomerCount(ctx, r.db, storeID)
+		count, err := r.saleStats.GetActiveCustomerCount(ctx, r.db, todayStart, todayEnd, storeID)
 		if err != nil {
 			slog.Error("dashboard: active customer count failed", "err", err)
 			return

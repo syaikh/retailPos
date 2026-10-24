@@ -1343,26 +1343,6 @@ func (r *Repository) ListUnsettledSaleItems(ctx context.Context, q queryer, supp
 	return r.scanSaleItemRecords(rows)
 }
 
-// ListSaleItemsByIDs returns consignment sale items by their ids, used to
-// re-read records inside the settlement Unit of Work.
-func (r *Repository) ListSaleItemsByIDs(ctx context.Context, tx pgx.Tx, ids []int) ([]SaleItemRecord, error) {
-	if len(ids) == 0 {
-		return nil, nil
-	}
-	rows, err := tx.Query(ctx, `
-		SELECT i.id, i.sale_id, i.invoice_number, i.product_id,
-		       i.quantity, i.unit_price, i.subtotal, i.store_share_type, i.store_share_value, i.created_at
-		FROM consignment_sale_items i
-		WHERE i.id = ANY($1)
-		ORDER BY i.id ASC
-	`, ids)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return r.scanSaleItemRecords(rows)
-}
-
 func (r *Repository) scanSaleItemRecords(rows pgx.Rows) ([]SaleItemRecord, error) {
 	var result []SaleItemRecord
 	for rows.Next() {

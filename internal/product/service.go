@@ -3,6 +3,7 @@ package product
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"retail-pos-system/internal/events"
@@ -127,13 +128,21 @@ func (s *service) UpdateProduct(ctx context.Context, product *Product) error {
 	if err := s.repo.UpdateProduct(ctx, product, product.StoreID); err != nil {
 		return err
 	}
-	return s.eventBus.Publish(ctx, events.TopicProductUpdated, &events.ProductUpdated{
+	// The update is committed (autocommit repo write), so an event-channel
+	// failure must not turn it into a client-visible error — the caller would
+	// see a 500 for a change that persisted and might retry it. Log the
+	// incident instead, mirroring purchase.CreateGoodsReceipt and
+	// inventory.NotifyStockAdjusted (backend review follow-up).
+	if err := s.eventBus.Publish(ctx, events.TopicProductUpdated, &events.ProductUpdated{
 		ID:      product.ID,
 		SKU:     product.SKU,
 		Stock:   product.Stock,
 		Price:   product.Price,
 		StoreID: product.StoreID,
-	})
+	}); err != nil {
+		slog.Warn("failed to publish product updated event", "product_id", product.ID, "error", err)
+	}
+	return nil
 }
 
 func (s *service) DeleteProduct(ctx context.Context, id int, storeID *int) error {

@@ -1,7 +1,6 @@
 package salereturn
 
 import (
-	"math"
 	"sort"
 	"strings"
 
@@ -9,27 +8,25 @@ import (
 )
 
 // CashMethodCode is the payment method code whose refunds leave the physical
-// drawer. It mirrors the sale module's cash detection (shiftContribution).
-const CashMethodCode = "CASH"
+// drawer. It aliases the shared canonical constant so the sale checkout, the
+// salereturn refund split, and the shift/return SQL all agree on one value.
+const CashMethodCode = shared.PaymentMethodCash
 
 func isCash(code string) bool {
 	return strings.EqualFold(code, CashMethodCode)
 }
 
-// lineRefund computes the refunded slice of one original sale line, mirroring
-// sale.computeLineTotals: the line subtotal is tax-INCLUSIVE
-// (subtotal = qty*unit_price), DPP is the rounded tax base and the tax
-// portion is the remainder. Refunding qty units therefore returns
-// qty*unit_price — NOT subtotal+tax, which would double-count the tax.
-// taxRate comes from the snapshot on sale_items, so later tax changes never
-// rewrite history.
+// lineRefund computes the refunded slice of one original sale line, using the
+// same shared tax-inclusive split as sale.computeLineTotals: the line subtotal
+// is tax-INCLUSIVE (subtotal = qty*unit_price), DPP is the rounded tax base and
+// the tax portion is the remainder. Refunding qty units therefore returns
+// qty*unit_price — NOT subtotal+tax, which would double-count the tax. taxRate
+// comes from the snapshot on sale_items, so later tax changes never rewrite
+// history.
 func lineRefund(qty, unitPrice int, taxRate float64) (subtotal, dpp, tax int) {
 	subtotal = qty * unitPrice
-	if taxRate <= 0 {
-		return subtotal, subtotal, 0
-	}
-	dpp = int(math.Round(float64(subtotal) * 100.0 / (100.0 + taxRate)))
-	return subtotal, dpp, subtotal - dpp
+	dpp, tax = shared.SplitTaxInclusive(subtotal, taxRate)
+	return subtotal, dpp, tax
 }
 
 // refundAllocation is one row of sale_return_payments.

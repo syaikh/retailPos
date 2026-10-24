@@ -3,6 +3,7 @@ package sale
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -36,19 +37,24 @@ const shiftSaleSummarySQL = `
 		  AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id)
 	)
 	SELECT
-		COALESCE((SELECT SUM(amount) FROM payments WHERE method = 'cash'), 0)
-			+ COALESCE((SELECT SUM(amount) FROM legacy WHERE method = 'cash'), 0),
-		COALESCE((SELECT SUM(amount) FROM payments WHERE method <> 'cash'), 0)
-			+ COALESCE((SELECT SUM(amount) FROM legacy WHERE method <> 'cash'), 0),
+		COALESCE((SELECT SUM(amount) FROM payments WHERE method = $2), 0)
+			+ COALESCE((SELECT SUM(amount) FROM legacy WHERE method = $2), 0),
+		COALESCE((SELECT SUM(amount) FROM payments WHERE method <> $2), 0)
+			+ COALESCE((SELECT SUM(amount) FROM legacy WHERE method <> $2), 0),
 		COALESCE((SELECT SUM(total_amount) FROM sales_base), 0),
 		(SELECT COUNT(*) FROM sales_base)
 `
+
+// cashMethodLower is the shared cash code in the lowercased form the SQL above
+// compares against (its method columns are already LOWER()-ed), so the query
+// binds the same constant the Go call sites use.
+var cashMethodLower = strings.ToLower(shared.PaymentMethodCash)
 
 // ShiftSummary returns a shift's completed-sales totals read outside any caller
 // transaction (live summaries for open shifts).
 func (ShiftSummaryProvider) ShiftSummary(ctx context.Context, db shared.DBPool, shiftID int) (shared.ShiftSaleSummary, error) {
 	var s shared.ShiftSaleSummary
-	err := db.QueryRow(ctx, shiftSaleSummarySQL, shiftID).Scan(
+	err := db.QueryRow(ctx, shiftSaleSummarySQL, shiftID, cashMethodLower).Scan(
 		&s.TotalCashSales, &s.TotalNonCashSales, &s.TotalSales, &s.TotalTransactions,
 	)
 	return s, err
@@ -59,7 +65,7 @@ func (ShiftSummaryProvider) ShiftSummary(ctx context.Context, db shared.DBPool, 
 // it locks.
 func (ShiftSummaryProvider) ShiftSummaryInTx(ctx context.Context, tx pgx.Tx, shiftID int) (shared.ShiftSaleSummary, error) {
 	var s shared.ShiftSaleSummary
-	err := tx.QueryRow(ctx, shiftSaleSummarySQL, shiftID).Scan(
+	err := tx.QueryRow(ctx, shiftSaleSummarySQL, shiftID, cashMethodLower).Scan(
 		&s.TotalCashSales, &s.TotalNonCashSales, &s.TotalSales, &s.TotalTransactions,
 	)
 	return s, err
