@@ -98,6 +98,40 @@ Beyond govulncheck and CodeQL, CI enforces first-party SAST and secret detection
 - **POS/cart scenarios:** Use `pos-api.ts` helpers for shift/cart flows; raw `apiAs` for entity/CRUD specs.
 - **Run from repo root** (`npx playwright test` / `npm run test:e2e`), never from `tests/e2e/`.
 
+### Interactive Browser Verification (Playwright MCP)
+
+The `playwright` MCP server (`.opencode/opencode.json`, `codemode: false`) gives the agent a
+real browser to **verify rendered output** — the one thing source-reading cannot do. It is an
+exploration and confirmation tool, **never a validation gate**: all formatting, linting,
+type-checking, testing, building and security scanning still run only in GitHub CI. Never
+drive the E2E suite through the MCP browser; add a spec under `tests/e2e/` instead.
+
+- **Preflight first.** `curl -fsS localhost:5173/` (frontend) and
+  `curl -fsS localhost:9095/health` (backend), ports from `FRONTEND_PORT`/`BACKEND_PORT` in
+  `.env`. If either fails, **stop and report that the stack is not up** — do not flail
+  against a dead origin. Start it with `./run-dev.sh` (backend, includes the `postgres-dev`
+  container check) plus `cd web && npm run dev`, or let the user start it.
+- **Log in once.** The server-side login limiter is 5/min per IP (shipped default), so log in
+  a single time on the persistent browser profile and reuse the session across calls. Never
+  loop retries; on 429 stop immediately and tell the user.
+- **Stay read-mostly.** Do not complete sales, open/close shifts, adjust stock, or post
+  purchases unless verifying exactly that flow. If you do create data, say so explicitly in
+  your reply — `./seed-dev.sh` reseeds the dev database.
+- **Token discipline (measured).** A full inline `browser_snapshot` costs ≈12k tokens on a
+  dense page and `browser_find` on a common word ≈4.6k. Therefore: pass `filename` to
+  `browser_snapshot` and `grep` the resulting file; prefer `depth`/`target` scoping over a
+  whole-page snapshot; take at most one screenshot per claim, after the structure is already
+  confirmed. Snapshot/screenshot files land in `.playwright-mcp/` (gitignored scratch).
+- **MCP vs. a spec:** "did my fix render/behave as expected?" → MCP. Behavior worth guarding
+  forever → add or extend a spec in `tests/e2e/` and let CI run it. Backend, RBAC and API
+  behavior → API specs via `apiAs`/`api-driver.ts`.
+- **Context escape hatches** if browser work bloats the session: first tighten the snapshot
+  discipline above, then flip `"codemode": true` in `.opencode/opencode.json` (hides the ~6k
+  of tool schemas behind `execute`), then consider `playwright-cli` + skills instead of MCP
+  (~3.9k tokens on demand, zero schemas, snapshots always file-linked).
+- **Config is local.** `.opencode/` is gitignored, so the MCP entry does not travel with the
+  repo — other contributors add their own copy.
+
 ## Running Server
 
 ```bash
