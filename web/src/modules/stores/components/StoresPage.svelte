@@ -1,5 +1,6 @@
 <script>
   import { onMount } from "svelte";
+  import { SvelteMap } from "svelte/reactivity";
   import { toast } from "$shared/stores/toast.svelte";
   import { debounce } from "$shared/utils/debounce";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
@@ -102,7 +103,7 @@
   // of re-requesting every row: `limit` can be 100, so a single page change
   // used to fire up to 100 uncached readiness calls at once.
   const READINESS_TTL_MS = 30_000;
-  const readinessFetchedAt = new Map();
+  const readinessFetchedAt = new SvelteMap();
 
   async function fetchReadiness(ids) {
     const now = Date.now();

@@ -119,7 +119,10 @@ describe("StoresPage.svelte source-structure guards", () => {
     // limit can be 100, so an uncached refetch fired up to 100 readiness
     // calls on a single page change / filter / search.
     expect(src).toContain("const READINESS_TTL_MS = 30_000;");
-    expect(src).toContain("const readinessFetchedAt = new Map();");
+    // SvelteMap, not the built-in Map: the svelte lint rule forbids mutable
+    // built-in Maps inside components (the CI `Frontend: Lint` annotation).
+    expect(src).toContain('import { SvelteMap } from "svelte/reactivity";');
+    expect(src).toContain("const readinessFetchedAt = new SvelteMap();");
     expect(src).toContain("const stale = ids.filter((id) => {");
     expect(src).toContain(
       "return at === undefined || now - at > READINESS_TTL_MS;",
