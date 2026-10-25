@@ -120,11 +120,15 @@ describe("tab-coordination", () => {
     channel().receive({ type: "PONG", tabId: "leader-1" });
 
     const pending = mod.requestRefresh();
-    await vi.advanceTimersByTimeAsync(10_000);
-
-    await expect(pending).rejects.toThrow(
+    // Create the expectation before advancing timers: the rejection fires in
+    // a timer callback, and a handler attached only afterwards is reported as
+    // an unhandled rejection by vitest.
+    const rejected = expect(pending).rejects.toThrow(
       "Timed out waiting for the leader tab to refresh",
     );
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await rejected;
     expect(sessionStorage.getItem("access_token")).toBeNull();
   });
 
