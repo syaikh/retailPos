@@ -39,12 +39,23 @@
   let open = $state(false);
   let container = $state<HTMLElement>();
 
-  // Workaround: subscribe to store manually to use value in template
+  // Workaround: subscribe to store manually to use value in template.
+  // Subscribed inside an effect so the listeners are removed when this
+  // component is torn down (logout, login, the forced-password-change branch)
+  // instead of accumulating one leaked callback per auth cycle.
   let items = $state<Notification[]>([]);
   let unread = $state(0);
 
-  notifications.subscribe((n) => (items = n));
-  notifications.unreadCount.subscribe((n) => (unread = n));
+  $effect(() => {
+    const unsubItems = notifications.subscribe((n) => (items = n));
+    const unsubUnread = notifications.unreadCount.subscribe(
+      (n) => (unread = n),
+    );
+    return () => {
+      unsubItems();
+      unsubUnread();
+    };
+  });
 
   function handleClick() {
     open = !open;

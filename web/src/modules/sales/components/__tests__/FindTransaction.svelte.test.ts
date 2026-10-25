@@ -76,6 +76,28 @@ describe("FindTransaction.svelte source-structure guards", () => {
     expect(src).toContain("hasSearched = false");
   });
 
+  it("renders a failed lookup as an error, never as 'no results'", () => {
+    // A 500/403/timeout must not be presented as proof the receipt does not
+    // exist: the error state is tracked separately from `data` and wins the
+    // template race against the no-results branch.
+    expect(src).toContain("let loadError = $state<string | null>(null)");
+    expect(src).toContain(
+      "loadError = getApiErrorMessage(err, labels.failedToLoad)",
+    );
+    expect(src).toContain("{:else if loadError}");
+    expect(src).toContain('role="alert"');
+    // The error branch precedes (and therefore preempts) the empty-state one.
+    const errorBranch = src.indexOf("{:else if loadError}");
+    const emptyBranch = src.indexOf("data.length === 0 && hasSearched}");
+    expect(errorBranch).toBeGreaterThan(-1);
+    expect(emptyBranch).toBeGreaterThan(errorBranch);
+    // A success clears a previously recorded failure…
+    expect(src).toContain("loadError = null;\n    } catch (err) {");
+    // …and so does typing a new query (both state resets live in the same
+    // query-change effect as hasSearched).
+    expect(src).toContain("hasSearched = false;\n    loadError = null;");
+  });
+
   it("re-runs the lookup when a column is sorted (no auto-load effect)", () => {
     expect(src).toContain("function toggleSort");
     // The removed auto-load $effect must be replaced by an explicit reload.

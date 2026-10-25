@@ -9,6 +9,7 @@
 
 import axios from "axios";
 import type { AxiosInstance } from "axios";
+import { setAccessToken } from "$shared/api/session";
 
 const CHANNEL_NAME = "pos-auth-coordination";
 const HEARTBEAT_INTERVAL = 5_000;
@@ -49,10 +50,37 @@ let electionPending = false;
 // --- Callbacks ---
 let onLeaderChangeCallbacks: Array<(leader: boolean) => void> = [];
 let onLogoutCallbacks: Array<() => void> = [];
-let refreshResolvers: {
+type RefreshWaiter = {
   resolve: (token: string) => void;
   reject: (err: unknown) => void;
-} | null = null;
+};
+// A LIST, not a single slot: two concurrent 401s can both reach here while the
+// first is still awaiting the leader, and a single slot would overwrite (and
+// thereby strand) the first waiter.
+let refreshWaiters: RefreshWaiter[] = [];
+let refreshWaitTimer: ReturnType<typeof setTimeout> | null = null;
+// If the leader dies between receiving REFRESH_REQUEST and answering,
+// nothing would ever settle the waiters — bound them so the caller falls back
+// to its own direct refresh instead of hanging forever.
+const REFRESH_WAIT_TIMEOUT_MS = 10_000;
+
+function settleRefreshWaiters(settle: (waiter: RefreshWaiter) => void) {
+  const waiters = refreshWaiters;
+  refreshWaiters = [];
+  if (refreshWaitTimer) {
+    clearTimeout(refreshWaitTimer);
+    refreshWaitTimer = null;
+  }
+  waiters.forEach(settle);
+}
+
+function resolveRefreshWaiters(token: string) {
+  settleRefreshWaiters((waiter) => waiter.resolve(token));
+}
+
+function rejectRefreshWaiters(err: unknown) {
+  settleRefreshWaiters((waiter) => waiter.reject(err));
+}
 
 function notifyLeaderChange() {
   onLeaderChangeCallbacks.forEach((cb) => {
@@ -110,19 +138,15 @@ function handleMessage(event: MessageEvent<Message>) {
       break;
 
     case "REFRESH_RESULT":
-      // Leader completed refresh — resolve pending request
-      if (refreshResolvers) {
-        refreshResolvers.resolve(msg.token);
-        refreshResolvers = null;
-      }
+      // Leader completed refresh — settle every pending request (and persist
+      // it here too: this tab's sessionStorage is separate from the caller's)
+      setAccessToken(msg.token);
+      resolveRefreshWaiters(msg.token);
       break;
 
     case "REFRESH_FAILED":
-      // Leader failed — reject pending request
-      if (refreshResolvers) {
-        refreshResolvers.reject(new Error("Refresh failed on leader"));
-        refreshResolvers = null;
-      }
+      // Leader failed — reject pending requests so callers can fall back
+      rejectRefreshWaiters(new Error("Refresh failed on leader"));
       break;
 
     case "LOGOUT":
@@ -230,6 +254,9 @@ async function performRefreshForFollowers() {
   try {
     const response = await getRefreshClient().post("/refresh");
     const newToken = response.data.access_token as string;
+    // Persist locally as well: broadcasting alone would leave this tab on its
+    // own stale token (sessionStorage is per-tab).
+    setAccessToken(newToken);
     send({ type: "REFRESH_RESULT", token: newToken });
   } catch {
     send({ type: "REFRESH_FAILED" });
@@ -252,6 +279,7 @@ export function initTabCoordination(): void {
 export function destroyTabCoordination(): void {
   stopHeartbeat();
   stopLeaderCheck();
+  rejectRefreshWaiters(new Error("Tab coordination was torn down"));
   channel?.close();
   channel = null;
   isLeader = false;
@@ -279,9 +307,17 @@ export function requestRefresh(): Promise<string | null> {
     return Promise.resolve(null); // signals "you're the leader, do it yourself"
   }
 
-  // Follower: wait for leader's result
+  // Follower: wait for the leader's result
   return new Promise<string>((resolve, reject) => {
-    refreshResolvers = { resolve, reject };
+    refreshWaiters.push({ resolve, reject });
+    if (!refreshWaitTimer) {
+      refreshWaitTimer = setTimeout(() => {
+        refreshWaitTimer = null;
+        rejectRefreshWaiters(
+          new Error("Timed out waiting for the leader tab to refresh"),
+        );
+      }, REFRESH_WAIT_TIMEOUT_MS);
+    }
     send({ type: "REFRESH_REQUEST", tabId });
   });
 }

@@ -133,4 +133,21 @@ describe("ProductsPage.svelte source-structure guards", () => {
     const fetchIdx = src.indexOf("await fetchProducts(0, limit);", paramIdx);
     expect(fetchIdx).toBeGreaterThan(paramIdx);
   });
+
+  it("routes add/update/delete failures through getApiErrorMessage", () => {
+    // Raw err.message is Axios's generic transport text, never the backend's
+    // business error message.
+    expect(src).toContain(
+      'import { getApiErrorMessage } from "$shared/utils/error-utils"',
+    );
+    expect(src).toContain(
+      "const errorMsg = getApiErrorMessage(err, labels.toastFailedToAddProduct);",
+    );
+    expect(src).toContain(
+      "const errorMsg = getApiErrorMessage(\n        err,\n        labels.toastFailedToUpdateProduct,\n      );",
+    );
+    expect(src).toContain(
+      "toast.error(getApiErrorMessage(err, labels.toastFailedToDeleteProduct));",
+    );
+  });
 });

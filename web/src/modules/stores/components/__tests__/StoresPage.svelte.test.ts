@@ -114,4 +114,35 @@ describe("StoresPage.svelte source-structure guards", () => {
     expect(src).toContain('<Badge variant="warning" size="sm">');
     expect(src).toContain("labels.onboardingStepReadiness");
   });
+
+  it("caches readiness verdicts behind a TTL instead of refetching every row", () => {
+    // limit can be 100, so an uncached refetch fired up to 100 readiness
+    // calls on a single page change / filter / search.
+    expect(src).toContain("const READINESS_TTL_MS = 30_000;");
+    expect(src).toContain("const readinessFetchedAt = new Map();");
+    expect(src).toContain("const stale = ids.filter((id) => {");
+    expect(src).toContain(
+      "return at === undefined || now - at > READINESS_TTL_MS;",
+    );
+    expect(src).toContain("if (stale.length === 0) return;");
+    expect(src).toContain("stale.map(async (id) => {");
+    expect(src).toContain("readinessFetchedAt.set(id, Date.now());");
+  });
+
+  it("does not stamp a readiness fetch that failed, so it is retried", () => {
+    // Caching the miss would leave the skeleton resolved to "unknown" for the
+    // whole TTL even though a plain retry could answer it.
+    const tryIdx = src.indexOf("const r = await getReadiness(id)");
+    const catchIdx = src.indexOf("} catch {", tryIdx);
+    expect(tryIdx).toBeGreaterThan(-1);
+    expect(catchIdx).toBeGreaterThan(tryIdx);
+    const catchBlock = src.slice(catchIdx, src.indexOf("}),", catchIdx));
+    expect(catchBlock).toContain("readinessMap[id] = null;");
+    expect(catchBlock).not.toContain("readinessFetchedAt.set");
+  });
+
+  it("drops the cached readiness stamp when a store is updated", () => {
+    // Toggling is_active (or any attribute) can change the verdict.
+    expect(src).toContain("readinessFetchedAt.delete(selectedStore.id);");
+  });
 });

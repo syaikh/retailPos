@@ -11,6 +11,7 @@
   import { getActiveStores } from "$modules/stores";
   import { toast } from "$shared/stores/toast.svelte";
   import { debounce } from "$shared/utils/debounce";
+  import { getApiErrorMessage } from "$shared/utils/error-utils";
   import { useAuthStore } from "$shared/stores/auth.svelte";
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { Permissions } from "$shared/constants/permissions";
@@ -271,9 +272,7 @@
       showModal = false;
       await fetchUsers();
     } catch (error) {
-      const message =
-        error?.response?.data?.error || error?.message || labels.networkError;
-      toast.error(message);
+      toast.error(getApiErrorMessage(error, labels.networkError));
     } finally {
       saving = false;
     }

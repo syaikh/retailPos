@@ -80,12 +80,12 @@ describe("Home.svelte source-structure guards", () => {
     expect(src).toContain("labels.inventory");
     expect(src).toContain("labels.reports");
     expect(src).toContain("labels.administration");
-    expect(src).toContain("hasAnyPermission");
+    expect(src).toContain("rbac.canAny");
   });
 
   it("has finance quick access for pending settlements", () => {
     expect(src).toContain("financeQuickAccess");
-    expect(src).toContain("consignment.pay");
+    expect(src).toContain("consignment.view");
     expect(src).toContain("PendingSettlementsModal");
   });
 
@@ -113,12 +113,15 @@ describe("Home.svelte source-structure guards", () => {
     expect(src).toContain("{#if visibleStatCards.showOutOfStock}");
   });
 
-  it("quick access modules array uses hasAnyPermission for filtering", () => {
-    expect(src).toContain(".filter((m) => hasAnyPermission(m.required))");
+  it("quick access modules array uses the shared rbac.canAny for filtering", () => {
+    expect(src).toContain(".filter((m) => rbac.canAny(m.required))");
   });
 
-  it("source defines a hasPermission helper function", () => {
-    expect(src).toContain("function hasPermission(perm: string)");
+  it("source uses the shared RBAC composable instead of a local permission helper", () => {
+    expect(src).toContain(
+      'import { useRBAC } from "$shared/composables/useRBAC.svelte"',
+    );
+    expect(src).toContain("const rbac = useRBAC()");
   });
 
   it("source imports PendingSettlementsModal from consignment module", () => {
@@ -127,9 +130,9 @@ describe("Home.svelte source-structure guards", () => {
     );
   });
 
-  it("financeQuickAccess is a $derived based on consignment.pay permission", () => {
+  it("financeQuickAccess is a $derived based on the consignment route permission", () => {
     expect(src).toContain("const financeQuickAccess = $derived(");
-    expect(src).toContain('hasPermission("consignment.pay")');
+    expect(src).toContain("rbac.can(Permissions.consignment.view)");
   });
 
   it("source declares showPendingSettlements state for modal binding", () => {
@@ -141,24 +144,21 @@ describe("Home.svelte source-structure guards", () => {
   });
 });
 
-describe("permission helpers", () => {
+describe("permission gating", () => {
   const src = getSource();
 
-  it("defines hasPermission function", () => {
-    expect(src).toContain("function hasPermission(perm: string): boolean");
+  it("gates the Administration card on the same permission as the /admin route", () => {
+    expect(src).toContain("required: [Permissions.user.view]");
   });
 
-  it("defines hasAnyPermission function", () => {
+  it("does not define a second, local permission checker", () => {
+    expect(src).not.toContain("function hasPermission");
+    expect(src).not.toContain("function hasAnyPermission");
+  });
+
+  it("imports the shared Permissions registry", () => {
     expect(src).toContain(
-      "function hasAnyPermission(perms: string[]): boolean",
+      'import { Permissions } from "$shared/constants/permissions"',
     );
-  });
-
-  it("accesses auth.user.permissions to check permission membership", () => {
-    expect(src).toContain("user.permissions?.includes(perm)");
-  });
-
-  it("checks user.role === superadmin to bypass permission check", () => {
-    expect(src).toContain('user.role === "superadmin"');
   });
 });

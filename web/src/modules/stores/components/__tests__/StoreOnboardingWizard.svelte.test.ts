@@ -189,4 +189,17 @@ describe("StoreOnboardingWizard.svelte source-structure guards", () => {
     expect(src).toContain("labels.onboardingWizardTitle");
     expect(src).toContain('role="alert"');
   });
+
+  it("surfaces row and location failures through getApiErrorMessage", () => {
+    // err.message is Axios's transport jargon, not the backend's message.
+    expect(src).toContain(
+      'import { getApiErrorMessage } from "$shared/utils/error-utils"',
+    );
+    expect(src).toContain(
+      "row.error = getApiErrorMessage(err, labels.toastFailedSaveUser);",
+    );
+    expect(src).toContain(
+      "errorMsg = getApiErrorMessage(err, labels.toastFailedSaveLocation);",
+    );
+  });
 });

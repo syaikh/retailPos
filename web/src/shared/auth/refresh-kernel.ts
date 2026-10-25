@@ -41,7 +41,13 @@ async function doRefresh(): Promise<string | null> {
   if (!isTabLeader()) {
     try {
       const token = await requestRefresh();
-      if (token) return token;
+      if (token) {
+        // Persist it: sessionStorage is per-tab, so without this the follower
+        // keeps the stale token and every later request would 401 → cross-tab
+        // refresh → retry again for the tab's remaining life.
+        setAccessToken(token);
+        return token;
+      }
     } catch {
       // Leader refresh failed — fall through to direct refresh as fallback
     }

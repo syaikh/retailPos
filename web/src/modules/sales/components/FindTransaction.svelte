@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { SearchBar, Button, Skeleton } from "$shared/ui";
-  import { User, Copy, Check } from "lucide-svelte";
+  import { User, Copy, Check, AlertCircle } from "lucide-svelte";
   import {
     getTodayInJakarta,
     formatDateTimeInJakarta,
   } from "$shared/utils/jakartaTime";
   import { labels, t } from "$shared/i18n";
+  import { getApiErrorMessage } from "$shared/utils/error-utils";
 
   let copiedInvoice = $state<string | null>(null);
 
@@ -60,6 +61,10 @@
   // the "no results" empty state from flashing the instant a cashier starts
   // typing/pasting a receipt number, before any lookup is performed.
   let hasSearched = $state(false);
+  // Set only when a lookup actually FAILED. Kept separate from `data` so a
+  // backend/network error is never rendered as the "no results" empty state —
+  // a cashier must not be told a receipt does not exist because a request 500'd.
+  let loadError = $state<string | null>(null);
   // Monotonic token to discard stale in-flight lookup responses when a newer
   // search is submitted before the previous one resolves.
   let reqToken = 0;
@@ -88,10 +93,12 @@
       if (token !== reqToken) return;
       data = res.data;
       total = res.total;
-    } catch {
+      loadError = null;
+    } catch (err) {
       if (token !== reqToken) return;
       data = [];
       total = 0;
+      loadError = getApiErrorMessage(err, labels.failedToLoad);
     } finally {
       if (token === reqToken) loading = false;
     }
@@ -113,6 +120,7 @@
   function handleSearchInput() {
     data = [];
     total = 0;
+    loadError = null;
   }
 
   function toggleSort(col: string) {
@@ -132,12 +140,13 @@
     return formatDateTimeInJakarta(dateStr);
   }
 
-  // Reset the searched flag whenever the query text changes, so the "no
-  // results" message only appears after a real search, not while the cashier is
-  // still typing/pasting the receipt number.
+  // Reset the searched flag (and any stale failure) whenever the query text
+  // changes, so the "no results" / error empty states only appear after a real
+  // search, not while the cashier is still typing/pasting the receipt number.
   $effect(() => {
     void searchQuery;
     hasSearched = false;
+    loadError = null;
   });
 
   onMount(() => {
@@ -181,6 +190,18 @@
             </div>
           {/each}
         </div>
+      </div>
+    {:else if loadError}
+      <!-- A failed lookup is NOT "no results": never let a transport/backend
+           error masquerade as a receipt that does not exist. -->
+      <div class="px-4 py-12 text-center" role="alert">
+        <div
+          class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center"
+        >
+          <AlertCircle size={32} class="text-danger" />
+        </div>
+        <p class="text-text-primary font-semibold mt-4">{loadError}</p>
+        <p class="text-text-secondary text-sm mt-1">{labels.tryAgain}</p>
       </div>
     {:else if data.length === 0 && hasSearched}
       <div class="px-4 py-12 text-center" role="status">

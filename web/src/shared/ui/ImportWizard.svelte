@@ -59,7 +59,22 @@
     import("$shared/types/import-export").ValidationError[]
   >([]);
 
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  // Consecutive `getProgress` failures. Deliberately NOT reactive: it is only
+  // mutated from the timer callback, so a failed attempt never re-runs (and
+  // therefore never restarts) the polling effect.
+  let pollFailures = 0;
+  // True only while the polling effect wants a timer armed. Checked after
+  // every await: the wizard can be torn down (navigation, logout) while a
+  // request is in flight, and without this guard the response would re-arm a
+  // timer that no effect cleanup will ever clear — polling forever against
+  // the API from a destroyed component.
+  let pollActive = false;
+  const MAX_POLL_FAILURES = 5;
+  const POLL_INTERVAL_MS = 1000;
+  // After repeated failures, back off instead of hammering a struggling API —
+  // but keep polling: the import job is still running server-side.
+  const POLL_RETRY_DELAY_MS = 5000;
 
   $effect(() => {
     if (open) {
@@ -134,30 +149,81 @@
     progress = p;
     errorReport = p.error_report || "";
     if (p.status === "completed") onComplete();
-    if (pollTimer) clearInterval(pollTimer);
+    stopPolling();
     step = "summary";
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  // Always clears the previous timer first, so the effect re-run triggered by a
+  // successful `progress = p` write and the timer the poll callback schedules
+  // itself can never both stay armed (which would double the request rate).
+  function schedulePoll(jobId: number, delayMs: number) {
+    stopPolling();
+    pollTimer = setTimeout(() => void pollOnce(jobId), delayMs);
+  }
+
+  async function pollOnce(jobId: number) {
+    try {
+      const p = await getProgress(String(jobId));
+      // The wizard may have been torn down while this request was in flight;
+      // continuing would write to a dead instance and, worse, re-arm a timer
+      // no effect cleanup can reach. The job-id check drops a late response
+      // from a previous import that arrives after the wizard was reopened.
+      if (!pollActive || progress?.job_id !== jobId) return;
+      // A successful poll means the job's state is known again, so clear any
+      // earlier banner — a poll-failure streak or a cancel that failed —
+      // rather than letting a stale error reach the summary step.
+      pollFailures = 0;
+      error = "";
+      if (["completed", "failed", "cancelled"].includes(p.status)) {
+        onProgressDone(p);
+      } else {
+        progress = p;
+        schedulePoll(jobId, POLL_INTERVAL_MS);
+      }
+    } catch (err) {
+      if (!pollActive || progress?.job_id !== jobId) return;
+      // A transient failure must NOT stop the poll: the import job keeps
+      // running server-side, and dropping the timer here used to freeze the
+      // wizard on the progress step forever (that step has no footer buttons,
+      // so onComplete/the parent's refresh were unreachable).
+      pollFailures += 1;
+      if (pollFailures === MAX_POLL_FAILURES) {
+        // Status is unknown, so do not claim completion (the parent would show
+        // a success toast). Surface it in the banner shared by every step.
+        error = getApiErrorMessage(err, labels.failedToLoad);
+      }
+      schedulePoll(jobId, POLL_RETRY_DELAY_MS);
+    }
   }
 
   $effect(() => {
     if (
       step === "progress" &&
-      progress &&
+      progress !== null &&
       !["completed", "failed", "cancelled"].includes(progress.status)
     ) {
-      pollTimer = setInterval(async () => {
-        try {
-          const p = await getProgress(String(progress!.job_id));
-          progress = p;
-          if (["completed", "failed", "cancelled"].includes(p.status)) {
-            onProgressDone(p);
-          }
-        } catch {
-          if (pollTimer) clearInterval(pollTimer);
-        }
-      }, 1000);
+      pollActive = true;
+      // The effect only re-runs on a successful `progress` write or a step
+      // change, so this resets the failure streak exactly when polling works.
+      pollFailures = 0;
+      schedulePoll(progress.job_id, POLL_INTERVAL_MS);
+    } else {
+      stopPolling();
     }
     return () => {
-      if (pollTimer) clearInterval(pollTimer);
+      // Runs before every re-run — the body re-arms the flag when polling
+      // should continue — and once on destroy, where it is what makes an
+      // in-flight response a no-op instead of a leaked, self-perpetuating
+      // timer.
+      pollActive = false;
+      stopPolling();
     };
   });
 
@@ -165,13 +231,16 @@
     if (!progress) return;
     try {
       await cancelImport(String(progress.job_id));
-    } catch {
-      // ignore
+      onProgressDone({ ...progress, status: "cancelled" });
+    } catch (err) {
+      // Stay on the progress step so polling continues — the job was NOT
+      // cancelled — but tell the user instead of failing silently.
+      error = getApiErrorMessage(err, labels.errorOccurred);
     }
   }
 
   function handleClose() {
-    if (pollTimer) clearInterval(pollTimer);
+    stopPolling();
     open = false;
   }
 
@@ -198,6 +267,14 @@
   size="xl"
 >
   <div class="space-y-4 min-h-[200px]">
+    {#if error}
+      <!-- Rendered for every step: a progress-polling failure is shown while
+           polling continues, and any failure must survive a step change. -->
+      <div class="flex items-start gap-2 p-3 bg-danger-subtle/10 rounded-lg">
+        <AlertCircle size={16} class="text-danger shrink-0 mt-0.5" />
+        <p class="text-sm text-danger">{error}</p>
+      </div>
+    {/if}
     {#if step === "upload"}
       <div class="space-y-4">
         <DropZone bind:file accept=".csv,.xlsx" disabled={loading} />
@@ -220,15 +297,6 @@
             </span>
           {/if}
         </div>
-
-        {#if error}
-          <div
-            class="flex items-start gap-2 p-3 bg-danger-subtle/10 rounded-lg"
-          >
-            <AlertCircle size={16} class="text-danger shrink-0 mt-0.5" />
-            <p class="text-sm text-danger">{error}</p>
-          </div>
-        {/if}
       </div>
     {:else if step === "preview" && preview}
       <div class="space-y-3">

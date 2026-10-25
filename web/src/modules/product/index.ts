@@ -16,13 +16,7 @@ export {
   getProductOptions,
   getWarehouses,
 } from "./services/product-service";
-export {
-  statusInfo,
-  formatCurrency,
-  formatDate,
-  validateProductForm,
-  buildProductPayload,
-} from "./lib/product-utils";
+export { statusInfo, formatCurrency, formatDate } from "./lib/product-utils";
 export type {
   Product,
   ProductFormData,

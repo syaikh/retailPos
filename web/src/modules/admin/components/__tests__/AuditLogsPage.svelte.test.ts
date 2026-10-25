@@ -101,6 +101,31 @@ describe("AuditLogsPage.svelte source-structure guards", () => {
     expect(src).not.toContain("function buildExportUrl");
   });
 
+  it("re-points the captured prev-offset when the filter branch resets paging", () => {
+    // The bottom-of-effect sync writes `prevOff = so`. If the filter branch
+    // reset `offset` without re-pointing `so`, the sync would record the OLD
+    // offset, the effect's re-run would see `pageChanged` and fire a duplicate
+    // — immediately aborted — fetchLogs for the identical query (a wasted
+    // request plus a loading flicker on every filter change made while paged
+    // away from page 0).
+    expect(src).toContain("let so = offset;");
+    expect(src).toContain("const sl = limit;");
+    // The reset and the re-point must be in the SAME branch, back to back…
+    expect(src).toContain("offset = 0;\n      so = 0;");
+    // …so the bottom-of-effect sync records the reset offset, not the old one.
+    expect(src.indexOf("so = 0;")).toBeLessThan(src.indexOf("prevOff = so;"));
+    // The old const-capture form is gone.
+    expect(src).not.toContain("so = offset,\n");
+  });
+
+  it("resets prevOff in the debounce callback so a paged search fetches once", () => {
+    // debouncedSearchFetch runs outside the effect: it writes `offset = 0`,
+    // which re-runs the effect, and without a matching prevOff reset that
+    // re-run takes the `pageChanged` branch and fires a duplicate — aborted —
+    // fetchLogs for the identical query whenever a search starts from page > 0.
+    expect(src).toContain("prevOff = 0;\n    offset = 0;\n    fetchLogs();");
+  });
+
   it("imports i18n labels", () => {
     expect(src).toContain('import { labels } from "$shared/i18n"');
   });

@@ -3,6 +3,7 @@
   import { labels } from "$shared/i18n";
   import { Loader2 } from "lucide-svelte";
   import { recordCashMovement } from "../services/shift-service";
+  import { getApiErrorMessage } from "$shared/utils/error-utils";
   import type { CashMovement } from "../types";
 
   let {
@@ -63,8 +64,7 @@
       open = false;
       reset();
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
-      alert(err.response?.data?.error || labels.cashMovementFailed);
+      alert(getApiErrorMessage(e, labels.cashMovementFailed));
     } finally {
       isSubmitting = false;
     }

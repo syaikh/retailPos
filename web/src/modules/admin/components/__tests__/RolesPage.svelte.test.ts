@@ -97,4 +97,15 @@ describe("RolesPage.svelte source-structure guards", () => {
     expect(src).toContain("labels.togglePermissions");
     expect(src).toContain("labels.searchPermissions");
   });
+
+  it("surfaces save failures through the shared getApiErrorMessage", () => {
+    // `err.message` is Axios's transport jargon, never the backend's business
+    // error; the shared helper unwraps the string-or-object body.
+    expect(src).toContain(
+      'import { getApiErrorMessage } from "$shared/utils/error-utils"',
+    );
+    expect(src).toContain(
+      "toast.error(getApiErrorMessage(err, labels.errorOccurred));",
+    );
+  });
 });

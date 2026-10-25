@@ -100,8 +100,16 @@
 
     computePosition();
 
+    // One layout read + one reactive write per frame instead of one per scroll
+    // event (this is a window-level capture listener).
+    let positionRafId = 0;
+
     function reposition() {
-      computePosition();
+      if (positionRafId) return;
+      positionRafId = requestAnimationFrame(() => {
+        positionRafId = 0;
+        computePosition();
+      });
     }
     window.addEventListener("scroll", reposition, {
       passive: true,
@@ -125,6 +133,7 @@
     window.addEventListener("keydown", handleKeydown);
 
     return () => {
+      cancelAnimationFrame(positionRafId);
       window.removeEventListener("mousedown", handleClickOutside);
       window.removeEventListener("keydown", handleKeydown);
       window.removeEventListener("scroll", reposition, {

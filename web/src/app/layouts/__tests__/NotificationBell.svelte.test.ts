@@ -85,6 +85,24 @@ describe("NotificationBell.svelte source-structure guards", () => {
     expect(src).toContain('navigateTo: "/transactions?return_approvals=true"');
   });
 
+  it("subscribes to the notification stores inside an effect that cleans up", () => {
+    // The bell unmounts on every logout/login and on the forced-password-change
+    // branch, so a subscription created at component-init leaked one callback
+    // (plus the retained subtree) per auth cycle. The unsubscribe functions the
+    // effect returns must be invoked on teardown.
+    expect(src).toContain("$effect(() => {");
+    expect(src).toContain("const unsubItems = notifications.subscribe(");
+    expect(src).toContain(
+      "const unsubUnread = notifications.unreadCount.subscribe(",
+    );
+    expect(src).toContain("return () => {");
+    expect(src).toContain("unsubItems();");
+    expect(src).toContain("unsubUnread();");
+    // No bare top-level subscription left outside the effect.
+    expect(src).not.toContain("\n  notifications.subscribe(");
+    expect(src).not.toContain("\n  notifications.unreadCount.subscribe(");
+  });
+
   it("branches the resolution copy on the terminal status", () => {
     // completed → approved, cancelled → rejected, expired → expired.
     expect(src).toContain('data.status === "completed"');

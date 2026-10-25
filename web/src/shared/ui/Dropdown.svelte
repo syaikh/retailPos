@@ -99,8 +99,17 @@
 
     computePosition();
 
+    // Coalesce scroll/resize bursts into a single layout read + reactive write
+    // per frame: without this, every scroll event (this is a window-level
+    // capture listener) forced a getBoundingClientRect and a $state write.
+    let positionRafId = 0;
+
     function reposition() {
-      computePosition();
+      if (positionRafId) return;
+      positionRafId = requestAnimationFrame(() => {
+        positionRafId = 0;
+        computePosition();
+      });
     }
 
     window.addEventListener("scroll", reposition, {
@@ -145,6 +154,7 @@
 
     return () => {
       cancelAnimationFrame(rafId);
+      cancelAnimationFrame(positionRafId);
       window.removeEventListener("click", handleClickOutside);
       window.removeEventListener("keydown", handleKeydown);
       window.removeEventListener("scroll", reposition, {

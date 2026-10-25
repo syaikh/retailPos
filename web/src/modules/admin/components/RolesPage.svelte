@@ -7,6 +7,7 @@
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { Permissions } from "$shared/constants/permissions";
   import { labels } from "$shared/i18n";
+  import { getApiErrorMessage } from "$shared/utils/error-utils";
   import {
     groupPermissions,
     permissionGroupKey,
@@ -450,7 +451,7 @@
       closeAll();
       await fetchData();
     } catch (err) {
-      toast.error(err.message || labels.errorOccurred);
+      toast.error(getApiErrorMessage(err, labels.errorOccurred));
     } finally {
       saving = false;
     }

@@ -220,6 +220,13 @@
 
   const debouncedSearchFetch = debounce(() => {
     pageCursors = [];
+    // Reset prevOff together with offset. This callback runs outside the
+    // effect, so a stale (non-zero) prevOff would make the effect re-run
+    // caused by writing `offset` take the `pageChanged` branch and fire a
+    // duplicate — immediately aborted — fetchLogs for the same query. Same
+    // defect the filter branch below fixes, reached via the search path:
+    // searching while paged away from page 0 used to double-fetch.
+    prevOff = 0;
     offset = 0;
     fetchLogs();
   }, 400);
@@ -243,9 +250,11 @@
     const sq = searchQuery,
       sa = selectedAction,
       se = selectedResource,
-      sd = selectedDateRange,
-      so = offset,
-      sl = limit;
+      sd = selectedDateRange;
+    // `so` is re-pointed when the filter branch resets paging, so the
+    // prev-off sync at the bottom records the RESET offset.
+    let so = offset;
+    const sl = limit;
 
     const searchChanged = sq !== prevSearch;
     const filterChanged =
@@ -255,7 +264,14 @@
     if (searchChanged) debouncedSearchFetch();
     else if (filterChanged) {
       pageCursors = [];
+      // Reset paging with the filters AND re-point `so`: the sync at the
+      // bottom writes prevOff = so, and a stale (non-zero) prevOff would make
+      // the re-run caused by writing `offset` take the `pageChanged` branch
+      // and fire a duplicate — immediately aborted — fetchLogs for the same
+      // query, i.e. a wasted request plus a loading flicker on every filter
+      // change made while paged away from page 0.
       offset = 0;
+      so = 0;
       fetchLogs();
     } else if (pageChanged) fetchLogs();
 

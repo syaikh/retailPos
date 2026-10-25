@@ -6,6 +6,7 @@
   import { useRBAC } from "$shared/composables/useRBAC.svelte";
   import { Permissions } from "$shared/constants/permissions";
   import { debounce } from "$shared/utils/debounce";
+  import { getApiErrorMessage } from "$shared/utils/error-utils";
   import { useWebSocket } from "$shared/api/websocket";
 
   import {
@@ -376,9 +377,7 @@
       resetForm();
       await fetchProducts(offset, limit);
     } catch (err: unknown) {
-      const errorMsg =
-        (err instanceof Error ? err.message : null) ||
-        labels.toastFailedToAddProduct;
+      const errorMsg = getApiErrorMessage(err, labels.toastFailedToAddProduct);
       console.error("Add product error:", err, errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -412,9 +411,10 @@
       resetForm();
       await fetchProducts(offset, limit);
     } catch (err: unknown) {
-      const errorMsg =
-        (err instanceof Error ? err.message : null) ||
-        labels.toastFailedToUpdateProduct;
+      const errorMsg = getApiErrorMessage(
+        err,
+        labels.toastFailedToUpdateProduct,
+      );
       console.error("Update product error:", err, errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -436,10 +436,7 @@
       await fetchProducts(offset, limit);
     } catch (err: unknown) {
       console.error("Delete error:", err);
-      const errorMessage =
-        (err instanceof Error ? err.message : null) ||
-        labels.toastFailedToDeleteProduct;
-      toast.error(errorMessage);
+      toast.error(getApiErrorMessage(err, labels.toastFailedToDeleteProduct));
     } finally {
       isDeleting = false;
     }

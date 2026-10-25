@@ -142,8 +142,14 @@
   $effect(() => {
     if (!showModalCategoryDropdown) return;
     computeCategoryPosition();
+    // One layout read + one reactive write per frame, not one per scroll event.
+    let positionRafId = 0;
     function reposition() {
-      computeCategoryPosition();
+      if (positionRafId) return;
+      positionRafId = requestAnimationFrame(() => {
+        positionRafId = 0;
+        computeCategoryPosition();
+      });
     }
     window.addEventListener("scroll", reposition, {
       passive: true,
@@ -151,6 +157,7 @@
     });
     window.addEventListener("resize", reposition, { passive: true });
     return () => {
+      cancelAnimationFrame(positionRafId);
       window.removeEventListener("scroll", reposition, {
         capture: true,
       } as EventListenerOptions);
@@ -244,8 +251,14 @@
   $effect(() => {
     if (!showModalBrandDropdown) return;
     computeBrandPosition();
+    // One layout read + one reactive write per frame, not one per scroll event.
+    let positionRafId = 0;
     function reposition() {
-      computeBrandPosition();
+      if (positionRafId) return;
+      positionRafId = requestAnimationFrame(() => {
+        positionRafId = 0;
+        computeBrandPosition();
+      });
     }
     window.addEventListener("scroll", reposition, {
       passive: true,
@@ -253,6 +266,7 @@
     });
     window.addEventListener("resize", reposition, { passive: true });
     return () => {
+      cancelAnimationFrame(positionRafId);
       window.removeEventListener("scroll", reposition, {
         capture: true,
       } as EventListenerOptions);

@@ -17,6 +17,7 @@
   import {
     createCart,
     getOpenCart,
+    getCart,
     getHeldCarts,
     addCartItem,
     updateCartItemQuantity,
@@ -42,6 +43,7 @@
   import { useAuthStore } from "$shared/stores/auth.svelte";
   import { useShiftStore } from "$modules/shifts";
   import { labels, t } from "$shared/i18n";
+  import { getApiErrorMessage } from "$shared/utils/error-utils";
   import ProductSearchPanel from "./ProductSearchPanel.svelte";
   import PosProductTable from "./PosProductTable.svelte";
   import CartPanel from "./CartPanel.svelte";
@@ -384,9 +386,7 @@
       }
       applyCartSession(session);
     } catch (err: unknown) {
-      const errMsg =
-        err instanceof Error ? err.message : labels.toastFailedToAddItem;
-      toast.error(errMsg);
+      toast.error(getApiErrorMessage(err, labels.toastFailedToAddItem));
     } finally {
       cartLoading = false;
     }
@@ -399,9 +399,7 @@
       const session = await removeCartItem(activeCartId, id);
       applyCartSession(session);
     } catch (err: unknown) {
-      const errMsg =
-        err instanceof Error ? err.message : labels.toastFailedToRemoveItem;
-      toast.error(errMsg);
+      toast.error(getApiErrorMessage(err, labels.toastFailedToRemoveItem));
     } finally {
       cartLoading = false;
     }
@@ -428,11 +426,9 @@
         );
         applyCartSession(session);
       } catch (err: unknown) {
-        const errMsg =
-          err instanceof Error
-            ? err.message
-            : labels.toastFailedToUpdateQuantity;
-        toast.error(errMsg);
+        toast.error(
+          getApiErrorMessage(err, labels.toastFailedToUpdateQuantity),
+        );
       } finally {
         cartLoading = false;
       }
@@ -471,9 +467,7 @@
       activeCartId = null;
       await fetchProducts(false);
     } catch (err: unknown) {
-      const errMsg =
-        err instanceof Error ? err.message : labels.toastCheckoutFailed;
-      toast.error(errMsg);
+      toast.error(getApiErrorMessage(err, labels.toastCheckoutFailed));
       throw err;
     } finally {
       checkingOut = false;
@@ -481,19 +475,27 @@
   }
 
   async function clearCart() {
-    if (!activeCartId) return;
+    if (!activeCartId || cartItems.length === 0) return;
     const cartId = activeCartId;
     cartLoading = true;
     try {
-      let lastSession: CartSession | null = null;
-      for (const item of cartItems) {
-        lastSession = await removeCartItem(cartId, item.id);
+      // Delete every line in one parallel batch instead of awaiting each in
+      // turn: a 40-line cart on a slow link used to freeze the POS for
+      // seconds behind a single Alt+Delete. allSettled so one failing line
+      // does not abandon the rest of the clears.
+      const results = await Promise.allSettled(
+        cartItems.map((item) => removeCartItem(cartId, item.id)),
+      );
+      const failure = results.find((r) => r.status === "rejected");
+      // Read the resulting session once rather than trusting the last reply.
+      applyCartSession(await getCart(cartId));
+      if (failure && failure.status === "rejected") {
+        toast.error(
+          getApiErrorMessage(failure.reason, labels.toastFailedToClearCart),
+        );
       }
-      if (lastSession) applyCartSession(lastSession);
     } catch (err: unknown) {
-      const errMsg =
-        err instanceof Error ? err.message : labels.toastFailedToClearCart;
-      toast.error(errMsg);
+      toast.error(getApiErrorMessage(err, labels.toastFailedToClearCart));
     } finally {
       cartLoading = false;
     }
@@ -1021,7 +1023,16 @@
     if (activeCartId) {
       updateCartCustomer(activeCartId, id)
         .then(applyCartSession)
-        .catch(() => {});
+        .catch((err: unknown) => {
+          // The server cart still holds the previous customer, and checkout
+          // only sends the cart id — so keep the UI in sync with the server,
+          // otherwise the modal/receipt name one customer while the sale is
+          // recorded (and priced) under another.
+          selectedCustomerId = cartSession?.customer_id ?? null;
+          toast.error(
+            getApiErrorMessage(err, labels.toastFailedUpdateCustomer),
+          );
+        });
     }
     showCustomerModal = false;
   }}

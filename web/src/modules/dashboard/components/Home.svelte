@@ -16,6 +16,8 @@
   import { useWebSocket } from "$shared/api/websocket";
   import { labels } from "$shared/i18n";
   import { useAuthStore } from "$shared/stores/auth.svelte";
+  import { useRBAC } from "$shared/composables/useRBAC.svelte";
+  import { Permissions } from "$shared/constants/permissions";
   import { PendingSettlementsModal } from "$modules/consignment";
   import type { Component } from "svelte";
 
@@ -29,6 +31,11 @@
   const TagsComp = Tags as unknown as Component;
 
   const auth = useAuthStore();
+  // Card visibility uses the shared RBAC composable — the same source the
+  // route guard consults — instead of a second, local permission copy that had
+  // drifted from `routePermissions` (cards could render, then bounce with
+  // "no permission" on click).
+  const rbac = useRBAC();
 
   let todaysRevenue = $state(0);
   let todaysSales = $state(0);
@@ -42,17 +49,6 @@
   const revSubText = $derived(
     todaysRevenue > 0 ? labels.invoicedToday : labels.noSalesYetToday,
   );
-
-  function hasPermission(perm: string): boolean {
-    const user = auth.user;
-    if (!user) return false;
-    if (user.role === "superadmin") return true;
-    return user.permissions?.includes(perm) ?? false;
-  }
-
-  function hasAnyPermission(perms: string[]): boolean {
-    return perms.some((p) => hasPermission(p));
-  }
 
   async function fetchLiveStats() {
     try {
@@ -101,7 +97,7 @@
         iconBg: "bg-primary-subtle",
         iconColor: "text-primary-light",
         gradient: "from-primary/10 to-accent/5",
-        required: ["sale.create"],
+        required: [Permissions.sale.create],
       },
       {
         label: labels.inventory,
@@ -111,7 +107,7 @@
         iconBg: "bg-success-subtle",
         iconColor: "text-success-light",
         gradient: "from-success/10 to-emerald-600/5",
-        required: ["product.view"],
+        required: [Permissions.product.view],
       },
       {
         label: labels.reports,
@@ -121,7 +117,7 @@
         iconBg: "bg-info-subtle",
         iconColor: "text-info-light",
         gradient: "from-info/10 to-sky-600/5",
-        required: ["report.view"],
+        required: [Permissions.report.view],
       },
       {
         label: labels.administration,
@@ -131,13 +127,18 @@
         iconBg: "bg-warning-subtle",
         iconColor: "text-warning-light",
         gradient: "from-warning/10 to-amber-600/5",
-        required: ["user.view", "role.view", "store.view"],
+        // /admin requires user.view (routePermissions) — matching it here keeps
+        // the card from rendering for users who would be bounced on click.
+        required: [Permissions.user.view],
       },
-    ].filter((m) => hasAnyPermission(m.required)),
+    ].filter((m) => rbac.canAny(m.required)),
   );
 
   const financeQuickAccess = $derived(
-    hasPermission("consignment.pay")
+    // /consignment requires consignment.view — gate the card on that same
+    // code rather than consignment.pay, which could show the card to users the
+    // route then rejects.
+    rbac.can(Permissions.consignment.view)
       ? {
           label: "Pending Settlements",
           desc: "Settle supplier payments",

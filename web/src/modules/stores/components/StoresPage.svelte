@@ -98,15 +98,29 @@
     fetchStores(false);
   }
 
+  // Verdicts are reused across refetches (page change, filter, search) instead
+  // of re-requesting every row: `limit` can be 100, so a single page change
+  // used to fire up to 100 uncached readiness calls at once.
+  const READINESS_TTL_MS = 30_000;
+  const readinessFetchedAt = new Map();
+
   async function fetchReadiness(ids) {
+    const now = Date.now();
+    const stale = ids.filter((id) => {
+      const at = readinessFetchedAt.get(id);
+      return at === undefined || now - at > READINESS_TTL_MS;
+    });
+    if (stale.length === 0) return;
     await Promise.allSettled(
-      ids.map(async (id) => {
+      stale.map(async (id) => {
         try {
           const r = await getReadiness(id);
           readinessMap[id] = r ? r.ready : null;
+          readinessFetchedAt.set(id, Date.now());
         } catch {
           // Network failure: resolve the row to "unknown" instead of leaving
-          // the skeleton spinning forever.
+          // the skeleton spinning forever — and do NOT stamp it, so the next
+          // refetch retries instead of caching the miss.
           readinessMap[id] = null;
         }
       }),
@@ -191,6 +205,9 @@
         is_active: form.is_active,
       });
       if (ok) {
+        // Toggling is_active (or any attribute) can change the readiness
+        // verdict — drop this row's cached stamp so it is re-fetched.
+        readinessFetchedAt.delete(selectedStore.id);
         toast.success(labels.toastStoreUpdated);
         showModal = false;
         await fetchStores();

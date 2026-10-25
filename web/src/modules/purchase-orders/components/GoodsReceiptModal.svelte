@@ -73,6 +73,14 @@
     return items.reduce((sum: number, item) => sum + (item.qty_good || 0), 0);
   }
 
+  // A receipt may legitimately consist entirely of damaged units (the PO line
+  // still counts good+damaged as received), so the submit gate must track
+  // whether ANY quantity was entered, not whether any of them was good — which
+  // is exactly the filter `handleSubmit` uses to build `validItems`.
+  function hasEnteredQuantities() {
+    return items.some((item) => item.qty_good > 0 || item.qty_damaged > 0);
+  }
+
   async function handleSubmit() {
     saving = true;
     try {
@@ -244,7 +252,7 @@
         <Button
           variant="primary"
           onclick={handleSubmit}
-          disabled={saving || getTotalGood() === 0}
+          disabled={saving || !hasEnteredQuantities()}
         >
           {#if saving}
             <Loader2 size={16} class="animate-spin" />

@@ -248,6 +248,64 @@ describe("PosPage.svelte source-structure guards", () => {
     expect(src).toContain("err.message");
   });
 
+  it("routes cart mutation failures through the shared getApiErrorMessage", () => {
+    // Axious's own `err.message` is transport jargon ("Request failed with
+    // status code 400"); the backend's business error lives in the response
+    // body and only getApiErrorMessage unwraps the string-or-object shape.
+    expect(src).toContain(
+      'import { getApiErrorMessage } from "$shared/utils/error-utils"',
+    );
+    expect(src).toContain(
+      "toast.error(getApiErrorMessage(err, labels.toastFailedToAddItem))",
+    );
+    expect(src).toContain(
+      "toast.error(getApiErrorMessage(err, labels.toastFailedToRemoveItem))",
+    );
+    expect(src).toContain(
+      "getApiErrorMessage(err, labels.toastFailedToUpdateQuantity)",
+    );
+    expect(src).toContain(
+      "toast.error(getApiErrorMessage(err, labels.toastCheckoutFailed))",
+    );
+  });
+
+  it("clears the cart in one parallel batch instead of serial round trips", () => {
+    // A 30–50 line cart used to issue one awaited DELETE per line with the POS
+    // frozen behind cartLoading for the whole sequence.
+    expect(src).toContain(
+      "if (!activeCartId || cartItems.length === 0) return;",
+    );
+    expect(src).toContain("const results = await Promise.allSettled(");
+    expect(src).toContain(
+      "cartItems.map((item) => removeCartItem(cartId, item.id))",
+    );
+    // One failing line must not abandon the rest of the clears.
+    expect(src).toContain(
+      'const failure = results.find((r) => r.status === "rejected");',
+    );
+    expect(src).toContain(
+      "getApiErrorMessage(failure.reason, labels.toastFailedToClearCart)",
+    );
+    // The resulting session is re-read once instead of trusting the last reply.
+    expect(src).toContain("applyCartSession(await getCart(cartId));");
+    expect(src).toContain("getCart,");
+    expect(src).not.toContain("for (const item of cartItems) {");
+  });
+
+  it("reverts the local customer selection when the server rejects the change", () => {
+    // Checkout sends only the cart id, so a silently-failed customer change
+    // would record (and price) the sale under a customer the receipt never
+    // named.
+    expect(src).toContain(".catch((err: unknown) => {");
+    expect(src).toContain(
+      "selectedCustomerId = cartSession?.customer_id ?? null;",
+    );
+    expect(src).toContain(
+      "getApiErrorMessage(err, labels.toastFailedUpdateCustomer)",
+    );
+    expect(src).not.toContain(".catch(() => {});");
+  });
+
   it("re-throws error in processCheckout for upstream handling", () => {
     expect(src).toContain("throw err");
   });

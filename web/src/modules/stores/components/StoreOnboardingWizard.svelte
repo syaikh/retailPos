@@ -2,6 +2,7 @@
   import { Button, Input, Modal, Badge } from "$shared/ui";
   import { labels, t } from "$shared/i18n";
   import { toast } from "$shared/stores/toast.svelte";
+  import { getApiErrorMessage } from "$shared/utils/error-utils";
   import { goto } from "$app/router";
   import { untrack } from "svelte";
   import { getRoles, createUser } from "$modules/admin";
@@ -269,8 +270,7 @@
         row.created = true;
         row.error = "";
       } catch (err) {
-        row.error =
-          err instanceof Error ? err.message : labels.toastFailedSaveUser;
+        row.error = getApiErrorMessage(err, labels.toastFailedSaveUser);
         failed++;
       }
     }
@@ -310,8 +310,7 @@
       step = "stock";
     } catch (err) {
       loading = false;
-      errorMsg =
-        err instanceof Error ? err.message : labels.toastFailedSaveLocation;
+      errorMsg = getApiErrorMessage(err, labels.toastFailedSaveLocation);
     }
   }
 

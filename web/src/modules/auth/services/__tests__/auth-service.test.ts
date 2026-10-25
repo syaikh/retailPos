@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AxiosInstance } from "axios";
+import { isTabLeader, requestRefresh } from "$shared/utils/tab-coordination";
 
 const mockPost = vi.fn();
 vi.mock("axios", () => ({
@@ -19,8 +20,8 @@ vi.mock("axios", () => ({
 vi.mock("$shared/utils/tab-coordination", () => ({
   initTabCoordination: vi.fn(),
   destroyTabCoordination: vi.fn(),
-  isTabLeader: () => true,
-  requestRefresh: () => Promise.resolve(null),
+  isTabLeader: vi.fn(() => true),
+  requestRefresh: vi.fn(() => Promise.resolve(null)),
   onLeaderChange: () => () => {},
   onCrossTabLogout: () => () => {},
   broadcastLogout: vi.fn(),
@@ -134,6 +135,53 @@ describe("auth-service", () => {
       const result = await refreshAccessToken();
 
       expect(result).toBeNull();
+    });
+
+    // Cross-tab: in a follower tab the leader performs the actual /refresh, so
+    // the kernel must consume (and persist) the token the leader hands back.
+    // Before this, the follower returned the leader's token without writing it
+    // to its own per-tab sessionStorage, so every later request re-read the
+    // stale token and repeated a full 401 → cross-tab refresh → retry round.
+    it("persists the leader's token in a follower tab", async () => {
+      vi.mocked(isTabLeader).mockReturnValueOnce(false);
+      vi.mocked(requestRefresh).mockResolvedValueOnce("leader-token");
+
+      const { refreshAccessToken } = await import("../auth-service");
+      const result = await refreshAccessToken();
+
+      expect(result).toBe("leader-token");
+      expect(sessionStorage.getItem("access_token")).toBe("leader-token");
+      // The follower must not refresh on its own — that is the leader's job,
+      // and doing both would double the refresh traffic.
+      expect(mockPost).not.toHaveBeenCalled();
+    });
+
+    it("falls back to a direct refresh when the leader rejects", async () => {
+      vi.mocked(isTabLeader).mockReturnValueOnce(false);
+      vi.mocked(requestRefresh).mockRejectedValueOnce(new Error("gone"));
+      mockPost.mockResolvedValueOnce({ data: { access_token: "direct" } });
+
+      const { refreshAccessToken } = await import("../auth-service");
+      const result = await refreshAccessToken();
+
+      expect(result).toBe("direct");
+      expect(sessionStorage.getItem("access_token")).toBe("direct");
+      expect(mockPost).toHaveBeenCalledWith("/refresh");
+    });
+
+    it("refreshes directly when coordination returns null", async () => {
+      // Resolving null means "you are the leader, do it yourself" (or
+      // BroadcastChannel is unavailable) — it is not a failure.
+      vi.mocked(isTabLeader).mockReturnValueOnce(false);
+      vi.mocked(requestRefresh).mockResolvedValueOnce(null);
+      mockPost.mockResolvedValueOnce({ data: { access_token: "direct" } });
+
+      const { refreshAccessToken } = await import("../auth-service");
+      const result = await refreshAccessToken();
+
+      expect(result).toBe("direct");
+      expect(sessionStorage.getItem("access_token")).toBe("direct");
+      expect(mockPost).toHaveBeenCalledWith("/refresh");
     });
   });
 

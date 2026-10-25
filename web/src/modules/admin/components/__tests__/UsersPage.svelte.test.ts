@@ -72,4 +72,18 @@ describe("UsersPage.svelte source-structure guards", () => {
     expect(src).toContain("labels.networkError");
     expect(src).toContain("labels.actionDeleted");
   });
+
+  it("surfaces save failures through the shared getApiErrorMessage", () => {
+    // The duplicate inline unwrapping fed the canonical object body
+    // ({error:{code,message}}) straight to toast.error, rendering
+    // "[object Object]" on e.g. a duplicate-username conflict.
+    expect(src).toContain(
+      'import { getApiErrorMessage } from "$shared/utils/error-utils"',
+    );
+    expect(src).toContain(
+      "toast.error(getApiErrorMessage(error, labels.networkError));",
+    );
+    expect(src).not.toContain("error?.response?.data?.error");
+    expect(src).not.toContain("error?.message || labels");
+  });
 });
