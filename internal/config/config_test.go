@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -386,4 +387,60 @@ func TestLogStartupDiagnostics_NilReceiverIsSafe(t *testing.T) {
 	// receiver must not panic if that ever changes.
 	var c *Config
 	assert.NotPanics(t, func() { c.LogStartupDiagnostics() })
+}
+
+// TestLoad_TrustedProxies covers the wiring in Load, not just the parser:
+// main.go feeds cfg.TrustedProxies straight into router.SetTrustedProxies, so
+// an env var that never reaches Config would silently leave gin trusting every
+// peer (its own default), reopening the X-Forwarded-For spoofing hole.
+func TestLoad_TrustedProxies(t *testing.T) {
+	t.Run("defaults to loopback when unset", func(t *testing.T) {
+		resetConfigForTest()
+		_ = os.Setenv("JWT_SECRET", "test-secret")
+		_ = os.Unsetenv("TRUSTED_PROXIES")
+		defer func() { _ = os.Unsetenv("TRUSTED_PROXIES") }()
+
+		cfg := Load()
+		assert.Equal(t, []string{"127.0.0.1/32", "::1/32"}, cfg.TrustedProxies,
+			"the shipped default must trust only loopback, matching the bundled single-pod nginx")
+	})
+
+	t.Run("TRUSTED_PROXIES overrides the default", func(t *testing.T) {
+		resetConfigForTest()
+		_ = os.Setenv("JWT_SECRET", "test-secret")
+		_ = os.Setenv("TRUSTED_PROXIES", "10.20.30.40/32, 2001:db8::1/128")
+		defer func() { _ = os.Unsetenv("TRUSTED_PROXIES") }()
+
+		cfg := Load()
+		assert.Equal(t, []string{"10.20.30.40/32", "2001:db8::1/128"}, cfg.TrustedProxies,
+			"a split deployment must be able to point gin at the nginx machine")
+	})
+}
+
+func TestResolveTrustedProxies(t *testing.T) {
+	t.Run("unset falls back to loopback default", func(t *testing.T) {
+		got := resolveTrustedProxies("")
+		assert.Equal(t, []string{"127.0.0.1/32", "::1/32"}, got)
+	})
+	t.Run("whitespace-only falls back to loopback default", func(t *testing.T) {
+		got := resolveTrustedProxies("   ")
+		assert.Equal(t, []string{"127.0.0.1/32", "::1/32"}, got)
+	})
+	t.Run("comma-separated list is trimmed", func(t *testing.T) {
+		got := resolveTrustedProxies(" 10.0.0.0/8 ,192.168.1.5/32,")
+		assert.Equal(t, []string{"10.0.0.0/8", "192.168.1.5/32"}, got)
+	})
+	t.Run("separators-only input falls back to the default", func(t *testing.T) {
+		// A typo like ", ," must not boot as trust-none: gin accepts an empty
+		// list (unlike a malformed CIDR, which main.go rejects at boot), so
+		// behind the bundled nginx every request would collapse into one
+		// shared rate-limit bucket and audit IPs would become 127.0.0.1.
+		got := resolveTrustedProxies(", ,")
+		assert.Equal(t, []string{"127.0.0.1/32", "::1/32"}, got)
+	})
+	t.Run("gin accepts the default list", func(t *testing.T) {
+		// The default must be a valid CIDR list or the server exits at boot.
+		r := gin.New()
+		assert.NotPanics(t, func() { _ = r.SetTrustedProxies(resolveTrustedProxies("")) })
+	})
 }

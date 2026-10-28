@@ -25,10 +25,14 @@
     loading = true;
     const result = await login(username.trim(), password);
     loading = false;
-    if (result) {
+    if (result.ok) {
       const store = useAuthStore();
-      store.setUser(result.user);
-      goto(getDefaultRoute(result.user));
+      store.setUser(result.data.user);
+      goto(getDefaultRoute(result.data.user));
+    } else if (result.reason === "rate_limited") {
+      errorMsg = t("loginRateLimited", {
+        seconds: result.retryAfter ?? 60,
+      });
     } else {
       errorMsg = labels.invalidCredentials;
     }

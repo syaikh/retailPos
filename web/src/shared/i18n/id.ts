@@ -85,6 +85,8 @@ export const id = {
   enterPassword: "Masukkan password Anda",
   usernamePasswordRequired: "Username dan password wajib diisi",
   invalidCredentials: "Username atau password salah",
+  loginRateLimited:
+    "Terlalu banyak percobaan login. Coba lagi dalam {seconds} detik.",
   hidePassword: "Sembunyikan password",
   showPassword: "Tampilkan password",
   signingIn: "Masuk…",

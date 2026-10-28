@@ -7,7 +7,7 @@ import {
   getAuthHeaders,
   stopProactiveRefresh,
 } from "$shared/auth/refresh-kernel";
-import type { User } from "../types";
+import type { LoginResult, User } from "../types";
 import { applyTheme } from "$shared/utils/theme";
 import { labels, setLocale } from "$shared/i18n";
 import { onCrossTabLogout } from "$shared/utils/tab-coordination";
@@ -121,9 +121,7 @@ export async function restoreSession(): Promise<{
 export async function login(
   username: string,
   password: string,
-): Promise<
-  { access_token: string; refresh_token: string; user: User } | false
-> {
+): Promise<LoginResult> {
   try {
     const response = await authApi.post("/login", { username, password });
     const data = response.data;
@@ -142,10 +140,27 @@ export async function login(
       if (data.user.theme) applyTheme(data.user.theme);
       if (data.user.language) setLocale(data.user.language);
     }
-    return data;
-  } catch {
-    return false;
+    return { ok: true, data };
+  } catch (err) {
+    // 429 means the request never reached credential checks, so showing
+    // "invalid credentials" would send a cashier re-typing a correct password.
+    if (axios.isAxiosError(err) && err.response?.status === 429) {
+      return {
+        ok: false,
+        reason: "rate_limited",
+        retryAfter: parseRetryAfter(err.response.headers?.["retry-after"]),
+      };
+    }
+    return { ok: false, reason: "invalid" };
   }
+}
+
+// parseRetryAfter normalizes the Retry-After header (seconds as a string on
+// this backend) into a positive integer, falling back to 60 — the value the
+// login limiter sends — when absent or malformed.
+function parseRetryAfter(raw: unknown): number {
+  const n = typeof raw === "string" ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : 60;
 }
 
 // Completes a first-login (or any) password rotation. On success the backend

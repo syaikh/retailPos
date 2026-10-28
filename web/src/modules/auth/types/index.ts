@@ -11,5 +11,19 @@ export interface AuthState {
   loading: boolean;
 }
 
-export type LoginResult =
-  { access_token: string; refresh_token: string; user: User } | false;
+// login() resolves with a discriminated union so callers can tell a rate
+// limit (retryable, wait out Retry-After) apart from bad credentials (fix the
+// input) instead of collapsing both into a single failure value.
+export interface LoginSuccess {
+  ok: true;
+  data: { access_token: string; refresh_token: string; user: User };
+}
+
+export interface LoginFailure {
+  ok: false;
+  reason: "rate_limited" | "invalid";
+  /** Seconds from the Retry-After header when reason === "rate_limited". */
+  retryAfter?: number;
+}
+
+export type LoginResult = LoginSuccess | LoginFailure;

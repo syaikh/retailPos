@@ -2,8 +2,6 @@ package shared
 
 import (
 	"context"
-	"net"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -85,12 +83,14 @@ func GetStoreIDInt(c *gin.Context) int {
 	return *sid
 }
 
+// GetIPAddress returns the client IP as resolved by gin: X-Forwarded-For is
+// honored only when the TCP peer is a trusted proxy per router.SetTrustedProxies
+// (see cmd/server/main.go). This value keys login-failure counters and lands in
+// audit logs, so it must stay consistent with the rate limiter's view of the
+// client — using RemoteAddr directly would record the reverse proxy's address
+// for every user behind nginx.
 func GetIPAddress(c *gin.Context) string {
-	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
-	if err != nil {
-		return strings.TrimSpace(c.Request.RemoteAddr)
-	}
-	return host
+	return c.ClientIP()
 }
 
 func SetRequestID(ctx context.Context, id string) context.Context {

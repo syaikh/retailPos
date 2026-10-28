@@ -170,7 +170,8 @@ export const API_ENDPOINTS = {
 // Shared token cache - persisted to a file on disk so every Playwright worker
 // process reuses the same tokens. The entire suite therefore makes at most one
 // /api/login call per user (~4 total), which keeps us well under the per-IP
-// login rate limiter (5 req/min, burst 5) and removes cross-spec auth flakiness.
+// login flood guard (30 req/min, burst 20 shipped; .env.example loosens to
+// 60/60 for CI) and removes cross-spec auth flakiness.
 //
 // Hardening:
 //  - TOKEN_CACHE_VERSION is baked into the cache filename; bump it (or delete

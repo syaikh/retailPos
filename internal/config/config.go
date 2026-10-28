@@ -32,6 +32,15 @@ type Config struct {
 	// discrete DB_* variables. It is ignored when DATABASE_URL is set, since
 	// that DSN carries its own sslmode parameter.
 	DBSSLMode string
+	// TrustedProxies are the CIDRs of reverse proxies whose X-Forwarded-For
+	// header gin may trust when resolving the real client IP (TRUSTED_PROXIES,
+	// comma-separated). The shipped default covers loopback only, which matches
+	// the bundled single-pod deployment where nginx and the backend share a
+	// network namespace; a split deployment must add the nginx machine's
+	// address. Anything not listed here has its X-Forwarded-For ignored, so a
+	// client on the open internet cannot spoof its way past per-IP rate limits
+	// or failure counters.
+	TrustedProxies []string
 
 	// startupDiagnostics holds the warnings and notices raised while loading
 	// configuration, in order.
@@ -131,6 +140,42 @@ func sslModeList() string {
 	return strings.Join(modes, ", ")
 }
 
+// defaultTrustedProxies matches the bundled single-pod deployment, where nginx
+// and the backend share a network namespace and connect over loopback. A split
+// deployment (backend on its own machine) must override TRUSTED_PROXIES with
+// the nginx machine's address or every per-IP rate limit collapses back to a
+// single proxy-IP bucket.
+var defaultTrustedProxies = []string{"127.0.0.1/32", "::1/32"}
+
+// resolveTrustedProxies parses the comma-separated TRUSTED_PROXIES list into
+// individual CIDRs, falling back to the loopback default when unset. Entries
+// are only trimmed here; gin's SetTrustedProxies does the CIDR validation at
+// router construction and main.go exits on a malformed entry rather than
+// booting with a weaker (or, if entries were silently dropped, surprising)
+// trust boundary than the operator intended.
+//
+// A separators-only value (", ,") also falls back to the default: gin accepts
+// an empty list, so the typo would boot as trust-none — behind the bundled
+// nginx every request would then collapse into one rate-limit bucket and
+// audit logs would record 127.0.0.1 for everyone. Trust-none is not a distinct
+// deployment mode anyway: for any non-loopback peer the loopback default
+// already ignores X-Forwarded-For.
+func resolveTrustedProxies(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return append([]string(nil), defaultTrustedProxies...)
+	}
+	out := make([]string, 0, strings.Count(raw, ",")+1)
+	for _, entry := range strings.Split(raw, ",") {
+		if e := strings.TrimSpace(entry); e != "" {
+			out = append(out, e)
+		}
+	}
+	if len(out) == 0 {
+		return append([]string(nil), defaultTrustedProxies...)
+	}
+	return out
+}
+
 var defaultLocation *time.Location
 
 func init() {
@@ -227,6 +272,8 @@ func Load() *Config {
 			pending.diag(slog.LevelInfo, "database sslmode defaulted from environment", "sslmode", dbSSLMode, "env", env)
 		}
 
+		trustedProxies := resolveTrustedProxies(os.Getenv("TRUSTED_PROXIES"))
+
 		cachedConfig = &Config{
 			Env:                    env,
 			CORSOrigin:             corsOrigin,
@@ -239,6 +286,7 @@ func Load() *Config {
 			LogLevel:               logLevel,
 			Timezone:               defaultLocation,
 			DBSSLMode:              dbSSLMode,
+			TrustedProxies:         trustedProxies,
 			startupDiagnostics:     pending,
 		}
 	})

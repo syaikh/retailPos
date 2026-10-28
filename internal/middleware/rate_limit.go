@@ -1,12 +1,9 @@
 package middleware
 
 import (
-	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -115,27 +112,14 @@ func (l *IPRateLimiter) evictOldestLocked() {
 	}
 }
 
-// getClientIP extracts the real client IP from the TCP connection's RemoteAddr
-// instead of trusting X-Forwarded-For, which can be spoofed by clients to bypass
-// rate limiting. If X-Forwarded-For is present, a warning is logged because it
-// may indicate a misconfigured reverse proxy or a spoofing attempt.
-//
-// WARNING: This server does not validate trusted proxy IPs. If deployed behind
-// a reverse proxy, configure TrustedProxies on the Gin engine and replace this
-// with proxy-aware IP extraction. Do not use c.ClientIP() for rate limiting
-// with untrusted proxies.
+// getClientIP returns the real client IP as resolved by gin: X-Forwarded-For
+// is honored only when the TCP peer (RemoteAddr) is a trusted proxy per
+// router.SetTrustedProxies, so a client on the open internet cannot spoof the
+// address that rate limiting is keyed on. Callers must not substitute
+// c.Request.RemoteAddr here: behind the bundled nginx every request would then
+// collapse into a single proxy-IP bucket shared by the entire deployment.
 func getClientIP(c *gin.Context) string {
-	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
-		slog.Warn("X-Forwarded-For header detected for rate limiting; using RemoteAddr instead. "+
-			"If behind a trusted proxy, configure Gin TrustedProxies.", "xff", xff)
-	}
-
-	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
-	if err != nil {
-		// RemoteAddr may not have a port (e.g. Unix sockets); fall back as-is.
-		return strings.TrimSpace(c.Request.RemoteAddr)
-	}
-	return host
+	return c.ClientIP()
 }
 
 func RateLimitMiddleware() gin.HandlerFunc {
@@ -163,8 +147,15 @@ func RateLimitMiddleware() gin.HandlerFunc {
 }
 
 func LoginRateLimitMiddleware() gin.HandlerFunc {
-	burst := 5
-	rpm := 5
+	// Coarse flood guard sized for the largest plausible store NAT: all
+	// registers in one store share one public IP, so this must absorb a
+	// shift-start login burst without 429ing legitimate cashiers. Brute-force
+	// protection is not this layer's job — the per-username (5/15 min) and
+	// per-IP (10/15 min) failure counters in AuthService.Login do that, and
+	// they count failures only. Aligned with the nginx edge zone (30 r/m,
+	// burst 20) in deploy/nginx/default.conf.template.
+	burst := 20
+	rpm := 30
 	if v, err := strconv.Atoi(os.Getenv("LOGIN_RATE_LIMIT_RPM")); err == nil && v > 0 {
 		rpm = v
 	}
@@ -187,8 +178,13 @@ func LoginRateLimitMiddleware() gin.HandlerFunc {
 }
 
 func RefreshRateLimitMiddleware() gin.HandlerFunc {
-	burst := 10
-	rpm := 10
+	// Every register refreshes its 15-minute access token on that cadence, and
+	// after a backend restart they all refresh at once; the previous 10 rpm /
+	// burst 10 would 429 a store with more than a handful of devices behind
+	// one NAT. Refresh is a cheap JWT sign (no bcrypt), so the guard only needs
+	// to stop floods.
+	burst := 60
+	rpm := 60
 	if v, err := strconv.Atoi(os.Getenv("REFRESH_RATE_LIMIT_RPM")); err == nil && v > 0 {
 		rpm = v
 	}

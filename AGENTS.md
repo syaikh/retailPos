@@ -27,6 +27,10 @@ This project uses a **provider-free structural codebase index** (`indexing.mode:
 
 **Quick rules:** For known symbols, start with `implementation_lookup`. For exact text, use `grep`. For new features, add `semble.search`/`codebase_search` → `code_communities` before implementing. When a keyword search comes back thin, cross-check with `semble.search` (semantic) before falling back to `grep`. For similarity/duplicate checks, use `semble.find_related` (from a known `file:line`) or paste the snippet into `semble.search` — `find_similar` is unavailable here.
 
+### Library documentation (Context7 MCP)
+
+The `context7` remote MCP server (`https://mcp.context7.com/mcp`, 2 tools: `resolve-library-id`, `query-docs`) fetches *current* third-party library documentation on demand — no auth, ~1k tokens of context. Use it instead of guessing or `websearch` when unsure about API details of this stack's version-sensitive libraries: **Svelte 5 runes** (`$state`/`$effect`/`$derived`), **Tailwind CSS 4** (CSS-first config), **bits-ui v2**, **chart.js 4**, **Vitest 4**, **Playwright**, and Go libraries in `go.mod`. Pattern: `resolve-library-id("svelte", query)` → `query-docs(libraryId, query)`. Do not use it for *this* repo's own code — that is what the codebase index and `semble.*` are for.
+
 ### Incremental indexing
 
 - Prefer incremental indexing for small changes. Full re-index only when index is missing/corrupt, large portion changed, or major refactoring.
@@ -45,7 +49,8 @@ All configuration variables and their defaults live in `.env.example` (and the c
 
 - `DATABASE_URL`, when set, replaces all `DB_*` parameters (`cmd/server/main.go:89`) and carries its own `sslmode`, so `DB_SSLMODE` is ignored. `DB_HOST` is only required when it is unset.
 - **Required:** `JWT_SECRET` (256-bit, generate with `openssl rand -hex 32`) — the server panics at startup if missing. `JWT_SECRET_REFRESH` defaults to a derived value.
-- `.env.example` deliberately ships looser login/refresh rate limiters (`60/60`, `120/120`) so E2E runs do not hit 429 — do not read those as the shipped defaults (`5/5`, `10/10`), and do not copy them to a deployment.
+- `.env.example` deliberately ships looser login/refresh rate limiters (`60/60`, `120/120`) so E2E runs do not hit 429 — do not read those as the shipped defaults (`30/20`, `60/60`), and do not copy them to a deployment. Those are coarse flood guards only; brute-force protection lives in the per-username/per-IP failure counters in `AuthService.Login` (5 and 10 per 15 min).
+- `TRUSTED_PROXIES` (comma-separated CIDRs, default `127.0.0.1/32,::1/32`) is the only source of truth for which peers' `X-Forwarded-For` gin honors when resolving client IPs for rate limiting and audit logs (`router.SetTrustedProxies` in `cmd/server/main.go`; the server exits on an invalid CIDR). The bundled single-pod nginx shares loopback, so the default works unchanged; a split deployment must set it to the nginx machine's address or every per-IP limit collapses into one bucket.
 - `VITE_PRINT_AGENT_URL` is a build-time override naming **one** print agent for **every** register. **Leave unset for a multi-register shop** — each register must find the agent on its own PC (the frontend falls back to `http://localhost:9123`). Only set it for development (frontend and agent on different machines) or a kiosk with a server-hosted print agent. See `docs/guides/print-agent-production.md`.
 
 ## Timezone Handling

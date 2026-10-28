@@ -66,10 +66,10 @@ describe("auth-service", () => {
       const { login } = await import("../auth-service");
       const result = await login("admin", "password");
 
-      expect(result).not.toBe(false);
-      if (result) {
-        expect(result.access_token).toBe("new-token");
-        expect(result.user.username).toBe("admin");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.access_token).toBe("new-token");
+        expect(result.data.user.username).toBe("admin");
       }
       expect(sessionStorage.getItem("access_token")).toBe("new-token");
     });
@@ -87,19 +87,85 @@ describe("auth-service", () => {
       const { login } = await import("../auth-service");
       const result = await login("admin", "password");
 
-      expect(result).not.toBe(false);
-      if (result) {
-        expect(result.user.permissions).toEqual(["admin", "user"]);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.user.permissions).toEqual(["admin", "user"]);
       }
     });
 
-    it("returns false on API failure", async () => {
+    it("returns invalid on credential/network failure", async () => {
       mockPost.mockRejectedValueOnce(new Error("Network error"));
 
       const { login } = await import("../auth-service");
       const result = await login("wrong", "wrong");
 
-      expect(result).toBe(false);
+      expect(result).toEqual({ ok: false, reason: "invalid" });
+    });
+
+    it("returns rate_limited with Retry-After on 429", async () => {
+      const err = new Error("HTTP 429") as Error & {
+        isAxiosError: boolean;
+        response: { status: number; headers?: Record<string, unknown> };
+      };
+      err.isAxiosError = true;
+      err.response = { status: 429, headers: { "retry-after": "30" } };
+      mockPost.mockRejectedValueOnce(err);
+
+      const { login } = await import("../auth-service");
+      const result = await login("admin", "password");
+
+      expect(result).toEqual({
+        ok: false,
+        reason: "rate_limited",
+        retryAfter: 30,
+      });
+      // Nothing was stored: the 429 fired before any token came back.
+      expect(sessionStorage.getItem("access_token")).toBeNull();
+    });
+
+    it("defaults retryAfter to 60 when Retry-After is missing", async () => {
+      const err = new Error("HTTP 429") as Error & {
+        isAxiosError: boolean;
+        response: { status: number };
+      };
+      err.isAxiosError = true;
+      err.response = { status: 429 };
+      mockPost.mockRejectedValueOnce(err);
+
+      const { login } = await import("../auth-service");
+      const result = await login("admin", "password");
+
+      expect(result).toEqual({
+        ok: false,
+        reason: "rate_limited",
+        retryAfter: 60,
+      });
+    });
+
+    it("defaults retryAfter to 60 when Retry-After is malformed or non-positive", async () => {
+      const make429 = (retryAfter: unknown) => {
+        const err = new Error("HTTP 429") as Error & {
+          isAxiosError: boolean;
+          response: { status: number; headers?: Record<string, unknown> };
+        };
+        err.isAxiosError = true;
+        err.response = { status: 429, headers: { "retry-after": retryAfter } };
+        return err;
+      };
+
+      const { login } = await import("../auth-service");
+
+      // Unparseable → NaN, "0"/negative → not a usable wait, non-string →
+      // the header axios sometimes hands back as a number. All must show the
+      // limiter's own 60s instead of a blank or "NaN seconds" message.
+      for (const raw of ["soon", "0", "-5", 30]) {
+        mockPost.mockRejectedValueOnce(make429(raw));
+        expect(await login("admin", "password")).toEqual({
+          ok: false,
+          reason: "rate_limited",
+          retryAfter: 60,
+        });
+      }
     });
   });
 

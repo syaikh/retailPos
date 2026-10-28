@@ -391,10 +391,10 @@ type authMessage struct {
 }
 
 func ServeWebSocket(hub *Hub, c *gin.Context) {
-	clientIP := c.Request.RemoteAddr
-	if host, _, err := net.SplitHostPort(c.Request.RemoteAddr); err == nil {
-		clientIP = host
-	}
+	// shared.GetIPAddress resolves via gin's trusted-proxy rules, so behind
+	// nginx the limiter keys on the register's real IP instead of collapsing
+	// every dashboard into one loopback bucket (see cmd/server/main.go).
+	clientIP := shared.GetIPAddress(c)
 
 	if !hub.rateLimiter.getLimiter(clientIP).Allow() {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many connection attempts"})

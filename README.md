@@ -67,7 +67,7 @@ Retail POS System is a modern Point of Sale (POS) application for retail stores 
 - JWT authentication with refresh token (HTTP-only cookie, separate refresh secret)
 - CSRF protection on state-changing endpoints (validate, logout, change-password)
 - Rate limiting with per-entry TTL (separate for login, refresh, and general API)
-- IP spoofing protection (uses `RemoteAddr` not `X-Forwarded-For`)
+- Spoof-proof client IP resolution (`X-Forwarded-For` honored only from `TRUSTED_PROXIES` peers, loopback by default)
 - Product search via tsvector (avoids ILIKE full table scan)
 - Inventory adjustments use `SELECT ... FOR UPDATE` for concurrency safety
 - Security headers middleware (CSP, X-Frame-Options, etc.), body limit, gzip
@@ -673,14 +673,15 @@ Backend stores data in UTC, but **all queries use the Asia/Jakarta timezone**. T
 | `DATABASE_PORT` | `5433` | Development database port (postgres-dev container) |
 | `COOKIE_DOMAIN` | (empty) | Refresh token cookie domain |
 | `COOKIE_SECURE` | `false` | Set to `true` for HTTPS |
-| `LOGIN_RATE_LIMIT_RPM` | `5` | Login rate limit (per minute) |
-| `LOGIN_RATE_LIMIT_BURST` | `5` | Login burst |
+| `LOGIN_RATE_LIMIT_RPM` | `30` | Login flood guard (per minute, per IP) |
+| `LOGIN_RATE_LIMIT_BURST` | `20` | Login burst |
 | `RATE_LIMIT_RPS` | `50` | General API rate limit (per second) |
 | `RATE_LIMIT_BURST` | `100` | General API burst |
-| `REFRESH_RATE_LIMIT_RPM` | `10` | Refresh rate limit (per minute) |
-| `REFRESH_RATE_LIMIT_BURST` | `10` | Refresh burst |
+| `REFRESH_RATE_LIMIT_RPM` | `60` | Refresh rate limit (per minute) |
+| `REFRESH_RATE_LIMIT_BURST` | `60` | Refresh burst |
 | `WS_RATE_LIMIT_RPM` | `20` | WebSocket upgrade rate limit (per minute) |
 | `WS_RATE_LIMIT_BURST` | `5` | WebSocket burst |
+| `TRUSTED_PROXIES` | `127.0.0.1/32,::1/32` | Comma-separated CIDRs of reverse proxies whose `X-Forwarded-For` is trusted |
 | `STOCK_WARNING_THRESHOLD` | `10` | Stock below this = "needs attention" |
 | `STOCK_CRITICAL_THRESHOLD` | `5` | Stock below this = "low stock" |
 | `CART_HOLD_TTL_HOURS` | `24` | How many hours a cart session is held before considered expired |

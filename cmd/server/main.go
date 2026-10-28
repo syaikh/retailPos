@@ -156,6 +156,18 @@ func main() {
 	defer deps.Hub.Shutdown()
 
 	router := gin.New()
+	// Trust X-Forwarded-For only from the configured proxies (loopback by
+	// default, matching the bundled single-pod nginx). Without this, gin's
+	// default trusts the header from anyone, letting a client spoof the IP
+	// that per-IP rate limits and login-failure counters are keyed on.
+	if err := router.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		// Fatal: booting with an unvalidated trust boundary would either
+		// allow X-Forwarded-For spoofing or silently collapse every per-IP
+		// limit into one bucket.
+		slog.Error("invalid TRUSTED_PROXIES entry; fix the CIDR list and restart",
+			"trusted_proxies", cfg.TrustedProxies, "error", err)
+		os.Exit(1)
+	}
 	router.Use(middleware.RequestLoggingMiddleware())
 	router.Use(gin.Recovery())
 	router.Use(cors.New(cors.Config{

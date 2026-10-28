@@ -56,9 +56,12 @@ func TestGetClientIP(t *testing.T) {
 			want:       "10.0.0.1",
 		},
 		{
-			name:       "unix socket fallback",
+			// gin's ClientIP() parses RemoteAddr via SplitHostPort; a value
+			// without a port yields the empty string (the server only ever
+			// listens on TCP, so this is a defensive assertion).
+			name:       "value without port returns empty",
 			remoteAddr: "/var/run/socket",
-			want:       "/var/run/socket",
+			want:       "",
 		},
 	}
 

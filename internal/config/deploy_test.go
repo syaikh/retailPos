@@ -96,8 +96,9 @@ var requiredSecrets = []string{
 	"DB_PASSWORD",
 }
 
-// optionalWithDefaults are the rate-limit knobs. Every one has a default in
-// internal/middleware/rate_limit.go, so no manifest needs to set them.
+// optionalWithDefaults are the rate-limit knobs and the trusted-proxy list.
+// Every one has a code default (rate_limit.go / config.go), so no manifest
+// needs to set them.
 var optionalWithDefaults = []string{
 	"RATE_LIMIT_RPS",
 	"RATE_LIMIT_BURST",
@@ -107,6 +108,7 @@ var optionalWithDefaults = []string{
 	"REFRESH_RATE_LIMIT_BURST",
 	"WS_RATE_LIMIT_RPM",
 	"WS_RATE_LIMIT_BURST",
+	"TRUSTED_PROXIES",
 }
 
 // deliberatelyUnset lists variables that must stay unassigned unless someone

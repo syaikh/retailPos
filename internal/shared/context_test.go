@@ -146,9 +146,12 @@ func TestGetIPAddress_NoPort(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	c.Request.RemoteAddr = "10.0.0.1"
 
+	// gin's ClientIP() requires host:port in RemoteAddr; without a port the
+	// IP is unparseable and the result is empty. The net/http server always
+	// sets host:port, so this only documents the fallback.
 	got := GetIPAddress(c)
-	if got != "10.0.0.1" {
-		t.Errorf("expected 10.0.0.1, got %s", got)
+	if got != "" {
+		t.Errorf("expected empty string for port-less RemoteAddr, got %s", got)
 	}
 }
 
@@ -198,10 +201,31 @@ func TestGetIPAddress_FromRealIP(t *testing.T) {
 	}
 }
 
-func TestGetIPAddress_XForwardedFor(t *testing.T) {
+func TestGetIPAddress_TrustedProxyHonorsXForwardedFor(t *testing.T) {
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
+	c, r := gin.CreateTestContext(w)
+	if err := r.SetTrustedProxies([]string{"127.0.0.1/32"}); err != nil {
+		t.Fatalf("SetTrustedProxies: %v", err)
+	}
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	// Peer is the reverse proxy on loopback; the header carries the real client.
+	c.Request.RemoteAddr = "127.0.0.1:12345"
+	c.Request.Header.Set("X-Forwarded-For", "10.0.0.1")
+
+	got := GetIPAddress(c)
+	if got != "10.0.0.1" {
+		t.Errorf("expected 10.0.0.1 from X-Forwarded-For via trusted proxy, got %s", got)
+	}
+}
+
+func TestGetIPAddress_UntrustedPeerIgnoresXForwardedFor(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, r := gin.CreateTestContext(w)
+	if err := r.SetTrustedProxies([]string{"127.0.0.1/32"}); err != nil {
+		t.Fatalf("SetTrustedProxies: %v", err)
+	}
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	// Direct exposure: an arbitrary peer cannot spoof past per-IP counters.
 	c.Request.RemoteAddr = "192.168.1.1:12345"
 	c.Request.Header.Set("X-Forwarded-For", "10.0.0.1")
 

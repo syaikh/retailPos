@@ -58,6 +58,11 @@ describe("LoginPage.svelte source-structure guards", () => {
     expect(src).toContain("errorMsg = labels.invalidCredentials");
   });
 
+  it("distinguishes rate limiting from bad credentials", () => {
+    expect(src).toContain('result.reason === "rate_limited"');
+    expect(src).toContain('t("loginRateLimited"');
+  });
+
   it("has password visibility toggle", () => {
     expect(src).toContain('showPassword ? "text" : "password"');
     expect(src).toContain("aria-label={showPassword");
@@ -84,6 +89,6 @@ describe("LoginPage.svelte source-structure guards", () => {
   });
 
   it("navigates to default route on successful login", () => {
-    expect(src).toContain("goto(getDefaultRoute(result.user))");
+    expect(src).toContain("goto(getDefaultRoute(result.data.user))");
   });
 });

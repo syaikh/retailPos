@@ -86,6 +86,7 @@ export const en: Labels = {
   enterPassword: "Enter your password",
   usernamePasswordRequired: "Username and password are required",
   invalidCredentials: "Invalid username or password",
+  loginRateLimited: "Too many login attempts. Try again in {seconds} seconds.",
   hidePassword: "Hide password",
   showPassword: "Show password",
   signingIn: "Signing in…",
